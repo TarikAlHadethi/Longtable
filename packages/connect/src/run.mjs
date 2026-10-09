@@ -39,7 +39,8 @@ const KINDS = {
       "Reply to the client's latest message in your private chat with them.",
       "If they ask about something already in their requests or in what the team told them, answer it from that in one to three short sentences, and set pass_on to false.",
       "If they ask for anything new, change what they want, or you are not sure you can answer fully from what is below, set pass_on to true,",
-      "give it a short title in their words (under 60 characters), and tell them you passed it on and that they will hear here what the team decides.",
+      "give it a short title (under 60 characters) that names what this latest message asks for, in their words, never an earlier request's title,",
+      "and tell them you passed it on and that they will hear here what the team decides.",
       "Never promise what the team will decide, never guess dates, and never make up anything that is not below. When pass_on is false, leave title empty.",
     ].join(" "),
     schema: {

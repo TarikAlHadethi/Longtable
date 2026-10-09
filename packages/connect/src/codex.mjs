@@ -97,8 +97,11 @@ export function askCodex({ codex, prompt, schema, model, timeoutMs = 3 * 60 * 10
         return reject(new Error("Codex did not answer. See the runner log."));
       }
       const usage = events.filter((e) => e.type === "turn.completed").map((e) => e.usage).filter(Boolean).at(-1) || {};
-      const tools = events.filter((e) => e.type === "item.started" || e.type === "item.completed")
-        .map((e) => e.item?.type).filter((t) => t && t !== "agent_message" && t !== "reasoning");
+      const items = events.filter((e) => e.type === "item.started" || e.type === "item.completed").map((e) => e.item || {});
+      // Codex's own notices arrive as error items (switching its code-mode host off makes it say code mode "will
+      // fail closed"); they are logged, not counted. Anything else that is not its message or reasoning is a tool.
+      for (const i of items) if (i.type === "error") log(`codex notice: ${String(i.message || "").slice(0, 200)}`);
+      const tools = items.map((i) => i.type).filter((t) => t && !["agent_message", "reasoning", "error"].includes(t));
       resolve({ structured_output: structured, usage, tools, wall_ms: Date.now() - started });
     });
     child.stdin.end(prompt);

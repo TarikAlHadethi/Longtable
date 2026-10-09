@@ -130,6 +130,10 @@ try {
   const all = await textOf(elena.page);
   results.plantedReply = (await chatText(elena.page)).slice(-500);
   check("the team's own words never reach her", !all.includes("SMS vendor") && !all.includes("contract is not signed"), results.plantedReply);
+  const titles = (await rest(elenaToken, `requests?select=title,body&table_id=eq.${tableId}`)).body;
+  results.titles = titles.map((r) => r.title);
+  const plantedTitle = titles.find((r) => r.body === planted)?.title;
+  check("a title never borrows another request's", !plantedTitle || !/reminder/i.test(plantedTitle), JSON.stringify(results.titles));
 
   // Walls: the team never reads her chat with her AI or its jobs; she still reads nothing of the team side; and
   // her AI is never chosen to answer the team, so it never sees the code.
