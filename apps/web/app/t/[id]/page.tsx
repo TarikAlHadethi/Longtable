@@ -3,8 +3,9 @@ import { serverClient } from "@/lib/supabase/server";
 import { ClientPage } from "./client-page";
 import { Room } from "./room";
 import {
-  CONNECTION_COLUMNS, DECISION_COLUMNS, EVENT_COLUMNS, JOB_COLUMNS, MESSAGE_COLUMNS, NOTE_COLUMNS, REQUEST_COLUMNS, UPDATE_COLUMNS,
-  type Chat, type ClientUpdate, type Connection, type Decision, type Job, type Member, type Message, type Note, type Request, type RequestEvent,
+  CONNECTION_COLUMNS, DECISION_COLUMNS, EVENT_COLUMNS, JOB_COLUMNS, LINE_COLUMNS, MESSAGE_COLUMNS, NOTE_COLUMNS, REQUEST_COLUMNS, UPDATE_COLUMNS,
+  type Chat, type ClientLine, type ClientUpdate, type Connection, type Decision, type Job, type Member, type Message, type Note, type Request,
+  type RequestEvent,
 } from "./types";
 
 type MemberRow = Member & { user_id: string };
@@ -33,10 +34,13 @@ export default async function TablePage({ params, searchParams }: {
 
   // The client gets their own page: what they asked for and what they were told, never the team side.
   if (mine.role === "client") {
-    const [{ data: requests }, { data: events }, { data: updates }] = await Promise.all([
+    const [{ data: requests }, { data: events }, { data: updates }, { data: lines }, { data: connections }, { data: jobs }] = await Promise.all([
       supabase.from("requests").select(REQUEST_COLUMNS).eq("table_id", id).eq("member_id", mine.id),
       supabase.from("request_events").select(EVENT_COLUMNS).eq("table_id", id),
       supabase.from("client_updates").select(UPDATE_COLUMNS).eq("table_id", id).order("created_at"),
+      supabase.from("client_lines").select(LINE_COLUMNS).eq("table_id", id).eq("member_id", mine.id).order("created_at").limit(200),
+      supabase.from("connections").select(CONNECTION_COLUMNS).eq("table_id", id).eq("member_id", mine.id).is("revoked_at", null),
+      supabase.from("jobs").select(JOB_COLUMNS).eq("table_id", id).eq("member_id", mine.id).in("status", ["queued", "running"]),
     ]);
     return (
       <ClientPage
@@ -45,6 +49,9 @@ export default async function TablePage({ params, searchParams }: {
         initialRequests={(requests ?? []) as Request[]}
         initialEvents={(events ?? []) as RequestEvent[]}
         initialUpdates={(updates ?? []) as ClientUpdate[]}
+        initialLines={(lines ?? []) as ClientLine[]}
+        initialConnections={(connections ?? []) as Connection[]}
+        initialJobs={(jobs ?? []) as Job[]}
       />
     );
   }

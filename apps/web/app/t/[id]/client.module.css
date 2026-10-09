@@ -49,6 +49,9 @@
 .chatPanel { background: var(--card); border: 1px solid oklch(0.91 0.008 100); border-radius: 14px; display: flex; flex-direction: column; overflow: hidden; }
 .chatHead { padding: 14px 18px; border-bottom: 1px solid oklch(0.93 0.006 100); display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; }
 .chatMark { width: 12px; height: 12px; border-radius: 4px; border: 2px solid oklch(0.62 0.09 120); }
+.headLink { margin-left: auto; border: 0; background: transparent; padding: 0; font: inherit; font-size: 13px; font-weight: 600; color: var(--link); cursor: pointer; }
+.headLink:hover { color: oklch(0.35 0.07 170); }
+.typing { color: oklch(0.5 0.01 70); font-size: 14px; }
 .chat { padding: 18px; display: flex; flex-direction: column; gap: 12px; height: 440px; overflow: auto; }
 .lineTeam, .lineMe { display: flex; flex-direction: column; gap: 8px; }
 .lineTeam { align-items: flex-start; }

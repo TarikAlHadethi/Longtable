@@ -14,6 +14,7 @@
     "db:reset": "supabase db reset",
     "probe:sign-in": "node probes/sign-in.mjs",
     "probe:headless": "node probes/headless.mjs",
+    "test:client-ai": "node --experimental-websocket tests/e2e/step5-ai.mjs",
     "test:e2e": "node tests/e2e/step1.mjs && node tests/e2e/step2.mjs && node tests/e2e/step3.mjs && node tests/e2e/step4.mjs && node --experimental-websocket tests/e2e/step5.mjs"
   },
   "devDependencies": {

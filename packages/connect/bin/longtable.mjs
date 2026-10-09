@@ -1,19 +1,21 @@
 #!/usr/bin/env node
-// longtable: brings your own Claude Code to your team's Longtable, quietly, on your own plan.
+// longtable: brings your own Claude Code or Codex to your team's Longtable, quietly, on your own plan.
 //
-//   longtable connect <code> [--app <url>] [--repo <folder or git address>] [--model <name>] [--no-autostart] [--no-run]
+//   longtable connect <code> [--ai claude|codex] [--app <url>] [--repo <folder or git address>] [--model <name>]
+//                     [--no-autostart] [--no-run]
 //   longtable run
 //   longtable status
 //   longtable disconnect
 //
-// Nobody types these: Longtable's Connect button hands them to the person's own Claude, which runs them after the
-// person presses Send.
+// Nobody types these: Longtable's Connect button hands them to the person's own Claude or Codex, which runs them
+// after the person presses Send. A client's AI gets no copy of the code.
 
 import { spawn } from "node:child_process";
 import { hostname } from "node:os";
 import { fileURLToPath } from "node:url";
 import { client, fetchConfig } from "../src/api.mjs";
 import { claudeVersion, findClaude, tokenWorks } from "../src/claude.mjs";
+import { codexSignIn, codexSignedIn, codexVersion, findCodex } from "../src/codex.mjs";
 import { disableAutostart, enableAutostart } from "../src/autostart.mjs";
 import { freshCopy, resolveSource } from "../src/repo.mjs";
 import { runLoop } from "../src/run.mjs";
@@ -30,23 +32,32 @@ const has = (name) => args.includes(`--${name}`);
 const say = (line) => process.stdout.write(`${line}\n`);
 
 async function connect() {
-  const code = args.find((a, i) => !a.startsWith("--") && !(i > 0 && args[i - 1].startsWith("--") && ["app", "repo", "model"].includes(args[i - 1].slice(2))));
-  if (!code) throw new Error("Missing the connect code. Press Connect my Claude in Longtable again.");
+  const code = args.find((a, i) => !a.startsWith("--") && !(i > 0 && args[i - 1].startsWith("--") && ["app", "repo", "model", "ai"].includes(args[i - 1].slice(2))));
+  if (!code) throw new Error("Missing the connect code. Press Connect in Longtable again.");
   const app = option("app") || "https://longtable.chat";
-  const claude = findClaude();
-  if (!claude) throw new Error("Claude Code isn't installed on this computer. Install it from claude.com/claude-code, then press Connect again.");
+  const ai = option("ai") || "claude";
+  if (!["claude", "codex"].includes(ai)) throw new Error("--ai is claude or codex.");
+  // Check the AI is here before the one-use code is spent.
+  const claude = ai === "claude" ? findClaude() : null;
+  const codex = ai === "codex" ? findCodex() : null;
+  if (ai === "claude" && !claude) throw new Error("Claude Code isn't installed on this computer. Install it from claude.com/claude-code, then press Connect again.");
+  if (ai === "codex" && !codex) throw new Error("Codex's command-line tool isn't installed on this computer. Install it with npm install -g @openai/codex, then press Connect again.");
 
   const cfg = await fetchConfig(app);
   const rpc = client(cfg);
   const paired = await rpc("pair_connection", { code, device_label: hostname() });
+  if (paired.kind !== ai) throw new Error(`That connect code is for ${paired.kind === "codex" ? "Codex" : "Claude"}. Press Connect again.`);
   saveSecret(`device-${paired.table_id}-${paired.kind}`, paired.token);
 
+  // A client's AI never gets the code. A team member's reads a clean copy of the project.
   let source = null;
   const repo = option("repo");
-  try {
-    source = resolveSource(repo || process.cwd());
-  } catch (e) {
-    if (repo) throw e;
+  if (paired.role !== "client") {
+    try {
+      source = resolveSource(repo || process.cwd());
+    } catch (e) {
+      if (repo) throw e;
+    }
   }
 
   const config = readConfig();
@@ -59,6 +70,7 @@ async function connect() {
     kind: paired.kind,
     table_name: paired.table_name,
     member_name: paired.member_name,
+    role: paired.role,
     source,
     model: option("model") || null,
   });
@@ -66,18 +78,24 @@ async function connect() {
 
   if (source) freshCopy(paired.table_id, source);
 
-  const token = loadSecret("claude-token");
-  if (!token || !tokenWorks(claude, token)) {
-    say("A page is opening in your browser so this connection can have its own Claude sign-in. Approve it there.");
-    if (!(await signIn(claude))) throw new Error("The Claude sign-in didn't finish. Press Connect my Claude again.");
+  if (ai === "claude") {
+    const token = loadSecret("claude-token");
+    if (!token || !tokenWorks(claude, token)) {
+      say("A page is opening in your browser so this connection can have its own Claude sign-in. Approve it there.");
+      if (!(await signIn(claude))) throw new Error("The Claude sign-in didn't finish. Press Connect my Claude again.");
+    }
+  } else if (!codexSignedIn(codex)) {
+    say("A page is opening in your browser so this connection can have its own ChatGPT sign-in for Codex. Approve it there.");
+    if (!(await codexSignIn(codex))) throw new Error("The ChatGPT sign-in didn't finish. Press Connect again.");
   }
 
   if (!has("no-autostart")) enableAutostart(process.execPath, binPath);
   if (!has("no-run")) {
     spawn(process.execPath, [binPath, "run"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
   }
-  log(`connected to "${paired.table_name}" for ${paired.member_name} (${claudeVersion(claude)})`);
-  say(`Connected. ${paired.member_name}'s Claude is now at "${paired.table_name}". It answers in the background whenever this computer is on.`);
+  const word = ai === "codex" ? "Codex" : "Claude";
+  log(`connected to "${paired.table_name}" for ${paired.member_name} (${ai === "codex" ? codexVersion(codex) : claudeVersion(claude)})`);
+  say(`Connected. ${paired.member_name}'s ${word} is now at "${paired.table_name}". It answers in the background whenever this computer is on.`);
 }
 
 async function status() {

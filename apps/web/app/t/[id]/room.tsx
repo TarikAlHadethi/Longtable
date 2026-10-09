@@ -96,6 +96,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const clientName = clients.length > 1 ? "every client" : client?.display_name ?? "the client";
   const chat = chatById.get(chatId) ?? chats[0];
   const liveClaude = new Set(connections.filter((c) => !c.revoked_at && c.kind === "claude").map((c) => c.member_id));
+  const liveAI = new Set(connections.filter((c) => !c.revoked_at).map((c) => c.member_id));
   const myConnection = connections.find((c) => !c.revoked_at && c.kind === "claude" && c.member_id === me.id);
   const working = jobs.filter((j) => j.chat_id === chat?.id && ["queued", "running", "waiting", "failed"].includes(j.status))
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
@@ -444,7 +445,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                   <div className={styles.personName}>{m.display_name}{m.id === me.id ? " (you)" : ""}</div>
                   <div className={styles.personMeta}>
                     <span className={`${styles.dot} ${online.has(m.id) ? styles.dotOn : styles.dotOff}`} />
-                    {online.has(m.id) ? "Here" : "Away"} · {ROLE_WORD[m.role]}{liveClaude.has(m.id) ? " · Claude on" : ""}
+                    {online.has(m.id) ? "Here" : "Away"} · {ROLE_WORD[m.role]}
+                    {m.role === "client" ? (liveAI.has(m.id) ? " · Assistant on" : "") : liveClaude.has(m.id) ? " · Claude on" : ""}
                   </div>
                 </div>
               </div>

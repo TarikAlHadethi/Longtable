@@ -30,9 +30,9 @@ export type Message = {
 
 export type Job = {
   id: string;
-  chat_id: string;
+  chat_id: string | null;
   member_id: string;
-  kind: "answer" | "view" | "combine" | "intro";
+  kind: "answer" | "view" | "combine" | "intro" | "client";
   round: string | null;
   status: "queued" | "running" | "done" | "failed" | "waiting" | "skipped";
   error: string | null;
@@ -76,9 +76,13 @@ export type Request = {
   body: string;
   status: RequestStatus;
   message_id: string | null;
+  from_line: string | null;
   created_at: string;
   updated_at: string;
 };
+
+// A line in a client's private chat with their own AI. The team never reads these.
+export type ClientLine = { id: string; who: "client" | "assistant"; body: string; request_id: string | null; created_at: string };
 
 export type RequestEvent = { id: number; request_id: string; label: string; created_at: string };
 
@@ -99,6 +103,7 @@ export const NOTE_COLUMNS = "id, member_id, kind, title, body, updated_at";
 export const CONNECTION_COLUMNS = "id, member_id, kind, last_seen, revoked_at, created_at";
 export const DECISION_COLUMNS =
   "id, chat_id, title, context, origin, affects_client, status, chosen, decided_by, decided_at, deliver_after, delivered_at, created_by, created_at, request_id, options:decision_options(position, label, recommended, client_words, asks_client, replies)";
-export const REQUEST_COLUMNS = "id, member_id, title, body, status, message_id, created_at, updated_at";
+export const REQUEST_COLUMNS = "id, member_id, title, body, status, message_id, from_line, created_at, updated_at";
+export const LINE_COLUMNS = "id, who, body, request_id, created_at";
 export const EVENT_COLUMNS = "id, request_id, label, created_at";
 export const UPDATE_COLUMNS = "id, body, request_id, decision_id, created_at, replies, answer, answered_at";

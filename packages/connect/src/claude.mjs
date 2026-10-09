@@ -69,11 +69,12 @@ export function claudeVersion(claude) {
 // Answer one job, locked down: read and search the clean copy only. No commands, no edits, no network tools, none
 // of the person's own settings, and no MCP servers. The prompt goes in through stdin, so a long table history never
 // hits the command-line length limit. With a schema, the result carries `structured_output`.
-export function ask({ claude, cwd, prompt, system, schema, model, timeoutMs = 4 * 60 * 1000 }) {
+// A client's AI gets no tools at all (tools ""): it only reads what the job hands it.
+export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,Grep,Glob", timeoutMs = 4 * 60 * 1000 }) {
   const token = loadSecret("claude-token");
   if (!token) return Promise.reject(new Error("This connection has no Claude sign-in yet. Run connect again."));
   const args = ["-p", "--output-format", "json", "--restricted", "--permission-mode", "dontAsk",
-    "--strict-mcp-config", "--max-turns", "25", "--tools", "Read,Grep,Glob"];
+    "--strict-mcp-config", "--max-turns", tools ? "25" : "4", "--tools", tools];
   if (system) args.push("--append-system-prompt", system);
   if (schema) args.push("--json-schema", JSON.stringify(schema));
   if (model) args.push("--model", model);

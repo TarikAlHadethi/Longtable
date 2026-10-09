@@ -7,7 +7,11 @@ import { Mark } from "@/components/mark";
 import { Time, useInBrowser } from "@/components/time";
 import { browserClient } from "@/lib/supabase/browser";
 import { formatWhen } from "@/lib/time";
-import { EVENT_COLUMNS, REQUEST_COLUMNS, UPDATE_COLUMNS, type ClientUpdate, type Request, type RequestEvent, type RequestStatus as Status } from "./types";
+import { ClientConnect } from "./client-connect";
+import {
+  CONNECTION_COLUMNS, EVENT_COLUMNS, JOB_COLUMNS, LINE_COLUMNS, REQUEST_COLUMNS, UPDATE_COLUMNS,
+  type ClientLine, type ClientUpdate, type Connection, type Job, type Request, type RequestEvent, type RequestStatus as Status,
+} from "./types";
 import styles from "./client.module.css";
 
 // How each status reads to the client, its pill, and the step still to come, in the design's words.
@@ -23,6 +27,7 @@ const SHOWN: Record<Status, { words: string; pill: string; next?: string }> = {
 };
 const byTime = <T extends { created_at: string }>(a: T, b: T) => a.created_at.localeCompare(b.created_at);
 const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
+const sentence = (s: string) => `${s.charAt(0).toUpperCase()}${s.slice(1)}${/[.!?]$/.test(s) ? "" : "."}`;
 
 function greeting(name: string) {
   const h = new Date().getHours();
@@ -34,53 +39,66 @@ function sent(iso: string) {
   return /^(Just|Today|Yesterday)/.test(w) ? `Sent ${w.charAt(0).toLowerCase()}${w.slice(1)}` : `Sent on ${w}`;
 }
 
+// Upsert by id, keeping what an older copy had.
+function put<T extends { id: string | number }>(prev: T[], list: T[]) {
+  const byId = new Map(prev.map((x) => [x.id, x]));
+  for (const x of list) byId.set(x.id, { ...byId.get(x.id), ...x });
+  return [...byId.values()];
+}
+
 // The client's page: what they asked for, where each request stands, and what the team decided, in plain words.
-// It never shows the team side. Asking goes through one function that the database checks, and everything
-// arrives live on two private channels: the table's, for what every client is told, and the client's own.
-export function ClientPage({ table, me, initialRequests, initialEvents, initialUpdates }: {
+// It never shows the team side. With their own AI connected, the chat is with it: it answers what it can from their
+// own requests and passes the rest on. Everything arrives live on two private channels: the table's, for what
+// every client is told, and the client's own.
+export function ClientPage({ table, me, initialRequests, initialEvents, initialUpdates, initialLines, initialConnections, initialJobs }: {
   table: { id: string; name: string };
   me: { id: string; display_name: string };
   initialRequests: Request[];
   initialEvents: RequestEvent[];
   initialUpdates: ClientUpdate[];
+  initialLines: ClientLine[];
+  initialConnections: Connection[];
+  initialJobs: Job[];
 }) {
   const supabase = useMemo(() => browserClient(), []);
   const here = useInBrowser();
   const [requests, setRequests] = useState(initialRequests);
   const [events, setEvents] = useState(initialEvents);
   const [updates, setUpdates] = useState(initialUpdates);
+  const [lines, setLines] = useState(initialLines);
+  const [connections, setConnections] = useState(initialConnections);
+  const [jobs, setJobs] = useState(initialJobs);
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [connectOpen, setConnectOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [gone, setGone] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
 
-  const putRequest = useCallback((r: Request) => setRequests((prev) => [...prev.filter((x) => x.id !== r.id), r]), []);
-  const putEvents = useCallback((list: RequestEvent[]) => setEvents((prev) => {
-    const seen = new Set(prev.map((e) => e.id));
-    const fresh = list.filter((e) => !seen.has(e.id));
-    return fresh.length ? [...prev, ...fresh] : prev;
-  }), []);
-  // Updates change too: a question gets its answer.
-  const putUpdates = useCallback((list: ClientUpdate[]) => setUpdates((prev) => {
-    const byId = new Map(prev.map((u) => [u.id, u]));
-    for (const u of list) byId.set(u.id, { ...byId.get(u.id), ...u });
-    return [...byId.values()];
-  }), []);
+  const putRequest = useCallback((r: Request) => setRequests((prev) => put(prev, [r])), []);
+  const putEvents = useCallback((list: RequestEvent[]) => setEvents((prev) => put(prev, list)), []);
+  const putUpdates = useCallback((list: ClientUpdate[]) => setUpdates((prev) => put(prev, list)), []);
+  const putLines = useCallback((list: ClientLine[]) => setLines((prev) => put(prev, list)), []);
 
   // Everything again from the database: covers the moment between the page loading and the channels opening,
   // and anything missed while a laptop slept.
   const reload = useCallback(async () => {
-    const [{ data: r }, { data: ev }, { data: up }] = await Promise.all([
+    const [{ data: r }, { data: ev }, { data: up }, { data: ln }, { data: cn }, { data: jb }] = await Promise.all([
       supabase.from("requests").select(REQUEST_COLUMNS).eq("table_id", table.id).eq("member_id", me.id),
       supabase.from("request_events").select(EVENT_COLUMNS).eq("table_id", table.id),
       supabase.from("client_updates").select(UPDATE_COLUMNS).eq("table_id", table.id),
+      supabase.from("client_lines").select(LINE_COLUMNS).eq("table_id", table.id).eq("member_id", me.id).order("created_at").limit(200),
+      supabase.from("connections").select(CONNECTION_COLUMNS).eq("table_id", table.id).eq("member_id", me.id).is("revoked_at", null),
+      supabase.from("jobs").select(JOB_COLUMNS).eq("table_id", table.id).eq("member_id", me.id).in("status", ["queued", "running"]),
     ]);
     if (r) setRequests(r as Request[]);
     if (ev) putEvents(ev as RequestEvent[]);
     if (up) putUpdates(up as ClientUpdate[]);
-  }, [supabase, table.id, me.id, putEvents, putUpdates]);
+    if (ln) putLines(ln as ClientLine[]);
+    if (cn) setConnections(cn as Connection[]);
+    if (jb) setJobs(jb as Job[]);
+  }, [supabase, table.id, me.id, putEvents, putUpdates, putLines]);
 
   useEffect(() => {
     const channels: RealtimeChannel[] = [];
@@ -91,6 +109,9 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
       if (name === "client_updates") putUpdates([record as unknown as ClientUpdate]);
       else if (name === "request_events") putEvents([record as unknown as RequestEvent]);
       else if (name === "requests" && record.member_id === me.id) putRequest(record as unknown as Request);
+      else if (name === "client_lines" && record.member_id === me.id) putLines([record as unknown as ClientLine]);
+      else if (name === "jobs" && record.member_id === me.id) setJobs((prev) => put(prev, [record as unknown as Job]));
+      else if (name === "connections" && record.member_id === me.id) setConnections((prev) => put(prev, [record as unknown as Connection]));
     };
     (async () => {
       await supabase.realtime.setAuth();
@@ -116,27 +137,36 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
       cancelled = true;
       for (const ch of channels) supabase.removeChannel(ch);
     };
-  }, [supabase, table.id, me.id, reload, putRequest, putEvents, putUpdates]);
+  }, [supabase, table.id, me.id, reload, putRequest, putEvents, putUpdates, putLines]);
 
-  // Back to the tab, and every so often while the team is still on something she asked: read the database too,
-  // so a lost push only delays what she sees.
+  const assistant = connections.some((c) => !c.revoked_at);
+  const thinking = jobs.some((j) => j.kind === "client" && (j.status === "queued" || j.status === "running"));
+
+  // Back to the tab, and every so often while their AI is writing or the team is on something they asked: read the
+  // database too, so a lost push only delays what they see.
   const pending = requests.some((r) => ["asked", "being decided", "question", "answered"].includes(r.status));
   useEffect(() => {
     const onShow = () => { if (document.visibilityState === "visible") reload(); };
     document.addEventListener("visibilitychange", onShow);
-    const t = setInterval(() => { if (document.visibilityState === "visible") reload(); }, pending ? 15000 : 60000);
+    const t = setInterval(() => { if (document.visibilityState === "visible") reload(); }, thinking ? 4000 : pending ? 15000 : 60000);
     return () => {
       document.removeEventListener("visibilitychange", onShow);
       clearInterval(t);
     };
-  }, [pending, reload]);
+  }, [pending, thinking, reload]);
 
   type Line = { me: boolean; id: string; created_at: string; text: string; question?: ClientUpdate };
   const chat = useMemo(() => [
-    ...requests.map((r): Line => ({ me: true, id: `r-${r.id}`, created_at: r.created_at, text: r.body })),
+    ...requests.filter((r) => !r.from_line).map((r): Line => ({ me: true, id: `r-${r.id}`, created_at: r.created_at, text: r.body })),
+    ...lines.map((l): Line => ({ me: l.who === "client", id: `l-${l.id}`, created_at: l.created_at, text: l.body })),
     ...updates.map((u): Line => ({ me: false, id: `u-${u.id}`, created_at: u.created_at, text: u.body, question: u.replies?.length && !u.answer ? u : undefined })),
     ...updates.filter((u) => u.answer && u.answered_at).map((u): Line => ({ me: true, id: `a-${u.id}`, created_at: u.answered_at!, text: u.answer! })),
-  ].sort(byTime), [requests, updates]);
+  ].sort(byTime), [requests, lines, updates]);
+
+  useEffect(() => {
+    const el = chatRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [chat.length, thinking]);
 
   // One tap answers the team's question. It shows at once; the database decides whether it counts.
   async function answer(u: ClientUpdate, choice: number) {
@@ -145,35 +175,23 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
     const { error } = await supabase.rpc("client_reply", { u: u.id, choice });
     if (error) {
       putUpdates([u]);
-      setError(`${error.message.charAt(0).toUpperCase()}${error.message.slice(1)}.`);
+      setError(sentence(error.message));
     }
     reload();
   }
 
-  useEffect(() => {
-    const el = chatRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [chat.length]);
-
-  async function ask(e: React.FormEvent) {
+  // What they type goes to their own AI when it is on, and straight to the team when it is not.
+  async function say(e: React.FormEvent) {
     e.preventDefault();
     const body = draft.trim();
     if (!body || busy) return;
     setBusy(true);
     setError("");
-    const { data, error } = await supabase.rpc("client_ask", { t: table.id, body });
+    const { error } = await supabase.rpc("client_say", { t: table.id, body });
     setBusy(false);
-    if (error || !data) return setError(error?.message ? `${error.message.charAt(0).toUpperCase()}${error.message.slice(1)}.` : "That did not send. Try again.");
+    if (error) return setError(sentence(error.message));
     setDraft("");
-    const id = data as string;
-    const [{ data: r }, { data: ev }, { data: up }] = await Promise.all([
-      supabase.from("requests").select(REQUEST_COLUMNS).eq("id", id).single(),
-      supabase.from("request_events").select(EVENT_COLUMNS).eq("request_id", id),
-      supabase.from("client_updates").select(UPDATE_COLUMNS).eq("request_id", id),
-    ]);
-    if (r) putRequest(r as Request);
-    if (ev) putEvents(ev as RequestEvent[]);
-    if (up) putUpdates(up as ClientUpdate[]);
+    await reload();
   }
 
   const sorted = [...requests].sort((a, b) => b.created_at.localeCompare(a.created_at));
@@ -260,11 +278,18 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
             })}
           </section>
 
-          <section className={styles.chatPanel} aria-label="Talk to the team">
-            <div className={styles.chatHead}><span className={styles.chatMark} /> The team</div>
+          <section className={styles.chatPanel} aria-label={assistant ? "Your assistant" : "Talk to the team"}>
+            <div className={styles.chatHead}>
+              <span className={styles.chatMark} /> <span data-testid="chat-head">{assistant ? "Your assistant" : "The team"}</span>
+              <button className={styles.headLink} onClick={() => setConnectOpen(true)}>{assistant ? "Connected" : "Connect my assistant"}</button>
+            </div>
             <div ref={chatRef} className={styles.chat} data-testid="client-chat">
               {chat.length === 0 && (
-                <div className={styles.bubbleTeam}>Ask for anything about {table.name}, in your own words. The team decides, and you hear back here.</div>
+                <div className={styles.bubbleTeam}>
+                  {assistant
+                    ? `Hi ${firstName(me.display_name)}. Ask me where anything stands, or for something new, and I will pass it to the team.`
+                    : `Ask for anything about ${table.name}, in your own words. The team decides, and you hear back here.`}
+                </div>
               )}
               {chat.map((c) => (
                 <div key={c.id} className={c.me ? styles.lineMe : styles.lineTeam}>
@@ -278,8 +303,9 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
                   )}
                 </div>
               ))}
+              {thinking && <div className={`${styles.bubbleTeam} ${styles.typing}`} data-testid="thinking">Your assistant is writing…</div>}
             </div>
-            <form className={styles.composer} onSubmit={ask}>
+            <form className={styles.composer} onSubmit={say}>
               <input className={styles.input} value={draft} onChange={(e) => setDraft(e.target.value)}
                 placeholder="Ask for something, in your own words" aria-label="Ask the team" maxLength={4000} />
               <button className="btn" disabled={busy || !draft.trim()}>Send</button>
@@ -288,6 +314,9 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
           </section>
         </div>
       </main>
+      {connectOpen && (
+        <ClientConnect tableId={table.id} tableName={table.name} connected={assistant} onClose={() => setConnectOpen(false)} />
+      )}
     </div>
   );
 }
