@@ -236,3 +236,11 @@
 .requestPillDone { background: oklch(0.93 0.04 150); color: oklch(0.38 0.07 150); }
 .requestPillPlan { background: oklch(0.94 0.006 80); color: oklch(0.42 0.01 70); }
 .asked { margin: 0; padding: 10px 12px; border-left: 3px solid oklch(0.75 0.05 150); background: oklch(0.97 0.01 120); border-radius: 6px; font-size: 14px; line-height: 1.5; color: var(--ink-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.replyChips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.replyChip { border: 1px solid oklch(0.75 0.05 150); background: oklch(0.97 0.02 150); border-radius: 20px; padding: 4px 11px; font-size: 13px; font-weight: 500; color: oklch(0.32 0.06 150); font-family: var(--font-ui); }
+.questionQuote { font-size: 13px; color: var(--muted); margin-bottom: 6px; overflow-wrap: anywhere; }
+.requestPillAsk { background: oklch(0.93 0.04 250); color: oklch(0.4 0.08 250); }
+.askEditor { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 10px; border: 1px solid oklch(0.8 0.05 250); background: oklch(0.985 0.008 250); }
+.askHead { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: oklch(0.4 0.08 250); }
+.answerRow { display: flex; flex-wrap: wrap; gap: 8px; }
+.answerRow input { flex: 1 1 140px; min-width: 0; }

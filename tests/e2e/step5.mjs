@@ -197,6 +197,66 @@ try {
   const actions = (await rest(ownerToken, `activity?select=action&table_id=eq.${tableId}`)).body.map((a) => a.action);
   check("the log recorded the ask", actions.includes("client.asked") && actions.includes("decision.delivered"), JSON.stringify(actions));
 
+  // Ask the client first: the team puts a question to Elena; she answers with one tap; it goes back to the team.
+  const ask3 = "Could we have a waiting list for cancelled slots?";
+  await elena.page.fill("input[aria-label='Ask the team']", ask3);
+  await elena.page.press("input[aria-label='Ask the team']", "Enter");
+  await elena.page.waitForFunction((t) => document.body.innerText.includes(t), ask3, { timeout: 5000 });
+  const req3 = (await rest(elenaToken, `requests?select=id,body&table_id=eq.${tableId}`)).body.find((r) => r.body === ask3)?.id;
+  await dev.page.waitForFunction((id) => !!document.querySelector(`[data-request='${id}'] button`), req3, { timeout: 5000 });
+  await dev.page.click(`[data-request='${req3}'] button:has-text('Ask for a decision')`);
+  await dev.page.fill("#d-title", "Waiting list: launch or later?");
+  await dev.page.fill("input[aria-label='Option 1']", "Build it for launch");
+  await dev.page.fill("input[aria-label='Option 2']", "After launch");
+  await dev.page.fill("textarea[aria-label^='What Elena Ruiz will be told for option 1']", "The waiting list will be ready at launch.");
+  await dev.page.fill("textarea[aria-label^='What Elena Ruiz will be told for option 2']", "The waiting list comes after launch.");
+  await dev.page.click("button:has-text('Ask Elena Ruiz first')");
+  const question = "Would you rather have the waiting list at launch, or keep that time for testing?";
+  await dev.page.fill("textarea[aria-label='The question Elena Ruiz will be asked']", question);
+  await dev.page.fill("input[aria-label='Answer 1']", "At launch");
+  await dev.page.fill("input[aria-label='Answer 2']", "Keep the time for testing");
+  await dev.page.click("button:has-text('Put it in the inbox')");
+  await waitStatus(elena.page, req3, "status", "Being decided");
+  const d3 = (await rest(ownerToken, `decisions?select=id,request_id&table_id=eq.${tableId}`)).body.find((x) => x.request_id === req3)?.id;
+  await owner.page.waitForSelector(`aside[aria-label='Inbox'] [data-did='${d3}']`, { timeout: 5000 });
+  await owner.page.locator(`aside[aria-label='Inbox'] [data-did='${d3}'] button:has-text('Ask Elena Ruiz first')`).click();
+  await owner.page.waitForFunction((id) => /Elena Ruiz is asked in \d+ s/.test(document.querySelector(`aside[aria-label='Inbox'] [data-did='${id}']`)?.textContent || ""), d3, { timeout: 5000 });
+  const ownerSees = await owner.page.textContent(`aside[aria-label='Inbox'] [data-did='${d3}']`);
+  check("the card shows the question and its answers", ownerSees.includes("Ask Elena Ruiz first") && ownerSees.includes("At launch") && ownerSees.includes("Keep the time for testing"), ownerSees);
+
+  // After the window, the question reaches her with its answers, and the request is a question for her.
+  await elena.page.waitForSelector("[data-testid=replies] button:has-text('At launch')", { timeout: 30000 });
+  await waitStatus(elena.page, req3, "status", "Question for you");
+  if (process.env.SCREENSHOTS) await elena.page.screenshot({ path: `${process.env.SCREENSHOTS}/step5-question.png` });
+  const qLook = await elena.page.textContent("[data-testid=client-chat]");
+  check("she gets the question with answers to tap", qLook.includes(question) && !qLook.includes("Build it for launch"), qLook.slice(-400));
+  await elena.page.click("[data-testid=replies] button:has-text('At launch')");
+  await waitStatus(elena.page, req3, "status", "With the team");
+  await elena.page.click(`[data-request='${req3}'] button`);
+  const answeredLine = await elena.page.textContent(`[data-request='${req3}'] ol`);
+  const repliesLeft = await elena.page.locator("[data-testid=replies]").count();
+  check("her tap answers it, once", answeredLine.includes("You answered: At launch") && repliesLeft === 0, `${answeredLine} / ${repliesLeft} left`);
+
+  // Her answer reaches the team live, as a client card that offers the next decision.
+  await dev.page.waitForFunction((id) => [...document.querySelectorAll(`[data-request='${id}'] [data-testid=request-status]`)].some((el) => el.textContent === "Elena Ruiz answered"), req3, { timeout: 5000 });
+  const cards = await dev.page.$$eval(`[data-request='${req3}']`, (els) => els.map((el) => el.textContent));
+  const offering = cards.filter((t) => t.includes("Ask for a decision")).length;
+  check("the team gets her answer and can decide again", cards.some((t) => t.includes("Answering: " + "Would you rather") && t.includes("At launch")) && offering === 1,
+    JSON.stringify(cards));
+
+  // Only she answers, and only once.
+  const q = (await rest(elenaToken, `client_updates?select=id,replies,answer&request_id=eq.${req3}`)).body.find((u) => u.replies.length > 0);
+  const again = {
+    twice: (await rpc(elenaToken, "client_reply", { u: q.id, choice: 2 })).status,
+    otherClient: (await rpc(priyaToken, "client_reply", { u: q.id, choice: 2 })).status,
+    team: (await rpc(devToken, "client_reply", { u: q.id, choice: 2 })).status,
+    rewrite: (await rest(elenaToken, `client_updates?id=eq.${q.id}`, { method: "PATCH", body: JSON.stringify({ answer: "Keep the time for testing" }), headers: { Prefer: "return=representation" } })).body.length ?? 0,
+  };
+  const stored = (await rest(ownerToken, `client_updates?select=answer&id=eq.${q.id}`)).body[0]?.answer;
+  results.answerOnce = { ...again, stored };
+  check("only she answers, and only once", again.twice >= 400 && again.otherClient >= 400 && again.team >= 400 && again.rewrite === 0 && stored === "At launch",
+    JSON.stringify(results.answerOnce));
+
   // A lost push only delays. With every live push to their pages dropped, Elena and Sam still find out from the
   // database: her page checks while the team is on something she asked, his when he comes back to the tab.
   let dropPushes = false;

@@ -23,14 +23,17 @@ const initial = (name: string) => name.trim().charAt(0).toUpperCase() || "?";
 const byTime = <T extends { created_at: string }>(a: T, b: T) => a.created_at.localeCompare(b.created_at);
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 // A client's request as the team sees it.
-const REQUEST_WORD: Record<RequestStatus, { words: string; pill: string }> = {
-  asked: { words: "New request", pill: "" },
-  "being decided": { words: "Being decided", pill: "" },
-  decided: { words: "Decided", pill: styles.requestPillDone },
-  planned: { words: "Planned", pill: styles.requestPillPlan },
-  "ready to try": { words: "Ready to try", pill: styles.requestPillDone },
-  done: { words: "Done", pill: styles.requestPillDone },
-};
+function requestWords(status: RequestStatus, who: string): { words: string; pill: string } {
+  switch (status) {
+    case "asked": return { words: "New request", pill: "" };
+    case "being decided": return { words: "Being decided", pill: "" };
+    case "question": return { words: `Waiting on ${who}`, pill: styles.requestPillAsk };
+    case "answered": return { words: `${who} answered`, pill: "" };
+    case "decided": return { words: "Decided", pill: styles.requestPillDone };
+    case "planned": return { words: "Planned", pill: styles.requestPillPlan };
+    default: return { words: capital(status), pill: styles.requestPillDone };
+  }
+}
 
 type Change = { table?: string; record?: Record<string, unknown> };
 
@@ -78,6 +81,15 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const chatById = useMemo(() => new Map(chats.map((c) => [c.id, c])), [chats]);
   const requestById = useMemo(() => new Map(requests.map((r) => [r.id, r])), [requests]);
+  // The newest client card about each request is the one that offers the next decision.
+  const lastCard = useMemo(() => {
+    const map = new Map<string, Message>();
+    for (const m of messages) {
+      const r = m.kind === "client" ? m.meta?.request : null;
+      if (r && (!map.has(r) || map.get(r)!.created_at <= m.created_at)) map.set(r, m);
+    }
+    return map;
+  }, [messages]);
   const clients = members.filter((m) => m.role === "client");
   const client = clients[0];
   // Who hears a decision meant for the client: one client by name; with several, every one of them.
@@ -336,13 +348,15 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     .slice(0, 8);
   const waiting = open.length === 0 ? "Nothing waiting" : `${open.length} waiting for a yes`;
 
+  // A decision about a request is told to the person who asked; any other, to every client at the table.
+  const toldFor = (d: Decision) => (d.request_id && byId.get(requestById.get(d.request_id)?.member_id ?? "")?.display_name) || clientName;
   const card = (d: Decision, inInbox: boolean) => (
     <DecisionCard
       key={`${inInbox ? "i" : "c"}-${d.id}`}
       decision={d}
       chatName={chatById.get(d.chat_id)?.name ?? "Chat"}
       members={byId}
-      clientName={capital(clientName)}
+      clientName={capital(toldFor(d))}
       now={now}
       onOpenChat={inInbox ? () => openChat(d.chat_id) : undefined}
       onChange={(patch) => patchDecision(d.id, patch)}
@@ -462,7 +476,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 const name = who?.display_name ?? "Someone";
                 if (m.kind === "client") {
                   const req = m.meta?.request ? requestById.get(m.meta.request) : undefined;
-                  const shown = req ? REQUEST_WORD[req.status] ?? REQUEST_WORD.asked : null;
+                  const shown = req ? requestWords(req.status, name) : null;
+                  const offer = !!req && (req.status === "asked" || req.status === "answered") && lastCard.get(req.id)?.id === m.id;
                   return (
                     <div key={m.id} className={styles.message} data-mid={m.id} data-request={m.meta?.request ?? ""}>
                       <div className={styles.messageAvatar} style={{ background: who?.color ?? "var(--faint)" }}>
@@ -473,11 +488,12 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                           <span className={styles.messageName}>{name}</span>
                           <span>client · <Time iso={m.created_at} /></span>
                         </div>
+                        {m.meta?.answers && m.meta.question && <div className={styles.questionQuote}>Answering: {m.meta.question}</div>}
                         <div className={`${styles.messageText} ${styles.clientBubble}`}>{m.body}</div>
                         {req && shown && (
                           <div className={styles.clientTools}>
                             <span className={`${styles.requestPill} ${shown.pill}`} data-testid="request-status">{shown.words}</span>
-                            {req.status === "asked" && (
+                            {offer && (
                               <button className={styles.toolLink} onClick={() => { setAskingFor(req); setAsking(true); }}>Ask for a decision</button>
                             )}
                           </div>

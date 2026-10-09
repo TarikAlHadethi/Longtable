@@ -5,8 +5,9 @@ import { browserClient } from "@/lib/supabase/browser";
 import type { Decision, Member } from "./types";
 import styles from "./room.module.css";
 
-// A decision card: the question, its options, the exact words the client will be told, one tap to decide,
-// and Undo until the window closes. The window itself is enforced in the database, not here.
+// A decision card: the question, its options, the exact words the client will be told (or the question they will
+// be asked, with the answers they can tap), one tap to decide, and Undo until the window closes. The window itself
+// is enforced in the database, not here.
 export function DecisionCard({ decision, chatName, members, clientName, now, onOpenChat, onChange }: {
   decision: Decision;
   chatName: string;
@@ -26,6 +27,8 @@ export function DecisionCard({ decision, chatName, members, clientName, now, onO
   const left = d.deliver_after ? Math.ceil((new Date(d.deliver_after).getTime() - now) / 1000) : 0;
   const canUndo = d.status === "decided" && !d.delivered_at && left > 0;
   const decider = d.decided_by ? members.get(d.decided_by)?.display_name ?? "Someone" : "";
+  const chosen = options.find((o) => o.position === d.chosen);
+  const verb = chosen?.asks_client ? { now: "is asked", done: "has been asked", doing: "asking" } : { now: "is told", done: "has been told", doing: "telling" };
 
   async function pick(position: number) {
     if (!open || busy) return;
@@ -49,7 +52,7 @@ export function DecisionCard({ decision, chatName, members, clientName, now, onO
   let after = "";
   if (d.status === "decided") {
     after = `Decided by ${decider || "you"}`;
-    if (d.affects_client) after += d.delivered_at ? ` · ${clientName} has been told` : left > 0 ? ` · ${clientName} is told in ${left} s` : ` · telling ${clientName}…`;
+    if (d.affects_client) after += d.delivered_at ? ` · ${clientName} ${verb.done}` : left > 0 ? ` · ${clientName} ${verb.now} in ${left} s` : ` · ${verb.doing} ${clientName}…`;
   }
 
   return (
@@ -82,8 +85,13 @@ export function DecisionCard({ decision, chatName, members, clientName, now, onO
       </div>
       {d.affects_client && shown?.client_words && d.status !== "withdrawn" && (
         <div className={styles.clientWords}>
-          <div className={styles.clientWordsLabel}>{open ? `${clientName} will be told` : `${clientName} ${d.delivered_at ? "was" : "will be"} told`}</div>
+          <div className={styles.clientWordsLabel}>
+            {`${clientName} ${open ? "will be" : d.delivered_at ? "was" : "will be"} ${shown.asks_client ? "asked" : "told"}`}
+          </div>
           <div className={styles.clientWordsText}>{shown.client_words}</div>
+          {shown.asks_client && shown.replies.length > 0 && (
+            <div className={styles.replyChips}>{shown.replies.map((r) => <span key={r} className={styles.replyChip}>{r}</span>)}</div>
+          )}
         </div>
       )}
       {d.status === "decided" && (

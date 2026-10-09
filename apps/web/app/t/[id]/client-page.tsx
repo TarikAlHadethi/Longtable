@@ -14,6 +14,8 @@ import styles from "./client.module.css";
 const SHOWN: Record<Status, { words: string; pill: string; next?: string }> = {
   asked: { words: "With the team", pill: styles.pillWait, next: "With the team" },
   "being decided": { words: "Being decided", pill: styles.pillWait, next: "Waiting on the team's decision" },
+  question: { words: "Question for you", pill: styles.pillAsk, next: "Waiting for your answer" },
+  answered: { words: "With the team", pill: styles.pillWait, next: "The team is finalizing" },
   decided: { words: "Decided", pill: styles.pillDone },
   planned: { words: "Planned", pill: styles.pillPlan },
   "ready to try": { words: "Ready to try", pill: styles.pillDone },
@@ -60,10 +62,11 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
     const fresh = list.filter((e) => !seen.has(e.id));
     return fresh.length ? [...prev, ...fresh] : prev;
   }), []);
+  // Updates change too: a question gets its answer.
   const putUpdates = useCallback((list: ClientUpdate[]) => setUpdates((prev) => {
-    const seen = new Set(prev.map((u) => u.id));
-    const fresh = list.filter((u) => !seen.has(u.id));
-    return fresh.length ? [...prev, ...fresh] : prev;
+    const byId = new Map(prev.map((u) => [u.id, u]));
+    for (const u of list) byId.set(u.id, { ...byId.get(u.id), ...u });
+    return [...byId.values()];
   }), []);
 
   // Everything again from the database: covers the moment between the page loading and the channels opening,
@@ -117,7 +120,7 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
 
   // Back to the tab, and every so often while the team is still on something she asked: read the database too,
   // so a lost push only delays what she sees.
-  const pending = requests.some((r) => r.status === "asked" || r.status === "being decided");
+  const pending = requests.some((r) => ["asked", "being decided", "question", "answered"].includes(r.status));
   useEffect(() => {
     const onShow = () => { if (document.visibilityState === "visible") reload(); };
     document.addEventListener("visibilitychange", onShow);
@@ -128,10 +131,24 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
     };
   }, [pending, reload]);
 
+  type Line = { me: boolean; id: string; created_at: string; text: string; question?: ClientUpdate };
   const chat = useMemo(() => [
-    ...requests.map((r) => ({ me: true, id: `r-${r.id}`, created_at: r.created_at, text: r.body })),
-    ...updates.map((u) => ({ me: false, id: `u-${u.id}`, created_at: u.created_at, text: u.body })),
+    ...requests.map((r): Line => ({ me: true, id: `r-${r.id}`, created_at: r.created_at, text: r.body })),
+    ...updates.map((u): Line => ({ me: false, id: `u-${u.id}`, created_at: u.created_at, text: u.body, question: u.replies?.length && !u.answer ? u : undefined })),
+    ...updates.filter((u) => u.answer && u.answered_at).map((u): Line => ({ me: true, id: `a-${u.id}`, created_at: u.answered_at!, text: u.answer! })),
   ].sort(byTime), [requests, updates]);
+
+  // One tap answers the team's question. It shows at once; the database decides whether it counts.
+  async function answer(u: ClientUpdate, choice: number) {
+    setError("");
+    putUpdates([{ ...u, answer: u.replies[choice - 1], answered_at: new Date().toISOString() }]);
+    const { error } = await supabase.rpc("client_reply", { u: u.id, choice });
+    if (error) {
+      putUpdates([u]);
+      setError(`${error.message.charAt(0).toUpperCase()}${error.message.slice(1)}.`);
+    }
+    reload();
+  }
 
   useEffect(() => {
     const el = chatRef.current;
@@ -163,7 +180,7 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
   const count = (s: Status[]) => requests.filter((r) => s.includes(r.status)).length;
   const summary = [
     { n: count(["decided", "ready to try", "done"]), label: "Done or decided" },
-    { n: count(["asked", "being decided"]), label: "With the team" },
+    { n: count(["asked", "being decided", "question", "answered"]), label: "With the team" },
     { n: count(["planned"]), label: "Planned" },
   ];
 
@@ -209,10 +226,11 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
                 ...(shown.next ? [{ key: "next", label: shown.next, iso: null }] : []),
               ];
               const note = r.status === "asked" ? (here ? sent(r.created_at) : " ")
-                : r.status === "being decided" ? "The team is deciding" : log.at(-1)?.label ?? shown.words;
+                : r.status === "being decided" ? "The team is deciding"
+                : r.status === "question" ? "The team has a question for you" : log.at(-1)?.label ?? shown.words;
               const isOpen = !!open[r.id];
               return (
-                <div key={r.id} className={styles.request} data-request={r.id}>
+                <div key={r.id} className={`${styles.request} ${r.status === "question" ? styles.requestAsk : ""}`} data-request={r.id}>
                   <button className={styles.requestHead} onClick={() => setOpen((o) => ({ ...o, [r.id]: !isOpen }))} aria-expanded={isOpen}>
                     <div className={styles.requestText}>
                       <div className={styles.requestTitle}>{r.title}</div>
@@ -249,7 +267,16 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
                 <div className={styles.bubbleTeam}>Ask for anything about {table.name}, in your own words. The team decides, and you hear back here.</div>
               )}
               {chat.map((c) => (
-                <div key={c.id} className={c.me ? styles.bubbleMe : styles.bubbleTeam}>{c.text}</div>
+                <div key={c.id} className={c.me ? styles.lineMe : styles.lineTeam}>
+                  <div className={c.me ? styles.bubbleMe : styles.bubbleTeam}>{c.text}</div>
+                  {c.question && (
+                    <div className={styles.replies} data-testid="replies">
+                      {c.question.replies.map((label, k) => (
+                        <button key={label} className={styles.reply} onClick={() => answer(c.question!, k + 1)}>{label}</button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
             <form className={styles.composer} onSubmit={ask}>
