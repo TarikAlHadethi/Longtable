@@ -1,0 +1,37 @@
+// The Longtable mark: a table with three seats on each side, drawn to the brand's proportions.
+const CLAY = "oklch(0.62 0.09 30)";
+const SLATE = "oklch(0.62 0.09 250)";
+const HEATHER = "oklch(0.62 0.09 310)";
+const SAGE = "oklch(0.58 0.08 170)";
+
+export function Mark({ size = 24, ink = "var(--table)" }: { size?: number; ink?: string }) {
+  const s = size;
+  const w = s * 0.78;
+  const h = s * 0.3;
+  const d = Math.max(2, s * 0.13);
+  const xs = [0, 1, 2].map((i) => s * 0.28 + i * s * 0.22);
+  const top = [CLAY, SLATE, HEATHER];
+  const bottom = [HEATHER, SAGE, CLAY];
+  const yTop = s / 2 - h / 2 - d * 1.05;
+  const yBottom = s / 2 + h / 2 + d * 1.05;
+  return (
+    <svg width={s} height={s} viewBox={`0 0 ${s} ${s}`} aria-hidden="true" focusable="false">
+      <rect x={(s - w) / 2} y={(s - h) / 2} width={w} height={h} rx={h / 2} fill={ink} />
+      {xs.map((x, i) => (
+        <circle key={`t${i}`} cx={x} cy={yTop} r={d / 2} fill={top[i]} />
+      ))}
+      {xs.map((x, i) => (
+        <circle key={`b${i}`} cx={x} cy={yBottom} r={d / 2} fill={bottom[i]} />
+      ))}
+    </svg>
+  );
+}
+
+export function Wordmark({ size = 16 }: { size?: number }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+      <Mark size={Math.round(size * 1.75)} />
+      <span style={{ fontWeight: 600, fontSize: size, letterSpacing: "-0.01em" }}>Longtable</span>
+    </span>
+  );
+}

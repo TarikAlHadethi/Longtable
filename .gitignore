@@ -30,3 +30,6 @@ __pycache__/
 # os
 .DS_Store
 Thumbs.db
+
+# drafts that never leave this machine
+private/
