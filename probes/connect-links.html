@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Connect links test</title>
+<style>
+  :root { color-scheme: light dark; --bg: #f7f6f3; --fg: #1d1c1a; --muted: #6b6862; --card: #ffffff; --line: #e4e1db; --accent: #2f5d50; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #161615; --fg: #ecebe8; --muted: #9b978f; --card: #1f1e1c; --line: #2e2c29; --accent: #7fb8a4; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 560px; margin: 0 auto; padding: 40px 16px; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  p { color: var(--muted); margin: 0 0 24px; }
+  a.btn { display: block; padding: 14px 16px; margin: 0 0 12px; border: 1px solid var(--line); border-radius: 10px;
+          background: var(--card); color: var(--fg); text-decoration: none; }
+  a.btn strong { display: block; }
+  a.btn span { color: var(--muted); font-size: 14px; }
+  a.btn:hover { border-color: var(--accent); }
+  pre { white-space: pre-wrap; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Connect links test</h1>
+  <p>Each button should open that app with the message below already typed, and send nothing on its own.
+     If it asks "Open Claude?", say yes. It is safe to press Send: the message only asks for one word.</p>
+  <pre id="msg"></pre>
+  <a class="btn" id="desktop"><strong>Claude app</strong><span>Opens a new Code session with the message ready</span></a>
+  <a class="btn" id="vscode"><strong>VS Code</strong><span>Opens a Claude Code tab with the message ready</span></a>
+  <a class="btn" id="terminal"><strong>Terminal</strong><span>Only works once Claude Code has been used in a terminal</span></a>
+</main>
+<script>
+  const msg = "Longtable connection test: reply with the single word ready and do nothing else.";
+  const q = encodeURIComponent(msg);
+  document.getElementById("msg").textContent = msg;
+  document.getElementById("desktop").href = "claude://code/new?q=" + q;
+  document.getElementById("vscode").href = "vscode://anthropic.claude-code/open?prompt=" + q;
+  document.getElementById("terminal").href = "claude-cli://open?q=" + q;
+</script>
+</body>
+</html>
