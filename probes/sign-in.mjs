@@ -25,7 +25,7 @@ if (!claude) {
   process.exit(2);
 }
 
-const logDir = join(process.env.LOCALAPPDATA || process.env.HOME || ".", "Longtable");
+const logDir = join(process.env.USERPROFILE || process.env.HOME || ".", ".longtable");
 mkdirSync(logDir, { recursive: true });
 const logFile = join(logDir, "sign-in.log");
 const hideSecrets = (s) => s.replace(/sk-ant-[A-Za-z0-9_-]{8,}/g, "[token]").replace(/\b[A-Za-z0-9_#-]{24,}\b/g, "[hidden]");

@@ -21,7 +21,7 @@ const check = (name, ok, detail) => { results.checks[name] = ok ? "pass" : `FAIL
 
 // The connection under test keeps its own settings, with a copy of this computer's Claude sign-in.
 const testHome = mkdtempSync(join(tmpdir(), "longtable-home-"));
-const savedSignIn = join(process.env.LOCALAPPDATA || homedir(), "Longtable", "secrets", "claude-token.bin");
+const savedSignIn = join(homedir(), ".longtable", "secrets", "claude-token.bin");
 if (!existsSync(savedSignIn)) throw new Error("No saved Claude sign-in on this computer. Run the connection's sign-in once first.");
 mkdirSync(join(testHome, "secrets"), { recursive: true });
 copyFileSync(savedSignIn, join(testHome, "secrets", "claude-token.bin"));

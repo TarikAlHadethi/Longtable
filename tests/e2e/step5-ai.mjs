@@ -4,7 +4,7 @@
 //
 //   CLIENT_AI=codex node --experimental-websocket tests/e2e/step5-ai.mjs     (or CLIENT_AI=claude)
 //
-// Codex needs the connection's own ChatGPT sign-in on this computer (%LOCALAPPDATA%\Longtable\codex); Claude needs
+// Codex needs the connection's own ChatGPT sign-in on this computer (~/.longtable/codex); Claude needs
 // the saved Claude sign-in. Neither is copied into the repo.
 
 import { spawn, spawnSync } from "node:child_process";
@@ -24,7 +24,7 @@ const textOf = (page) => page.evaluate(() => document.body.innerText);
 const chatText = (page) => page.evaluate(() => document.querySelector("[data-testid=client-chat]")?.innerText ?? "");
 
 // The connection under test keeps its own settings. Its AI sign-in comes from this computer's saved one.
-const savedHome = join(process.env.LOCALAPPDATA || homedir(), "Longtable");
+const savedHome = join(homedir(), ".longtable");
 const testHome = mkdtempSync(join(tmpdir(), "longtable-home-"));
 const env = { ...process.env, LONGTABLE_HOME: testHome, LONGTABLE_MODEL: "haiku" };
 if (AI === "claude") {

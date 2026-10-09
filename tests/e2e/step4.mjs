@@ -18,7 +18,7 @@ const bin = join(repoRoot, "packages", "connect", "bin", "longtable.mjs");
 const run = Date.now().toString(36);
 const results = { checks: {} };
 const check = (name, ok, detail) => { results.checks[name] = ok ? "pass" : `FAIL ${detail ?? ""}`.trim(); };
-const savedSignIn = join(process.env.LOCALAPPDATA || homedir(), "Longtable", "secrets", "claude-token.bin");
+const savedSignIn = join(homedir(), ".longtable", "secrets", "claude-token.bin");
 if (!existsSync(savedSignIn)) throw new Error("No saved Claude sign-in on this computer.");
 
 function home() {

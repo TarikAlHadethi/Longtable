@@ -39,7 +39,7 @@ export function findClaude() {
 
 // The background connection's own Claude sign-in, kept on this computer only.
 // Windows: encrypted for this Windows user with DPAPI. Elsewhere: a file only this user can read.
-const tokenDir = isWindows ? join(process.env.LOCALAPPDATA || homedir(), "Longtable") : join(homedir(), ".longtable");
+const tokenDir = join(homedir(), ".longtable");
 const tokenFile = join(tokenDir, isWindows ? "claude-token.bin" : "claude-token");
 
 function powershell(script, input) {
