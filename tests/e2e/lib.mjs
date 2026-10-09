@@ -1,0 +1,101 @@
+// Shared helpers for the end-to-end checks. Needs the local stack running (npm run db:start, npm run dev).
+
+import { readFileSync } from "node:fs";
+import { chromium } from "playwright-core";
+
+// The local keys come from the app's own .env.local, so no key is ever written into the repo.
+const localEnv = Object.fromEntries(
+  readFileSync(new URL("../../apps/web/.env.local", import.meta.url), "utf8")
+    .split(/\r?\n/).filter((l) => l.includes("=") && !l.startsWith("#"))
+    .map((l) => [l.slice(0, l.indexOf("=")).trim(), l.slice(l.indexOf("=") + 1).trim()]),
+);
+export const APP = process.env.APP_URL || "http://localhost:3000";
+export const API = process.env.SUPABASE_URL || localEnv.NEXT_PUBLIC_SUPABASE_URL;
+export const KEY = process.env.SUPABASE_PUBLISHABLE_KEY || localEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const MAIL = process.env.MAILPIT_URL || "http://127.0.0.1:54324";
+const CHROME = process.env.CHROME_PATH || "C:/Program Files/Google/Chrome/Application/chrome.exe";
+
+export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+export function launch() {
+  return chromium.launch({ executablePath: CHROME, headless: true });
+}
+
+async function codeFor(email) {
+  for (let i = 0; i < 40; i++) {
+    const res = await fetch(`${MAIL}/api/v1/search?query=${encodeURIComponent(`to:"${email}"`)}`);
+    const first = (await res.json()).messages?.[0];
+    if (first) {
+      const msg = await (await fetch(`${MAIL}/api/v1/message/${first.ID}`)).json();
+      const m = String(msg.Text || msg.HTML || "").match(/\b(\d{6})\b/);
+      if (m) return m[1];
+    }
+    await sleep(250);
+  }
+  throw new Error(`no code arrived for ${email}`);
+}
+
+export async function signIn(page, email) {
+  await page.fill("#email", email);
+  await page.click("text=Send me a code");
+  await page.waitForSelector("#code");
+  await page.fill("#code", await codeFor(email));
+  await page.click("button:has-text('Sign in')");
+}
+
+// Start a table as its owner. Returns the page and the table id.
+export async function startTable(browser, email, tableName, myName) {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(`${APP}/start`);
+  await signIn(page, email);
+  await page.waitForURL(/\/start$/);
+  await page.fill("#table", tableName);
+  await page.fill("#me", myName);
+  await page.click("text=Start the table");
+  await page.waitForURL(/\/t\/[0-9a-f-]{36}$/);
+  return { context, page, tableId: page.url().split("/t/")[1] };
+}
+
+export async function inviteLink(ownerPage, role) {
+  await ownerPage.click("button:has-text('Invite')");
+  await ownerPage.click(role === "client" ? "text=The client" : "text=A developer");
+  const link = (await ownerPage.textContent("[data-testid=invite-link]")).trim();
+  await ownerPage.click("button:has-text('Invite')");
+  return link;
+}
+
+export async function join(browser, link, email, myName) {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(link);
+  await page.click("text=Sign in to join");
+  await signIn(page, email);
+  await page.waitForURL(/\/join\//);
+  await page.fill("#me", myName);
+  await page.click("button:has-text('Join')");
+  await page.waitForURL(/\/t\/[0-9a-f-]{36}$/);
+  return { context, page };
+}
+
+// The session a browser holds, read from its cookie, so the database can be asked directly as that person.
+export async function accessToken(context) {
+  const cookies = (await context.cookies()).filter((c) => /^sb-.*-auth-token(\.\d+)?$/.test(c.name));
+  cookies.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  let value = cookies.map((c) => c.value).join("");
+  if (value.startsWith("base64-")) value = Buffer.from(value.slice(7), "base64url").toString("utf8");
+  return JSON.parse(value).access_token;
+}
+
+export async function rest(token, path, init = {}) {
+  const res = await fetch(`${API}/rest/v1/${path}`, {
+    ...init,
+    headers: { apikey: KEY, Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(init.headers || {}) },
+  });
+  const text = await res.text();
+  let body;
+  try { body = JSON.parse(text); } catch { body = text; }
+  return { status: res.status, body };
+}
+
+export const rpc = (token, fn, args) => rest(token, `rpc/${fn}`, { method: "POST", body: JSON.stringify(args) });

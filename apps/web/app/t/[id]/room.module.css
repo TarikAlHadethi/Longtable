@@ -13,22 +13,38 @@
   width: 26px; height: 26px; border-radius: 50%; color: white; font-size: 11px; font-weight: 600;
   display: flex; align-items: center; justify-content: center; border: 2px solid var(--raised); margin-left: -6px;
 }
+.inboxToggle { display: none; padding: 8px 14px; }
 
-.grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 264px 1fr; }
+.grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 264px 1fr 360px; }
 
+/* Left: chats and people */
 .aside {
   border-right: 1px solid var(--line); padding: 20px 14px; display: flex; flex-direction: column; gap: 28px;
   overflow: auto; background: var(--paper);
 }
 .section { display: flex; flex-direction: column; gap: 2px; }
+.sectionHead { display: flex; align-items: center; justify-content: space-between; padding: 0 2px 0 0; }
 .sectionTitle {
   font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: oklch(0.48 0.01 70);
   padding: 0 8px 8px;
 }
-.chat {
-  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 0; padding: 8px;
-  border-radius: 8px; font-size: 14px; background: var(--chip); color: var(--ink); font-weight: 500;
+.sectionHead .sectionTitle { padding-bottom: 6px; }
+.plus {
+  width: 22px; height: 22px; border-radius: 6px; border: 0; background: transparent; color: var(--faint);
+  font-size: 18px; line-height: 1; cursor: pointer; margin-bottom: 6px;
 }
+.plus:hover { background: oklch(0.89 0.008 80); color: var(--ink); }
+.chat {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; text-align: left;
+  border: 0; padding: 8px; border-radius: 8px; font-size: 14px; background: transparent; color: var(--ink-2);
+  cursor: pointer; text-decoration: none;
+}
+.chat:hover { background: var(--hover); color: var(--ink); }
+.chatActive { background: var(--chip); color: var(--ink); font-weight: 500; }
+.chatName { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chatDot { width: 7px; height: 7px; border-radius: 50%; background: var(--sage); flex-shrink: 0; }
+.newChat { padding: 4px 0 0; }
+.newChat :global(.field) { padding: 8px 10px; font-size: 14px; }
 .person { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px; }
 .avatar {
   width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; color: white; font-size: 12px; font-weight: 600;
@@ -41,20 +57,18 @@
 .dotOn { background: var(--online); }
 .dotOff { background: transparent; border: 1.5px solid var(--line-dashed); }
 
+/* Middle: the chat */
 .main { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .threadHead { padding: 16px 32px; border-bottom: 1px solid oklch(0.92 0.006 80); display: flex; align-items: baseline; gap: 12px; }
 .threadTitle { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
 .threadSub { font-size: 13px; color: var(--muted); }
-
 .scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 20px 32px 24px; }
 .list { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
-
 .empty {
   margin-top: 48px; padding: 28px; border: 1px dashed var(--line-dashed); border-radius: 14px;
   display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;
 }
 .emptyTitle { font-family: var(--font-voice); font-size: 24px; }
-
 .message { display: flex; gap: 12px; }
 .messageAvatar {
   width: 28px; height: 28px; border-radius: 50%; color: white; font-size: 12px; font-weight: 600; flex-shrink: 0;
@@ -66,8 +80,7 @@
 .messageText { font-size: 15px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 .pending { opacity: 0.55; }
 .failed { color: var(--danger); font-size: 12px; }
-
-.composerWrap { padding: 12px 32px 24px; }
+.composerWrap { padding: 12px 32px 20px; }
 .composer {
   max-width: 720px; margin: 0 auto; display: flex; align-items: flex-end; gap: 10px; padding: 10px 10px 10px 16px;
   border: 1px solid var(--line-strong); border-radius: 14px; background: var(--card);
@@ -77,7 +90,58 @@
   flex: 1; border: 0; outline: none; resize: none; background: transparent; color: var(--ink); font: inherit;
   font-size: 15px; line-height: 1.5; max-height: 200px; padding: 6px 0;
 }
+.composerTools { max-width: 720px; margin: 8px auto 0; display: flex; gap: 16px; }
+.toolLink { border: 0; background: transparent; padding: 0; font-size: 13px; font-weight: 600; color: var(--link); cursor: pointer; }
+.toolLink:hover { color: oklch(0.35 0.07 170); }
 
+/* Decision cards */
+.card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px;
+  box-shadow: 0 1px 2px oklch(0.2 0.01 70 / 0.04);
+}
+.cardDecided { border-color: oklch(0.86 0.03 170); }
+.cardOrigin {
+  display: flex; align-items: center; gap: 6px; border: 0; background: transparent; padding: 0; margin-bottom: 8px;
+  font-size: 12px; color: oklch(0.5 0.01 70); cursor: pointer; text-align: left;
+}
+.cardOrigin:disabled { cursor: default; }
+.cardOrigin:not(:disabled):hover { color: oklch(0.35 0.06 170); }
+.cardChat { font-weight: 600; }
+.cardTitle { font-size: 15px; font-weight: 600; line-height: 1.35; margin-bottom: 6px; }
+.cardContext { font-size: 13px; line-height: 1.5; color: oklch(0.42 0.01 70); margin-bottom: 14px; }
+.options { display: flex; flex-direction: column; gap: 6px; }
+.option {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 8px; text-align: left;
+  width: 100%; padding: 10px 12px; border-radius: 9px; font-size: 14px; font-weight: 500; cursor: pointer;
+  border: 1px solid var(--line-strong); background: var(--card); color: var(--ink);
+}
+.option:not(:disabled):hover { border-color: var(--sage); background: oklch(0.97 0.012 170); }
+.option:disabled { cursor: default; }
+.optionChosen { border-color: var(--sage); background: oklch(0.95 0.025 170); color: oklch(0.28 0.04 170); }
+.optionFaded { opacity: 0.45; }
+.optionTag { white-space: nowrap; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.8; }
+.clientWords { margin-top: 12px; padding: 10px 12px; border-radius: 9px; background: oklch(0.97 0.01 120); border: 1px dashed oklch(0.86 0.02 120); }
+.clientWordsLabel { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: oklch(0.45 0.03 120); margin-bottom: 4px; }
+.clientWordsText { font-family: var(--font-voice); font-size: 15px; line-height: 1.45; color: var(--ink-2); }
+.after { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.afterText { flex: 1; font-size: 12px; line-height: 1.5; color: oklch(0.42 0.07 170); }
+.undo {
+  border: 1px solid var(--line-dashed); background: var(--card); border-radius: 7px; padding: 4px 10px;
+  font-size: 12px; font-weight: 600; color: oklch(0.3 0.01 70); cursor: pointer;
+}
+.undo:hover { background: oklch(0.95 0.006 80); }
+
+/* Right: the inbox */
+.inbox { border-left: 1px solid var(--line); background: oklch(0.965 0.006 80); display: flex; flex-direction: column; min-height: 0; }
+.inboxHead { padding: 20px 20px 14px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.inboxTitle { font-size: 16px; font-weight: 600; }
+.inboxCount { font-size: 13px; color: oklch(0.5 0.01 70); }
+.inboxList { flex: 1; overflow: auto; padding: 0 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+.inboxEmpty { padding: 18px; border-radius: 12px; border: 1px dashed oklch(0.84 0.01 80); font-size: 14px; font-weight: 600; }
+.inboxDivider { display: flex; align-items: center; gap: 10px; margin-top: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: oklch(0.48 0.01 70); }
+.rule { flex: 1; height: 1px; background: var(--line-strong); }
+
+/* Invite */
 .invite { position: relative; }
 .popover {
   position: absolute; right: 0; top: 44px; width: 340px; background: var(--card); border: 1px solid var(--line);
@@ -91,10 +155,38 @@
   border: 1px solid var(--line); overflow-wrap: anywhere;
 }
 
+/* Ask for a decision */
+.modalBack {
+  position: fixed; inset: 0; background: oklch(0.2 0.01 70 / 0.3); z-index: 50; display: flex; align-items: flex-start;
+  justify-content: center; padding: 48px 16px; overflow: auto;
+}
+.modal {
+  width: 100%; max-width: 520px; background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+  padding: 24px; display: flex; flex-direction: column; gap: 16px; box-shadow: 0 24px 60px oklch(0.2 0.01 70 / 0.2);
+}
+.modalTitle { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+.toggleRow { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 500; cursor: pointer; }
+.optionEditors { display: flex; flex-direction: column; gap: 12px; }
+.optionEditor { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; background: var(--paper); border: 1px solid var(--line); }
+.optionEditorTop { display: flex; align-items: center; gap: 10px; }
+.recommend { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); white-space: nowrap; cursor: pointer; }
+.modalActions { display: flex; justify-content: flex-end; gap: 10px; }
+
+@media (max-width: 1180px) {
+  .grid { grid-template-columns: 264px 1fr; }
+  .inboxToggle { display: inline-flex; }
+  .inbox {
+    display: none; position: fixed; top: 56px; right: 0; bottom: 0; width: min(380px, 100vw); z-index: 25;
+    box-shadow: -12px 0 32px oklch(0.2 0.01 70 / 0.12);
+  }
+  .inboxOpen { display: flex; }
+}
+
 @media (max-width: 820px) {
   .grid { grid-template-columns: 1fr; }
   .aside { display: none; }
   .project, .divider { display: none; }
   .scroll, .composerWrap, .threadHead { padding-left: 16px; padding-right: 16px; }
   .popover { width: min(340px, calc(100vw - 32px)); }
+  .faces { display: none; }
 }

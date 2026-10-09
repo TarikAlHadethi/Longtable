@@ -1,60 +1,107 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { Mark } from "@/components/mark";
 import { browserClient } from "@/lib/supabase/browser";
 import { formatTime } from "@/lib/time";
+import { DecisionCard } from "./decision-card";
+import { Invite } from "./invite";
+import { NewDecision } from "./new-decision";
+import { DECISION_COLUMNS, MESSAGE_COLUMNS, type Chat, type Decision, type Member, type Message } from "./types";
 import styles from "./room.module.css";
-
-export type Member = { id: string; display_name: string; role: "owner" | "developer" | "client"; color: string };
-export type Message = { id: string; member_id: string; body: string; created_at: string; state?: "sending" | "failed" };
 
 const ROLE_WORD = { owner: "Owner", developer: "Developer", client: "Client" } as const;
 const initial = (name: string) => name.trim().charAt(0).toUpperCase() || "?";
-const byTime = (a: Message, b: Message) => a.created_at.localeCompare(b.created_at);
+const byTime = <T extends { created_at: string }>(a: T, b: T) => a.created_at.localeCompare(b.created_at);
+const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-export function Room({ table, me, initialMembers, initialMessages }: {
+type Change = { table?: string; record?: Record<string, unknown> };
+
+export function Room({ table, me, initialMembers, initialChats, initialMessages, initialDecisions, initialChatId }: {
   table: { id: string; name: string };
   me: Member;
   initialMembers: Member[];
+  initialChats: Chat[];
   initialMessages: Message[];
+  initialDecisions: Decision[];
+  initialChatId: string;
 }) {
   const supabase = useMemo(() => browserClient(), []);
   const [members, setMembers] = useState(initialMembers);
+  const [chats, setChats] = useState(initialChats);
   const [messages, setMessages] = useState(initialMessages);
+  const [decisions, setDecisions] = useState(initialDecisions);
+  const [chatId, setChatId] = useState(initialChatId);
   const [online, setOnline] = useState<Set<string>>(() => new Set([me.id]));
   const [live, setLive] = useState(false);
   const [draft, setDraft] = useState("");
+  const [now, setNow] = useState(() => Date.now());
+  const [inboxOpen, setInboxOpen] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const [naming, setNaming] = useState(false);
+  const [newChat, setNewChat] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const atBottom = useRef(true);
   const known = useRef(new Set(initialMembers.map((m) => m.id)));
+
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
+  const chatById = useMemo(() => new Map(chats.map((c) => [c.id, c])), [chats]);
+  const client = members.find((m) => m.role === "client");
+  const clientName = client?.display_name ?? "the client";
+  const chat = chatById.get(chatId) ?? chats[0];
 
   const refreshMembers = useCallback(async () => {
     const { data } = await supabase.from("members").select("id, display_name, role, color").eq("table_id", table.id).order("created_at");
     if (data) {
-      known.current = new Set(data.map((m: Member) => m.id));
+      known.current = new Set((data as Member[]).map((m) => m.id));
       setMembers(data as Member[]);
     }
   }, [supabase, table.id]);
 
-  // Live: new messages and who is here, on the table's private team channel.
+  const loadDecision = useCallback(async (id: string) => {
+    const { data } = await supabase.from("decisions").select(DECISION_COLUMNS).eq("id", id).maybeSingle();
+    if (data) setDecisions((prev) => [...prev.filter((d) => d.id !== id), data as unknown as Decision]);
+  }, [supabase]);
+
+  // Live: messages, chats and decisions, plus who is here, all on the table's private team channel.
   useEffect(() => {
     let channel: RealtimeChannel | null = null;
     let cancelled = false;
+    const onChange = (kind: "INSERT" | "UPDATE") => ({ payload }: { payload: unknown }) => {
+      const { table: name, record } = (payload ?? {}) as Change;
+      if (!record) return;
+      if (name === "messages") {
+        const m = record as unknown as Message;
+        setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]));
+        if (!known.current.has(m.member_id)) refreshMembers();
+      } else if (name === "members") {
+        const { id, display_name, role, color } = record as unknown as Member;
+        known.current.add(id);
+        setMembers((prev) => (prev.some((m) => m.id === id)
+          ? prev.map((m) => (m.id === id ? { id, display_name, role, color } : m))
+          : [...prev, { id, display_name, role, color }]));
+      } else if (name === "chats") {
+        const c = record as unknown as Chat;
+        setChats((prev) => [...prev.filter((x) => x.id !== c.id), c].sort(byTime));
+      } else if (name === "decisions") {
+        const d = record as unknown as Omit<Decision, "options">;
+        if (kind === "INSERT") loadDecision(d.id);
+        else setDecisions((prev) => {
+          if (!prev.some((x) => x.id === d.id)) { loadDecision(d.id); return prev; }
+          return prev.map((x) => (x.id === d.id ? { ...x, ...d, options: x.options } : x));
+        });
+      }
+    };
     (async () => {
       await supabase.realtime.setAuth();
       if (cancelled) return;
       const ch = supabase.channel(`team:${table.id}`, { config: { private: true, presence: { key: me.id } } });
       channel = ch;
-      ch.on("broadcast", { event: "INSERT" }, ({ payload }: { payload: unknown }) => {
-        const rec = (payload as { record?: Message }).record;
-        if (!rec) return;
-        setMessages((prev) => (prev.some((m) => m.id === rec.id) ? prev : [...prev, rec]));
-        if (!known.current.has(rec.member_id)) refreshMembers();
-      })
+      ch.on("broadcast", { event: "INSERT" }, onChange("INSERT"))
+        .on("broadcast", { event: "UPDATE" }, onChange("UPDATE"))
         .on("presence", { event: "sync" }, () => {
           const ids = new Set(Object.keys(ch.presenceState()));
           ids.add(me.id);
@@ -70,13 +117,34 @@ export function Room({ table, me, initialMembers, initialMessages }: {
       cancelled = true;
       if (channel) supabase.removeChannel(channel);
     };
-  }, [supabase, table.id, me.id, refreshMembers]);
+  }, [supabase, table.id, me.id, refreshMembers, loadDecision]);
 
-  // Stay at the bottom while new messages arrive, unless someone scrolled up to read.
+  // A clock for the undo countdown, running only while a window is open.
+  const counting = decisions.some((d) => d.status === "decided" && !d.delivered_at && d.deliver_after && new Date(d.deliver_after).getTime() > now - 3000);
+  useEffect(() => {
+    if (!counting) return;
+    const t = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(t);
+  }, [counting]);
+
+  const items = useMemo(() => {
+    const ms = messages.filter((m) => m.chat_id === chat?.id).map((m) => ({ kind: "message" as const, created_at: m.created_at, m }));
+    const ds = decisions.filter((d) => d.chat_id === chat?.id).map((d) => ({ kind: "decision" as const, created_at: d.created_at, d }));
+    return [...ms, ...ds].sort(byTime);
+  }, [messages, decisions, chat?.id]);
+
+  // Stay at the bottom while new things arrive, unless someone scrolled up to read.
   useEffect(() => {
     const el = scrollRef.current;
     if (el && atBottom.current) el.scrollTop = el.scrollHeight;
-  }, [messages]);
+  }, [items]);
+
+  function openChat(id: string) {
+    setChatId(id);
+    atBottom.current = true;
+    window.history.replaceState(null, "", `?c=${id}`);
+    setInboxOpen(false);
+  }
 
   function onScroll() {
     const el = scrollRef.current;
@@ -92,26 +160,61 @@ export function Room({ table, me, initialMembers, initialMessages }: {
 
   async function send() {
     const body = draft.trim();
-    if (!body) return;
+    if (!body || !chat) return;
     setDraft("");
     requestAnimationFrame(grow);
     atBottom.current = true;
     const tempId = `sending-${crypto.randomUUID()}`;
-    setMessages((prev) => [...prev, { id: tempId, member_id: me.id, body, created_at: new Date().toISOString(), state: "sending" }]);
+    setMessages((prev) => [...prev, { id: tempId, chat_id: chat.id, member_id: me.id, body, created_at: new Date().toISOString(), state: "sending" }]);
     const { data, error } = await supabase
       .from("messages")
-      .insert({ table_id: table.id, member_id: me.id, body })
-      .select("id, member_id, body, created_at")
+      .insert({ table_id: table.id, chat_id: chat.id, member_id: me.id, body })
+      .select(MESSAGE_COLUMNS)
       .single();
     setMessages((prev) => {
       if (error || !data) return prev.map((m) => (m.id === tempId ? { ...m, state: "failed" } : m));
       const rest = prev.filter((m) => m.id !== tempId);
-      return rest.some((m) => m.id === data.id) ? rest : [...rest, data as Message];
+      return rest.some((m) => m.id === (data as Message).id) ? rest : [...rest, data as Message];
     });
   }
 
-  const sorted = useMemo(() => [...messages].sort(byTime), [messages]);
+  async function makeChat(e: React.FormEvent) {
+    e.preventDefault();
+    const name = newChat.trim();
+    if (!name) return;
+    const { data, error } = await supabase.rpc("create_chat", { t: table.id, chat_name: name, chat_about: "" });
+    if (error || !data) return;
+    const { data: row } = await supabase.from("chats").select("id, name, about, is_general, created_at").eq("id", data).single();
+    if (row) setChats((prev) => [...prev.filter((c) => c.id !== (row as Chat).id), row as Chat].sort(byTime));
+    setNewChat("");
+    setNaming(false);
+    openChat(data as string);
+  }
+
+  function patchDecision(id: string, patch: Partial<Decision>) {
+    setDecisions((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+  }
+
   const here = members.filter((m) => online.has(m.id));
+  const open = decisions.filter((d) => d.status === "open").sort(byTime);
+  const decided = decisions
+    .filter((d) => d.status === "decided")
+    .sort((a, b) => (b.decided_at ?? "").localeCompare(a.decided_at ?? ""))
+    .slice(0, 8);
+  const waiting = open.length === 0 ? "Nothing waiting" : `${open.length} waiting for a yes`;
+
+  const card = (d: Decision, inInbox: boolean) => (
+    <DecisionCard
+      key={`${inInbox ? "i" : "c"}-${d.id}`}
+      decision={d}
+      chatName={chatById.get(d.chat_id)?.name ?? "Chat"}
+      members={byId}
+      clientName={capital(clientName)}
+      now={now}
+      onOpenChat={inInbox ? () => openChat(d.chat_id) : undefined}
+      onChange={(patch) => patchDecision(d.id, patch)}
+    />
+  );
 
   return (
     <div className={styles.shell}>
@@ -125,14 +228,31 @@ export function Room({ table, me, initialMembers, initialMessages }: {
             <div key={m.id} className={styles.face} style={{ background: m.color }}>{initial(m.display_name)}</div>
           ))}
         </div>
+        <button className={`btn btn-quiet ${styles.inboxToggle}`} onClick={() => setInboxOpen(!inboxOpen)}>
+          Inbox{open.length > 0 ? ` (${open.length})` : ""}
+        </button>
         {me.role === "owner" && <Invite tableId={table.id} />}
       </header>
 
       <div className={styles.grid}>
         <aside className={styles.aside}>
           <div className={styles.section}>
-            <div className={styles.sectionTitle}>Chats</div>
-            <div className={styles.chat}>General</div>
+            <div className={styles.sectionHead}>
+              <div className={styles.sectionTitle}>Chats</div>
+              <button className={styles.plus} title="New chat" aria-label="New chat" onClick={() => setNaming(!naming)}>+</button>
+            </div>
+            {[...chats].sort((a, b) => Number(b.is_general) - Number(a.is_general) || byTime(a, b)).map((c) => (
+              <button key={c.id} className={`${styles.chat} ${c.id === chat?.id ? styles.chatActive : ""}`} onClick={() => openChat(c.id)}>
+                <span className={styles.chatName}>{c.name}</span>
+                {decisions.some((d) => d.chat_id === c.id && d.status === "open") && <span className={styles.chatDot} />}
+              </button>
+            ))}
+            {naming && (
+              <form onSubmit={makeChat} className={styles.newChat}>
+                <input className="field" autoFocus maxLength={60} value={newChat} onChange={(e) => setNewChat(e.target.value)}
+                  placeholder="Name the chat" aria-label="Name the new chat" />
+              </form>
+            )}
           </div>
           <div className={styles.section}>
             <div className={styles.sectionTitle}>People</div>
@@ -149,23 +269,28 @@ export function Room({ table, me, initialMembers, initialMessages }: {
               </div>
             ))}
           </div>
+          <div className={styles.section}>
+            <Link className={styles.chat} href={`/t/${table.id}/activity`}>Activity</Link>
+          </div>
         </aside>
 
         <main className={styles.main}>
           <div className={styles.threadHead}>
-            <div className={styles.threadTitle}>General</div>
-            <div className={styles.threadSub}>{live ? "The team's chat" : "Connecting…"}</div>
+            <div className={styles.threadTitle}>{chat?.name ?? "General"}</div>
+            <div className={styles.threadSub}>{!live ? "Connecting…" : chat?.about || "Team only"}</div>
           </div>
 
           <div ref={scrollRef} className={styles.scroll} onScroll={onScroll} data-testid="messages">
             <div className={styles.list}>
-              {sorted.length === 0 && (
+              {items.length === 0 && (
                 <div className={styles.empty}>
-                  <div className={styles.emptyTitle}>The table is set</div>
-                  <div className="note">Say hello, or invite your team. Their Claudes can join once Connect is ready.</div>
+                  <div className={styles.emptyTitle}>{chat?.is_general ? "The table is set" : `Nothing in ${chat?.name ?? "this chat"} yet`}</div>
+                  <div className="note">Say hello, ask for a decision, or invite your team. Their Claudes can join once Connect is ready.</div>
                 </div>
               )}
-              {sorted.map((m) => {
+              {items.map((it) => {
+                if (it.kind === "decision") return card(it.d, false);
+                const m = it.m;
                 const who = byId.get(m.member_id);
                 return (
                   <div key={m.id} className={`${styles.message} ${m.state === "sending" ? styles.pending : ""}`} data-mid={m.id}>
@@ -193,7 +318,7 @@ export function Room({ table, me, initialMembers, initialMessages }: {
                 className={styles.input}
                 rows={1}
                 value={draft}
-                placeholder="Message the table"
+                placeholder={`Message ${chat?.name ?? "the table"}`}
                 aria-label="Message the table"
                 onChange={(e) => { setDraft(e.target.value); grow(); }}
                 onKeyDown={(e) => {
@@ -205,59 +330,36 @@ export function Room({ table, me, initialMembers, initialMessages }: {
               />
               <button className="btn" disabled={!draft.trim()}>Send</button>
             </form>
+            <div className={styles.composerTools}>
+              <button className={styles.toolLink} onClick={() => setAsking(true)}>Ask for a decision</button>
+            </div>
           </div>
         </main>
-      </div>
-    </div>
-  );
-}
 
-// Invite links: the owner picks developer or client and copies a one-time link.
-function Invite({ tableId }: { tableId: string }) {
-  const [open, setOpen] = useState(false);
-  const [link, setLink] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [error, setError] = useState("");
-
-  async function make(role: "developer" | "client") {
-    setBusy(true);
-    setError("");
-    setCopied(false);
-    const { data, error } = await browserClient().rpc("create_invite", { t: tableId, invite_role: role });
-    setBusy(false);
-    if (error || !data) return setError(error?.message ?? "Something went wrong. Try again.");
-    setLink(`${window.location.origin}/join/${data}`);
-  }
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(link);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
-  }
-
-  return (
-    <div className={styles.invite}>
-      <button className="btn" onClick={() => { setOpen(!open); setLink(""); setError(""); }}>Invite</button>
-      {open && (
-        <div className={styles.popover}>
-          <div className={styles.popoverTitle}>Invite someone to this table</div>
-          <div className={styles.roles}>
-            <button className="btn btn-quiet" disabled={busy} onClick={() => make("developer")}>A developer</button>
-            <button className="btn btn-quiet" disabled={busy} onClick={() => make("client")}>The client</button>
+        <aside className={`${styles.inbox} ${inboxOpen ? styles.inboxOpen : ""}`} aria-label="Inbox">
+          <div className={styles.inboxHead}>
+            <div className={styles.inboxTitle}>Inbox</div>
+            <div className={styles.inboxCount}>{waiting}</div>
           </div>
-          {link && (
-            <>
-              <div className={styles.linkBox} data-testid="invite-link">{link}</div>
-              <button className="btn" onClick={copy}>{copied ? "Copied" : "Copy link"}</button>
-              <div className="note">Works once, for 7 days. Send it any way you like.</div>
-            </>
-          )}
-          {error && <div className="error">{error}</div>}
-        </div>
+          <div className={styles.inboxList}>
+            {open.length === 0 && <div className={styles.inboxEmpty}>Nothing waiting for a yes</div>}
+            {open.map((d) => card(d, true))}
+            {decided.length > 0 && (
+              <div className={styles.inboxDivider}><span>Decided</span><span className={styles.rule} /></div>
+            )}
+            {decided.map((d) => card(d, true))}
+          </div>
+        </aside>
+      </div>
+
+      {asking && chat && (
+        <NewDecision
+          chatId={chat.id}
+          myName={me.display_name}
+          clientName={clientName}
+          hasClient={!!client}
+          onClose={() => setAsking(false)}
+        />
       )}
     </div>
   );

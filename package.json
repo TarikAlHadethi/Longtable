@@ -12,7 +12,8 @@
     "db:start": "supabase start -x storage-api,imgproxy,edge-runtime,logflare,vector,supavisor,studio,postgres-meta",
     "db:reset": "supabase db reset",
     "probe:sign-in": "node probes/sign-in.mjs",
-    "probe:headless": "node probes/headless.mjs"
+    "probe:headless": "node probes/headless.mjs",
+    "test:e2e": "node tests/e2e/step1.mjs && node tests/e2e/step2.mjs"
   },
   "devDependencies": {
     "@lydell/node-pty": "1.2.0-beta.15",
