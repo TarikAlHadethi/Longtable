@@ -5,11 +5,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { Mark } from "@/components/mark";
 import { browserClient } from "@/lib/supabase/browser";
+import { Inline } from "@/lib/inline";
 import { formatTime } from "@/lib/time";
+import { ConnectModal } from "./connect-modal";
 import { DecisionCard } from "./decision-card";
 import { Invite } from "./invite";
 import { NewDecision } from "./new-decision";
-import { DECISION_COLUMNS, MESSAGE_COLUMNS, type Chat, type Decision, type Member, type Message } from "./types";
+import { DECISION_COLUMNS, MESSAGE_COLUMNS, type Chat, type Connection, type Decision, type Job, type Member, type Message } from "./types";
 import styles from "./room.module.css";
 
 const ROLE_WORD = { owner: "Owner", developer: "Developer", client: "Client" } as const;
@@ -19,13 +21,15 @@ const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 type Change = { table?: string; record?: Record<string, unknown> };
 
-export function Room({ table, me, initialMembers, initialChats, initialMessages, initialDecisions, initialChatId }: {
+export function Room({ table, me, initialMembers, initialChats, initialMessages, initialDecisions, initialJobs, initialConnections, initialChatId }: {
   table: { id: string; name: string };
   me: Member;
   initialMembers: Member[];
   initialChats: Chat[];
   initialMessages: Message[];
   initialDecisions: Decision[];
+  initialJobs: Job[];
+  initialConnections: Connection[];
   initialChatId: string;
 }) {
   const supabase = useMemo(() => browserClient(), []);
@@ -33,6 +37,10 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const [chats, setChats] = useState(initialChats);
   const [messages, setMessages] = useState(initialMessages);
   const [decisions, setDecisions] = useState(initialDecisions);
+  const [jobs, setJobs] = useState(initialJobs);
+  const [connections, setConnections] = useState(initialConnections);
+  const [connectOpen, setConnectOpen] = useState(false);
+  const [notice, setNotice] = useState("");
   const [chatId, setChatId] = useState(initialChatId);
   const [online, setOnline] = useState<Set<string>>(() => new Set([me.id]));
   const [live, setLive] = useState(false);
@@ -52,6 +60,10 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const client = members.find((m) => m.role === "client");
   const clientName = client?.display_name ?? "the client";
   const chat = chatById.get(chatId) ?? chats[0];
+  const liveClaude = new Set(connections.filter((c) => !c.revoked_at && c.kind === "claude").map((c) => c.member_id));
+  const myConnection = connections.find((c) => !c.revoked_at && c.kind === "claude" && c.member_id === me.id);
+  const working = jobs.filter((j) => j.chat_id === chat?.id && (j.status === "queued" || j.status === "running" || j.status === "failed"))
+    .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
   const refreshMembers = useCallback(async () => {
     const { data } = await supabase.from("members").select("id, display_name, role, color").eq("table_id", table.id).order("created_at");
@@ -83,6 +95,12 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         setMembers((prev) => (prev.some((m) => m.id === id)
           ? prev.map((m) => (m.id === id ? { id, display_name, role, color } : m))
           : [...prev, { id, display_name, role, color }]));
+      } else if (name === "jobs") {
+        const j = record as unknown as Job;
+        setJobs((prev) => [...prev.filter((x) => x.id !== j.id), j]);
+      } else if (name === "connections") {
+        const c = record as unknown as Connection;
+        setConnections((prev) => [...prev.filter((x) => x.id !== c.id), c]);
       } else if (name === "chats") {
         const c = record as unknown as Chat;
         setChats((prev) => [...prev.filter((x) => x.id !== c.id), c].sort(byTime));
@@ -178,6 +196,29 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     });
   }
 
+  async function askTable() {
+    const body = draft.trim();
+    if (!body || !chat) return;
+    setDraft("");
+    setNotice("");
+    requestAnimationFrame(grow);
+    atBottom.current = true;
+    const { data, error } = await supabase.rpc("ask_table", { c: chat.id, body });
+    if (error) {
+      setDraft(body);
+      return setNotice(error.message);
+    }
+    const res = data as { message_id: string; job_id: string | null; answered_by: string | null };
+    const { data: row } = await supabase.from("messages").select(MESSAGE_COLUMNS).eq("id", res.message_id).single();
+    if (row) setMessages((prev) => (prev.some((m) => m.id === (row as Message).id) ? prev : [...prev, row as Message]));
+    if (!res.answered_by) setNotice("No Claude is connected at this table yet, so nobody will answer. Connect yours in the sidebar.");
+  }
+
+  async function disconnect(id: string) {
+    const { error } = await supabase.rpc("disconnect", { conn: id });
+    if (!error) setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, revoked_at: new Date().toISOString() } : c)));
+  }
+
   async function makeChat(e: React.FormEvent) {
     e.preventDefault();
     const name = newChat.trim();
@@ -255,6 +296,18 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
             )}
           </div>
           <div className={styles.section}>
+            <div className={styles.sectionTitle}>Your Claude</div>
+            {myConnection ? (
+              <div className={styles.claudeStatus} data-testid="my-claude">
+                <span className={`${styles.dot} ${styles.dotOn}`} />
+                <span className={styles.claudeText}>Connected</span>
+                <button className={styles.toolLink} onClick={() => disconnect(myConnection.id)}>Disconnect</button>
+              </div>
+            ) : (
+              <button className={`btn btn-quiet ${styles.connectButton}`} onClick={() => setConnectOpen(true)}>Connect my Claude</button>
+            )}
+          </div>
+          <div className={styles.section}>
             <div className={styles.sectionTitle}>People</div>
             {members.map((m) => (
               <div key={m.id} className={styles.person}>
@@ -263,7 +316,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                   <div className={styles.personName}>{m.display_name}{m.id === me.id ? " (you)" : ""}</div>
                   <div className={styles.personMeta}>
                     <span className={`${styles.dot} ${online.has(m.id) ? styles.dotOn : styles.dotOff}`} />
-                    {online.has(m.id) ? "Here" : "Away"} · {ROLE_WORD[m.role]}
+                    {online.has(m.id) ? "Here" : "Away"} · {ROLE_WORD[m.role]}{liveClaude.has(m.id) ? " · Claude on" : ""}
                   </div>
                 </div>
               </div>
@@ -292,19 +345,47 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 if (it.kind === "decision") return card(it.d, false);
                 const m = it.m;
                 const who = byId.get(m.member_id);
+                const name = who?.display_name ?? "Someone";
+                if (m.by_ai) {
+                  return (
+                    <div key={m.id} className={`${styles.message} ${styles.aiMessage}`} data-mid={m.id} data-ai="true">
+                      <div className={`${styles.messageAvatar} ${styles.aiAvatar}`} style={{ borderColor: who?.color ?? "var(--faint)" }}>
+                        <Mark size={18} />
+                      </div>
+                      <div className={styles.messageBody}>
+                        <div className={styles.messageMeta}>
+                          <span className={styles.messageName}>{name}&apos;s Claude</span>
+                          <span suppressHydrationWarning>{formatTime(m.created_at)}</span>
+                          {m.meta?.read && <span className={styles.readTag}>read {m.meta.read}</span>}
+                        </div>
+                        <div className={`${styles.messageText} ${styles.aiText}`}><Inline text={m.body} /></div>
+                      </div>
+                    </div>
+                  );
+                }
                 return (
                   <div key={m.id} className={`${styles.message} ${m.state === "sending" ? styles.pending : ""}`} data-mid={m.id}>
                     <div className={styles.messageAvatar} style={{ background: who?.color ?? "var(--faint)" }}>
-                      {initial(who?.display_name ?? "?")}
+                      {initial(name)}
                     </div>
                     <div className={styles.messageBody}>
                       <div className={styles.messageMeta}>
-                        <span className={styles.messageName}>{who?.display_name ?? "Someone"}</span>
+                        <span className={styles.messageName}>{name}</span>
                         <span suppressHydrationWarning>{formatTime(m.created_at)}</span>
                         {m.state === "failed" && <span className={styles.failed}>Not sent</span>}
                       </div>
-                      <div className={styles.messageText}>{m.body}</div>
+                      <div className={styles.messageText}><Inline text={m.body} /></div>
                     </div>
+                  </div>
+                );
+              })}
+              {working.filter((j) => j.status !== "failed" || now - new Date(j.created_at).getTime() < 15 * 60 * 1000).map((j) => {
+                const name = byId.get(j.member_id)?.display_name ?? "Someone";
+                const text = j.status === "running" ? `${name}'s Claude is reading the code…`
+                  : j.status === "queued" ? `Waiting for ${name}'s Claude` : `${name}'s Claude couldn't answer: ${j.error ?? "it gave up"}`;
+                return (
+                  <div key={j.id} className={`${styles.working} ${j.status === "failed" ? styles.workingFailed : ""}`} data-testid="working">
+                    {j.status !== "failed" && <span className={styles.workingDot} />}{text}
                   </div>
                 );
               })}
@@ -324,14 +405,17 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                     e.preventDefault();
-                    send();
+                    if (e.ctrlKey || e.metaKey) askTable();
+                    else send();
                   }
                 }}
               />
+              <button type="button" className="btn btn-quiet" disabled={!draft.trim()} onClick={askTable} title="Ctrl+Enter">Ask the table</button>
               <button className="btn" disabled={!draft.trim()}>Send</button>
             </form>
             <div className={styles.composerTools}>
               <button className={styles.toolLink} onClick={() => setAsking(true)}>Ask for a decision</button>
+              {notice && <span className={styles.notice} role="status">{notice}</span>}
             </div>
           </div>
         </main>
@@ -352,6 +436,9 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         </aside>
       </div>
 
+      {connectOpen && (
+        <ConnectModal tableId={table.id} tableName={table.name} connected={!!myConnection} onClose={() => setConnectOpen(false)} />
+      )}
       {asking && chat && (
         <NewDecision
           chatId={chat.id}

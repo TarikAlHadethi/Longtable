@@ -1,0 +1,21 @@
+{
+  "name": "longtable",
+  "version": "0.1.0",
+  "description": "Brings your own Claude Code to your team's Longtable, quietly, on your own plan.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "longtable": "bin/longtable.mjs"
+  },
+  "files": [
+    "bin",
+    "src"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@lydell/node-pty": "1.2.0-beta.15",
+    "@xterm/headless": "^6.0.0"
+  }
+}

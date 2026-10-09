@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "apps/*"
+    "apps/*",
+    "packages/*"
   ],
   "scripts": {
     "dev": "npm run dev --workspace @longtable/web",
@@ -13,7 +14,7 @@
     "db:reset": "supabase db reset",
     "probe:sign-in": "node probes/sign-in.mjs",
     "probe:headless": "node probes/headless.mjs",
-    "test:e2e": "node tests/e2e/step1.mjs && node tests/e2e/step2.mjs"
+    "test:e2e": "node tests/e2e/step1.mjs && node tests/e2e/step2.mjs && node tests/e2e/step3.mjs"
   },
   "devDependencies": {
     "@lydell/node-pty": "1.2.0-beta.15",

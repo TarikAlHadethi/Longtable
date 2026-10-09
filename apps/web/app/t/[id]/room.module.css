@@ -190,3 +190,26 @@
   .popover { width: min(340px, calc(100vw - 32px)); }
   .faces { display: none; }
 }
+
+/* Your Claude */
+.claudeStatus { display: flex; align-items: center; gap: 8px; padding: 6px 8px; font-size: 14px; }
+.claudeText { flex: 1; color: var(--ink); font-weight: 500; }
+.connectButton { width: 100%; justify-content: center; padding: 9px 12px; }
+.connectButtons { display: flex; flex-wrap: wrap; gap: 8px; }
+.connectDetails { font-size: 14px; color: var(--muted); }
+.connectDetails summary { cursor: pointer; }
+.connectMessage {
+  white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-mono); font-size: 12px; line-height: 1.5;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin: 8px 0;
+}
+
+/* Answers from a person's Claude speak in the table's voice */
+.aiMessage { padding: 12px 14px; margin: 0 -14px; border-radius: 12px; background: oklch(0.985 0.006 170); }
+.aiAvatar { background: var(--card); border: 2px solid; }
+.aiText { font-family: var(--font-voice); font-size: 16px; line-height: 1.5; color: var(--ink); }
+.readTag { font-family: var(--font-mono); font-size: 11px; color: var(--faint); }
+.working { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); padding-left: 40px; }
+.workingFailed { color: var(--danger); }
+.workingDot { width: 8px; height: 8px; border-radius: 50%; background: var(--sage); animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+.notice { font-size: 13px; color: var(--muted); }
