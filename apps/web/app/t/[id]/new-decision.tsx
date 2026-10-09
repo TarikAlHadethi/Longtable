@@ -8,16 +8,19 @@ type Draft = { label: string; client_words: string };
 
 // Ask the table for a decision: the question, two to four options, which one you recommend,
 // and, when the client is affected, the exact words they will be told for each option.
-export function NewDecision({ chatId, myName, clientName, hasClient, onClose }: {
+// From a client's request, the client always hears the answer, and the request follows the decision.
+export function NewDecision({ chatId, myName, clientName, hasClient, request, onClose }: {
   chatId: string;
   myName: string;
   clientName: string;
   hasClient: boolean;
+  request?: { id: string; title: string; body: string; who: string } | null;
   onClose: () => void;
 }) {
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(request?.title ?? "");
   const [context, setContext] = useState("");
-  const [affects, setAffects] = useState(hasClient);
+  const [affects, setAffects] = useState(hasClient || !!request);
+  const told = request?.who ?? clientName;
   const [options, setOptions] = useState<Draft[]>([{ label: "", client_words: "" }, { label: "", client_words: "" }]);
   const [recommended, setRecommended] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -42,9 +45,10 @@ export function NewDecision({ chatId, myName, clientName, hasClient, onClose }: 
       c: chatId,
       title: title.trim(),
       context: context.trim(),
-      origin: `from ${myName}`,
+      origin: request ? `requested by ${request.who}` : `from ${myName}`,
       affects_client: affects,
       options: payload,
+      request: request?.id ?? null,
     });
     setBusy(false);
     if (error) return setError(error.message);
@@ -55,6 +59,7 @@ export function NewDecision({ chatId, myName, clientName, hasClient, onClose }: 
     <div className={styles.modalBack} onClick={onClose}>
       <form className={styles.modal} onSubmit={save} onClick={(e) => e.stopPropagation()} aria-label="Ask for a decision">
         <div className={styles.modalTitle}>Ask for a decision</div>
+        {request && <blockquote className={styles.asked} data-testid="asked">{request.who} asked: {request.body}</blockquote>}
         <div>
           <label className="label" htmlFor="d-title">What needs deciding?</label>
           <input id="d-title" className="field" maxLength={140} value={title} onChange={(e) => setTitle(e.target.value)}
@@ -65,8 +70,8 @@ export function NewDecision({ chatId, myName, clientName, hasClient, onClose }: 
           <textarea id="d-context" className="field" rows={2} maxLength={1000} value={context} onChange={(e) => setContext(e.target.value)} />
         </div>
         <label className={styles.toggleRow}>
-          <input type="checkbox" checked={affects} onChange={(e) => setAffects(e.target.checked)} />
-          <span>{clientName} hears the answer</span>
+          <input type="checkbox" checked={affects} disabled={!!request} onChange={(e) => setAffects(e.target.checked)} />
+          <span>{told.charAt(0).toUpperCase() + told.slice(1)} hears the answer</span>
         </label>
         <div className={styles.optionEditors}>
           {options.map((o, i) => (
@@ -82,7 +87,7 @@ export function NewDecision({ chatId, myName, clientName, hasClient, onClose }: 
               {affects && (
                 <textarea className="field" rows={2} maxLength={1000} value={o.client_words}
                   onChange={(e) => set(i, { client_words: e.target.value })}
-                  placeholder={`What ${clientName} will be told if this is chosen`} aria-label={`What ${clientName} will be told for option ${i + 1}`} />
+                  placeholder={`What ${told} will be told if this is chosen`} aria-label={`What ${told} will be told for option ${i + 1}`} />
               )}
             </div>
           ))}

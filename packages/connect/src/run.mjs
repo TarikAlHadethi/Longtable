@@ -42,7 +42,7 @@ const KINDS = {
 };
 
 const fence = (job) => {
-  const who = (m) => (m.by_ai ? `${m.name}'s Claude` : m.name);
+  const who = (m) => (m.by_ai ? `${m.name}'s Claude` : m.client ? `${m.name} (the client, asking)` : m.name);
   const parts = [];
   if (job.pinned?.length) parts.push("Pinned notes:\n" + job.pinned.map((n) => `(${n.title || n.kind}) ${n.body}`).join("\n"));
   if (job.related?.length) parts.push("Related earlier messages from other chats:\n" + job.related.map((m) => `[${m.chat}] ${who(m)}: ${m.body}`).join("\n"));

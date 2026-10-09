@@ -99,3 +99,24 @@ export async function rest(token, path, init = {}) {
 }
 
 export const rpc = (token, fn, args) => rest(token, `rpc/${fn}`, { method: "POST", body: JSON.stringify(args) });
+
+// Listen on a private live channel as a person, the way their browser does, so a test can check who hears what on
+// the wire and not only on screen. Node 20 needs --experimental-websocket for this; Node 22 has WebSocket built in.
+export async function listen(token, topic) {
+  if (typeof WebSocket === "undefined") throw new Error("listen() needs WebSocket: run node with --experimental-websocket, or Node 22");
+  const { createClient } = await import("@supabase/supabase-js");
+  const sb = createClient(API, KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+  await sb.realtime.setAuth(token);
+  const heard = [];
+  const channel = sb.channel(topic, { config: { private: true } });
+  const status = await new Promise((resolve) => {
+    const timer = setTimeout(() => resolve("TIMED_OUT"), 8000);
+    channel.on("broadcast", { event: "*" }, (m) => heard.push(m.payload ?? m))
+      .subscribe((s) => { if (s === "SUBSCRIBED" || s === "CHANNEL_ERROR") { clearTimeout(timer); resolve(s); } });
+  });
+  return {
+    status,
+    heard,
+    stop: async () => { await sb.removeChannel(channel).catch(() => {}); sb.realtime.disconnect(); },
+  };
+}

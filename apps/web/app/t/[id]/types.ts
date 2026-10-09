@@ -11,8 +11,9 @@ export type Message = {
   body: string;
   created_at: string;
   by_ai?: boolean;
-  kind?: "chat" | "answer" | "view" | "intro";
+  kind?: "chat" | "answer" | "view" | "intro" | "client";
   meta?: {
+    request?: string;
     read?: string;
     model?: string;
     hidden?: boolean;
@@ -57,12 +58,34 @@ export type Decision = {
   delivered_at: string | null;
   created_by: string | null;
   created_at: string;
+  request_id: string | null;
   options: Option[];
 };
+
+export type RequestStatus = "asked" | "being decided" | "decided" | "planned" | "ready to try" | "done";
+
+// A client's request. The client reads only their own; the team reads them all.
+export type Request = {
+  id: string;
+  member_id: string;
+  title: string;
+  body: string;
+  status: RequestStatus;
+  message_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type RequestEvent = { id: number; request_id: string; label: string; created_at: string };
+
+export type ClientUpdate = { id: string; body: string; request_id: string | null; decision_id: string | null; created_at: string };
 
 export const MESSAGE_COLUMNS = "id, chat_id, member_id, body, created_at, by_ai, kind, meta";
 export const JOB_COLUMNS = "id, chat_id, member_id, kind, round, status, error, created_at";
 export const NOTE_COLUMNS = "id, member_id, kind, title, body, updated_at";
 export const CONNECTION_COLUMNS = "id, member_id, kind, last_seen, revoked_at, created_at";
 export const DECISION_COLUMNS =
-  "id, chat_id, title, context, origin, affects_client, status, chosen, decided_by, decided_at, deliver_after, delivered_at, created_by, created_at, options:decision_options(position, label, recommended, client_words)";
+  "id, chat_id, title, context, origin, affects_client, status, chosen, decided_by, decided_at, deliver_after, delivered_at, created_by, created_at, request_id, options:decision_options(position, label, recommended, client_words)";
+export const REQUEST_COLUMNS = "id, member_id, title, body, status, message_id, created_at, updated_at";
+export const EVENT_COLUMNS = "id, request_id, label, created_at";
+export const UPDATE_COLUMNS = "id, body, request_id, decision_id, created_at";

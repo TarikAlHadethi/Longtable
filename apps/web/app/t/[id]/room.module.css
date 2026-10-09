@@ -228,3 +228,11 @@
 .viewDot { width: 8px; height: 8px; border-radius: 50%; }
 .viewConfidence { font-weight: 500; color: var(--muted); font-size: 12px; }
 .viewText { font-size: 14px; line-height: 1.5; color: var(--ink-2); }
+
+/* A client's request in the team chat: the design's tinted bubble, its status, and the way to decide it. */
+.clientBubble { background: oklch(0.955 0.015 120); padding: 12px 14px; border-radius: 12px; }
+.clientTools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
+.requestPill { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 20px; white-space: nowrap; background: oklch(0.94 0.04 80); color: oklch(0.42 0.07 70); }
+.requestPillDone { background: oklch(0.93 0.04 150); color: oklch(0.38 0.07 150); }
+.requestPillPlan { background: oklch(0.94 0.006 80); color: oklch(0.42 0.01 70); }
+.asked { margin: 0; padding: 10px 12px; border-left: 3px solid oklch(0.75 0.05 150); background: oklch(0.97 0.01 120); border-radius: 6px; font-size: 14px; line-height: 1.5; color: var(--ink-2); white-space: pre-wrap; overflow-wrap: anywhere; }

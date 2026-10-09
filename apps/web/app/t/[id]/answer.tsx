@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Mark } from "@/components/mark";
 import { Inline } from "@/lib/inline";
-import { formatTime } from "@/lib/time";
+import { Time } from "@/components/time";
 import type { Member, Message } from "./types";
 import styles from "./room.module.css";
 
@@ -26,7 +26,7 @@ export function Answer({ m, members, views }: { m: Message; members: Map<string,
         <div className={styles.messageBody}>
           <div className={styles.messageMeta}>
             <span className={styles.messageName}>{name}&apos;s Claude joined the table</span>
-            <span suppressHydrationWarning>{formatTime(m.created_at)}</span>
+            <span><Time iso={m.created_at} /></span>
           </div>
           <div className={`${styles.messageText} ${styles.aiText}`}><Inline text={m.body} /></div>
         </div>
@@ -43,7 +43,7 @@ export function Answer({ m, members, views }: { m: Message; members: Map<string,
         <div className={styles.messageMeta}>
           <span className={styles.messageName}>{combined ? "The table" : `${name}'s Claude`}</span>
           {combined && <span>· one answer from {parts.length + 1} Claudes, written by {name}&apos;s Claude</span>}
-          <span suppressHydrationWarning>{formatTime(m.created_at)}</span>
+          <span><Time iso={m.created_at} /></span>
           {m.meta?.read && <span className={styles.readTag}>read {m.meta.read}</span>}
         </div>
         <div className={`${styles.messageText} ${styles.aiText}`}><Inline text={m.body} /></div>

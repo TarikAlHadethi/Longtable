@@ -6,23 +6,35 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { Mark } from "@/components/mark";
 import { browserClient } from "@/lib/supabase/browser";
 import { Inline } from "@/lib/inline";
-import { formatTime } from "@/lib/time";
+import { Time } from "@/components/time";
 import { Answer } from "./answer";
 import { ConnectModal } from "./connect-modal";
 import { DecisionCard } from "./decision-card";
 import { Invite } from "./invite";
 import { NewDecision } from "./new-decision";
-import { DECISION_COLUMNS, MESSAGE_COLUMNS, type Chat, type Connection, type Decision, type Job, type Member, type Message, type Note } from "./types";
+import {
+  CONNECTION_COLUMNS, DECISION_COLUMNS, JOB_COLUMNS, MESSAGE_COLUMNS, NOTE_COLUMNS, REQUEST_COLUMNS,
+  type Chat, type Connection, type Decision, type Job, type Member, type Message, type Note, type Request, type RequestStatus,
+} from "./types";
 import styles from "./room.module.css";
 
 const ROLE_WORD = { owner: "Owner", developer: "Developer", client: "Client" } as const;
 const initial = (name: string) => name.trim().charAt(0).toUpperCase() || "?";
 const byTime = <T extends { created_at: string }>(a: T, b: T) => a.created_at.localeCompare(b.created_at);
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+// A client's request as the team sees it.
+const REQUEST_WORD: Record<RequestStatus, { words: string; pill: string }> = {
+  asked: { words: "New request", pill: "" },
+  "being decided": { words: "Being decided", pill: "" },
+  decided: { words: "Decided", pill: styles.requestPillDone },
+  planned: { words: "Planned", pill: styles.requestPillPlan },
+  "ready to try": { words: "Ready to try", pill: styles.requestPillDone },
+  done: { words: "Done", pill: styles.requestPillDone },
+};
 
 type Change = { table?: string; record?: Record<string, unknown> };
 
-export function Room({ table, me, initialMembers, initialChats, initialMessages, initialDecisions, initialJobs, initialConnections, initialNotes, initialChatId }: {
+export function Room({ table, me, initialMembers, initialChats, initialMessages, initialDecisions, initialJobs, initialConnections, initialNotes, initialRequests, initialChatId }: {
   table: { id: string; name: string };
   me: Member;
   initialMembers: Member[];
@@ -32,6 +44,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   initialJobs: Job[];
   initialConnections: Connection[];
   initialNotes: Note[];
+  initialRequests: Request[];
   initialChatId: string;
 }) {
   const supabase = useMemo(() => browserClient(), []);
@@ -43,11 +56,14 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const [connections, setConnections] = useState(initialConnections);
   const [connectOpen, setConnectOpen] = useState(false);
   const [notes, setNotes] = useState(initialNotes);
+  const [requests, setRequests] = useState(initialRequests);
+  const [askingFor, setAskingFor] = useState<Request | null>(null);
   const [openNote, setOpenNote] = useState<Note | null>(null);
   const [notice, setNotice] = useState("");
   const [chatId, setChatId] = useState(initialChatId);
   const [online, setOnline] = useState<Set<string>>(() => new Set([me.id]));
   const [live, setLive] = useState(false);
+  const [gone, setGone] = useState(false);
   const [draft, setDraft] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const [inboxOpen, setInboxOpen] = useState(false);
@@ -61,8 +77,11 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
 
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const chatById = useMemo(() => new Map(chats.map((c) => [c.id, c])), [chats]);
-  const client = members.find((m) => m.role === "client");
-  const clientName = client?.display_name ?? "the client";
+  const requestById = useMemo(() => new Map(requests.map((r) => [r.id, r])), [requests]);
+  const clients = members.filter((m) => m.role === "client");
+  const client = clients[0];
+  // Who hears a decision meant for the client: one client by name; with several, every one of them.
+  const clientName = clients.length > 1 ? "every client" : client?.display_name ?? "the client";
   const chat = chatById.get(chatId) ?? chats[0];
   const liveClaude = new Set(connections.filter((c) => !c.revoked_at && c.kind === "claude").map((c) => c.member_id));
   const myConnection = connections.find((c) => !c.revoked_at && c.kind === "claude" && c.member_id === me.id);
@@ -75,6 +94,30 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       known.current = new Set((data as Member[]).map((m) => m.id));
       setMembers(data as Member[]);
     }
+  }, [supabase, table.id]);
+
+  // Live pushes can be lost (a reconnect, the server moving its database feed), so the room also reads the
+  // database: when the channel opens or reopens, when the tab comes back, and every few seconds while an AI is
+  // working or a decision is on its way out.
+  const catchUp = useCallback(async () => {
+    const [{ data: recent }, { data: inFlight }, { data: ds }, { data: rq }, { data: ns }, { data: cs }] = await Promise.all([
+      supabase.from("messages").select(MESSAGE_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(100),
+      supabase.from("jobs").select(JOB_COLUMNS).eq("table_id", table.id).in("status", ["queued", "running", "waiting", "failed"]).order("created_at", { ascending: false }).limit(50),
+      supabase.from("decisions").select(DECISION_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(100),
+      supabase.from("requests").select(REQUEST_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(200),
+      supabase.from("notes").select(NOTE_COLUMNS).eq("table_id", table.id),
+      supabase.from("connections").select(CONNECTION_COLUMNS).eq("table_id", table.id).is("revoked_at", null),
+    ]);
+    if (recent) setMessages((prev) => {
+      const have = new Set(prev.map((m) => m.id));
+      const fresh = (recent as Message[]).filter((m) => !have.has(m.id));
+      return fresh.length ? [...prev, ...fresh] : prev;
+    });
+    if (inFlight) setJobs(inFlight as Job[]);
+    if (ds) setDecisions(ds as unknown as Decision[]);
+    if (rq) setRequests(rq as Request[]);
+    if (ns) setNotes(ns as Note[]);
+    if (cs) setConnections(cs as Connection[]);
   }, [supabase, table.id]);
 
   const loadDecision = useCallback(async (id: string) => {
@@ -108,6 +151,9 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       } else if (name === "connections") {
         const c = record as unknown as Connection;
         setConnections((prev) => [...prev.filter((x) => x.id !== c.id), c]);
+      } else if (name === "requests") {
+        const r = record as unknown as Request;
+        setRequests((prev) => [...prev.filter((x) => x.id !== r.id), r]);
       } else if (name === "chats") {
         const c = record as unknown as Chat;
         setChats((prev) => [...prev.filter((x) => x.id !== c.id), c].sort(byTime));
@@ -135,14 +181,42 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         })
         .subscribe(async (status: string) => {
           setLive(status === "SUBSCRIBED");
-          if (status === "SUBSCRIBED") await ch.track({ at: Date.now() });
+          if (status === "SUBSCRIBED") {
+            await ch.track({ at: Date.now() });
+            catchUp();
+            refreshMembers();
+          }
+          // Refused: if this person is no longer at the table (it was closed, or they were removed), stop trying.
+          if (status === "CHANNEL_ERROR") {
+            const { data, error } = await supabase.from("members").select("id").eq("id", me.id).maybeSingle();
+            if (!error && !data) {
+              setGone(true);
+              supabase.removeChannel(ch);
+            }
+          }
         });
     })();
     return () => {
       cancelled = true;
       if (channel) supabase.removeChannel(channel);
     };
-  }, [supabase, table.id, me.id, refreshMembers, loadDecision]);
+  }, [supabase, table.id, me.id, refreshMembers, loadDecision, catchUp]);
+
+  // Back to the tab: read what happened while it was away.
+  useEffect(() => {
+    const onShow = () => { if (document.visibilityState === "visible") catchUp(); };
+    document.addEventListener("visibilitychange", onShow);
+    return () => document.removeEventListener("visibilitychange", onShow);
+  }, [catchUp]);
+
+  // While an AI is working or a decision is on its way out, check every few seconds; otherwise now and then. A lost
+  // push only delays what anyone sees.
+  const waitingOnSomething = jobs.some((j) => ["queued", "running", "waiting"].includes(j.status))
+    || decisions.some((d) => d.status === "decided" && !d.delivered_at);
+  useEffect(() => {
+    const t = setInterval(() => { if (document.visibilityState === "visible") catchUp(); }, waitingOnSomething ? 4000 : 30000);
+    return () => clearInterval(t);
+  }, [waitingOnSomething, catchUp]);
 
   // A clock for the undo countdown, running only while a window is open.
   const counting = decisions.some((d) => d.status === "decided" && !d.delivered_at && d.deliver_after && new Date(d.deliver_after).getTime() > now - 3000);
@@ -228,6 +302,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     const { data: row } = await supabase.from("messages").select(MESSAGE_COLUMNS).eq("id", res.message_id).single();
     if (row) setMessages((prev) => (prev.some((m) => m.id === (row as Message).id) ? prev : [...prev, row as Message]));
     if (!res.answered_by) setNotice("No Claude is connected at this table yet, so nobody will answer. Connect yours in the sidebar.");
+    // Learn about the job straight away, so the room keeps checking until the answer lands even if a push is lost.
+    else catchUp();
   }
 
   async function disconnect(id: string) {
@@ -272,6 +348,18 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       onChange={(patch) => patchDecision(d.id, patch)}
     />
   );
+
+  if (gone) {
+    return (
+      <main className="page-center">
+        <div className="panel" style={{ alignItems: "center", textAlign: "center" }}>
+          <Mark size={48} />
+          <h1>You are no longer at this table</h1>
+          <p className="note" style={{ margin: 0 }}>It may have been closed, or you were taken off it. <Link href="/">Back to the start</Link></p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <div className={styles.shell}>
@@ -372,6 +460,32 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 const m = it.m;
                 const who = byId.get(m.member_id);
                 const name = who?.display_name ?? "Someone";
+                if (m.kind === "client") {
+                  const req = m.meta?.request ? requestById.get(m.meta.request) : undefined;
+                  const shown = req ? REQUEST_WORD[req.status] ?? REQUEST_WORD.asked : null;
+                  return (
+                    <div key={m.id} className={styles.message} data-mid={m.id} data-request={m.meta?.request ?? ""}>
+                      <div className={styles.messageAvatar} style={{ background: who?.color ?? "var(--faint)" }}>
+                        {initial(name)}
+                      </div>
+                      <div className={styles.messageBody}>
+                        <div className={styles.messageMeta}>
+                          <span className={styles.messageName}>{name}</span>
+                          <span>client · <Time iso={m.created_at} /></span>
+                        </div>
+                        <div className={`${styles.messageText} ${styles.clientBubble}`}>{m.body}</div>
+                        {req && shown && (
+                          <div className={styles.clientTools}>
+                            <span className={`${styles.requestPill} ${shown.pill}`} data-testid="request-status">{shown.words}</span>
+                            {req.status === "asked" && (
+                              <button className={styles.toolLink} onClick={() => { setAskingFor(req); setAsking(true); }}>Ask for a decision</button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
                 if (m.by_ai) {
                   return <Answer key={m.id} m={m} members={byId} views={m.meta?.round ? viewsByRound.get(m.meta.round) ?? [] : []} />;
                 }
@@ -383,7 +497,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                     <div className={styles.messageBody}>
                       <div className={styles.messageMeta}>
                         <span className={styles.messageName}>{name}</span>
-                        <span suppressHydrationWarning>{formatTime(m.created_at)}</span>
+                        <span><Time iso={m.created_at} /></span>
                         {m.state === "failed" && <span className={styles.failed}>Not sent</span>}
                       </div>
                       <div className={styles.messageText}><Inline text={m.body} /></div>
@@ -429,7 +543,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               <button className="btn" disabled={!draft.trim()}>Send</button>
             </form>
             <div className={styles.composerTools}>
-              <button className={styles.toolLink} onClick={() => setAsking(true)}>Ask for a decision</button>
+              <button className={styles.toolLink} onClick={() => { setAskingFor(null); setAsking(true); }}>Ask for a decision</button>
               {notice && <span className={styles.notice} role="status">{notice}</span>}
             </div>
           </div>
@@ -469,7 +583,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           myName={me.display_name}
           clientName={clientName}
           hasClient={!!client}
-          onClose={() => setAsking(false)}
+          request={askingFor ? { id: askingFor.id, title: askingFor.title, body: askingFor.body, who: byId.get(askingFor.member_id)?.display_name ?? clientName } : null}
+          onClose={() => { setAsking(false); setAskingFor(null); }}
         />
       )}
     </div>
