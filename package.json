@@ -1,0 +1,13 @@
+{
+  "name": "longtable-monorepo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "probe:sign-in": "node probes/sign-in.mjs",
+    "probe:headless": "node probes/headless.mjs"
+  },
+  "devDependencies": {
+    "@lydell/node-pty": "1.2.0-beta.15",
+    "@xterm/headless": "^6.0.0"
+  }
+}
