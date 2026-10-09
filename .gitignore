@@ -1,0 +1,32 @@
+# local notes and Claude settings never leave this machine
+CLAUDE.md
+.claude/
+
+# secrets
+.env
+.env.*
+!.env.example
+
+# dependencies and builds
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+.vercel/
+next-env.d.ts
+
+# supabase local state
+supabase/.branches/
+supabase/.temp/
+
+# python
+__pycache__/
+.venv/
+.pytest_cache/
+
+# os
+.DS_Store
+Thumbs.db
