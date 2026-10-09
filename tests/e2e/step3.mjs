@@ -97,12 +97,12 @@ try {
   check("no key-shaped text in any answer", all.body.every((x) => !/sk-ant-/.test(x.body)), JSON.stringify(all.body.map((x) => x.body)));
 
   // The records: jobs done, the answers by Sam's AI, logged.
-  const jobs = await rest(ownerToken, `jobs?select=status,attempts,usage&table_id=eq.${tableId}`);
+  const jobs = await rest(ownerToken, `jobs?select=kind,status,attempts,usage&table_id=eq.${tableId}&kind=eq.answer`);
   results.jobs = jobs.body.map((j) => ({ status: j.status, attempts: j.attempts, model_ms: j.usage?.model_ms, wall_ms: j.usage?.wall_ms, refused: j.usage?.refused }));
   check("every job finished", jobs.body.length === 3 && jobs.body.every((j) => j.status === "done"), JSON.stringify(results.jobs));
   const log = await rest(ownerToken, `activity?select=action&table_id=eq.${tableId}`);
   const actions = log.body.map((a) => a.action);
-  check("pairing and answers are in the activity log", actions.includes("connection.paired") && actions.filter((a) => a === "ai.answered").length === 3, JSON.stringify(actions));
+  check("pairing, the intro and answers are in the activity log", actions.includes("connection.paired") && actions.includes("ai.intro") && actions.filter((a) => a === "ai.answer").length === 3, JSON.stringify(actions));
 
   // The wall: the client sees no jobs or connections, and nobody can work a queue without a device token.
   const clientToken = await accessToken(client.context);

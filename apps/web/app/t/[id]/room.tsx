@@ -7,11 +7,12 @@ import { Mark } from "@/components/mark";
 import { browserClient } from "@/lib/supabase/browser";
 import { Inline } from "@/lib/inline";
 import { formatTime } from "@/lib/time";
+import { Answer } from "./answer";
 import { ConnectModal } from "./connect-modal";
 import { DecisionCard } from "./decision-card";
 import { Invite } from "./invite";
 import { NewDecision } from "./new-decision";
-import { DECISION_COLUMNS, MESSAGE_COLUMNS, type Chat, type Connection, type Decision, type Job, type Member, type Message } from "./types";
+import { DECISION_COLUMNS, MESSAGE_COLUMNS, type Chat, type Connection, type Decision, type Job, type Member, type Message, type Note } from "./types";
 import styles from "./room.module.css";
 
 const ROLE_WORD = { owner: "Owner", developer: "Developer", client: "Client" } as const;
@@ -21,7 +22,7 @@ const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 type Change = { table?: string; record?: Record<string, unknown> };
 
-export function Room({ table, me, initialMembers, initialChats, initialMessages, initialDecisions, initialJobs, initialConnections, initialChatId }: {
+export function Room({ table, me, initialMembers, initialChats, initialMessages, initialDecisions, initialJobs, initialConnections, initialNotes, initialChatId }: {
   table: { id: string; name: string };
   me: Member;
   initialMembers: Member[];
@@ -30,6 +31,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   initialDecisions: Decision[];
   initialJobs: Job[];
   initialConnections: Connection[];
+  initialNotes: Note[];
   initialChatId: string;
 }) {
   const supabase = useMemo(() => browserClient(), []);
@@ -40,6 +42,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const [jobs, setJobs] = useState(initialJobs);
   const [connections, setConnections] = useState(initialConnections);
   const [connectOpen, setConnectOpen] = useState(false);
+  const [notes, setNotes] = useState(initialNotes);
+  const [openNote, setOpenNote] = useState<Note | null>(null);
   const [notice, setNotice] = useState("");
   const [chatId, setChatId] = useState(initialChatId);
   const [online, setOnline] = useState<Set<string>>(() => new Set([me.id]));
@@ -62,7 +66,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const chat = chatById.get(chatId) ?? chats[0];
   const liveClaude = new Set(connections.filter((c) => !c.revoked_at && c.kind === "claude").map((c) => c.member_id));
   const myConnection = connections.find((c) => !c.revoked_at && c.kind === "claude" && c.member_id === me.id);
-  const working = jobs.filter((j) => j.chat_id === chat?.id && (j.status === "queued" || j.status === "running" || j.status === "failed"))
+  const working = jobs.filter((j) => j.chat_id === chat?.id && ["queued", "running", "waiting", "failed"].includes(j.status))
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
   const refreshMembers = useCallback(async () => {
@@ -98,6 +102,9 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       } else if (name === "jobs") {
         const j = record as unknown as Job;
         setJobs((prev) => [...prev.filter((x) => x.id !== j.id), j]);
+      } else if (name === "notes") {
+        const n = record as unknown as Note;
+        setNotes((prev) => [...prev.filter((x) => x.id !== n.id), n]);
       } else if (name === "connections") {
         const c = record as unknown as Connection;
         setConnections((prev) => [...prev.filter((x) => x.id !== c.id), c]);
@@ -146,10 +153,19 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   }, [counting]);
 
   const items = useMemo(() => {
-    const ms = messages.filter((m) => m.chat_id === chat?.id).map((m) => ({ kind: "message" as const, created_at: m.created_at, m }));
+    const ms = messages.filter((m) => m.chat_id === chat?.id && m.kind !== "view").map((m) => ({ kind: "message" as const, created_at: m.created_at, m }));
     const ds = decisions.filter((d) => d.chat_id === chat?.id).map((d) => ({ kind: "decision" as const, created_at: d.created_at, d }));
     return [...ms, ...ds].sort(byTime);
   }, [messages, decisions, chat?.id]);
+
+  const viewsByRound = useMemo(() => {
+    const map = new Map<string, Message[]>();
+    for (const m of messages) {
+      if (m.kind !== "view" || !m.meta?.round) continue;
+      map.set(m.meta.round, [...(map.get(m.meta.round) ?? []), m].sort(byTime));
+    }
+    return map;
+  }, [messages]);
 
   // Stay at the bottom while new things arrive, unless someone scrolled up to read.
   useEffect(() => {
@@ -295,6 +311,16 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               </form>
             )}
           </div>
+          {notes.length > 0 && (
+            <div className={styles.section}>
+              <div className={styles.sectionTitle}>Pinned</div>
+              {[...notes].sort((a, b) => (a.kind === "summary" ? -1 : b.kind === "summary" ? 1 : a.title.localeCompare(b.title))).map((n) => (
+                <button key={n.id} className={styles.chat} onClick={() => setOpenNote(n)} data-testid="pinned">
+                  <span className={styles.chatName}>{n.kind === "summary" ? "The project" : n.title}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <div className={styles.section}>
             <div className={styles.sectionTitle}>Your Claude</div>
             {myConnection ? (
@@ -347,21 +373,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 const who = byId.get(m.member_id);
                 const name = who?.display_name ?? "Someone";
                 if (m.by_ai) {
-                  return (
-                    <div key={m.id} className={`${styles.message} ${styles.aiMessage}`} data-mid={m.id} data-ai="true">
-                      <div className={`${styles.messageAvatar} ${styles.aiAvatar}`} style={{ borderColor: who?.color ?? "var(--faint)" }}>
-                        <Mark size={18} />
-                      </div>
-                      <div className={styles.messageBody}>
-                        <div className={styles.messageMeta}>
-                          <span className={styles.messageName}>{name}&apos;s Claude</span>
-                          <span suppressHydrationWarning>{formatTime(m.created_at)}</span>
-                          {m.meta?.read && <span className={styles.readTag}>read {m.meta.read}</span>}
-                        </div>
-                        <div className={`${styles.messageText} ${styles.aiText}`}><Inline text={m.body} /></div>
-                      </div>
-                    </div>
-                  );
+                  return <Answer key={m.id} m={m} members={byId} views={m.meta?.round ? viewsByRound.get(m.meta.round) ?? [] : []} />;
                 }
                 return (
                   <div key={m.id} className={`${styles.message} ${m.state === "sending" ? styles.pending : ""}`} data-mid={m.id}>
@@ -381,8 +393,11 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               })}
               {working.filter((j) => j.status !== "failed" || now - new Date(j.created_at).getTime() < 15 * 60 * 1000).map((j) => {
                 const name = byId.get(j.member_id)?.display_name ?? "Someone";
-                const text = j.status === "running" ? `${name}'s Claude is reading the code…`
-                  : j.status === "queued" ? `Waiting for ${name}'s Claude` : `${name}'s Claude couldn't answer: ${j.error ?? "it gave up"}`;
+                const text = j.status === "failed" ? `${name}'s Claude couldn't finish: ${j.error ?? "it gave up"}`
+                  : j.kind === "combine" ? (j.status === "waiting" ? `${name}'s Claude writes the answer once the views are in` : `${name}'s Claude is writing the answer…`)
+                  : j.kind === "view" ? (j.status === "running" ? `${name}'s Claude is giving its view…` : `Waiting for ${name}'s Claude's view`)
+                  : j.kind === "intro" ? `${name}'s Claude is reading the project…`
+                  : j.status === "running" ? `${name}'s Claude is reading the code…` : `Waiting for ${name}'s Claude`;
                 return (
                   <div key={j.id} className={`${styles.working} ${j.status === "failed" ? styles.workingFailed : ""}`} data-testid="working">
                     {j.status !== "failed" && <span className={styles.workingDot} />}{text}
@@ -436,6 +451,15 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         </aside>
       </div>
 
+      {openNote && (
+        <div className={styles.modalBack} onClick={() => setOpenNote(null)}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()} role="dialog" aria-label={openNote.title}>
+            <div className={styles.modalTitle}>{openNote.kind === "summary" ? "The project" : openNote.title}</div>
+            <div className={`${styles.messageText} ${styles.aiText}`}><Inline text={openNote.body} /></div>
+            <div className={styles.modalActions}><button className="btn btn-quiet" onClick={() => setOpenNote(null)}>Close</button></div>
+          </div>
+        </div>
+      )}
       {connectOpen && (
         <ConnectModal tableId={table.id} tableName={table.name} connected={!!myConnection} onClose={() => setConnectOpen(false)} />
       )}

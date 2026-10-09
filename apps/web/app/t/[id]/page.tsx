@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { Mark } from "@/components/mark";
 import { serverClient } from "@/lib/supabase/server";
 import { Room } from "./room";
-import { CONNECTION_COLUMNS, DECISION_COLUMNS, JOB_COLUMNS, MESSAGE_COLUMNS, type Chat, type Connection, type Decision, type Job, type Member, type Message } from "./types";
+import { CONNECTION_COLUMNS, DECISION_COLUMNS, JOB_COLUMNS, MESSAGE_COLUMNS, NOTE_COLUMNS, type Chat, type Connection, type Decision, type Job, type Member, type Message, type Note } from "./types";
 
 type MemberRow = Member & { user_id: string };
 
@@ -40,12 +40,13 @@ export default async function TablePage({ params, searchParams }: {
     );
   }
 
-  const [{ data: chats }, { data: recent }, { data: decisions }, { data: jobs }, { data: connections }] = await Promise.all([
+  const [{ data: chats }, { data: recent }, { data: decisions }, { data: jobs }, { data: connections }, { data: notes }] = await Promise.all([
     supabase.from("chats").select("id, name, about, is_general, created_at").eq("table_id", id).order("created_at"),
     supabase.from("messages").select(MESSAGE_COLUMNS).eq("table_id", id).order("created_at", { ascending: false }).limit(300),
     supabase.from("decisions").select(DECISION_COLUMNS).eq("table_id", id).order("created_at", { ascending: false }).limit(100),
-    supabase.from("jobs").select(JOB_COLUMNS).eq("table_id", id).in("status", ["queued", "running", "failed"]).order("created_at", { ascending: false }).limit(50),
+    supabase.from("jobs").select(JOB_COLUMNS).eq("table_id", id).in("status", ["queued", "running", "waiting", "failed"]).order("created_at", { ascending: false }).limit(50),
     supabase.from("connections").select(CONNECTION_COLUMNS).eq("table_id", id).is("revoked_at", null),
+    supabase.from("notes").select(NOTE_COLUMNS).eq("table_id", id),
   ]);
   const chatList = (chats ?? []) as Chat[];
   const general = chatList.find((c) => c.is_general) ?? chatList[0];
@@ -62,6 +63,7 @@ export default async function TablePage({ params, searchParams }: {
       initialDecisions={(decisions ?? []) as unknown as Decision[]}
       initialJobs={(jobs ?? []) as Job[]}
       initialConnections={(connections ?? []) as Connection[]}
+      initialNotes={(notes ?? []) as Note[]}
       initialChatId={start?.id ?? ""}
     />
   );

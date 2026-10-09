@@ -213,3 +213,18 @@
 .workingDot { width: 8px; height: 8px; border-radius: 50%; background: var(--sage); animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
 .notice { font-size: 13px; color: var(--muted); }
+
+/* Sources and how they got here */
+.sources { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.source {
+  font-family: var(--font-mono); font-size: 11px; padding: 3px 8px; border-radius: 6px;
+  background: var(--card); border: 1px solid var(--line); color: var(--ink-2);
+}
+.how { margin-top: 10px; }
+.howBody { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; border-left: 2px solid oklch(0.86 0.03 170); padding-left: 12px; }
+.howText { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink-2); }
+.view { display: flex; flex-direction: column; gap: 4px; }
+.viewHead { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.viewDot { width: 8px; height: 8px; border-radius: 50%; }
+.viewConfidence { font-weight: 500; color: var(--muted); font-size: 12px; }
+.viewText { font-size: 14px; line-height: 1.5; color: var(--ink-2); }
