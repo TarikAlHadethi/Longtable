@@ -182,6 +182,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         setJobs((prev) => [...prev.filter((x) => x.id !== j.id), j]);
       } else if (name === "notes") {
         const n = record as unknown as Note;
+        if ((record as { deleted?: boolean }).deleted) return setNotes((prev) => prev.filter((x) => x.id !== n.id));
         setNotes((prev) => [...prev.filter((x) => x.id !== n.id), n]);
       } else if (name === "connections") {
         const c = record as unknown as Connection;
@@ -463,7 +464,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
             onOpen={openChat} onCreate={makeChat} onRename={renameChat} onDelete={deleteChat} />
           {notes.length > 0 && (
             <div className={styles.section}>
-              <div className={styles.sectionTitle}>Pinned</div>
+              <div className={styles.sectionTitle} title="What each AI wrote when it joined. Every AI at the table is handed these with each question.">Pinned by the AIs</div>
               {[...notes].sort((a, b) => (a.kind === "summary" ? -1 : b.kind === "summary" ? 1 : a.title.localeCompare(b.title))).map((n) => (
                 <button key={n.id} className={styles.chat} onClick={() => setOpenNote(n)} data-testid="pinned">
                   <span className={styles.chatName}>{n.kind === "summary" ? "The project" : n.title}</span>
@@ -658,7 +659,15 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           <div className={styles.modal} onClick={(e) => e.stopPropagation()} role="dialog" aria-label={openNote.title}>
             <div className={styles.modalTitle}>{openNote.kind === "summary" ? "The project" : openNote.title}</div>
             <div className={`${styles.messageText} ${styles.aiText}`}><Inline text={openNote.body} /></div>
-            <div className={styles.modalActions}><button className="btn btn-quiet" onClick={() => setOpenNote(null)}>Close</button></div>
+            <div className={styles.modalActions}>
+              <button className={styles.toolLink} style={{ marginRight: "auto" }} onClick={async () => {
+                const id = openNote.id;
+                setOpenNote(null);
+                setNotes((prev) => prev.filter((x) => x.id !== id));
+                await supabase.rpc("unpin_note", { n: id });
+              }}>Unpin</button>
+              <button className="btn btn-quiet" onClick={() => setOpenNote(null)}>Close</button>
+            </div>
           </div>
         </div>
       )}

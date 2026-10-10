@@ -1,4 +1,4 @@
-.page { min-height: 100vh; background: var(--bg, light-dark(oklch(0.985 0.004 80), oklch(0.209 0.004 80))); }
+.page { min-height: calc(100vh / var(--zoom)); background: var(--bg, light-dark(oklch(0.985 0.004 80), oklch(0.209 0.004 80))); }
 .header { height: 56px; display: flex; align-items: center; padding: 0 20px; border-bottom: 1px solid light-dark(oklch(0.92 0.006 80), oklch(0.282 0.006 80)); }
 .back { display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--ink); text-decoration: none; }
 .main { max-width: 640px; margin: 0 auto; padding: 32px 20px; display: flex; flex-direction: column; gap: 20px; }

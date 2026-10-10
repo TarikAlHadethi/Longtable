@@ -53,8 +53,16 @@
   --danger: oklch(0.72 0.15 30);
 }
 
+/* Size. On a wide screen the whole product is drawn a quarter larger, so it reads comfortably at the browser's own
+   100%. A phone or a narrow window keeps its true size. Anything measured against the window divides by --zoom. */
+:root { --zoom: 1; }
+@media (min-width: 1500px) { :root { --zoom: 1.12; } }
+@media (min-width: 1800px) { :root { --zoom: 1.25; } }
+body { zoom: var(--zoom); }
+
 * { box-sizing: border-box; }
 
+html { height: 100%; }
 html, body {
   transition: background-color 0.25s ease, color 0.25s ease;
   margin: 0;

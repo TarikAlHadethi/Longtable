@@ -1,5 +1,5 @@
 /* The demo: the team's room and the client's page side by side (tabs on a phone), driven by recorded steps. */
-.page { min-height: 100vh; background: var(--bg, light-dark(oklch(0.985 0.004 80), oklch(0.209 0.004 80))); display: flex; flex-direction: column; }
+.page { min-height: calc(100vh / var(--zoom)); background: var(--bg, light-dark(oklch(0.985 0.004 80), oklch(0.209 0.004 80))); display: flex; flex-direction: column; }
 .header { height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 20px; border-bottom: 1px solid light-dark(oklch(0.92 0.006 80), oklch(0.282 0.006 80)); }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--ink); text-decoration: none; }
 .badge { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 20px; background: light-dark(oklch(0.94 0.04 80), oklch(0.31 0.048 80)); color: light-dark(oklch(0.42 0.07 70), oklch(0.8 0.07 70)); white-space: nowrap; }

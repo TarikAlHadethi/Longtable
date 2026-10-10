@@ -125,11 +125,11 @@
   .scroller { padding: 12px 20px 50px; }
 }
 
-/* The owner's crown. It is placed from the centre of the picture: turned to the top left, then pushed straight out
-   along that line until it rests on the rim. It sits behind the picture and --lap of it is tucked under, enough
-   that the corners of its base are under the curve too, so the base meets the picture all the way across. */
+/* The owner's crown, where Tarik fitted it: its centre 0.453 of a radius left of the picture's centre and 1.005 above,
+   0.54 of the picture wide, tilted 24 degrees, behind the picture. All in units of the picture, so it holds at any size. */
 .crown {
-  --r: 27px; --w: 26px; --lap: 4.2px; position: absolute; z-index: -1; left: 50%; top: 50%; width: var(--w); height: calc(var(--w) * 20 / 24);
-  margin: calc(var(--w) * 20 / -48) 0 0 calc(var(--w) / -2);
-  transform: rotate(-38deg) translateY(calc(var(--lap) - var(--r) - var(--w) * 20 / 48));
+  --r: 27px; position: absolute; z-index: -1; --w: calc(var(--r) * 1.08); width: var(--w); height: calc(var(--w) * 20 / 24);
+  left: calc(50% - var(--r) * 0.453 - var(--w) / 2); top: calc(50% - var(--r) * 1.005 - var(--w) * 20 / 48);
+  transform: rotate(-24deg);
 }
+.crown svg { width: 100%; height: 100%; }

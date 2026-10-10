@@ -1,5 +1,5 @@
 /* The client's page, drawn from the design's client view. */
-.page { min-height: 100vh; background: light-dark(oklch(0.98 0.006 120), oklch(0.205 0.006 120)); }
+.page { min-height: calc(100vh / var(--zoom)); background: light-dark(oklch(0.98 0.006 120), oklch(0.205 0.006 120)); }
 .header {
   height: 56px; display: flex; align-items: center; padding: 0 20px; border-bottom: 1px solid light-dark(oklch(0.92 0.008 110), oklch(0.282 0.008 110));
   background: light-dark(oklch(0.99 0.004 110), oklch(0.213 0.004 110));
