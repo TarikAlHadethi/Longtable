@@ -28,6 +28,8 @@ export function ConnectModal({ tableId, tableName, audience = "team", connected,
   const [repoDraft, setRepoDraft] = useState("");
   const [fromFolder, setFromFolder] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Once the person has opened their AI, the window waits with them and says what the one click left looks like.
+  const [sent, setSent] = useState(false);
 
   useEffect(() => {
     if (audience === "client") return;
@@ -54,6 +56,7 @@ export function ConnectModal({ tableId, tableName, audience = "team", connected,
     setCode("");
     setError("");
     setCopied(false);
+    setSent(false);
     browserClient().rpc("start_pairing", { t: tableId, ai_kind: kind }).then(({ data, error }: { data: unknown; error: { message: string } | null }) => {
       if (cancelled) return;
       if (error || !data) setError(error?.message ?? "Something went wrong. Close this and try again.");
@@ -80,6 +83,7 @@ export function ConnectModal({ tableId, tableName, audience = "team", connected,
         audience === "client"
           ? `It lets my ${name} answer me there on my own plan. It gets no code and changes no files.`
           : `It answers my team's questions on my own plan, from its own copy of the committed code. Only its answers leave this computer, and it never changes my files.`,
+        "If you cannot run it yourself, reply with only the command and one line: Press run to finish connecting. No other explanation.",
       ].join("\n")
     : "";
   const q = encodeURIComponent(message);
@@ -149,13 +153,19 @@ export function ConnectModal({ tableId, tableName, audience = "team", connected,
                     {error && <div className="error">{error}</div>}
                     <div className={`${s.ways} ${code ? "" : s.waysWait}`}>
                       {ways.map((w, i) => (
-                        <a key={w.title} className={s.way} href={code ? w.href : undefined} aria-disabled={!code} style={{ "--i": i } as React.CSSProperties}>
+                        <a key={w.title} className={s.way} href={code ? w.href : undefined} aria-disabled={!code} onClick={() => code && setSent(true)} style={{ "--i": i } as React.CSSProperties}>
                           <span className={s.wayIcon}><AiLogo kind={kind} size={20} /></span>
                           <span className={s.wayText}><b>{w.title}</b></span>
                           <span className={s.wayGo}>{code ? <Arrow size={17} /> : <i className={s.spin} />}</span>
                         </a>
                       ))}
                     </div>
+                    {sent && (
+                      <div className={s.waiting} role="status">
+                        <i className={s.spin} />
+                        <span>Waiting for your {name}. If it shows the command with a run button or asks to allow it, press that.</span>
+                      </div>
+                    )}
                     <details className={s.details}>
                       <summary>What the message says</summary>
                       <pre className={s.message} data-testid={code ? "connect-message" : undefined}>{message}</pre>

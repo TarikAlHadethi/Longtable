@@ -88,3 +88,6 @@
 .link:hover { color: var(--ink); }
 .repoLine { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12.5px; color: var(--faint); }
 .repoLine span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); }
+
+.waiting { display: flex; align-items: center; gap: 10px; font-size: 13.5px; line-height: 1.45; color: var(--ink-2); background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; animation: cn-rise 0.3s var(--ease-out) both; }
+.waiting .spin { flex-shrink: 0; }
