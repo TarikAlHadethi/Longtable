@@ -62,8 +62,9 @@ export function ConnectModal({ tableId, tableName, audience = "team", connected,
     return () => { cancelled = true; };
   }, [tableId, kind]);
 
-  const command = process.env.NEXT_PUBLIC_CONNECT_COMMAND || "npx --yes longtable@latest";
   const app = typeof window === "undefined" ? "" : window.location.origin;
+  // The connection comes from this site itself, not from a package registry: nobody else can publish under its name.
+  const command = process.env.NEXT_PUBLIC_CONNECT_COMMAND || `npx --yes ${app}/longtable.tgz`;
   const name = kind ? AI_NAME[kind] : "AI";
   const message = code && kind
     ? [
