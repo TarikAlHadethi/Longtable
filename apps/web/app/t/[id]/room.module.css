@@ -405,3 +405,10 @@
 .plus:hover { transform: rotate(90deg); }
 .plus:active { transform: rotate(90deg) scale(0.88); }
 @keyframes lt-unfold { from { opacity: 0; transform: translateY(-6px) scaleY(0.8); } to { opacity: 1; transform: none; } }
+
+/* A person in the list is a button: it opens them in the middle of the room. */
+.personButton { width: 100%; border: 0; background: transparent; font: inherit; color: inherit; text-align: left; cursor: pointer; transition: background-color 0.12s ease, transform 0.1s var(--ease-out); }
+.personButton:hover { background: var(--hover); }
+.personButton:active { transform: scale(0.985); }
+.personOn { background: var(--chip); }
+.personOn .presence, .personButton:hover .presence { border-color: var(--chip); }

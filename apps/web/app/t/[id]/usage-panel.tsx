@@ -27,7 +27,7 @@ function windowName(name: string) {
 }
 
 // Usage, beside the table: each person's AI on their own plan, with its limits as it last reported them.
-export function UsagePanel({ members, connections }: { members: Member[]; connections: Connection[] }) {
+export function UsagePanel({ members, connections, bare = false }: { members: Member[]; connections: Connection[]; bare?: boolean }) {
   const here = useInBrowser();
   const now = Date.now();
   const team = members.filter((m) => m.role !== "client");
@@ -39,13 +39,14 @@ export function UsagePanel({ members, connections }: { members: Member[]; connec
         const model = prettyModel(conn?.model_choice) ?? (conn?.kind === "claude" ? "Opus 5.5" : prettyModel(conn?.limits?.model));
         return (
           <section key={m.id} className={`${styles.use} ${conn ? "" : styles.useOff}`} style={{ animationDelay: `${i * 60}ms` }} data-usage={m.display_name}>
-            <div className={styles.useHead}>
+            {!bare && <div className={styles.useHead}>
               <span className={styles.useFace} style={{ background: m.color }}>{m.display_name.trim().charAt(0).toUpperCase()}</span>
               <div>
                 <div className={styles.useName}>{m.display_name}</div>
                 <div className={styles.useAi}>{conn ? [AI_NAME[conn.kind], conn.limits?.plan, model].filter(Boolean).join(" · ") : "No AI"}</div>
               </div>
-            </div>
+            </div>}
+            {bare && windows.length === 0 && <div className={styles.useAi}>Its limits show after its next answer.</div>}
             {windows.map((w) => (
               <div key={w.name} className={styles.meter}>
                 <div className={styles.meterTop}>

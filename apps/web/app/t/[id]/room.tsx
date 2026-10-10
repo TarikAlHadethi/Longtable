@@ -6,7 +6,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { AI_NAME } from "@/components/ai-logo";
 import { Mark } from "@/components/mark";
-import { downloadExport } from "@/lib/download";
 import { browserClient } from "@/lib/supabase/browser";
 import { Inline } from "@/lib/inline";
 import { Time } from "@/components/time";
@@ -16,6 +15,8 @@ import { ConnectModal } from "./connect-modal";
 import { DecisionCard } from "./decision-card";
 import { Invite } from "./invite";
 import { NewDecision } from "./new-decision";
+import { BugButton, LogsPanel, PersonPanel } from "./panels";
+import { SettingsForm } from "./settings/settings-form";
 import { ProfileMenu } from "./profile-menu";
 import { TableView } from "./table-view";
 import { UsagePanel } from "./usage-panel";
@@ -42,6 +43,7 @@ function requestWords(status: RequestStatus, who: string): { words: string; pill
 }
 
 type Change = { table?: string; record?: Record<string, unknown> };
+type View = "table" | "chat" | "person" | "logs" | "settings";
 
 export function Room({ table, me, initialMembers, initialChats, initialMessages, initialDecisions, initialJobs, initialConnections, initialNotes, initialRequests, initialChatId, initialView, initialTableModel }: {
   table: { id: string; name: string };
@@ -55,7 +57,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   initialNotes: Note[];
   initialRequests: Request[];
   initialChatId: string;
-  initialView: "table" | "chat";
+  initialView: View;
   initialTableModel: string | null;
 }) {
   const supabase = useMemo(() => browserClient(), []);
@@ -69,11 +71,12 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const [notes, setNotes] = useState(initialNotes);
   const [requests, setRequests] = useState(initialRequests);
   const [askingFor, setAskingFor] = useState<Request | null>(null);
-  const [openNote, setOpenNote] = useState<Note | null>(null);
   const [notice, setNotice] = useState("");
   const [chatId, setChatId] = useState(initialChatId);
   // The room opens on the table itself; a chat opens from there or from the list.
-  const [view, setView] = useState<"table" | "chat">(initialView);
+  const [view, setView] = useState<View>(initialView);
+  const [personId, setPersonId] = useState<string | null>(null);
+  const [tableName, setTableName] = useState(table.name);
   const [inviting, setInviting] = useState(false);
   // The model the table's own answer is written on; null leaves it to the AI that writes it.
   const [tableModel, setTableModel] = useState(initialTableModel);
@@ -94,6 +97,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const known = useRef(new Set(initialMembers.map((m) => m.id)));
 
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
+  // This person as the table has them now: their role can change while the page is open (the table handed over).
+  const self = byId.get(me.id) ?? me;
   const chatById = useMemo(() => new Map(chats.map((c) => [c.id, c])), [chats]);
   const requestById = useMemo(() => new Map(requests.map((r) => [r.id, r])), [requests]);
   // The newest client card about each request is the one that offers the next decision.
@@ -118,7 +123,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
   const refreshMembers = useCallback(async () => {
-    const { data } = await supabase.from("members").select("id, display_name, role, color").eq("table_id", table.id).is("removed_at", null).order("created_at");
+    const { data } = await supabase.from("members").select("id, display_name, role, color, created_at").eq("table_id", table.id).is("removed_at", null).order("created_at");
     if (data) {
       known.current = new Set((data as Member[]).map((m) => m.id));
       setMembers(data as Member[]);
@@ -166,7 +171,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]));
         if (!known.current.has(m.member_id)) refreshMembers();
       } else if (name === "members") {
-        const { id, display_name, role, color } = record as unknown as Member;
+        const { id, display_name, role, color, created_at } = record as unknown as Member;
         // Taken off the table: gone from the list, and if it is this person, their page closes.
         if ((record as { removed_at?: string | null }).removed_at) {
           if (id === me.id) setGone(true);
@@ -175,8 +180,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         }
         known.current.add(id);
         setMembers((prev) => (prev.some((m) => m.id === id)
-          ? prev.map((m) => (m.id === id ? { id, display_name, role, color } : m))
-          : [...prev, { id, display_name, role, color }]));
+          ? prev.map((m) => (m.id === id ? { id, display_name, role, color, created_at } : m))
+          : [...prev, { id, display_name, role, color, created_at }]));
       } else if (name === "jobs") {
         const j = record as unknown as Job;
         setJobs((prev) => [...prev.filter((x) => x.id !== j.id), j]);
@@ -286,9 +291,20 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (el && atBottom.current) el.scrollTop = el.scrollHeight;
   }, [items]);
 
+  // The room's pages are views of this one page. Going to one changes the address and what is in the middle, and
+  // nothing else: no request, so it is there at once.
+  const base = `/t/${table.id}`;
+  function go(next: View, path: string) {
+    setView(next);
+    window.history.pushState(null, "", path);
+    setInboxOpen(false);
+    setDrawerOpen(false);
+  }
+  function openPerson(id: string) { setPersonId(id); go("person", `${base}?p=${id}`); }
+
   function goHome() {
     setView("table");
-    window.history.replaceState(null, "", window.location.pathname);
+    window.history.pushState(null, "", base);
     setInboxOpen(false);
     setDrawerOpen(false);
   }
@@ -297,10 +313,26 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     setView("chat");
     setChatId(id);
     atBottom.current = true;
-    window.history.replaceState(null, "", `?c=${id}`);
+    window.history.pushState(null, "", `${base}?c=${id}`);
     setInboxOpen(false);
     setDrawerOpen(false);
   }
+
+  // Back and forward in the browser move between the room's views.
+  useEffect(() => {
+    const onPop = () => {
+      const url = new URL(window.location.href);
+      const c = url.searchParams.get("c");
+      const p = url.searchParams.get("p");
+      if (url.pathname.endsWith("/settings")) setView(self.role === "owner" ? "settings" : "table");
+      else if (url.pathname.endsWith("/activity")) setView("logs");
+      else if (p) { setPersonId(p); setView("person"); }
+      else if (c) { if (c !== "general") setChatId(c); setView("chat"); }
+      else setView("table");
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [self.role]);
 
   function onScroll() {
     const el = scrollRef.current;
@@ -440,7 +472,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         </button>
         <button className={`${styles.brand} ${view === "table" ? styles.brandOn : ""}`} onClick={goHome} aria-current={view === "table" ? "page" : undefined} data-testid="home"><Mark size={26} /> Longtable</button>
         <div className={styles.divider} />
-        <div className={styles.project}>{table.name}</div>
+        <div className={styles.project}>{tableName}</div>
         <div className={styles.spacer} />
         <div className={styles.faces} title={`${here.length} here now`}>
           {here.filter((m) => m.id !== me.id).map((m) => (
@@ -450,32 +482,23 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         <button className={`btn btn-quiet ${styles.inboxToggle}`} onClick={() => { setInboxOpen(!inboxOpen); setDrawerOpen(false); }}>
           {view === "table" ? "Usage" : `Inbox${open.length > 0 ? ` (${open.length})` : ""}`}
         </button>
-        <ProfileMenu me={me} tableId={table.id} onInvite={me.role === "owner" ? () => setInviting(true) : undefined}
+        <ProfileMenu me={self} tableId={table.id} onInvite={self.role === "owner" ? () => setInviting(true) : undefined}
           ai={myConnection?.kind ?? null} onConnect={() => setConnectOpen(true)} onDisconnect={() => myConnection && disconnect(myConnection.id)} />
       </header>
 
       <div className={styles.grid}>
         {drawerOpen && <button className={styles.drawerBack} aria-label="Close the menu" onClick={() => setDrawerOpen(false)} />}
         <aside className={`${styles.aside} ${drawerOpen ? styles.asideOpen : ""}`} aria-label="Menu">
-          <div className={styles.drawerProject}>{table.name}</div>
+          <div className={styles.drawerProject}>{tableName}</div>
           <ChatList chats={chats} activeId={view === "chat" ? chat?.id ?? null : null}
             waiting={new Set(decisions.filter((d) => d.status === "open").map((d) => d.chat_id))}
-            canDelete={(c) => !c.is_general && (me.role === "owner" || c.created_by === me.id)}
+            canDelete={(c) => !c.is_general && (self.role === "owner" || c.created_by === me.id)}
             onOpen={openChat} onCreate={makeChat} onRename={renameChat} onDelete={deleteChat} />
-          {notes.length > 0 && (
-            <div className={styles.section}>
-              <div className={styles.sectionTitle} title="What each AI wrote when it joined. Every AI at the table is handed these with each question.">Pinned by the AIs</div>
-              {[...notes].sort((a, b) => (a.kind === "summary" ? -1 : b.kind === "summary" ? 1 : a.title.localeCompare(b.title))).map((n) => (
-                <button key={n.id} className={styles.chat} onClick={() => setOpenNote(n)} data-testid="pinned">
-                  <span className={styles.chatName}>{n.kind === "summary" ? "The project" : n.title}</span>
-                </button>
-              ))}
-            </div>
-          )}
           <div className={styles.section}>
             <div className={styles.sectionTitle}>People</div>
             {members.map((m) => (
-              <div key={m.id} className={styles.person} data-here={online.has(m.id)}>
+              <button key={m.id} className={`${styles.person} ${styles.personButton} ${view === "person" && personId === m.id ? styles.personOn : ""}`}
+                data-here={online.has(m.id)} data-member={m.display_name} onClick={() => openPerson(m.id)}>
                 <div className={styles.avatar} style={{ background: m.color }}>
                   {initial(m.display_name)}
                   {m.role === "owner" && <span className={styles.crown}><Crown size={16} /></span>}
@@ -485,20 +508,23 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                   <div className={styles.personName}>{m.display_name}</div>
                   {m.role === "client" && <div className={styles.personMeta}>Client</div>}
                 </div>
-              </div>
+              </button>
             ))}
           </div>
           <div className={styles.section}>
-            <button className={styles.chat} onClick={() => downloadExport("export_mine", table.id, table.name)}>Download what&apos;s mine</button>
-            <Link className={styles.chat} href="/privacy">Privacy</Link>
-            <Link className={styles.chat} href={`/t/${table.id}/activity`}>Activity</Link>
-            {me.role === "owner" && <Link className={styles.chat} href={`/t/${table.id}/settings`}>Settings</Link>}
+            <a className={`${styles.chat} ${view === "logs" ? styles.chatActive : ""}`} href={`${base}/activity`}
+              onClick={(e) => { e.preventDefault(); go("logs", `${base}/activity`); }}>Logs</a>
+            {self.role === "owner" && (
+              <a className={`${styles.chat} ${view === "settings" ? styles.chatActive : ""}`} href={`${base}/settings`}
+                onClick={(e) => { e.preventDefault(); go("settings", `${base}/settings`); }}>Settings</a>
+            )}
           </div>
+          <BugButton tableId={table.id} place={view} />
         </aside>
 
         {view === "table" && (
           <main className={styles.main}>
-            <TableView table={table} me={me} members={members} connections={connections} jobs={jobs} online={online} messages={messages}
+            <TableView table={{ id: table.id, name: tableName }} me={self} members={members} connections={connections} jobs={jobs} online={online} messages={messages}
               chats={chats} onOpenChat={openChat} onConnect={() => setConnectOpen(true)}
               tableModel={tableModel}
               onTableModel={async (model) => {
@@ -508,10 +534,25 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               onModel={async (conn, model) => {
                 setConnections((prev) => prev.map((c) => (c.id === conn ? { ...c, model_choice: model || null } : c)));
                 await supabase.rpc("set_model", { conn, model });
-              }} onInvite={me.role === "owner" ? () => setInviting(true) : undefined} />
+              }} onInvite={self.role === "owner" ? () => setInviting(true) : undefined} />
           </main>
         )}
-        <main className={styles.main} hidden={view === "table"}>
+        {view === "person" && (
+          <main className={styles.main}>
+            {byId.get(personId ?? "") ? (
+              <PersonPanel table={{ id: table.id, name: tableName }} me={self} person={byId.get(personId!)!} connections={connections}
+                here={online.has(personId!)} onGone={goHome} onNotice={setNotice} />
+            ) : <div className="note" style={{ padding: 40 }}>They are no longer at this table.</div>}
+          </main>
+        )}
+        {view === "logs" && <main className={styles.main}><LogsPanel table={table} members={members} /></main>}
+        {view === "settings" && (
+          <main className={styles.main}>
+            <SettingsForm table={{ id: table.id, name: tableName }} me={me.id} people={members} chats={chats}
+              onRenamed={setTableName} onRemoved={(id) => setMembers((prev) => prev.filter((m) => m.id !== id))} />
+          </main>
+        )}
+        <main className={styles.main} hidden={view !== "chat"}>
           <div className={styles.threadHead}>
             <div className={styles.threadTitle}>{chat?.name ?? "General"}</div>
             <div className={styles.threadSub}>{!live ? "Connecting…" : chat?.about || "Team only"}</div>
@@ -654,23 +695,6 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         )}
       </div>
 
-      {openNote && (
-        <div className={styles.modalBack} onClick={() => setOpenNote(null)}>
-          <div className={styles.modal} onClick={(e) => e.stopPropagation()} role="dialog" aria-label={openNote.title}>
-            <div className={styles.modalTitle}>{openNote.kind === "summary" ? "The project" : openNote.title}</div>
-            <div className={`${styles.messageText} ${styles.aiText}`}><Inline text={openNote.body} /></div>
-            <div className={styles.modalActions}>
-              <button className={styles.toolLink} style={{ marginRight: "auto" }} onClick={async () => {
-                const id = openNote.id;
-                setOpenNote(null);
-                setNotes((prev) => prev.filter((x) => x.id !== id));
-                await supabase.rpc("unpin_note", { n: id });
-              }}>Unpin</button>
-              <button className="btn btn-quiet" onClick={() => setOpenNote(null)}>Close</button>
-            </div>
-          </div>
-        </div>
-      )}
       {inviting && <Invite tableId={table.id} onClose={() => setInviting(false)} />}
       {connectOpen && (
         <ConnectModal tableId={table.id} tableName={table.name} connected={myConnection?.kind ?? null} onClose={() => setConnectOpen(false)} />

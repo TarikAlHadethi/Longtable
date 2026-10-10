@@ -76,7 +76,7 @@ try {
   if (runner) runner.kill();
   await browser.close();
   try { results.runnerLog = readFileSync(join(testHome, "runner.log"), "utf8").split("\n").slice(-12); } catch {}
-  rmSync(testHome, { recursive: true, force: true });
+  try { rmSync(testHome, { recursive: true, force: true }); } catch {}
 }
 
 const failed = Object.values(results.checks).filter((v) => v !== "pass").length;

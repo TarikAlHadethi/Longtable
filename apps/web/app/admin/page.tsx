@@ -28,6 +28,8 @@ export default async function Admin() {
   const { data, error } = await supabase.rpc("operator_counts");
   if (error || !data) notFound();
   const counts = data as Record<string, number | null>;
+  const { data: bugData } = await supabase.rpc("operator_bugs");
+  const bugs = (bugData ?? []) as { id: string; body: string; place: string; browser: string; at: string }[];
   return (
     <main style={{ maxWidth: 760, margin: "0 auto", padding: "32px 20px", display: "flex", flexDirection: "column", gap: 20 }}>
       <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, fontWeight: 600, color: "var(--ink)", textDecoration: "none" }}>
@@ -43,6 +45,14 @@ export default async function Admin() {
           </div>
         ))}
       </div>
+      <h2 style={{ margin: "12px 0 0", fontSize: 18 }}>Bug reports</h2>
+      {bugs.length === 0 && <p className="note" style={{ margin: 0 }}>None yet.</p>}
+      {bugs.map((b) => (
+        <div key={b.id} className="panel" style={{ padding: "12px 16px", gap: 6, maxWidth: "none" }} data-bug={b.id}>
+          <div style={{ whiteSpace: "pre-wrap", fontSize: 15, lineHeight: 1.5 }}>{b.body}</div>
+          <div className="note" style={{ fontSize: 12 }}>{new Date(b.at).toISOString().slice(0, 16).replace("T", " ")} UTC · on {b.place || "unknown"} · {b.browser.slice(0, 90)}</div>
+        </div>
+      ))}
     </main>
   );
 }

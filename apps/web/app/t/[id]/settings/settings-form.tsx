@@ -1,41 +1,60 @@
 "use client";
 
-import Link from "next/link";
-import { useState } from "react";
-import { Mark } from "@/components/mark";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Select } from "@/components/select";
 import { downloadExport } from "@/lib/download";
 import { browserClient } from "@/lib/supabase/browser";
+import panel from "../panels.module.css";
 import styles from "./settings.module.css";
 
 type Person = { id: string; display_name: string; role: "owner" | "developer" | "client"; color: string };
-type Table = { id: string; name: string; undo_seconds: number; client_chat: string | null; final_seat: string | null; when_final_offline: string };
+type Extra = { undo_seconds: number; client_chat: string | null; final_seat: string | null; when_final_offline: string };
+type Github = { connected: boolean; repo: string; last_event_at: string | null } | null;
 
 const ROLE = { owner: "Owner", developer: "Developer", client: "Client" } as const;
 
-// Settings in plain words: the table, who writes the final answer, and the people at the table.
-export function SettingsForm({ table, me, people: initialPeople, chats, github: initialGithub }: {
-  table: Table;
+// Settings in plain words: the table, who writes the final answer, GitHub, your data, and the people at the table.
+// It opens inside the room at once and fills in the table's own settings a moment later.
+export function SettingsForm({ table, me, people, chats, onRenamed, onRemoved }: {
+  table: { id: string; name: string };
   me: string;
   people: Person[];
   chats: { id: string; name: string; is_general: boolean }[];
-  github: { connected: boolean; repo: string; last_event_at: string | null } | null;
+  onRenamed: (name: string) => void;
+  onRemoved: (id: string) => void;
 }) {
   const supabase = browserClient();
+  const [loaded, setLoaded] = useState(false);
   const [name, setName] = useState(table.name);
-  const [undo, setUndo] = useState(String(table.undo_seconds));
-  const [requests, setRequests] = useState(table.client_chat ?? "");
-  const [seat, setSeat] = useState(table.final_seat ?? "");
-  const [offline, setOffline] = useState(table.when_final_offline);
-  const [people, setPeople] = useState(initialPeople);
+  const [undo, setUndo] = useState("30");
+  const [requests, setRequests] = useState("");
+  const [seat, setSeat] = useState("");
+  const [offline, setOffline] = useState("wait");
   const [confirming, setConfirming] = useState<string | null>(null);
   const [saved, setSaved] = useState("");
   const [error, setError] = useState("");
   const team = people.filter((p) => p.role !== "client");
-  const [github, setGithub] = useState(initialGithub);
+  const [github, setGithub] = useState<Github>(null);
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
   const [confirmName, setConfirmName] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      supabase.from("tables").select("undo_seconds, client_chat, final_seat, when_final_offline").eq("id", table.id).maybeSingle(),
+      supabase.rpc("github_status", { t: table.id }),
+    ]).then(([row, hub]: [{ data: unknown }, { data: unknown }]) => {
+      if (cancelled) return;
+      const x = row.data as Extra | null;
+      if (x) { setUndo(String(x.undo_seconds)); setRequests(x.client_chat ?? ""); setSeat(x.final_seat ?? ""); setOffline(x.when_final_offline); }
+      setGithub((hub.data as Github) ?? null);
+      setLoaded(true);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table.id]);
 
   async function download() {
     setError("");
@@ -78,6 +97,7 @@ export function SettingsForm({ table, me, people: initialPeople, chats, github: 
     });
     if (error) return setError(error.message);
     setSaved("table");
+    onRenamed(name.trim());
   }
 
   async function saveAnswers(e: React.FormEvent) {
@@ -94,17 +114,13 @@ export function SettingsForm({ table, me, people: initialPeople, chats, github: 
     const { error } = await supabase.rpc("remove_member", { m: id });
     setConfirming(null);
     if (error) return setError(error.message);
-    setPeople((prev) => prev.filter((p) => p.id !== id));
+    onRemoved(id);
     if (seat === id) setSeat("");
   }
 
   return (
-    <div className={styles.page}>
-      <header className={styles.header}>
-        <Link href={`/t/${table.id}`} className={styles.back}><Mark size={24} /> Back to {table.name}</Link>
-      </header>
-      <main className={styles.main}>
-        <h1 className={styles.title}>Settings</h1>
+    <div className={`${panel.page} ${loaded ? "" : styles.loadingForm}`} data-testid="settings-panel">
+        <h1 className={panel.title}>Settings</h1>
         {error && <div className="error" role="alert">{error}</div>}
 
         <form className={styles.card} onSubmit={saveTable} aria-label="The table">
@@ -115,10 +131,8 @@ export function SettingsForm({ table, me, people: initialPeople, chats, github: 
           <input id="s-undo" className="field" type="number" min={5} max={300} value={undo} onChange={(e) => setUndo(e.target.value)} />
           <div className="note">How long a decision can be undone before the client hears it. 5 to 300.</div>
           <label className="label" htmlFor="s-requests">Client requests go to</label>
-          <select id="s-requests" className="field" value={requests} onChange={(e) => setRequests(e.target.value)}>
-            <option value="">General</option>
-            {chats.filter((c) => !c.is_general).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          <Select id="s-requests" value={requests} onChange={setRequests}
+            options={[{ value: "", label: "General" }, ...chats.filter((c) => !c.is_general).map((c) => ({ value: c.id, label: c.name }))]} />
           <div className={styles.actions}>
             <button className="btn">Save</button>
             {saved === "table" && <span className={styles.saved} role="status">Saved</span>}
@@ -128,13 +142,11 @@ export function SettingsForm({ table, me, people: initialPeople, chats, github: 
         <form className={styles.card} onSubmit={saveAnswers} aria-label="Final answers">
           <div className={styles.cardTitle}>Final answers</div>
           <label className="label" htmlFor="s-seat">Whose AI writes the final answer</label>
-          <select id="s-seat" className="field" value={seat} onChange={(e) => setSeat(e.target.value)}>
-            <option value="">The owner&apos;s (default)</option>
-            {team.map((p) => <option key={p.id} value={p.id}>{p.display_name}&apos;s</option>)}
-          </select>
+          <Select id="s-seat" value={seat} onChange={setSeat}
+            options={[{ value: "", label: "The owner's (default)" }, ...team.map((p) => ({ value: p.id, label: `${p.display_name}'s` }))]} />
           <div className={styles.radios} role="radiogroup" aria-label="When their computer is off">
             <label><input type="radio" name="offline" checked={offline === "wait"} onChange={() => setOffline("wait")} /> Wait for it</label>
-            <label><input type="radio" name="offline" checked={offline === "next"} onChange={() => setOffline("next")} /> Let another connected Claude write it</label>
+            <label><input type="radio" name="offline" checked={offline === "next"} onChange={() => setOffline("next")} /> Let another connected AI write it</label>
           </div>
           <div className={styles.actions}>
             <button className="btn">Save</button>
@@ -201,7 +213,6 @@ export function SettingsForm({ table, me, people: initialPeople, chats, github: 
           ))}
           <div className="note">Taking someone off ends their access at once and disconnects their AI. Their messages stay.</div>
         </section>
-      </main>
     </div>
   );
 }

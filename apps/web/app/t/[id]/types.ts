@@ -1,6 +1,6 @@
 export type Role = "owner" | "developer" | "client";
 
-export type Member = { id: string; display_name: string; role: Role; color: string };
+export type Member = { id: string; display_name: string; role: Role; color: string; created_at?: string };
 
 export type Chat = { id: string; name: string; about: string; is_general: boolean; created_at: string; created_by?: string | null };
 

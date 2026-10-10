@@ -130,7 +130,7 @@ try {
 } finally {
   if (runner) runner.kill();
   await browser.close();
-  rmSync(testHome, { recursive: true, force: true });
+  try { rmSync(testHome, { recursive: true, force: true }); } catch {}
 }
 
 const failed = Object.values(results.checks).filter((v) => v !== "pass").length;

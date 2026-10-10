@@ -56,10 +56,11 @@ try {
   // Each Claude introduces itself, and the first one pins a summary of the project.
   await owner.page.waitForFunction(() => document.querySelectorAll("[data-ai='intro']").length >= 2, null, { timeout: 180000 });
   check("both Claudes introduce themselves", true);
-  await owner.page.waitForFunction(() => [...document.querySelectorAll("[data-testid=pinned]")].some((b) => b.textContent.includes("The project")), null, { timeout: 10000 });
-  const pinned = await owner.page.locator("[data-testid=pinned]").allTextContents();
+  // The AIs keep a summary of the project and their introductions as notes they are all handed; nobody is shown a list.
+  const notes = (await rest(await accessToken(owner.context), `notes?select=kind,title&table_id=eq.${owner.tableId}`)).body;
+  const pinned = notes.map((n) => (n.kind === "summary" ? "The project" : n.title));
   results.pinned = pinned;
-  check("the project summary and both intros are pinned", pinned.includes("The project") && pinned.some((p) => p.includes("Maya")) && pinned.some((p) => p.includes("Sam")), JSON.stringify(pinned));
+  check("the AIs keep a project summary and both introductions", pinned.includes("The project") && pinned.some((p) => p.includes("Maya")) && pinned.some((p) => p.includes("Sam")), JSON.stringify(pinned));
 
   // A deeper question: Sam's Claude gives a view, Maya's Claude (the owner's) writes the one answer.
   const asked = Date.now();
