@@ -78,3 +78,26 @@
 
 .footer { max-width: 1040px; margin: 0 auto; padding: 0 32px 32px; display: flex; gap: 20px; }
 .footer .headLink { margin-left: 0; }
+
+/* Motion on the client's page. */
+.lineMe, .lineTeam { animation: lt-rise 0.34s var(--ease-out) both; }
+.request { animation: lt-rise 0.34s var(--ease-out) both; transition: border-color 0.3s ease, box-shadow 0.2s ease; }
+.request:hover { box-shadow: 0 2px 10px oklch(0.2 0.01 70 / 0.06); }
+.requestHead { transition: background-color 0.15s ease; }
+.pill { transition: background-color 0.35s ease, color 0.35s ease; }
+.chevron { transition: transform 0.2s var(--ease-out), margin-top 0.2s var(--ease-out); }
+.timeline { animation: lt-rise 0.26s var(--ease-out) both; }
+.reply { transition: background-color 0.15s ease, transform 0.12s var(--ease-out); }
+.reply:hover { transform: translateY(-1px); }
+.reply:active { transform: scale(0.96); }
+.stat { animation: lt-rise 0.4s var(--ease-out) both; }
+.stat:nth-child(2) { animation-delay: 70ms; }
+.stat:nth-child(3) { animation-delay: 140ms; }
+.hello { animation: lt-rise 0.5s var(--ease-out) both; }
+.input { transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+.input:focus { box-shadow: 0 0 0 4px oklch(0.6 0.07 150 / 0.12); }
+
+/* Local copies: a page's stylesheet cannot see keyframes defined in the global one. */
+@keyframes lt-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes lt-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes lt-pop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }

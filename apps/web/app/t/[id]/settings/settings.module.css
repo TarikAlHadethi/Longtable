@@ -12,3 +12,11 @@
 .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 .personName { flex: 1; min-width: 0; font-size: 15px; font-weight: 500; }
 .role { font-size: 13px; color: var(--muted); }
+
+.card { animation: lt-rise 0.4s var(--ease-out) both; }
+.saved { animation: lt-rise 0.25s var(--ease-out) both; }
+
+/* Local copies: a page's stylesheet cannot see keyframes defined in the global one. */
+@keyframes lt-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes lt-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes lt-pop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }

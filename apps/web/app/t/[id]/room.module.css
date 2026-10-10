@@ -268,3 +268,29 @@
 .githubTag { font-weight: 600; color: var(--ink-2); white-space: nowrap; }
 .githubText { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .githubWhen { white-space: nowrap; }
+
+/* Motion in the room: messages, cards and lines arrive; windows and drawers open; options respond to a press. */
+.message, .card, .working, .githubLine { animation: lt-rise 0.32s var(--ease-out) both; }
+.modalBack { animation: lt-fade 0.18s ease both; }
+.modal { animation: lt-modal 0.24s var(--ease-out) both; }
+@keyframes lt-modal { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+.popover { animation: lt-modal 0.18s var(--ease-out) both; transform-origin: top right; }
+.option { transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.12s var(--ease-out), opacity 0.25s ease; }
+.option:not(:disabled):active { transform: scale(0.985); }
+.chat { transition: background-color 0.12s ease, color 0.12s ease; }
+.requestPill { transition: background-color 0.35s ease, color 0.35s ease; }
+.face, .avatar { animation: lt-pop 0.35s var(--ease-spring) both; }
+.dot { transition: background-color 0.3s ease, border-color 0.3s ease; }
+.source { animation: lt-rise 0.3s var(--ease-out) both; }
+.clientWords { transition: background-color 0.3s ease; }
+.after { animation: lt-rise 0.3s var(--ease-out) both; }
+.inboxOpen { animation: lt-from-right 0.26s var(--ease-out) both; }
+.asideOpen { animation: lt-from-left 0.26s var(--ease-out) both; }
+.drawerBack { animation: lt-fade 0.2s ease both; }
+@keyframes lt-from-right { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes lt-from-left { from { transform: translateX(-24px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* Local copies: a page's stylesheet cannot see keyframes defined in the global one. */
+@keyframes lt-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes lt-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes lt-pop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }

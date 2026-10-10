@@ -4,7 +4,8 @@ const SLATE = "oklch(0.62 0.09 250)";
 const HEATHER = "oklch(0.62 0.09 310)";
 const SAGE = "oklch(0.58 0.08 170)";
 
-export function Mark({ size = 24, ink = "var(--table)" }: { size?: number; ink?: string }) {
+// live: the table lays down and the seats arrive one by one (the opening screen).
+export function Mark({ size = 24, ink = "var(--table)", live = false }: { size?: number; ink?: string; live?: boolean }) {
   const s = size;
   const w = s * 0.78;
   const h = s * 0.3;
@@ -15,13 +16,13 @@ export function Mark({ size = 24, ink = "var(--table)" }: { size?: number; ink?:
   const yTop = s / 2 - h / 2 - d * 1.05;
   const yBottom = s / 2 + h / 2 + d * 1.05;
   return (
-    <svg width={s} height={s} viewBox={`0 0 ${s} ${s}`} aria-hidden="true" focusable="false">
+    <svg width={s} height={s} viewBox={`0 0 ${s} ${s}`} aria-hidden="true" focusable="false" className={live ? "mark-live" : undefined}>
       <rect x={(s - w) / 2} y={(s - h) / 2} width={w} height={h} rx={h / 2} fill={ink} />
       {xs.map((x, i) => (
-        <circle key={`t${i}`} cx={x} cy={yTop} r={d / 2} fill={top[i]} />
+        <circle key={`t${i}`} cx={x} cy={yTop} r={d / 2} fill={top[i]} style={{ "--i": i } as React.CSSProperties} />
       ))}
       {xs.map((x, i) => (
-        <circle key={`b${i}`} cx={x} cy={yBottom} r={d / 2} fill={bottom[i]} />
+        <circle key={`b${i}`} cx={x} cy={yBottom} r={d / 2} fill={bottom[i]} style={{ "--i": i + 3 } as React.CSSProperties} />
       ))}
     </svg>
   );

@@ -32,3 +32,12 @@
   .cardHead { flex-wrap: wrap; }
   .meterTop { flex-wrap: wrap; }
 }
+
+.card { animation: lt-rise 0.4s var(--ease-out) both; }
+.fill { animation: lt-grow 0.8s var(--ease-out) both; transform-origin: left; }
+@keyframes lt-grow { from { transform: scaleX(0); } to { transform: none; } }
+
+/* Local copies: a page's stylesheet cannot see keyframes defined in the global one. */
+@keyframes lt-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes lt-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes lt-pop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }
