@@ -1,96 +1,27 @@
-/* The client's side, and the glass you reach it through. One green: a very light pistachio. */
-.ball, .haze, .side { --pistachio: light-dark(#bec9bd, oklch(0.27 0.02 150)); --leaf: OKLCH(0.55 0.13 145); }
+/* The pane through to the client's side, and the pictures of the client's page drawn in it and behind it. */
+.ball, .peek { --client: light-dark(#bec9bd, oklch(0.27 0.02 150)); }
 
-/* The glass: a very rounded square, hazy, in the bottom right corner of the team's side. */
+/* A page drawn at another size. */
+.scaled { position: relative; overflow: hidden; pointer-events: none; }
+.scaledPage { position: absolute; left: 0; top: 0; width: 1280px; transform-origin: top left; overflow: hidden; }
+
+/* The pane: a very rounded square in the bottom right corner of the table, with the client's page in it, tiny. It sits
+   under any window that opens over the room, and dims with the rest. */
 .ball {
-  position: absolute; right: 26px; bottom: 26px; z-index: 95; width: 92px; height: 92px; border-radius: 32%; padding: 0; cursor: pointer; overflow: hidden;
-  border: 1px solid light-dark(oklch(0.84 0.07 140), oklch(0.42 0.07 140));
-  background:
-    radial-gradient(circle at 30% 25%, light-dark(oklch(0.99 0.02 135 / 0.95), oklch(0.5 0.06 140 / 0.7)), transparent 55%),
-    radial-gradient(circle at 70% 80%, light-dark(oklch(0.86 0.1 145), oklch(0.36 0.09 145)), transparent 70%),
-    light-dark(oklch(0.92 0.07 140), oklch(0.3 0.06 140));
-  box-shadow: 0 10px 28px oklch(0.45 0.1 145 / 0.28), inset 0 0 18px light-dark(oklch(0.99 0.03 135 / 0.9), oklch(0.6 0.08 140 / 0.35));
-  transition: transform 0.35s var(--ease-spring), box-shadow 0.3s ease, border-radius 0.35s var(--ease-out);
-  animation: cs-float 5s ease-in-out infinite, cs-arrive 0.6s var(--ease-out) 1.3s backwards;
+  position: absolute; right: 26px; bottom: 26px; z-index: 6; width: 104px; height: 78px; border-radius: 20px; padding: 0; cursor: pointer; overflow: hidden;
+  border: 1px solid light-dark(oklch(0.8 0.03 150), oklch(0.42 0.03 150)); background: var(--client);
+  box-shadow: 0 10px 28px oklch(0.3 0.03 150 / 0.22);
+  transition: transform 0.3s var(--ease-spring), box-shadow 0.25s ease;
+  animation: cs-arrive 0.5s var(--ease-out) 1.2s backwards;
 }
-.ball:hover, .ball:focus-visible { transform: scale(1.1); border-radius: 36%; outline: none; animation-play-state: paused, running;
-  box-shadow: 0 16px 40px oklch(0.45 0.12 145 / 0.4), inset 0 0 22px light-dark(oklch(0.99 0.03 135), oklch(0.6 0.08 140 / 0.5)); }
-.ball:active { transform: scale(0.96); }
-/* The client's page, small and out of focus, inside the glass. */
-.ballInside { position: absolute; inset: 20px 18px; display: flex; flex-direction: column; gap: 7px; justify-content: center; filter: blur(1.4px); opacity: 0.75; transition: filter 0.3s ease, opacity 0.3s ease; }
-.ball:hover .ballInside { filter: blur(0.4px); opacity: 1; }
-.ballInside i { height: 9px; border-radius: 5px; background: light-dark(oklch(0.99 0.01 135), oklch(0.5 0.05 140)); box-shadow: 0 1px 2px oklch(0.4 0.08 145 / 0.2); }
-.ballInside i:nth-child(1) { width: 70%; align-self: flex-end; background: light-dark(oklch(0.42 0.07 150), oklch(0.8 0.08 150)); }
-.ballInside i:nth-child(2) { width: 88%; }
-.ballInside i:nth-child(3) { width: 56%; }
-.ballShine { position: absolute; left: 12%; top: 9%; width: 42%; height: 26%; border-radius: 50%; background: linear-gradient(oklch(1 0 0 / 0.75), transparent); transform: rotate(-18deg); pointer-events: none; }
-.ballBack { background: var(--card); border-color: var(--line-strong); box-shadow: 0 10px 28px oklch(0.2 0.01 70 / 0.14); display: grid; place-items: center; animation: cs-arrive 0.5s var(--ease-out) 0.2s backwards; }
-/* It arrives under the pointer that just clicked the glass, so its entrance must not wait for the pointer to leave. */
-.ballBack:hover, .ballBack:focus-visible { box-shadow: 0 16px 40px oklch(0.2 0.01 70 / 0.2); animation-play-state: running; }
+.ball:hover, .ball:focus-visible { transform: scale(1.08); outline: none; box-shadow: 0 16px 40px oklch(0.3 0.04 150 / 0.32); }
+.ball:active { transform: scale(0.97); }
+.ballPage { position: absolute; inset: 0; }
 
-/* Leaning in. The green opens from the glass's corner across the middle of the room; the edges grow leaves. */
-.haze {
-  position: fixed; inset: 0; z-index: 90; pointer-events: none; overflow: hidden; opacity: 0;
-  background: radial-gradient(ellipse at 50% 45%, color-mix(in oklch, var(--pistachio) 62%, transparent), color-mix(in oklch, var(--pistachio) 94%, transparent) 75%);
-  backdrop-filter: blur(3px) saturate(1.15);
-  box-shadow: inset 0 0 120px 30px light-dark(oklch(0.72 0.12 145 / 0.45), oklch(0.4 0.1 145 / 0.6));
-  clip-path: circle(0% at 72% 88%);
-  transition: clip-path 0.55s var(--ease-out), opacity 0.25s ease;
-}
-.hazeOn { opacity: 1; clip-path: circle(150% at 72% 88%); }
+/* Resting on the pane: the client's page, drawn across the middle of the room in place of the table. */
+.peek { position: absolute; inset: 0; z-index: 5; background: var(--client); opacity: 0; pointer-events: none; transition: opacity 0.22s ease; }
+.peekOn { opacity: 1; }
+.peek .scaled { position: absolute; inset: 0; }
 
-/* A leaf: a square with two pointed corners, a rib down the middle, rooted on its edge of the glass. */
-.leaf {
-  position: absolute; width: var(--size); height: var(--size); border-radius: 4% 96% 4% 96%;
-  background: linear-gradient(135deg, transparent 49%, oklch(0.4 0.1 150 / 0.35) 49.5%, transparent 51%), linear-gradient(135deg, var(--a), var(--b));
-  box-shadow: 0 2px 6px oklch(0.3 0.08 150 / 0.25); opacity: 0; transform: var(--root) rotate(var(--turn)) scale(0.2);
-  transition: transform 0.6s var(--ease-spring) var(--d), opacity 0.3s ease var(--d);
-}
-.hazeOn .leaf { opacity: 0.96; transform: var(--root) rotate(var(--turn)) scale(1); }
-.top { top: calc(var(--size) * -0.42); left: var(--along); --root: rotate(135deg); }
-.bottom { bottom: calc(var(--size) * -0.42); left: var(--along); --root: rotate(-45deg); }
-.left { left: calc(var(--size) * -0.42); top: var(--along); --root: rotate(45deg); }
-.right { right: calc(var(--size) * -0.42); top: var(--along); --root: rotate(-135deg); }
-.g0 { --a: OKLCH(0.72 0.16 140); --b: OKLCH(0.5 0.13 150); }
-.g1 { --a: OKLCH(0.66 0.15 148); --b: OKLCH(0.44 0.11 155); }
-.g2 { --a: OKLCH(0.78 0.15 128); --b: OKLCH(0.56 0.14 140); }
-.g3 { --a: OKLCH(0.6 0.13 155); --b: OKLCH(0.4 0.1 160); }
-.g4 { --a: OKLCH(0.74 0.14 135); --b: OKLCH(0.52 0.13 145); }
-
-/* Inside: the same green, clear, with no leaves. */
-.side { position: relative; flex: 1; min-height: 0; overflow-y: auto; background: var(--pistachio); animation: cs-clear 0.45s ease both; }
-.inner { max-width: 980px; margin: 0 auto; padding: 40px 28px 140px; display: flex; flex-direction: column; gap: 26px; }
-.title { margin: 0; font-family: var(--font-voice); font-weight: 500; font-size: 30px; letter-spacing: -0.01em; }
-.empty { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; color: var(--ink-2); }
-.empty p { margin: 0; }
-.client { display: flex; flex-direction: column; gap: 16px; }
-.who { display: flex; align-items: center; gap: 12px; }
-.face { position: relative; width: 44px; height: 44px; border-radius: 50%; color: white; font-weight: 600; font-size: 17px; display: grid; place-items: center; flex-shrink: 0; }
-.name { font-size: 18px; font-weight: 600; }
-.sub { font-size: 13px; color: var(--muted); }
-.cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
-.col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.h2 { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: light-dark(oklch(0.42 0.07 150), oklch(0.78 0.07 150)); }
-.none { margin: 0; font-size: 14px; color: var(--muted); }
-.card { background: var(--card); border: 1px solid light-dark(oklch(0.88 0.04 140), oklch(0.36 0.04 140)); border-radius: 14px; padding: 13px 15px; display: flex; flex-direction: column; gap: 8px; animation: cs-rise 0.35s var(--ease-out) backwards; }
-.cardTop { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.pill { font-size: 11.5px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: light-dark(oklch(0.95 0.05 80), oklch(0.36 0.06 80)); color: light-dark(oklch(0.45 0.09 60), oklch(0.86 0.08 80)); }
-.pillDone { background: light-dark(oklch(0.93 0.05 150), oklch(0.34 0.06 150)); color: light-dark(oklch(0.38 0.08 150), oklch(0.85 0.08 150)); }
-.when { font-size: 12px; color: var(--muted); }
-.body { font-size: 14.5px; line-height: 1.5; }
-.steps { margin: 0; padding: 0 0 0 16px; font-size: 12.5px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
-.told { background: light-dark(oklch(0.985 0.015 140), oklch(0.28 0.03 140)); }
-.voice { font-family: var(--font-voice); font-size: 16px; line-height: 1.45; }
-.answer { font-size: 13px; color: var(--ink-2); }
-
-@keyframes cs-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -6px; } }
-@keyframes cs-arrive { from { opacity: 0; scale: 0.5; } to { opacity: 1; scale: 1; } }
-@keyframes cs-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-/* Stepping through: the haze of the glass clears as you arrive. */
-@keyframes cs-clear { from { filter: blur(6px) saturate(1.2); opacity: 0.6; } to { filter: none; opacity: 1; } }
-
-@media (max-width: 760px) {
-  .cols { grid-template-columns: 1fr; }
-  .ball { width: 68px; height: 68px; right: 14px; bottom: 14px; }
-  .inner { padding: 26px 16px 110px; }
-}
+@keyframes cs-arrive { from { opacity: 0; scale: 0.6; } to { opacity: 1; scale: 1; } }
+@media (max-width: 760px) { .ball { width: 80px; height: 60px; right: 14px; bottom: 14px; border-radius: 16px; } }

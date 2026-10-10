@@ -17,7 +17,8 @@ import { DecisionCard } from "./decision-card";
 import { Invite } from "./invite";
 import { NewDecision } from "./new-decision";
 import { ClientPage } from "./client-page";
-import { ClientPortal, PortalHaze } from "./client-side";
+import { ClientPortal, Scaled } from "./client-side";
+import portal from "./client-side.module.css";
 import { BugButton, LogsPanel } from "./panels";
 import { PersonWindow } from "./person-window";
 import { loadSettings, SettingsForm, type SettingsData } from "./settings/settings-form";
@@ -469,6 +470,18 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     />
   );
 
+  // The client's page as a still picture, for the pane in the corner and for leaning in.
+  const clientPicture = () => {
+    const seen = clients.find((c) => c.id === clientId) ?? client;
+    if (!seen) return <div className={styles.noClientPicture}>No client is at this table yet</div>;
+    return (
+      <ClientPage key={seen.id} table={{ id: table.id, name: tableName }} me={{ id: seen.id, display_name: seen.display_name, color: seen.color }}
+        initialRequests={requests.filter((r) => r.member_id === seen.id)} initialEvents={[]} initialUpdates={[]} initialLines={[]}
+        initialConnections={connections.filter((c) => c.member_id === seen.id && !c.revoked_at)} initialJobs={[]}
+        viewer={{ onBack: () => {}, preview: true }} />
+    );
+  };
+
   // Through the glass: the client's own page, whole, in place of the room. Looked at, never used.
   if (view === "client" && !gone) {
     const seen = clients.find((c) => c.id === clientId) ?? client;
@@ -508,7 +521,6 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
 
   return (
     <div className={styles.shell}>
-      <PortalHaze on={peek} />
       <header className={styles.header}>
         <button className={styles.menuToggle} aria-label="Menu" aria-expanded={drawerOpen} onClick={() => { setDrawerOpen(!drawerOpen); setInboxOpen(false); }}>
           <span /><span /><span />
@@ -571,7 +583,10 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 setConnections((prev) => prev.map((c) => (c.id === conn ? { ...c, model_choice: model || null } : c)));
                 await supabase.rpc("set_model", { conn, model });
               }} onInvite={self.role === "owner" ? () => setInviting(true) : undefined} />
-            <ClientPortal onPeek={setPeek} onEnter={() => go("client", `${base}?side=client`)} />
+            <div className={`${portal.peek} ${peek ? portal.peekOn : ""}`} aria-hidden="true">
+              {peek && <Scaled>{clientPicture()}</Scaled>}
+            </div>
+            <ClientPortal onPeek={setPeek} onEnter={() => go("client", `${base}?side=client`)}>{clientPicture()}</ClientPortal>
           </main>
         )}
         {(view === "settings" || view === "logs") && (

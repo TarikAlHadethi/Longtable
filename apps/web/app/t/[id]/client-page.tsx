@@ -68,7 +68,7 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
   // Set when someone on the team is looking at this client's page. They see what the client sees and can use none of
   // it: nothing is sent, answered or connected from here. The client's chat with their own AI is not theirs to read,
   // so it is not here.
-  viewer?: { onBack: () => void; others?: { id: string; display_name: string }[]; onPick?: (id: string) => void };
+  viewer?: { onBack: () => void; others?: { id: string; display_name: string }[]; onPick?: (id: string) => void; preview?: boolean };
 }) {
   const supabase = useMemo(() => browserClient(), []);
   const here = useInBrowser();
@@ -114,7 +114,7 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
   useEffect(() => {
     if (!viewer) return;
     reload();
-    const t = setInterval(() => { if (document.visibilityState === "visible") reload(); }, 8000);
+    const t = setInterval(() => { if (document.visibilityState === "visible") reload(); }, viewer.preview ? 30000 : 8000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!viewer, me.id]);
@@ -239,7 +239,7 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
   }
 
   return (
-    <div className={`${styles.page} ${viewer ? styles.viewing : ""}`} data-testid={viewer ? "client-view" : undefined}>
+    <div className={`${styles.page} ${viewer && !viewer.preview ? styles.viewing : ""}`} data-testid={viewer && !viewer.preview ? "client-view" : undefined}>
       <header className={styles.header}>
         <div className={styles.brand}><Mark size={24} /> {table.name}</div>
         {viewer ? (
@@ -248,7 +248,7 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
             {(viewer.others ?? []).filter((o) => o.id !== me.id).map((o) => (
               <button key={o.id} className={styles.headLink} onClick={() => viewer.onPick?.(o.id)}>See {firstName(o.display_name)}&apos;s</button>
             ))}
-            <button className="btn" onClick={viewer.onBack} data-testid="table-portal">Back to the table</button>
+            <button className="btn" onClick={viewer.onBack} data-testid={viewer.preview ? undefined : "table-portal"}>Back to the table</button>
           </div>
         ) : (
           <div style={{ marginLeft: "auto" }}>
