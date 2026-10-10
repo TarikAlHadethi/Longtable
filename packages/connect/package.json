@@ -1,7 +1,13 @@
 {
   "name": "longtable",
   "version": "0.1.0",
-  "description": "Brings your own Claude Code to your team's Longtable, quietly, on your own plan.",
+  "description": "Brings your own Claude Code or Codex to your team's table on longtable.chat, quietly, on your own plan.",
+  "homepage": "https://longtable.chat",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TarikAlHadethi/Longtable.git",
+    "directory": "packages/connect"
+  },
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -9,7 +15,8 @@
   },
   "files": [
     "bin",
-    "src"
+    "src",
+    "README.md"
   ],
   "engines": {
     "node": ">=20"
@@ -17,5 +24,12 @@
   "dependencies": {
     "@lydell/node-pty": "1.2.0-beta.15",
     "@xterm/headless": "^6.0.0"
-  }
+  },
+  "keywords": [
+    "longtable",
+    "claude",
+    "codex",
+    "ai",
+    "team"
+  ]
 }

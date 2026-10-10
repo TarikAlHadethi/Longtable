@@ -34,6 +34,7 @@ try {
 
   await dev.page.click("button:has-text('Connect my AI')");
   await dev.page.click("[data-testid=pick-claude]");
+  await dev.page.click("text=It is only on my computer");
   const message = await dev.page.locator("[data-testid=connect-message]").textContent();
   const m = message.match(/connect ([0-9A-F]{20}) --app (\S+)/);
   const connected = spawnSync(process.execPath, [bin, "connect", m[1], "--app", m[2], "--repo", repoRoot, "--no-autostart", "--no-run"], { env, encoding: "utf8" });

@@ -33,6 +33,7 @@ const home = (name) => {
 async function connect(page, kind, env) {
   await page.click("button:has-text('Connect my AI')");
   await page.click(`[data-testid=pick-${kind}]`);
+  await page.click("text=It is only on my computer");
   const message = await page.locator("[data-testid=connect-message]").textContent();
   const m = message.match(/connect ([0-9A-F]{20})( --ai codex)? --app (\S+)/);
   const args = [bin, "connect", m[1], ...(m[2] ? ["--ai", "codex"] : []), "--app", m[3], "--repo", repoRoot, "--no-autostart", "--no-run"];

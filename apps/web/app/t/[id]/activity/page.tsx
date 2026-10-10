@@ -25,6 +25,7 @@ export default async function Activity({ params }: { params: Promise<{ id: strin
   function say(e: Entry) {
     const d = e.details ?? {};
     switch (e.action) {
+      case "table.repo_set": return `${who(e)} ${d.set ? "said where the project's code is" : "removed the project's code address"}`;
       case "table.started": return `${who(e)} started the table "${d.name}"`;
       case "invite.created": return `${who(e)} made an invite link for ${d.role === "client" ? "the client" : "a developer"}`;
       case "member.joined": return `${d.name ?? who(e)} joined as ${d.role === "client" ? "the client" : "a developer"}`;

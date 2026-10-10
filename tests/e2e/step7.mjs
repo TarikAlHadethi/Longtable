@@ -49,6 +49,7 @@ try {
   // Connect my Claude, as the screen says; the message is what their own Claude runs after they press Send.
   await page.click("[data-testid=table-home] button:has-text('Connect your AI')");
   await page.click("[data-testid=pick-claude]");
+  await page.click("text=It is only on my computer");
   const message = await page.locator("[data-testid=connect-message]").textContent();
   check("the Connect window explains itself", /press Send/.test(await page.textContent("div[role=dialog]")), message);
   const m = message.match(/connect ([0-9A-F]{20}) --app (\S+)/);

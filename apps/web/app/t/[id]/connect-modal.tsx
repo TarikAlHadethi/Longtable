@@ -22,6 +22,31 @@ export function ConnectModal({ tableId, tableName, audience = "team", connected,
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  // Where the project's code is. With an address, the AI can be opened in any folder: the connection fetches its
+  // own copy. Without one, it has to be opened in the project's own folder. undefined: still loading.
+  const [repo, setRepo] = useState<string | null | undefined>(audience === "client" ? null : undefined);
+  const [repoDraft, setRepoDraft] = useState("");
+  const [fromFolder, setFromFolder] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (audience === "client") return;
+    let cancelled = false;
+    browserClient().from("table_code").select("repo_url").eq("table_id", tableId).maybeSingle()
+      .then(({ data }: { data: { repo_url: string } | null }) => { if (!cancelled) setRepo(data?.repo_url ?? null); });
+    return () => { cancelled = true; };
+  }, [tableId, audience]);
+
+  async function saveRepo(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    const url = repoDraft.trim();
+    const { error } = await browserClient().rpc("set_table_repo", { t: tableId, url });
+    setSaving(false);
+    if (error) return setError(error.message);
+    setRepo(url);
+  }
 
   useEffect(() => {
     if (!kind) return;
@@ -47,12 +72,13 @@ export function ConnectModal({ tableId, tableName, audience = "team", connected,
           : `Connect me to my team's Longtable table "${tableName}".`,
         audience === "client"
           ? "Please run this command, and leave it running in the background:"
+          : repo ? "Please run this command, and leave it running in the background:"
           : "Please run this command in this folder, and leave it running in the background:",
-        `${command} connect ${code}${kind === "codex" ? " --ai codex" : ""} --app ${app}`,
+        `${command} connect ${code}${kind === "codex" ? " --ai codex" : ""}${repo ? ` --repo ${repo}` : ""} --app ${app}`,
         ...(kind === "codex" ? ["If Codex's command-line tool is missing, install it first with npm install -g @openai/codex."] : []),
         audience === "client"
           ? `It lets my ${name} answer me there on my own plan. It gets no code and changes no files.`
-          : `It lets my ${name} answer questions at the table on my own plan. It keeps its own copy of this project's committed code and never changes my files.`,
+          : `It lets my ${name} answer questions at the table on my own plan. The code stays on this computer: the connection keeps its own copy of the project's committed code here, sends only its answers to the table, and never changes my files.`,
       ].join("\n")
     : "";
   const q = encodeURIComponent(message);
@@ -106,7 +132,19 @@ export function ConnectModal({ tableId, tableName, audience = "team", connected,
               <div className={s.moreInner}>
                 {kind && (
                   <div className={s.steps} key={kind}>
-                    <div className={s.stepsTitle}>Open {name} and press Send</div>
+                    {audience === "team" && !repo && !fromFolder ? (
+                      <form className={s.repo} onSubmit={saveRepo}>
+                        <label className={s.stepsTitle} htmlFor="repo">Where is the project&apos;s code?</label>
+                        <div className={s.repoRow}>
+                          <input id="repo" className="field" value={repoDraft} onChange={(e) => setRepoDraft(e.target.value)} autoFocus
+                            placeholder="https://github.com/you/project" disabled={repo === undefined} />
+                          <button className="btn" disabled={saving || !repoDraft.trim()}>{saving ? "Saving…" : "Save"}</button>
+                        </div>
+                        <button type="button" className={s.link} onClick={() => setFromFolder(true)}>It is only on my computer</button>
+                        {error && <div className="error">{error}</div>}
+                      </form>
+                    ) : (<>
+                    <div className={s.stepsTitle}>{repo || audience === "client" ? `Open ${name} and press Send` : `Open ${name} in the project's folder and press Send`}</div>
                     {error && <div className="error">{error}</div>}
                     <div className={`${s.ways} ${code ? "" : s.waysWait}`}>
                       {ways.map((w, i) => (
@@ -122,6 +160,13 @@ export function ConnectModal({ tableId, tableName, audience = "team", connected,
                       <pre className={s.message} data-testid={code ? "connect-message" : undefined}>{message}</pre>
                       <button className="btn btn-quiet" onClick={copy} disabled={!code}>{copied ? "Copied" : "Copy it instead"}</button>
                     </details>
+                    {audience === "team" && (
+                      <div className={s.repoLine}>
+                        <span>{repo ? repo.replace(/^https:\/\//, "").replace(/\.git$/, "") : "Reading the folder it is opened in"}</span>
+                        <button type="button" className={s.link} onClick={() => { setRepoDraft(repo ?? ""); setRepo(null); setFromFolder(false); }}>Change</button>
+                      </div>
+                    )}
+                    </>)}
                   </div>
                 )}
               </div>
