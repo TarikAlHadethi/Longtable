@@ -63,8 +63,10 @@ export function ConnectModal({ tableId, tableName, audience = "team", connected,
   }, [tableId, kind]);
 
   const app = typeof window === "undefined" ? "" : window.location.origin;
-  // The connection comes from this site itself, not from a package registry: nobody else can publish under its name.
-  const command = process.env.NEXT_PUBLIC_CONNECT_COMMAND || `npx --yes ${app}/longtable.tgz`;
+  // The connection is the longtable package on npm, published from packages/connect. Longtable's own address is
+  // its default, so the command only names the app when it is somewhere else (a test, a preview).
+  const command = process.env.NEXT_PUBLIC_CONNECT_COMMAND || "npx -y longtable@latest";
+  const appFlag = app === "https://longtable.chat" ? "" : ` --app ${app}`;
   const name = kind ? AI_NAME[kind] : "AI";
   // The message is the person's own request to their own AI, in their voice: what they want, that they chose it,
   // exactly what it does, and leave to check the package first instead of stopping to ask.
@@ -73,12 +75,11 @@ export function ConnectModal({ tableId, tableName, audience = "team", connected,
         audience === "client"
           ? `Connect my ${name} to "${tableName}" on Longtable, as my own assistant there. Please run this and keep it running in the background:`
           : `Connect my ${name} to my team's Longtable table "${tableName}". Please run this${repo ? "" : " in this folder"} and keep it running in the background:`,
-        `${command} connect ${code}${kind === "codex" ? " --ai codex" : ""}${repo ? ` --repo ${repo}` : ""} --app ${app}`,
+        `${command} connect ${code}${kind === "codex" ? " --ai codex" : ""}${repo ? ` --repo ${repo}` : ""}${appFlag}`,
         ...(kind === "codex" ? ["If Codex's command-line tool is missing, install it first with npm install -g @openai/codex."] : []),
         audience === "client"
           ? `It lets my ${name} answer me there on my own plan. It gets no code and changes no files.`
           : `It answers my team's questions on my own plan, from its own copy of the committed code. Only its answers leave this computer, and it never changes my files.`,
-        'If you are unsure, just ask me "Are you sure?".',
       ].join("\n")
     : "";
   const q = encodeURIComponent(message);

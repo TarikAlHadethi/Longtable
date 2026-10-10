@@ -15,8 +15,7 @@
     "probe:sign-in": "node probes/sign-in.mjs",
     "probe:headless": "node probes/headless.mjs",
     "test:client-ai": "node --experimental-websocket tests/e2e/step5-ai.mjs",
-    "test:e2e": "node tests/e2e/step1.mjs && node tests/e2e/step2.mjs && node tests/e2e/step3.mjs && node tests/e2e/step4.mjs && node --experimental-websocket tests/e2e/step5.mjs && node tests/e2e/step6-settings.mjs && node tests/e2e/step6-phone.mjs && node tests/e2e/step6-usage.mjs && node tests/e2e/step6-github.mjs && node tests/e2e/step7.mjs && node --experimental-websocket tests/e2e/step8-team-codex.mjs && node tests/e2e/step9-repo.mjs",
-    "pack:connect": "node tools/pack-connect.mjs"
+    "test:e2e": "node tests/e2e/step1.mjs && node tests/e2e/step2.mjs && node tests/e2e/step3.mjs && node tests/e2e/step4.mjs && node --experimental-websocket tests/e2e/step5.mjs && node tests/e2e/step6-settings.mjs && node tests/e2e/step6-phone.mjs && node tests/e2e/step6-usage.mjs && node tests/e2e/step6-github.mjs && node tests/e2e/step7.mjs && node --experimental-websocket tests/e2e/step8-team-codex.mjs && node tests/e2e/step9-repo.mjs"
   },
   "devDependencies": {
     "@lydell/node-pty": "1.2.0-beta.15",
