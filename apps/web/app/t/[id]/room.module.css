@@ -384,3 +384,22 @@
 .danger, .danger svg { color: var(--danger); }
 .danger:hover { color: var(--danger); background: light-dark(oklch(0.95 0.03 30), oklch(0.3 0.05 30)); }
 .chatEdit { padding: 7px 9px; font-size: 14px; border-radius: 8px; }
+
+/* The chat list moves: a chat eases between resting, hovered and open; a new one, the naming box and the rename box
+   ease in; a press gives a little. */
+.chatRow { animation: lt-rise 0.28s var(--ease-out) both; }
+.chatRow .chat { transition: background-color 0.18s ease, color 0.18s ease, transform 0.12s var(--ease-out), padding 0.18s var(--ease-out); }
+.chatRow .chat:active { transform: scale(0.985); }
+.chatRow .chatName { transition: transform 0.18s var(--ease-out); }
+.chatRow:hover .chat:not(.chatActive) .chatName { transform: translateX(2px); }
+.chatMore { transform: scale(0.85); transition: opacity 0.15s ease, transform 0.15s var(--ease-out), background-color 0.12s ease, color 0.12s ease; }
+.chatRow:hover .chatMore, .chatMore:focus-visible, .chatRowMenu .chatMore { transform: none; }
+.chatMore:active { transform: scale(0.9); }
+.newChat { animation: lt-unfold 0.22s var(--ease-out) both; transform-origin: top; }
+.chatEdit { animation: lt-fade 0.15s ease both; }
+.chatMenu .meItem { transition: background-color 0.12s ease, color 0.12s ease, transform 0.1s var(--ease-out); }
+.chatMenu .meItem:active { transform: scale(0.98); }
+.plus { transition: background-color 0.15s ease, color 0.15s ease, transform 0.2s var(--ease-out); }
+.plus:hover { transform: rotate(90deg); }
+.plus:active { transform: rotate(90deg) scale(0.88); }
+@keyframes lt-unfold { from { opacity: 0; transform: translateY(-6px) scaleY(0.8); } to { opacity: 1; transform: none; } }
