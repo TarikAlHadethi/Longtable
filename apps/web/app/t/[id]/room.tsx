@@ -492,6 +492,15 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 const m = it.m;
                 const who = byId.get(m.member_id);
                 const name = who?.display_name ?? "Someone";
+                if (m.kind === "github") {
+                  return (
+                    <div key={m.id} className={styles.githubLine} data-mid={m.id} data-github="true">
+                      <span className={styles.githubTag}>GitHub</span>
+                      <span className={styles.githubText}>{m.body}</span>
+                      <span className={styles.githubWhen}><Time iso={m.created_at} /></span>
+                    </div>
+                  );
+                }
                 if (m.kind === "client") {
                   const req = m.meta?.request ? requestById.get(m.meta.request) : undefined;
                   const shown = req ? requestWords(req.status, name) : null;

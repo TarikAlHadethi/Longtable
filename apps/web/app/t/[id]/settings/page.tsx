@@ -18,6 +18,7 @@ export default async function Settings({ params }: { params: Promise<{ id: strin
   if (!mine) notFound();
   if (mine.role !== "owner") redirect(`/t/${id}`);
   const { data: chats } = await supabase.from("chats").select("id, name, is_general").eq("table_id", id).order("created_at");
+  const { data: github } = await supabase.rpc("github_status", { t: id });
 
   return (
     <SettingsForm
@@ -25,6 +26,7 @@ export default async function Settings({ params }: { params: Promise<{ id: strin
       me={mine.id}
       people={(people ?? []).map(({ user_id: _u, ...p }) => p)}
       chats={chats ?? []}
+      github={(github as { connected: boolean; repo: string; last_event_at: string | null } | null) ?? null}
     />
   );
 }

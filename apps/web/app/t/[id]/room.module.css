@@ -262,3 +262,9 @@
 .askHead { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: oklch(0.4 0.08 250); }
 .answerRow { display: flex; flex-wrap: wrap; gap: 8px; }
 .answerRow input { flex: 1 1 140px; min-width: 0; }
+
+/* A line from GitHub: what was pushed, merged or broke, small and out of the way. */
+.githubLine { display: flex; align-items: baseline; gap: 10px; padding: 4px 0 4px 48px; font-size: 13px; color: var(--muted); }
+.githubTag { font-weight: 600; color: var(--ink-2); white-space: nowrap; }
+.githubText { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.githubWhen { white-space: nowrap; }

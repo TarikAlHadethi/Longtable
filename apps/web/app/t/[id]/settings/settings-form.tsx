@@ -12,11 +12,12 @@ type Table = { id: string; name: string; undo_seconds: number; client_chat: stri
 const ROLE = { owner: "Owner", developer: "Developer", client: "Client" } as const;
 
 // Settings in plain words: the table, who writes the final answer, and the people at the table.
-export function SettingsForm({ table, me, people: initialPeople, chats }: {
+export function SettingsForm({ table, me, people: initialPeople, chats, github: initialGithub }: {
   table: Table;
   me: string;
   people: Person[];
   chats: { id: string; name: string; is_general: boolean }[];
+  github: { connected: boolean; repo: string; last_event_at: string | null } | null;
 }) {
   const supabase = browserClient();
   const [name, setName] = useState(table.name);
@@ -29,6 +30,25 @@ export function SettingsForm({ table, me, people: initialPeople, chats }: {
   const [saved, setSaved] = useState("");
   const [error, setError] = useState("");
   const team = people.filter((p) => p.role !== "client");
+  const [github, setGithub] = useState(initialGithub);
+  const [hook, setHook] = useState<{ url: string; secret: string } | null>(null);
+
+  // A webhook for this table: the URL and a secret, shown once, to paste into the repo's settings on GitHub.
+  async function connectGithub() {
+    setError("");
+    const { data, error } = await supabase.rpc("connect_github", { t: table.id });
+    if (error || !data) return setError(error?.message ?? "That did not work. Try again.");
+    setHook({ url: `${window.location.origin}/api/github/${table.id}`, secret: data as string });
+    setGithub({ connected: true, repo: "", last_event_at: null });
+  }
+
+  async function disconnectGithub() {
+    setError("");
+    const { error } = await supabase.rpc("disconnect_github", { t: table.id });
+    if (error) return setError(error.message);
+    setGithub(null);
+    setHook(null);
+  }
 
   async function saveTable(e: React.FormEvent) {
     e.preventDefault();
@@ -102,6 +122,28 @@ export function SettingsForm({ table, me, people: initialPeople, chats }: {
             {saved === "answers" && <span className={styles.saved} role="status">Saved</span>}
           </div>
         </form>
+
+        <section className={styles.card} aria-label="GitHub">
+          <div className={styles.cardTitle}>GitHub</div>
+          <div className="note">Pushes to main, merged pull requests and failed CI runs show up in General. Longtable never keeps any code.</div>
+          {github?.connected && !hook && (
+            <div className={styles.actions}>
+              <span data-testid="github-status">Connected{github.repo ? ` to ${github.repo}` : ", waiting for GitHub's first delivery"}</span>
+              <button className="btn btn-quiet" onClick={connectGithub}>New secret</button>
+              <button className="btn btn-quiet" onClick={disconnectGithub}>Disconnect</button>
+            </div>
+          )}
+          {!github?.connected && !hook && <div className={styles.actions}><button className="btn" onClick={connectGithub}>Connect a repo</button></div>}
+          {hook && (
+            <>
+              <div className="note">In the repo on GitHub: Settings, Webhooks, Add webhook. Paste these two, choose application/json, and pick Pushes, Pull requests and Workflow runs.</div>
+              <label className="label">Payload URL</label>
+              <input className="field" readOnly value={hook.url} data-testid="github-url" onFocus={(e) => e.target.select()} />
+              <label className="label">Secret (shown once)</label>
+              <input className="field" readOnly value={hook.secret} data-testid="github-secret" onFocus={(e) => e.target.select()} />
+            </>
+          )}
+        </section>
 
         <section className={styles.card} aria-label="People">
           <div className={styles.cardTitle}>People</div>

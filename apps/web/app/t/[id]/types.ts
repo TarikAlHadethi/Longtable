@@ -11,7 +11,7 @@ export type Message = {
   body: string;
   created_at: string;
   by_ai?: boolean;
-  kind?: "chat" | "answer" | "view" | "intro" | "client";
+  kind?: "chat" | "answer" | "view" | "intro" | "client" | "github";
   meta?: {
     request?: string | null;
     answers?: string;
