@@ -387,7 +387,9 @@
 
 /* The chat list moves: a chat eases between resting, hovered and open; a new one, the naming box and the rename box
    ease in; a press gives a little. */
-.chatRow { animation: lt-rise 0.28s var(--ease-out) both; }
+/* The entrance does not hold its last frame: a held transform would trap the row's menu under the lists below it. */
+.chatRow { animation: lt-rise 0.28s var(--ease-out) backwards; }
+.chatRowMenu { z-index: 5; }
 .chatRow .chat { transition: background-color 0.18s ease, color 0.18s ease, transform 0.12s var(--ease-out), padding 0.18s var(--ease-out); }
 .chatRow .chat:active { transform: scale(0.985); }
 .chatRow .chatName { transition: transform 0.18s var(--ease-out); }
