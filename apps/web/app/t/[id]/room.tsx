@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { Mark } from "@/components/mark";
+import { downloadExport } from "@/lib/download";
 import { browserClient } from "@/lib/supabase/browser";
 import { Inline } from "@/lib/inline";
 import { Time } from "@/components/time";
@@ -468,6 +469,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           </div>
           <div className={styles.section}>
             <Link className={styles.chat} href={`/t/${table.id}/usage`}>Usage</Link>
+            <button className={styles.chat} onClick={() => downloadExport("export_mine", table.id, table.name)}>Download what&apos;s mine</button>
+            <Link className={styles.chat} href="/privacy">Privacy</Link>
             <Link className={styles.chat} href={`/t/${table.id}/activity`}>Activity</Link>
             {me.role === "owner" && <Link className={styles.chat} href={`/t/${table.id}/settings`}>Settings</Link>}
           </div>
@@ -484,7 +487,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               {items.length === 0 && (
                 <div className={styles.empty}>
                   <div className={styles.emptyTitle}>{chat?.is_general ? "The table is set" : `Nothing in ${chat?.name ?? "this chat"} yet`}</div>
-                  <div className="note">Say hello, ask for a decision, or invite your team. Their Claudes can join once Connect is ready.</div>
+                  <div className="note">Connect your Claude (in the sidebar, or the menu on a phone), then ask the table anything about your project. Invite your team and your client with Invite.</div>
                 </div>
               )}
               {items.map((it) => {

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { Mark } from "@/components/mark";
 import { Time, useInBrowser } from "@/components/time";
+import { downloadExport } from "@/lib/download";
 import { browserClient } from "@/lib/supabase/browser";
 import { formatWhen } from "@/lib/time";
 import { ClientConnect } from "./client-connect";
@@ -319,6 +320,10 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
           </section>
         </div>
       </main>
+      <footer className={styles.footer}>
+        <button className={styles.headLink} onClick={() => downloadExport("export_mine", table.id, table.name)}>Download what&apos;s mine</button>
+        <Link className={styles.headLink} href="/privacy">Privacy</Link>
+      </footer>
       {connectOpen && (
         <ClientConnect tableId={table.id} tableName={table.name} connected={assistant} onClose={() => setConnectOpen(false)} />
       )}

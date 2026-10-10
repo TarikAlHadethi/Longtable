@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Mark } from "@/components/mark";
+import { useRouter } from "next/navigation";
+import { downloadExport } from "@/lib/download";
 import { browserClient } from "@/lib/supabase/browser";
 import styles from "./settings.module.css";
 
@@ -31,6 +33,23 @@ export function SettingsForm({ table, me, people: initialPeople, chats, github: 
   const [error, setError] = useState("");
   const team = people.filter((p) => p.role !== "client");
   const [github, setGithub] = useState(initialGithub);
+  const router = useRouter();
+  const [deleting, setDeleting] = useState(false);
+  const [confirmName, setConfirmName] = useState("");
+
+  async function download() {
+    setError("");
+    const problem = await downloadExport("export_table", table.id, table.name);
+    if (problem) setError(problem);
+  }
+
+  async function deleteTable(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    const { error } = await supabase.rpc("delete_table", { t: table.id, confirm_name: confirmName });
+    if (error) return setError(error.message);
+    router.replace("/?deleted=1");
+  }
   const [hook, setHook] = useState<{ url: string; secret: string } | null>(null);
 
   // A webhook for this table: the URL and a secret, shown once, to paste into the repo's settings on GitHub.
@@ -142,6 +161,24 @@ export function SettingsForm({ table, me, people: initialPeople, chats, github: 
               <label className="label">Secret (shown once)</label>
               <input className="field" readOnly value={hook.secret} data-testid="github-secret" onFocus={(e) => e.target.select()} />
             </>
+          )}
+        </section>
+
+        <section className={styles.card} aria-label="Your data">
+          <div className={styles.cardTitle}>Your data</div>
+          <div className="note">Everything this table holds, as one file: people, chats, messages, decisions, requests, what clients were told and the log. Never anyone&apos;s sign-in, and never a client&apos;s private chat with their own AI.</div>
+          <div className={styles.actions}><button className="btn btn-quiet" onClick={download}>Download everything</button></div>
+          {!deleting ? (
+            <div className={styles.actions}><button className="btn btn-quiet" onClick={() => setDeleting(true)}>Delete this table</button></div>
+          ) : (
+            <form onSubmit={deleteTable} className={styles.card} style={{ borderColor: "oklch(0.75 0.1 30)" }} aria-label="Delete this table">
+              <div className="note">This deletes the table and everything in it for everyone, the activity log included. It cannot be undone. Type <strong>{table.name}</strong> to confirm.</div>
+              <input className="field" value={confirmName} onChange={(e) => setConfirmName(e.target.value)} aria-label="Type the table's name" />
+              <div className={styles.actions}>
+                <button className="btn" disabled={confirmName.trim() !== table.name}>Delete it for good</button>
+                <button type="button" className="btn btn-quiet" onClick={() => { setDeleting(false); setConfirmName(""); }}>Keep it</button>
+              </div>
+            </form>
           )}
         </section>
 
