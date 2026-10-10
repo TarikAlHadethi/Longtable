@@ -1,0 +1,32 @@
+# The behaviour evals (tests/evals): the AIs' real job path against fixed cases, on the owner's own API key.
+# Runs by hand and once a week, not on every push, because each run calls a real model.
+name: evals
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 5 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Install pytest
+        run: pip install pytest==8.3.5
+      - name: Run the evals
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python -m pytest tests/evals -q

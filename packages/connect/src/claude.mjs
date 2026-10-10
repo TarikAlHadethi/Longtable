@@ -40,12 +40,14 @@ export function findClaude() {
 
 // A clean environment: only what the operating system needs, plus the connection's own sign-in.
 // Nothing from the parent process leaks in: no API keys, no settings from whatever started the connection.
-export function childEnv(token) {
+// apiKey is only for the evals in CI, on the owner's own key; a person's connection always uses their own sign-in.
+export function childEnv(token, apiKey) {
   const keep = ["PATH", "Path", "PATHEXT", "SYSTEMROOT", "SystemRoot", "WINDIR", "COMSPEC", "TEMP", "TMP",
     "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "APPDATA", "LOCALAPPDATA", "PROGRAMDATA", "HOME", "USER", "LANG", "SHELL"];
   const env = {};
   for (const k of keep) if (process.env[k] !== undefined) env[k] = process.env[k];
   if (token) env.CLAUDE_CODE_OAUTH_TOKEN = token;
+  if (apiKey) env.ANTHROPIC_API_KEY = apiKey;
   return env;
 }
 
@@ -70,9 +72,9 @@ export function claudeVersion(claude) {
 // of the person's own settings, and no MCP servers. The prompt goes in through stdin, so a long table history never
 // hits the command-line length limit. With a schema, the result carries `structured_output`.
 // A client's AI gets no tools at all (tools ""): it only reads what the job hands it.
-export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,Grep,Glob", timeoutMs = 4 * 60 * 1000 }) {
-  const token = loadSecret("claude-token");
-  if (!token) return Promise.reject(new Error("This connection has no Claude sign-in yet. Run connect again."));
+export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,Grep,Glob", apiKey, timeoutMs = 4 * 60 * 1000 }) {
+  const token = apiKey ? null : loadSecret("claude-token");
+  if (!token && !apiKey) return Promise.reject(new Error("This connection has no Claude sign-in yet. Run connect again."));
   // Streamed output carries the plan's usage limits (a rate_limit_event) as well as the result.
   const args = ["-p", "--output-format", "stream-json", "--verbose", "--restricted", "--permission-mode", "dontAsk",
     "--strict-mcp-config", "--max-turns", tools ? "25" : "4", "--tools", tools];
@@ -81,7 +83,7 @@ export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,
   if (model) args.push("--model", model);
   return new Promise((resolve, reject) => {
     const started = Date.now();
-    const child = spawn(claude, args, { cwd, env: childEnv(token), windowsHide: true });
+    const child = spawn(claude, args, { cwd, env: childEnv(token, apiKey), windowsHide: true });
     let out = "";
     let err = "";
     const timer = setTimeout(() => child.kill(), timeoutMs);

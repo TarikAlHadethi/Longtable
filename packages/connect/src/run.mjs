@@ -17,7 +17,7 @@ const SOURCES = {
   maxItems: 6,
 };
 
-const KINDS = {
+export const KINDS = {
   answer: {
     task: "Answer the question from the code in the current folder, which is the latest main. If the code does not answer it, say what you checked and that you could not tell.",
     schema: { type: "object", properties: { answer: { type: "string" }, sources: SOURCES }, required: ["answer", "sources"] },
