@@ -1,3 +1,4 @@
+import { Check } from "@/components/icons";
 import Link from "next/link";
 import { Mark } from "@/components/mark";
 import s from "./auth.module.css";
@@ -28,7 +29,7 @@ export function AuthShell({ title, lead, children }: { title: string; lead?: Rea
             <div><b>The table</b><em>one answer from 3 AIs</em><p className={s.voice}>About a day and a half. It fits before launch.</p>
               <div className={s.chips}><span>StaffPicker.tsx</span><span>reminders.ts</span></div></div>
           </div>
-          <div className={`${s.float} ${s.f3}`}><span className={s.tick}>✓</span> Decided: ship it for launch</div>
+          <div className={`${s.float} ${s.f3}`}><span className={s.tick}><Check size={12} stroke={3} /></span> Decided: ship it for launch</div>
         </div>
         <div className={s.quote}>
           <Mark size={44} ink="var(--on-night)" />

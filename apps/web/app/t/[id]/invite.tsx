@@ -41,7 +41,6 @@ export function Invite({ tableId, onClose }: { tableId: string; onClose: () => v
         <div className={styles.modalTitle}>Add someone to this table</div>
         {!link && (
           <>
-            <p className="note" style={{ margin: 0 }}>You get a link to send them. Their name and email are optional.</p>
             <input className="field" maxLength={60} value={name} onChange={(e) => setName(e.target.value)}
               placeholder="Their name (optional)" aria-label="Their name" />
             <input className="field" maxLength={200} value={email} onChange={(e) => setEmail(e.target.value)}

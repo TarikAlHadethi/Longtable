@@ -1,3 +1,4 @@
+import { Arrow } from "@/components/icons";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Mark } from "@/components/mark";
@@ -23,7 +24,7 @@ export default async function Start() {
 
   return (
     <AuthShell title={rows.length > 0 ? "Your tables" : "Start a table"}
-      lead={rows.length > 0 ? "Pick up where you left off, or start another." : "Name what you are working on. You can invite your team and your client next."}>
+      >
       {rows.length > 0 && (
         <>
           <div className={s.tables}>
@@ -32,7 +33,7 @@ export default async function Start() {
                 <span className={s.tableIcon}><Mark size={20} /></span>
                 <span className={s.tableName}>{r.tables?.name ?? "A table"}</span>
                 <span className={s.tableRole}>{r.role}</span>
-                <span className={s.tableGo}>→</span>
+                <span className={s.tableGo}><Arrow size={16} /></span>
               </Link>
             ))}
           </div>

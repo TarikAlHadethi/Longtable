@@ -44,7 +44,7 @@ try {
   await page.waitForURL(/\/t\/[0-9a-f-]{36}$/);
   const tableId = page.url().split("/t/")[1];
   const empty = await page.textContent("body");
-  check("the table's home says what to do next", /Connect your AI/.test(empty) && /ask the first question/.test(empty), empty.slice(0, 300));
+  check("the table's home says what to do next", /Connect your AI/.test(empty) && /No AI connected yet/.test(empty), empty.slice(0, 300));
 
   // Connect my Claude, as the screen says; the message is what their own Claude runs after they press Send.
   await page.click("[data-testid=table-home] button:has-text('Connect your AI')");

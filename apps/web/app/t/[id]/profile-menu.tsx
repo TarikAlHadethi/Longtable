@@ -1,5 +1,6 @@
 "use client";
 
+import { Gauge, Gear, Moon, Plus, SignOut, Sun } from "@/components/icons";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { browserClient } from "@/lib/supabase/browser";
@@ -48,17 +49,17 @@ export function ProfileMenu({ me, tableId, onInvite }: { me: Member; tableId: st
             <span className={styles.meFace} style={{ background: me.color }}>{letter}</span>
             <div><div className={styles.meName}>{me.display_name}</div><div className={styles.meRole}>{ROLE_WORD[me.role]}</div></div>
           </div>
-          {onInvite && <button role="menuitem" className={styles.meItem} onClick={() => { setOpen(false); onInvite(); }}><span>＋</span>Invite people</button>}
-          {me.role === "owner" && <Link role="menuitem" className={styles.meItem} href={`/t/${tableId}/settings`}><span>⚙</span>Table settings</Link>}
-          {me.role !== "client" && <Link role="menuitem" className={styles.meItem} href={`/t/${tableId}/usage`}><span>◔</span>Usage</Link>}
+          {onInvite && <button role="menuitem" className={styles.meItem} onClick={() => { setOpen(false); onInvite(); }}><Plus size={16} />Invite people</button>}
+          {me.role === "owner" && <Link role="menuitem" className={styles.meItem} href={`/t/${tableId}/settings`}><Gear size={16} />Table settings</Link>}
+          {me.role !== "client" && <Link role="menuitem" className={styles.meItem} href={`/t/${tableId}/usage`}><Gauge size={16} />Usage</Link>}
           <div className={styles.meLook}>
             <span>Appearance</span>
             <div className={styles.lookSwitch} role="group" aria-label="Appearance">
-              <button className={!dark ? styles.lookOn : ""} aria-pressed={!dark} onClick={() => look(false)}>☀ Light</button>
-              <button className={dark ? styles.lookOn : ""} aria-pressed={dark} onClick={() => look(true)}>☾ Dark</button>
+              <button className={!dark ? styles.lookOn : ""} aria-pressed={!dark} onClick={() => look(false)}><Sun size={13} />Light</button>
+              <button className={dark ? styles.lookOn : ""} aria-pressed={dark} onClick={() => look(true)} data-testid="look-dark"><Moon size={13} />Dark</button>
             </div>
           </div>
-          <button role="menuitem" className={`${styles.meItem} ${styles.meOut}`} onClick={signOut}><span>↩</span>Sign out</button>
+          <button role="menuitem" className={`${styles.meItem} ${styles.meOut}`} onClick={signOut}><SignOut size={16} />Sign out</button>
         </div>
       )}
     </div>

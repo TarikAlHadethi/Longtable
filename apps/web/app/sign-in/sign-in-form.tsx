@@ -1,5 +1,6 @@
 "use client";
 
+import { Check } from "@/components/icons";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { browserClient } from "@/lib/supabase/browser";
@@ -63,7 +64,6 @@ export function SignInForm({ next }: { next: string }) {
         </div>
         {error && <div className="error">{error}</div>}
         <button className="btn" disabled={busy || !email.trim()}>{busy ? "Sending…" : "Send me a code"}</button>
-        <p className="note" style={{ margin: 0, textAlign: "center", fontSize: 13 }}>No password. We email you a code, and that is it.</p>
       </form>
     );
   }
@@ -73,8 +73,8 @@ export function SignInForm({ next }: { next: string }) {
   return (
     <form onSubmit={checkCode} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div className={s.sent}>
-        <span className={s.sentIcon}>✓</span>
-        <span>We sent a code to <strong>{email.trim()}</strong>. It works for one hour.</span>
+        <span className={s.sentIcon}><Check size={18} stroke={2.6} /></span>
+        <span>We sent a code to <strong>{email.trim()}</strong>.</span>
       </div>
       <div>
         <label className="label" htmlFor="code">The code</label>

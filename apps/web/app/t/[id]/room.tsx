@@ -1,5 +1,6 @@
 "use client";
 
+import { Plus } from "@/components/icons";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
@@ -434,7 +435,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           <div className={styles.section}>
             <div className={styles.sectionHead}>
               <div className={styles.sectionTitle}>Chats</div>
-              <button className={styles.plus} title="New chat" aria-label="New chat" onClick={() => setNaming(!naming)}>+</button>
+              <button className={styles.plus} title="New chat" aria-label="New chat" onClick={() => setNaming(!naming)}><Plus size={14} /></button>
             </div>
             {[...chats].sort((a, b) => Number(b.is_general) - Number(a.is_general) || byTime(a, b)).map((c) => (
               <button key={c.id} className={`${styles.chat} ${view === "chat" && c.id === chat?.id ? styles.chatActive : ""}`} onClick={() => openChat(c.id)}>
@@ -512,8 +513,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
             <div className={styles.list}>
               {items.length === 0 && (
                 <div className={styles.empty}>
-                  <div className={styles.emptyTitle}>{chat?.is_general ? "The table is set" : `Nothing in ${chat?.name ?? "this chat"} yet`}</div>
-                  <div className="note">Connect your AI from the table (press Longtable, top left), then ask the table anything about your project. Invite people from your picture, top right.</div>
+                  <div className={styles.emptyTitle}>{`Nothing in ${chat?.name ?? "this chat"} yet`}</div>
                 </div>
               )}
               {items.map((it) => {
@@ -624,7 +624,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         <aside className={`${styles.inbox} ${inboxOpen ? styles.inboxOpen : ""}`} aria-label="Inbox">
           <div className={styles.inboxHead}>
             <div className={styles.inboxTitle}>Inbox</div>
-            <div className={styles.inboxCount}>{waiting}</div>
+            {open.length > 0 && <div className={styles.inboxCount}>{waiting}</div>}
           </div>
           <div className={styles.inboxList}>
             {open.length === 0 && <div className={styles.inboxEmpty}>Nothing waiting for a yes</div>}
