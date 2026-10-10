@@ -324,7 +324,8 @@ async function chosenModel(rpc, seat, job) {
   } catch {}
   if (fits(seat.kind, pick)) return pick;
   // A model named when connecting, or by the tests, comes before the automatic one.
-  return seat.model || process.env.LONGTABLE_MODEL || (seat.kind === "claude" ? AUTOMATIC[forTable ? "table" : "mine"] : null);
+  const named = [seat.model, process.env.LONGTABLE_MODEL].find((m) => fits(seat.kind, m));
+  return named || (seat.kind === "claude" ? AUTOMATIC[forTable ? "table" : "mine"] : null);
 }
 
 // The listener's one small request. Its only output is what to do next; the table does the rest.
