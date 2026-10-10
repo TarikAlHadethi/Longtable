@@ -70,7 +70,9 @@ export function Answer({ m, members, views }: { m: Message; members: Map<string,
                       <div className={styles.viewHead}>
                         <span className={styles.viewDot} style={{ background: vw?.color ?? "var(--faint)" }} />
                         {vw?.display_name ?? "Someone"}&apos;s {AI_NAME[kindOfModel(v.meta?.model)]}
-                        {v.meta?.confidence && <span className={styles.viewConfidence}>{v.meta.confidence} confidence</span>}
+                        {v.meta?.part === "work" ? <span className={styles.viewConfidence}>{v.meta.changed ? "did the work" : "worked on it"}</span>
+                          : v.meta?.part === "review" ? <span className={styles.viewConfidence}>{v.meta.ok === false ? "found a problem" : "looked it over"}</span>
+                          : v.meta?.confidence && <span className={styles.viewConfidence}>{v.meta.confidence} confidence</span>}
                       </div>
                       <div className={styles.viewText}><Inline text={v.body} /></div>
                       {(v.meta?.sources ?? []).length > 0 && (

@@ -686,6 +686,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 const name = `${byId.get(j.member_id)?.display_name ?? "Someone"}'s ${aiWord(j.member_id)}`;
                 const text = j.status === "failed" ? `${name} couldn't finish: ${j.error ?? "it gave up"}`
                   : j.kind === "combine" ? (j.status === "waiting" ? `${name} writes the answer once the views are in` : `${name} is writing the answer…`)
+                  : j.kind === "work" ? (j.status === "waiting" ? `${name} starts once the others have had their say` : (j.stage ?? 0) > 0 ? `${name} is fixing what the others found…` : `${name} is doing the work…`)
+                  : j.kind === "review" ? (j.status === "running" ? `${name} is looking it over…` : `Waiting for ${name} to look it over`)
                   : j.kind === "view" ? (j.status === "running" ? `${name} is giving its view…` : `Waiting for ${name}'s view`)
                   : j.kind === "intro" ? `${name} is reading the project…`
                   : j.status === "running" ? `${name} is reading the code…` : `Waiting for ${name}`;

@@ -25,6 +25,9 @@ export type Message = {
     how?: string;
     parts?: string[];
     confidence?: string | null;
+    part?: string | null;
+    ok?: boolean | null;
+    changed?: boolean | null;
   };
   state?: "sending" | "failed";
 };
@@ -33,7 +36,8 @@ export type Job = {
   id: string;
   chat_id: string | null;
   member_id: string;
-  kind: "answer" | "view" | "combine" | "intro" | "client";
+  kind: "answer" | "view" | "combine" | "intro" | "client" | "work" | "review";
+  stage?: number;
   round: string | null;
   status: "queued" | "running" | "done" | "failed" | "waiting" | "skipped";
   error: string | null;
