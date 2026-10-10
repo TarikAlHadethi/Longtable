@@ -208,14 +208,23 @@ async function workPacked(rpc, seat, engines, job, copy) {
   await report(rpc, seat, limits, model);
 }
 
-// The model the person picked for their AI at the table, if any. It wins over the one set when connecting.
-async function chosenModel(rpc, seat) {
-  try { return (await rpc("runner_model", { token: seat.token })) || null; } catch { return null; }
+// The model for this job. The table's own answer (a direct answer, or the one combined from views) runs on the
+// model picked for the table; a view or an introduction runs on the one the person picked for their own AI.
+// A pick made for the other maker's AI is ignored, and with no pick the AI keeps its own default.
+const fits = (kind, model) => !!model && (/^(claude|opus|sonnet|haiku|fable)/i.test(model) === (kind === "claude"));
+async function chosenModel(rpc, seat, job) {
+  try {
+    const picks = (await rpc("runner_models", { token: seat.token })) || {};
+    const wanted = job.kind === "answer" || job.kind === "combine" ? [picks.table, picks.mine] : [picks.mine];
+    return wanted.find((m) => fits(seat.kind, m)) || null;
+  } catch {
+    return null;
+  }
 }
 
 async function work(rpc, seat, engines, job) {
   log(`${job.kind} job ${job.job_id} for ${job.me}`);
-  seat = { ...seat, model: (await chosenModel(rpc, seat)) || seat.model };
+  seat = { ...seat, model: (await chosenModel(rpc, seat, job)) || seat.model };
   if (job.kind === "client") {
     try {
       await workClient(rpc, seat, engines, job);

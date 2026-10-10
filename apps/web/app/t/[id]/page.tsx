@@ -66,6 +66,7 @@ export default async function TablePage({ params, searchParams }: {
     supabase.from("notes").select(NOTE_COLUMNS).eq("table_id", id),
     supabase.from("requests").select(REQUEST_COLUMNS).eq("table_id", id).order("created_at", { ascending: false }).limit(200),
   ]);
+  const { data: tableAi } = await supabase.from("table_ai").select("model").eq("table_id", id).maybeSingle();
   const chatList = (chats ?? []) as Chat[];
   const general = chatList.find((c) => c.is_general) ?? chatList[0];
   // No chat asked for: the room opens on the table itself. "?c=general" is a short way to ask for the first chat.
@@ -87,6 +88,7 @@ export default async function TablePage({ params, searchParams }: {
       initialRequests={(requests ?? []) as Request[]}
       initialChatId={start?.id ?? ""}
       initialView={want ? "chat" : "table"}
+      initialTableModel={(tableAi as { model: string | null } | null)?.model ?? null}
     />
   );
 }

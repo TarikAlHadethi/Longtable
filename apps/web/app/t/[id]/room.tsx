@@ -42,7 +42,7 @@ function requestWords(status: RequestStatus, who: string): { words: string; pill
 
 type Change = { table?: string; record?: Record<string, unknown> };
 
-export function Room({ table, me, initialMembers, initialChats, initialMessages, initialDecisions, initialJobs, initialConnections, initialNotes, initialRequests, initialChatId, initialView }: {
+export function Room({ table, me, initialMembers, initialChats, initialMessages, initialDecisions, initialJobs, initialConnections, initialNotes, initialRequests, initialChatId, initialView, initialTableModel }: {
   table: { id: string; name: string };
   me: Member;
   initialMembers: Member[];
@@ -55,6 +55,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   initialRequests: Request[];
   initialChatId: string;
   initialView: "table" | "chat";
+  initialTableModel: string | null;
 }) {
   const supabase = useMemo(() => browserClient(), []);
   const [members, setMembers] = useState(initialMembers);
@@ -73,6 +74,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   // The room opens on the table itself; a chat opens from there or from the list.
   const [view, setView] = useState<"table" | "chat">(initialView);
   const [inviting, setInviting] = useState(false);
+  // The model the table's own answer is written on; null leaves it to the AI that writes it.
+  const [tableModel, setTableModel] = useState(initialTableModel);
   const [online, setOnline] = useState<Set<string>>(() => new Set([me.id]));
   const [live, setLive] = useState(false);
   const [gone, setGone] = useState(false);
@@ -181,6 +184,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       } else if (name === "connections") {
         const c = record as unknown as Connection;
         setConnections((prev) => [...prev.filter((x) => x.id !== c.id), c]);
+      } else if (name === "table_ai") {
+        setTableModel(((record as { model?: string | null }).model) ?? null);
       } else if (name === "requests") {
         const r = record as unknown as Request;
         setRequests((prev) => [...prev.filter((x) => x.id !== r.id), r]);
@@ -501,6 +506,11 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           <main className={styles.main}>
             <TableView table={table} me={me} members={members} connections={connections} jobs={jobs} online={online} messages={messages}
               chats={chats} onOpenChat={openChat} onConnect={() => setConnectOpen(true)}
+              tableModel={tableModel}
+              onTableModel={async (model) => {
+                setTableModel(model || null);
+                await supabase.rpc("set_table_model", { t: table.id, model });
+              }}
               onModel={async (conn, model) => {
                 setConnections((prev) => prev.map((c) => (c.id === conn ? { ...c, model_choice: model || null } : c)));
                 await supabase.rpc("set_model", { conn, model });

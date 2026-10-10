@@ -1,24 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { AI_NAME, AiLogo, type AiKind } from "@/components/ai-logo";
-import { Arrow, Check, Plus } from "@/components/icons";
+import { Arrow, Plus } from "@/components/icons";
 import { Mark } from "@/components/mark";
+import { ModelPick, prettyModel } from "./model-pick";
 import type { Chat, Connection, Job, Member, Message } from "./types";
 import s from "./table-view.module.css";
 
 const initial = (name: string) => name.trim().charAt(0).toUpperCase() || "?";
 const ROLE = { owner: "Owner", developer: "Developer", client: "Client" } as const;
 const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
-
-// "claude-opus-5-5" reads as "Opus 5.5", "opus" as "Opus"; anything unfamiliar is shown as it came.
-export function prettyModel(model?: string | null): string | null {
-  if (!model || /default/i.test(model)) return null;
-  const name = model.replace(/^claude-/, "").replace(/-\d{8}$/, "");
-  const m = name.match(/^([a-z]+)-(\d+)(?:-(\d+))?$/);
-  if (m) return `${cap(m[1])} ${m[2]}${m[3] ? `.${m[3]}` : ""}`;
-  return /^[a-z]+$/.test(name) ? cap(name) : model;
-}
+export { prettyModel };
 const prettyPlan = (plan?: string | null) => (plan ? `${cap(plan).replace(/_/g, " ")}` : null);
 // Which maker a model name belongs to, for answers written before the table knew.
 export const kindOfModel = (model?: string | null): AiKind => (/gpt|codex|^o\d/i.test(model ?? "") ? "codex" : "claude");
@@ -26,58 +19,9 @@ export const kindOfModel = (model?: string | null): AiKind => (/gpt|codex|^o\d/i
 // A connection counts as on while it keeps checking in. After this long without a word, its seat goes quiet.
 const QUIET_MS = 75 * 1000;
 
-// The model an AI runs, as words. For the person whose AI it is, the words turn into a box to pick another the moment
-// the pointer is over them.
-function Model({ conn, mine, className, lead = "", onModel }: {
-  conn: Connection;
-  mine: boolean;
-  className: string;
-  lead?: string;
-  onModel?: (conn: string, model: string) => void;
-}) {
-  const reported = conn.limits?.model ?? null;
-  const choice = conn.model_choice ?? "";
-  const known = (conn.kind === "codex" ? conn.limits?.models : ["opus", "sonnet", "haiku"]) ?? [];
-  // What it last ran, when that matches the pick; else the pick itself until its first answer on it.
-  const shown = (id: string) => (reported && reported.toLowerCase().includes(id.toLowerCase()) ? prettyModel(reported) : prettyModel(id)) ?? id;
-  const current = choice ? shown(choice) : prettyModel(reported) ?? "Connected";
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
-    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
-    document.addEventListener("mousedown", away);
-    document.addEventListener("keydown", esc);
-    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
-  }, [open]);
-  if (!mine || !onModel || known.length === 0) return <div className={className} key={current}>{lead}{current}</div>;
-  const options = [{ id: "", name: "Automatic" }, ...[...new Set([...known, choice].filter(Boolean))].map((id) => ({ id, name: shown(id) }))];
-  return (
-    <span className={s.pickWrap} ref={ref}>
-      <button type="button" className={`${className} ${s.pick} ${open ? s.pickOpen : ""}`} aria-haspopup="listbox" aria-expanded={open}
-        data-testid="model-pick" onClick={() => setOpen(!open)}>
-        <span key={current} className={s.pickText}>{lead}{current}</span>
-      </button>
-      {open && (
-        <div className={s.menu} role="listbox" aria-label="The model your AI runs">
-          {options.map((o, i) => (
-            <button key={o.id || "auto"} type="button" role="option" aria-selected={o.id === choice} data-model={o.id || "auto"}
-              className={`${s.menuItem} ${o.id === choice ? s.menuOn : ""}`} style={{ "--i": i } as React.CSSProperties}
-              onClick={() => { setOpen(false); if (o.id !== choice) onModel(conn.id, o.id); }}>
-              <span>{o.name}</span>
-              {o.id === choice && <Check size={15} stroke={2.6} />}
-            </button>
-          ))}
-        </div>
-      )}
-    </span>
-  );
-}
-
 // The table's home: who is at the table, the AI each person brought and the model it is running, and how they all
 // meet at the table. Everything hangs from one centred column, so the people always sit squarely over the table.
-export function TableView({ table, me, members, connections, jobs, online, messages, chats, onOpenChat, onConnect, onInvite, onModel }: {
+export function TableView({ table, me, members, connections, jobs, online, messages, chats, onOpenChat, onConnect, onInvite, onModel, tableModel, onTableModel }: {
   table: { id: string; name: string };
   me: Member;
   members: Member[];
@@ -90,6 +34,8 @@ export function TableView({ table, me, members, connections, jobs, online, messa
   onConnect: () => void;
   onInvite?: () => void;
   onModel?: (conn: string, model: string) => void;
+  tableModel: string | null;
+  onTableModel: (model: string) => void;
 }) {
   // A clock, so a seat goes quiet by itself when its computer is switched off.
   const [now, setNow] = useState(() => Date.now());
@@ -119,6 +65,8 @@ export function TableView({ table, me, members, connections, jobs, online, messa
   const writer = onSeats.find((x) => x.m.role === "owner") ?? onSeats[0];
   const last = [...messages].reverse().find((m) => m.by_ai && (m.kind === "answer" || !m.kind));
   const lastModel = prettyModel(last?.meta?.model);
+  // A person's AI: what they picked, else what it last ran.
+  const modelText = (c: Connection, none = "Connected") => prettyModel(c.model_choice) ?? prettyModel(c.limits?.model) ?? none;
   const general = [...chats].sort((a, b) => Number(b.is_general) - Number(a.is_general))[0];
 
   return (
@@ -156,7 +104,8 @@ export function TableView({ table, me, members, connections, jobs, online, messa
                       </div>
                       <div className={s.aiName}>{AI_NAME[seat.conn.kind]}{plan ? ` ${plan}` : ""}{seat.on ? "" : " · disconnected"}</div>
                       {isBusy ? <div className={s.model}>Reading the code…</div>
-                        : <Model conn={seat.conn} mine={mine && seat.on} className={s.model} onModel={onModel} />}
+                        : <ModelPick kind={seat.conn.kind} value={seat.conn.model_choice ?? ""} text={modelText(seat.conn)} reported={seat.conn.limits?.models}
+                            className={s.model} canPick={mine && seat.on && !!onModel} onPick={(model) => onModel?.(seat.conn.id, model)} />}
                       {mine && seat.removed && <button className={s.again} onClick={onConnect}>Connect again</button>}
                     </div>
                   ) : mine ? (
@@ -202,7 +151,9 @@ export function TableView({ table, me, members, connections, jobs, online, messa
             <div className={s.tableTitle}>The Table</div>
             <Mark size={64} />
             {anyBusy ? <div className={s.tableModel}>Working on an answer…</div>
-              : writer ? <Model conn={writer.seat!.conn} mine={writer.m.id === me.id} className={s.tableModel} lead={`${AI_NAME[writer.seat!.conn.kind]} `} onModel={onModel} />
+              : writer ? <ModelPick kind={writer.seat!.conn.kind} value={tableModel ?? ""} reported={writer.seat!.conn.limits?.models} centre testid="table-model"
+                  text={`${AI_NAME[writer.seat!.conn.kind]} ${tableModel ? prettyModel(tableModel) ?? tableModel : modelText(writer.seat!.conn, "")}`.trim()}
+                  className={s.tableModel} canPick onPick={onTableModel} />
               : last ? <div className={`${s.tableModel} ${s.tableQuiet}`}>{AI_NAME[kindOfModel(last.meta?.model)]}{lastModel ? ` ${lastModel}` : ""}</div>
               : <div className={s.tableModel}>No AI connected yet</div>}
           </div>

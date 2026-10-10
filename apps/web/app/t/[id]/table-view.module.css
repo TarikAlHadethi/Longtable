@@ -61,33 +61,6 @@
 .aiOff .aiName, .aiOff .model { color: var(--muted); }
 .again { align-self: flex-start; margin-top: 6px; background: none; border: 0; padding: 0; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--link); text-decoration: underline; cursor: pointer; }
 
-/* The model, for the person whose AI it is: plain words until the pointer is over them, then a box that fits
-   them. The box's edge and padding are always there, see-through, so nothing moves when it appears. */
-.pickWrap { position: relative; display: inline-flex; align-self: flex-start; }
-.pick {
-  appearance: none; background: transparent; color: inherit; font-family: inherit; text-align: left; cursor: pointer;
-  border: 1px solid transparent; border-radius: 10px; padding: 4px 10px; margin: -5px -11px;
-  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
-}
-.pick:hover, .pick:focus-visible, .pickOpen { border-color: var(--line-strong); background: var(--card); box-shadow: 0 4px 14px oklch(0.2 0.01 70 / 0.1); outline: none; }
-.pickText { display: block; animation: tv-swap 0.4s var(--ease-out) both; }
-.table .pickWrap { align-self: center; }
-.table .pick { margin: -5px 0; }
-
-.menu {
-  position: absolute; left: -11px; top: calc(100% + 10px); z-index: 50; min-width: 190px; padding: 6px; display: flex; flex-direction: column; gap: 2px;
-  background: var(--card); border: 1px solid var(--line-strong); border-radius: 14px; box-shadow: 0 20px 50px oklch(0.2 0.01 70 / 0.2);
-  animation: tv-menu 0.18s var(--ease-out) both; transform-origin: top left;
-}
-.table .menu { left: 50%; margin-left: -95px; transform-origin: top center; }
-.menuItem {
-  display: flex; align-items: center; justify-content: space-between; gap: 14px; width: 100%; border: 0; background: none; color: var(--ink);
-  font: inherit; font-size: 14.5px; font-weight: 500; letter-spacing: 0; text-align: left; padding: 9px 11px; border-radius: 9px; cursor: pointer;
-  transition: background-color 0.12s ease; animation: tv-rise 0.25s var(--ease-out) both; animation-delay: calc(var(--i) * 30ms);
-}
-.menuItem:hover, .menuItem:focus-visible { background: var(--hover); outline: none; }
-.menuOn { font-weight: 600; }
-.menuOn svg { color: var(--sage); }
 .tableQuiet { color: var(--muted); }
 .model { font-size: 18px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.2; animation: tv-swap 0.4s var(--ease-out) both; overflow-wrap: anywhere; }
 
@@ -135,7 +108,6 @@
 
 @keyframes tv-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 @keyframes tv-fade { from { opacity: 0; } to { opacity: 1; } }
-@keyframes tv-menu { from { opacity: 0; transform: translateY(-6px) scale(0.96); } to { opacity: 1; transform: none; } }
 @keyframes tv-swap { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes tv-stem { from { background-position: 0 200%; } to { background-position: 0 -100%; } }
 @keyframes tv-flow { from { stroke-dashoffset: 306; } to { stroke-dashoffset: 0; } }
@@ -147,7 +119,6 @@
 /* Only a narrow screen scrolls the tree sideways; on a wide one nothing is clipped, so a menu can hang below. */
 @media (max-width: 900px) {
   .scroller { overflow-x: auto; }
-  .table .menu { top: auto; bottom: calc(100% + 10px); transform-origin: bottom center; }
 }
 @media (max-width: 600px) {
   .wrap { padding: 28px 0 36px; gap: 20px; }
