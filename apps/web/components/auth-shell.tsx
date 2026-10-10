@@ -31,7 +31,7 @@ export function AuthShell({ title, lead, children }: { title: string; lead?: Rea
           <div className={`${s.float} ${s.f3}`}><span className={s.tick}>✓</span> Decided: ship it for launch</div>
         </div>
         <div className={s.quote}>
-          <Mark size={44} ink="var(--on-table)" />
+          <Mark size={44} ink="var(--on-night)" />
           <p>One room where your team, their AIs and your client work together.</p>
         </div>
       </aside>

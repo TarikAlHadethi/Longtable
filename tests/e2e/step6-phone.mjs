@@ -22,7 +22,7 @@ try {
   await owner.page.waitForFunction(() => document.body.innerText.includes("Booking flow"));
 
   for (const p of [owner.page, client.page]) await p.setViewportSize({ width: 390, height: 844 });
-  await owner.page.goto(`${APP}/t/${tableId}`);
+  await owner.page.goto(`${APP}/t/${tableId}?c=general`);
   await owner.page.waitForFunction(() => !document.body.innerText.includes("Connecting"), null, { timeout: 10000 });
   const roomOver = await sideways(owner.page);
   const asideHidden = await owner.page.evaluate(() => getComputedStyle(document.querySelector("aside[aria-label=Menu]")).display === "none");
@@ -36,7 +36,7 @@ try {
   });
   if (shots) await owner.page.screenshot({ path: `${shots}/phone-drawer.png` });
   check("the menu opens the sidebar", drawer.shown && drawer.width > 200 && drawer.width <= 390
-    && ["booking flow", "connect my claude", "people", "settings"].every((w) => drawer.text.toLowerCase().includes(w)), JSON.stringify({ ...drawer, text: drawer.text.slice(0, 200) }));
+    && ["booking flow", "connect my ai", "people", "settings"].every((w) => drawer.text.toLowerCase().includes(w)), JSON.stringify({ ...drawer, text: drawer.text.slice(0, 200) }));
   await owner.page.click("aside[aria-label=Menu] button:has-text('Booking flow')");
   await owner.page.waitForFunction(() => getComputedStyle(document.querySelector("aside[aria-label=Menu]")).display === "none", null, { timeout: 3000 })
     .then(() => true, () => false)
@@ -46,7 +46,7 @@ try {
     });
   if (shots) await owner.page.screenshot({ path: `${shots}/phone-room.png` });
 
-  await client.page.goto(`${APP}/t/${tableId}`);
+  await client.page.goto(`${APP}/t/${tableId}?c=general`);
   await client.page.waitForSelector("text=What you asked for");
   const clientOver = await sideways(client.page);
   if (shots) await client.page.screenshot({ path: `${shots}/phone-client.png`, fullPage: true });

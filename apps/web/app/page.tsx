@@ -125,7 +125,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         </section>
 
         <Reveal className={s.cta}>
-          <Mark size={56} ink="var(--on-table)" />
+          <Mark size={56} ink="var(--on-night)" />
           <h2>Pull up a chair.</h2>
           <p>Start a table, connect your AI, and ask the first question.</p>
           <div className={s.buttons}>

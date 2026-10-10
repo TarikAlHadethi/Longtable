@@ -44,10 +44,10 @@ try {
   await page.waitForURL(/\/t\/[0-9a-f-]{36}$/);
   const tableId = page.url().split("/t/")[1];
   const empty = await page.textContent("body");
-  check("the empty room says what to do next", /Connect your Claude/.test(empty) && /ask the table/.test(empty), empty.slice(0, 300));
+  check("the table's home says what to do next", /Connect your AI/.test(empty) && /ask the first question/.test(empty), empty.slice(0, 300));
 
   // Connect my Claude, as the screen says; the message is what their own Claude runs after they press Send.
-  await page.click("button:has-text('Connect my Claude')");
+  await page.click("[data-testid=table-home] button:has-text('Connect your AI')");
   const message = await page.locator("[data-testid=connect-message]").textContent();
   check("the Connect window explains itself", /press Send/.test(await page.textContent("div[role=dialog]")), message);
   const m = message.match(/connect ([0-9A-F]{20}) --app (\S+)/);
@@ -56,6 +56,9 @@ try {
   runner = spawn(process.execPath, [bin, "run"], { env, stdio: "ignore", windowsHide: true });
   await page.waitForSelector("[data-testid=my-claude]", { timeout: 15000 });
   await page.click("div[role=dialog] button >> text=/Done|Close/");
+  await page.waitForSelector("[data-testid=table-home] [data-seat-ai=claude]", { timeout: 15000 }).then(() => check("their Claude takes its place in the tree", true))
+    .catch(() => check("their Claude takes its place in the tree", false));
+  await page.click("[data-testid=table-home] button:has-text('Open General')");
 
   // Its first message introduces the project, then the first question.
   await page.waitForSelector("[data-ai='intro']", { timeout: 120000 }).then(() => check("their Claude introduces the project first", true))

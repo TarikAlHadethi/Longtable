@@ -32,7 +32,7 @@ try {
   const dev = await joinTable(browser, await inviteLink(owner.page, "developer"), `dev-${run}@example.test`, "Sam");
   const client = await joinTable(browser, await inviteLink(owner.page, "client"), `client-${run}@example.test`, "Dr. Ruiz");
 
-  await dev.page.click("button:has-text('Connect my Claude')");
+  await dev.page.click("button:has-text('Connect my AI')");
   const message = await dev.page.locator("[data-testid=connect-message]").textContent();
   const m = message.match(/connect ([0-9A-F]{20}) --app (\S+)/);
   const connected = spawnSync(process.execPath, [bin, "connect", m[1], "--app", m[2], "--repo", repoRoot, "--no-autostart", "--no-run"], { env, encoding: "utf8" });

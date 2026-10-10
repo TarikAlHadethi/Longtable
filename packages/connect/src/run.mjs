@@ -119,9 +119,10 @@ export function cleanSources(dir, sources) {
 }
 
 // After each job, the person's plan limits go to the table, so its Usage page shows real numbers.
-async function report(rpc, seat, limits) {
-  if (!limits) return;
-  try { await rpc("runner_report", { token: seat.token, limits }); } catch (e) { log(`limits report failed: ${e.message}`); }
+// The model that did the work goes with them, so the table's home shows what each person's AI is running.
+async function report(rpc, seat, limits, model) {
+  if (!limits && !model) return;
+  try { await rpc("runner_report", { token: seat.token, limits: { ai: seat.kind, ...(limits || {}), ...(model ? { model } : {}) } }); } catch (e) { log(`limits report failed: ${e.message}`); }
 }
 
 // A client's reply, on whichever AI the client connected. No copy of the code, and no tools.
@@ -159,7 +160,7 @@ async function workClient(rpc, seat, engines, job) {
     info: { ...info, pass_on: s.pass_on !== false, title: s.title || "" },
   });
   log(`client job ${job.job_id} done, ${s.pass_on !== false ? "passed on" : "answered"}`);
-  await report(rpc, seat, limits);
+  await report(rpc, seat, limits, info.model);
 }
 
 async function work(rpc, seat, engines, job) {
@@ -215,7 +216,7 @@ async function work(rpc, seat, engines, job) {
       },
     });
     log(`${job.kind} job ${job.job_id} done in ${result.wall_ms} ms`);
-    await report(rpc, seat, result.limits);
+    await report(rpc, seat, result.limits, Object.keys(result.modelUsage || {})[0] || seat.model || process.env.LONGTABLE_MODEL);
   } catch (e) {
     log(`${job.kind} job ${job.job_id} failed: ${e.message}`);
     try { await rpc("runner_fail", { token: seat.token, job: job.job_id, reason: e.message }); } catch {}

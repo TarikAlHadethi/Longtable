@@ -46,7 +46,7 @@ export default async function TablePage({ params, searchParams }: {
     return (
       <ClientPage
         table={table}
-        me={{ id: mine.id, display_name: mine.display_name }}
+        me={{ id: mine.id, display_name: mine.display_name, color: mine.color }}
         initialRequests={(requests ?? []) as Request[]}
         initialEvents={(events ?? []) as RequestEvent[]}
         initialUpdates={(updates ?? []) as ClientUpdate[]}
@@ -68,7 +68,9 @@ export default async function TablePage({ params, searchParams }: {
   ]);
   const chatList = (chats ?? []) as Chat[];
   const general = chatList.find((c) => c.is_general) ?? chatList[0];
-  const start = chatList.find((c) => c.id === (Array.isArray(wanted) ? wanted[0] : wanted)) ?? general;
+  // No chat asked for: the room opens on the table itself. "?c=general" is a short way to ask for the first chat.
+  const want = Array.isArray(wanted) ? wanted[0] : wanted;
+  const start = chatList.find((c) => c.id === want) ?? general;
 
   const strip = ({ user_id: _u, ...m }: MemberRow): Member => m;
   return (
@@ -84,6 +86,7 @@ export default async function TablePage({ params, searchParams }: {
       initialNotes={(notes ?? []) as Note[]}
       initialRequests={(requests ?? []) as Request[]}
       initialChatId={start?.id ?? ""}
+      initialView={want ? "chat" : "table"}
     />
   );
 }

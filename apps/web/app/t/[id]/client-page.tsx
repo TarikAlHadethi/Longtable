@@ -13,6 +13,7 @@ import {
   CONNECTION_COLUMNS, EVENT_COLUMNS, JOB_COLUMNS, LINE_COLUMNS, REQUEST_COLUMNS, UPDATE_COLUMNS,
   type ClientLine, type ClientUpdate, type Connection, type Job, type Request, type RequestEvent, type RequestStatus as Status,
 } from "./types";
+import { ProfileMenu } from "./profile-menu";
 import styles from "./client.module.css";
 
 // How each status reads to the client, its pill, and the step still to come, in the design's words.
@@ -57,7 +58,7 @@ function put<T extends { id: string | number }>(prev: T[], list: T[]) {
 // every client is told, and the client's own.
 export function ClientPage({ table, me, initialRequests, initialEvents, initialUpdates, initialLines, initialConnections, initialJobs }: {
   table: { id: string; name: string };
-  me: { id: string; display_name: string };
+  me: { id: string; display_name: string; color?: string };
   initialRequests: Request[];
   initialEvents: RequestEvent[];
   initialUpdates: ClientUpdate[];
@@ -224,6 +225,9 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
     <div className={styles.page}>
       <header className={styles.header}>
         <div className={styles.brand}><Mark size={24} /> {table.name}</div>
+        <div style={{ marginLeft: "auto" }}>
+          <ProfileMenu me={{ id: me.id, display_name: me.display_name, role: "client", color: me.color ?? "var(--sage)" }} tableId={table.id} />
+        </div>
       </header>
       <main className={styles.main}>
         <div className={styles.top}>

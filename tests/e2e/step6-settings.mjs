@@ -16,12 +16,13 @@ try {
   const tableId = owner.tableId;
 
   // Invite by name: the join page arrives filled in.
-  await owner.page.click("button:has-text('Invite')");
+  await owner.page.click("[data-testid=me-menu]");
+  await owner.page.click("text=Invite people");
   await owner.page.fill("input[aria-label='Their name']", "Sam Lee");
   await owner.page.fill("input[aria-label='Their email']", `sam-${run}@example.test`);
   await owner.page.click("text=A developer");
   const link = (await owner.page.textContent("[data-testid=invite-link]")).trim();
-  await owner.page.click("button:has-text('Invite')");
+  await owner.page.click("[data-testid=invite-close]");
   const samContext = await browser.newContext();
   const sam = await samContext.newPage();
   await sam.goto(link);
@@ -80,7 +81,7 @@ try {
   check("only the owner changes settings and people, and never to no undo", Object.values(tries).every((v) => v.status >= 400), JSON.stringify(results.refused));
 
   // Taking Sam off: his page closes live, he reads nothing, and the owner's list drops him.
-  await sam.goto(`${APP}/t/${tableId}`);
+  await sam.goto(`${APP}/t/${tableId}?c=general`);
   await sam.waitForFunction(() => !document.body.innerText.includes("Connecting"), null, { timeout: 10000 });
   await owner.page.goto(`${APP}/t/${tableId}/settings`);
   await owner.page.click("[data-person='Sam Lee'] button:has-text('Take off the table')");
@@ -98,7 +99,7 @@ try {
   check("taken off, he reads and writes nothing", Object.values(samReads).every((n) => n === 0) && samWrite.status >= 400, JSON.stringify({ ...samReads, write: samWrite.status }));
   const seatAfter = (await rest(ownerToken, `tables?select=final_seat&id=eq.${tableId}`)).body[0].final_seat;
   check("his seat stops writing final answers", seatAfter === null, String(seatAfter));
-  await owner.page.goto(`${APP}/t/${tableId}`);
+  await owner.page.goto(`${APP}/t/${tableId}?c=general`);
   const ownerSees = await owner.page.evaluate(() => document.querySelector("aside")?.innerText ?? "");
   check("he is gone from the people list", !ownerSees.includes("Sam Lee"), ownerSees.slice(0, 300));
 

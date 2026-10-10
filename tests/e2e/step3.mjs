@@ -41,7 +41,7 @@ try {
   const client = await joinTable(browser, await inviteLink(owner.page, "client"), `client-${run}@example.test`, "Dr. Ruiz");
 
   // Sam presses Connect my Claude. The window writes the message his Claude would get.
-  await dev.page.click("button:has-text('Connect my Claude')");
+  await dev.page.click("button:has-text('Connect my AI')");
   const message = await dev.page.locator("[data-testid=connect-message]").textContent();
   const m = message.match(/connect ([0-9A-F]{20}) --app (\S+)/);
   check("the Connect window writes the setup message", !!m, message);

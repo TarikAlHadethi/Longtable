@@ -10,11 +10,17 @@ export const metadata: Metadata = {
   description: "One room where a small software team, their AIs and their client work together.",
 };
 
+const THEME = `try{document.documentElement.dataset.theme=localStorage.getItem("lt-theme")==="dark"?"dark":"light"}catch(e){}`;
+
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${hanken.variable} ${newsreader.variable}`}>
+    <html lang="en" className={`${hanken.variable} ${newsreader.variable}`} suppressHydrationWarning>
+      <head>
+        {/* The chosen theme goes on before the first paint, so a dark page never flashes light. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME }} />
+      </head>
       <body>{children}</body>
     </html>
   );

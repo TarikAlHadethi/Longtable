@@ -13,6 +13,8 @@ import { ConnectModal } from "./connect-modal";
 import { DecisionCard } from "./decision-card";
 import { Invite } from "./invite";
 import { NewDecision } from "./new-decision";
+import { ProfileMenu } from "./profile-menu";
+import { TableView } from "./table-view";
 import {
   CONNECTION_COLUMNS, DECISION_COLUMNS, JOB_COLUMNS, MESSAGE_COLUMNS, NOTE_COLUMNS, REQUEST_COLUMNS,
   type Chat, type Connection, type Decision, type Job, type Member, type Message, type Note, type Request, type RequestStatus,
@@ -38,7 +40,7 @@ function requestWords(status: RequestStatus, who: string): { words: string; pill
 
 type Change = { table?: string; record?: Record<string, unknown> };
 
-export function Room({ table, me, initialMembers, initialChats, initialMessages, initialDecisions, initialJobs, initialConnections, initialNotes, initialRequests, initialChatId }: {
+export function Room({ table, me, initialMembers, initialChats, initialMessages, initialDecisions, initialJobs, initialConnections, initialNotes, initialRequests, initialChatId, initialView }: {
   table: { id: string; name: string };
   me: Member;
   initialMembers: Member[];
@@ -50,6 +52,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   initialNotes: Note[];
   initialRequests: Request[];
   initialChatId: string;
+  initialView: "table" | "chat";
 }) {
   const supabase = useMemo(() => browserClient(), []);
   const [members, setMembers] = useState(initialMembers);
@@ -65,6 +68,9 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const [openNote, setOpenNote] = useState<Note | null>(null);
   const [notice, setNotice] = useState("");
   const [chatId, setChatId] = useState(initialChatId);
+  // The room opens on the table itself; a chat opens from there or from the list.
+  const [view, setView] = useState<"table" | "chat">(initialView);
+  const [inviting, setInviting] = useState(false);
   const [online, setOnline] = useState<Set<string>>(() => new Set([me.id]));
   const [live, setLive] = useState(false);
   const [gone, setGone] = useState(false);
@@ -268,7 +274,15 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (el && atBottom.current) el.scrollTop = el.scrollHeight;
   }, [items]);
 
+  function goHome() {
+    setView("table");
+    window.history.replaceState(null, "", window.location.pathname);
+    setInboxOpen(false);
+    setDrawerOpen(false);
+  }
+
   function openChat(id: string) {
+    setView("chat");
     setChatId(id);
     atBottom.current = true;
     window.history.replaceState(null, "", `?c=${id}`);
@@ -391,20 +405,19 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         <button className={styles.menuToggle} aria-label="Menu" aria-expanded={drawerOpen} onClick={() => { setDrawerOpen(!drawerOpen); setInboxOpen(false); }}>
           <span /><span /><span />
         </button>
-        <div className={styles.brand}><Mark size={26} /> Longtable</div>
+        <button className={styles.brand} onClick={goHome} title="The table" data-testid="home"><Mark size={26} /> Longtable</button>
         <div className={styles.divider} />
         <div className={styles.project}>{table.name}</div>
         <div className={styles.spacer} />
         <div className={styles.faces} title={`${here.length} here now`}>
-          {here.map((m) => (
+          {here.filter((m) => m.id !== me.id).map((m) => (
             <div key={m.id} className={styles.face} style={{ background: m.color }}>{initial(m.display_name)}</div>
           ))}
         </div>
         <button className={`btn btn-quiet ${styles.inboxToggle}`} onClick={() => { setInboxOpen(!inboxOpen); setDrawerOpen(false); }}>
           Inbox{open.length > 0 ? ` (${open.length})` : ""}
         </button>
-        {me.role === "owner" && <Link className={`btn btn-quiet ${styles.headerSettings}`} href={`/t/${table.id}/settings`}>Settings</Link>}
-        {me.role === "owner" && <Invite tableId={table.id} />}
+        <ProfileMenu me={me} tableId={table.id} onInvite={me.role === "owner" ? () => setInviting(true) : undefined} />
       </header>
 
       <div className={styles.grid}>
@@ -412,12 +425,17 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         <aside className={`${styles.aside} ${drawerOpen ? styles.asideOpen : ""}`} aria-label="Menu">
           <div className={styles.drawerProject}>{table.name}</div>
           <div className={styles.section}>
+            <button className={`${styles.chat} ${view === "table" ? styles.chatActive : ""}`} onClick={goHome}>
+              <span className={styles.chatName}>The table</span>
+            </button>
+          </div>
+          <div className={styles.section}>
             <div className={styles.sectionHead}>
               <div className={styles.sectionTitle}>Chats</div>
               <button className={styles.plus} title="New chat" aria-label="New chat" onClick={() => setNaming(!naming)}>+</button>
             </div>
             {[...chats].sort((a, b) => Number(b.is_general) - Number(a.is_general) || byTime(a, b)).map((c) => (
-              <button key={c.id} className={`${styles.chat} ${c.id === chat?.id ? styles.chatActive : ""}`} onClick={() => openChat(c.id)}>
+              <button key={c.id} className={`${styles.chat} ${view === "chat" && c.id === chat?.id ? styles.chatActive : ""}`} onClick={() => openChat(c.id)}>
                 <span className={styles.chatName}>{c.name}</span>
                 {decisions.some((d) => d.chat_id === c.id && d.status === "open") && <span className={styles.chatDot} />}
               </button>
@@ -440,15 +458,15 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
             </div>
           )}
           <div className={styles.section}>
-            <div className={styles.sectionTitle}>Your Claude</div>
+            <div className={styles.sectionTitle}>Your AI</div>
             {myConnection ? (
               <div className={styles.claudeStatus} data-testid="my-claude">
                 <span className={`${styles.dot} ${styles.dotOn}`} />
-                <span className={styles.claudeText}>Connected</span>
+                <span className={styles.claudeText}>Claude connected</span>
                 <button className={styles.toolLink} onClick={() => disconnect(myConnection.id)}>Disconnect</button>
               </div>
             ) : (
-              <button className={`btn btn-quiet ${styles.connectButton}`} onClick={() => setConnectOpen(true)}>Connect my Claude</button>
+              <button className={`btn btn-quiet ${styles.connectButton}`} onClick={() => setConnectOpen(true)}>Connect my AI</button>
             )}
           </div>
           <div className={styles.section}>
@@ -476,7 +494,13 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           </div>
         </aside>
 
-        <main className={styles.main}>
+        {view === "table" && (
+          <main className={styles.main}>
+            <TableView table={table} me={me} members={members} connections={connections} jobs={jobs} online={online} messages={messages}
+              chats={chats} onOpenChat={openChat} onConnect={() => setConnectOpen(true)} onInvite={me.role === "owner" ? () => setInviting(true) : undefined} />
+          </main>
+        )}
+        <main className={styles.main} hidden={view === "table"}>
           <div className={styles.threadHead}>
             <div className={styles.threadTitle}>{chat?.name ?? "General"}</div>
             <div className={styles.threadSub}>{!live ? "Connecting…" : chat?.about || "Team only"}</div>
@@ -487,7 +511,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               {items.length === 0 && (
                 <div className={styles.empty}>
                   <div className={styles.emptyTitle}>{chat?.is_general ? "The table is set" : `Nothing in ${chat?.name ?? "this chat"} yet`}</div>
-                  <div className="note">Connect your Claude (in the sidebar, or the menu on a phone), then ask the table anything about your project. Invite your team and your client with Invite.</div>
+                  <div className="note">Connect your AI from the table (press Longtable, top left), then ask the table anything about your project. Invite people from your picture, top right.</div>
                 </div>
               )}
               {items.map((it) => {
@@ -620,6 +644,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           </div>
         </div>
       )}
+      {inviting && <Invite tableId={table.id} onClose={() => setInviting(false)} />}
       {connectOpen && (
         <ConnectModal tableId={table.id} tableName={table.name} connected={!!myConnection} onClose={() => setConnectOpen(false)} />
       )}

@@ -54,14 +54,18 @@ export async function startTable(browser, email, tableName, myName) {
   await page.fill("#me", myName);
   await page.click("text=Start the table");
   await page.waitForURL(/\/t\/[0-9a-f-]{36}$/);
-  return { context, page, tableId: page.url().split("/t/")[1] };
+  const tableId = page.url().split("/t/")[1];
+  // The room opens on the table's home; the checks work in the first chat.
+  await page.goto(`${APP}/t/${tableId}?c=general`);
+  return { context, page, tableId };
 }
 
 export async function inviteLink(ownerPage, role) {
-  await ownerPage.click("button:has-text('Invite')");
+  await ownerPage.click("[data-testid=me-menu]");
+  await ownerPage.click("text=Invite people");
   await ownerPage.click(role === "client" ? "text=The client" : "text=A developer");
   const link = (await ownerPage.textContent("[data-testid=invite-link]")).trim();
-  await ownerPage.click("button:has-text('Invite')");
+  await ownerPage.click("[data-testid=invite-close]");
   return link;
 }
 
@@ -75,6 +79,7 @@ export async function join(browser, link, email, myName) {
   await page.fill("#me", myName);
   await page.click("button:has-text('Join')");
   await page.waitForURL(/\/t\/[0-9a-f-]{36}$/);
+  await page.goto(`${page.url()}?c=general`);
   return { context, page };
 }
 
