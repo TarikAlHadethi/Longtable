@@ -73,7 +73,8 @@ export function claudeVersion(claude) {
 export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,Grep,Glob", timeoutMs = 4 * 60 * 1000 }) {
   const token = loadSecret("claude-token");
   if (!token) return Promise.reject(new Error("This connection has no Claude sign-in yet. Run connect again."));
-  const args = ["-p", "--output-format", "json", "--restricted", "--permission-mode", "dontAsk",
+  // Streamed output carries the plan's usage limits (a rate_limit_event) as well as the result.
+  const args = ["-p", "--output-format", "stream-json", "--verbose", "--restricted", "--permission-mode", "dontAsk",
     "--strict-mcp-config", "--max-turns", tools ? "25" : "4", "--tools", tools];
   if (system) args.push("--append-system-prompt", system);
   if (schema) args.push("--json-schema", JSON.stringify(schema));
@@ -89,13 +90,27 @@ export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,
     child.on("error", (e) => { clearTimeout(timer); reject(e); });
     child.on("close", (code) => {
       clearTimeout(timer);
-      try {
-        resolve({ ...JSON.parse(out), wall_ms: Date.now() - started });
-      } catch {
-        log(`claude exited ${code} without JSON: ${err.slice(0, 300)}`);
-        reject(new Error("Claude Code did not answer. See the runner log."));
+      const events = out.split(/\r?\n/).filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+      const result = events.filter((e) => e.type === "result").at(-1);
+      if (!result) {
+        log(`claude exited ${code} without a result: ${err.slice(0, 300)}`);
+        return reject(new Error("Claude Code did not answer. See the runner log."));
       }
+      const rate = events.filter((e) => e.type === "rate_limit_event").at(-1)?.rate_limit_info;
+      resolve({ ...result, wall_ms: Date.now() - started, limits: claudeLimits(rate) });
     });
     child.stdin.end(prompt);
   });
+}
+
+// The plan's limits as Longtable shows them: each window's use in percent and when it resets.
+export function claudeLimits(rate) {
+  if (!rate) return null;
+  const names = { five_hour: "5-hour", seven_day: "weekly" };
+  const windows = Object.entries(rate.unifiedWindows || {}).map(([k, w]) => ({
+    name: names[k] || k.replace(/_/g, " "),
+    used: Math.round((w.utilization ?? 0) * 100),
+    resets: w.resetsAt ? new Date(w.resetsAt * 1000).toISOString() : null,
+  }));
+  return { ai: "claude", plan: null, status: rate.status === "rejected" ? "limited" : "allowed", windows };
 }

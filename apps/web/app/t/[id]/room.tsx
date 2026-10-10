@@ -467,6 +467,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
             ))}
           </div>
           <div className={styles.section}>
+            <Link className={styles.chat} href={`/t/${table.id}/usage`}>Usage</Link>
             <Link className={styles.chat} href={`/t/${table.id}/activity`}>Activity</Link>
             {me.role === "owner" && <Link className={styles.chat} href={`/t/${table.id}/settings`}>Settings</Link>}
           </div>

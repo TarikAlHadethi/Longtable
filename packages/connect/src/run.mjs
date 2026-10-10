@@ -7,7 +7,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { isAbsolute, join, normalize, relative } from "node:path";
 import { client } from "./api.mjs";
 import { ask, findClaude } from "./claude.mjs";
-import { askCodex, findCodex } from "./codex.mjs";
+import { askCodex, codexLimits, findCodex } from "./codex.mjs";
 import { freshCopy } from "./repo.mjs";
 import { home, loadSecret, log, readConfig } from "./store.mjs";
 
@@ -118,6 +118,12 @@ export function cleanSources(dir, sources) {
   return out.slice(0, 6);
 }
 
+// After each job, the person's plan limits go to the table, so its Usage page shows real numbers.
+async function report(rpc, seat, limits) {
+  if (!limits) return;
+  try { await rpc("runner_report", { token: seat.token, limits }); } catch (e) { log(`limits report failed: ${e.message}`); }
+}
+
 // A client's reply, on whichever AI the client connected. No copy of the code, and no tools.
 async function workClient(rpc, seat, engines, job) {
   const schema = KINDS.client.schema;
@@ -125,10 +131,12 @@ async function workClient(rpc, seat, engines, job) {
   const system = systemFor(job);
   let s;
   let info;
+  let limits = null;
   if (seat.kind === "codex") {
     const result = await askCodex({ codex: engines.codex, prompt: `${system}\n\n${prompt}`, schema, model: seat.model || undefined });
     if (result.tools.length) throw new Error(`Codex tried to use tools (${result.tools.join(", ")}); its reply was dropped`);
     s = result.structured_output;
+    limits = await codexLimits(engines.codex);
     info = { model: seat.model || "codex default", usage: { input: result.usage.input_tokens, output: result.usage.output_tokens,
       cache_read: result.usage.cached_input_tokens, wall_ms: result.wall_ms } };
   } else {
@@ -138,6 +146,7 @@ async function workClient(rpc, seat, engines, job) {
       model: seat.model || process.env.LONGTABLE_MODEL });
     if (result.is_error) throw new Error(result.result || "Claude Code reported an error");
     s = result.structured_output;
+    limits = result.limits;
     info = { model: Object.keys(result.modelUsage || {})[0] || seat.model || process.env.LONGTABLE_MODEL || "default",
       usage: { input: result.usage?.input_tokens, output: result.usage?.output_tokens, wall_ms: result.wall_ms,
         cost_usd_equivalent: result.total_cost_usd } };
@@ -150,6 +159,7 @@ async function workClient(rpc, seat, engines, job) {
     info: { ...info, pass_on: s.pass_on !== false, title: s.title || "" },
   });
   log(`client job ${job.job_id} done, ${s.pass_on !== false ? "passed on" : "answered"}`);
+  await report(rpc, seat, limits);
 }
 
 async function work(rpc, seat, engines, job) {
@@ -205,6 +215,7 @@ async function work(rpc, seat, engines, job) {
       },
     });
     log(`${job.kind} job ${job.job_id} done in ${result.wall_ms} ms`);
+    await report(rpc, seat, result.limits);
   } catch (e) {
     log(`${job.kind} job ${job.job_id} failed: ${e.message}`);
     try { await rpc("runner_fail", { token: seat.token, job: job.job_id, reason: e.message }); } catch {}

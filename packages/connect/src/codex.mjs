@@ -107,3 +107,38 @@ export function askCodex({ codex, prompt, schema, model, timeoutMs = 3 * 60 * 10
     child.stdin.end(prompt);
   });
 }
+
+// The ChatGPT plan's Codex limits, read from Codex's own app server (account/rateLimits/read). Null if it does not
+// answer within ten seconds.
+export function codexLimits(codex) {
+  return new Promise((resolve) => {
+    const child = spawn(codex.cmd, [...codex.pre, "app-server"], { env: env(), windowsHide: true });
+    let buf = "";
+    const done = (value) => { clearTimeout(timer); child.kill(); resolve(value); };
+    const timer = setTimeout(() => done(null), 10000);
+    const send = (m) => child.stdin.write(JSON.stringify(m) + "\n");
+    const name = (mins) => mins === 300 ? "5-hour" : mins === 10080 ? "weekly" : mins === 43200 ? "30-day" : `${Math.round(mins / 60)}-hour`;
+    const window = (w) => w && ({ name: name(w.windowDurationMins), used: Math.round(w.usedPercent ?? 0),
+      resets: w.resetsAt ? new Date(w.resetsAt * 1000).toISOString() : null });
+    child.stdout.on("data", (d) => {
+      buf += d;
+      let i;
+      while ((i = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, i);
+        buf = buf.slice(i + 1);
+        let m;
+        try { m = JSON.parse(line); } catch { continue; }
+        if (m.id === 1) {
+          send({ method: "initialized" });
+          send({ method: "account/rateLimits/read", id: 2 });
+        } else if (m.id === 2) {
+          const r = m.result?.rateLimits;
+          done(r ? { ai: "codex", plan: r.planType || null, status: r.rateLimitReachedType ? "limited" : "allowed",
+            windows: [window(r.primary), window(r.secondary)].filter(Boolean) } : null);
+        }
+      }
+    });
+    child.on("error", () => done(null));
+    send({ method: "initialize", id: 1, params: { clientInfo: { name: "longtable", title: "Longtable", version: "0.1.0" } } });
+  });
+}
