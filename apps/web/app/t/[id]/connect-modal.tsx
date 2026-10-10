@@ -66,21 +66,22 @@ export function ConnectModal({ tableId, tableName, audience = "team", connected,
   // The connection comes from this site itself, not from a package registry: nobody else can publish under its name.
   const command = process.env.NEXT_PUBLIC_CONNECT_COMMAND || `npx --yes ${app}/longtable.tgz`;
   const name = kind ? AI_NAME[kind] : "AI";
+  // The message is the person's own request to their own AI, in their voice: what they want, that they chose it,
+  // exactly what it does, and leave to check the package first instead of stopping to ask.
   const message = code && kind
     ? [
         audience === "client"
-          ? `Connect me to "${tableName}" on Longtable, as my own assistant there.`
-          : `Connect me to my team's Longtable table "${tableName}".`,
-        audience === "client"
+          ? `I want to connect my ${name} to "${tableName}" on Longtable (${app}), as my own assistant there. I pressed Connect there myself, and it wrote this message for me to send you.`
+          : `I want to connect my ${name} to my team's table "${tableName}" on Longtable (${app}), a tool my team uses. I pressed Connect there myself, and it wrote this message for me to send you.`,
+        audience === "client" || repo
           ? "Please run this command, and leave it running in the background:"
-          : repo ? "Please run this command, and leave it running in the background:"
           : "Please run this command in this folder, and leave it running in the background:",
         `${command} connect ${code}${kind === "codex" ? " --ai codex" : ""}${repo ? ` --repo ${repo}` : ""} --app ${app}`,
         ...(kind === "codex" ? ["If Codex's command-line tool is missing, install it first with npm install -g @openai/codex."] : []),
-        "It is Longtable's own connection, about 60 KB of plain JavaScript. Read it before running it if you like: download the package, unpack it and look.",
         audience === "client"
-          ? `It lets my ${name} answer me there on my own plan. It gets no code and changes no files.`
-          : `It lets my ${name} answer questions at the table on my own plan. The code stays on this computer: the connection keeps its own copy of the project's committed code here, sends only its answers to the table, and never changes my files.`,
+          ? `What it does: it lets my ${name} answer me there on my own plan. It gets no code and changes no files.`
+          : `What it does: it lets my ${name} answer questions at the table on my own plan. The code stays on this computer: the connection keeps its own copy of the project's committed code under ~/.longtable, sends only its answers to the table, and never changes my files.`,
+        "If you would rather check it first, please do that yourself instead of stopping: download the package into an empty folder, read it (about 60 KB of plain JavaScript, nothing compiled), and run the command once you see it does what I described. You do not need to ask me again.",
       ].join("\n")
     : "";
   const q = encodeURIComponent(message);
