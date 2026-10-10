@@ -1,7 +1,7 @@
 // The connection's own clean copy of the team's code: the latest main, never the person's work folder.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { home } from "./store.mjs";
 
@@ -64,4 +64,51 @@ export function copyIsClean(tableId) {
   const dir = join(home, "copies", tableId);
   if (!existsSync(join(dir, ".git"))) return true;
   return git(["-C", dir, "status", "--porcelain"]) === "";
+}
+
+// Work the team asked for happens in a second folder that holds the files and nothing else: no .git inside it, so
+// nothing the AI writes there can change what git itself runs. Git reaches it from outside, with its own index.
+const places = (tableId) => ({ G: join(home, "copies", tableId, ".git"), W: join(home, "work", tableId), I: join(home, "work", `${tableId}.index`) });
+const wgit = (p, args, env = {}) => execFileSync("git", ["--git-dir", p.G, "--work-tree", p.W, ...args],
+  { cwd: p.W, env: { ...quiet, GIT_INDEX_FILE: p.I, ...env }, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], timeout: 120000 }).toString().trim();
+
+export const workBranch = (chatName) => "longtable/" + (String(chatName || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "work");
+
+// Lay out the files to work on: the chat's own branch when it already exists, so one request builds on the last,
+// else the latest default branch.
+export function openWork(tableId, branch) {
+  const p = places(tableId);
+  rmSync(p.W, { recursive: true, force: true });
+  rmSync(p.I, { force: true });
+  mkdirSync(p.W, { recursive: true });
+  let base = git(["--git-dir", p.G, "rev-parse", "HEAD"]);
+  let continued = false;
+  try {
+    git(["--git-dir", p.G, "fetch", "--quiet", "--depth", "1", "--no-tags", "origin", `refs/heads/${branch}`]);
+    base = git(["--git-dir", p.G, "rev-parse", "FETCH_HEAD"]);
+    continued = true;
+  } catch {
+    // No such branch yet: start from the default one.
+  }
+  wgit(p, ["read-tree", base]);
+  wgit(p, ["checkout-index", "-a", "-f"]);
+  return { dir: p.W, base, continued };
+}
+
+// Whatever changed becomes one commit on the chat's branch, pushed for the team to look at. Never the default branch.
+export function landWork(tableId, work, branch, message, who) {
+  const p = places(tableId);
+  wgit(p, ["add", "-A"]);
+  const files = wgit(p, ["diff", "--cached", "--name-only", work.base]).split(/\r?\n/).filter(Boolean);
+  if (!files.length) return null;
+  const tree = wgit(p, ["write-tree"]);
+  let name = "";
+  let email = "";
+  try { name = git(["--git-dir", p.G, "config", "user.name"]); email = git(["--git-dir", p.G, "config", "user.email"]); } catch {}
+  const id = { GIT_AUTHOR_NAME: name || who, GIT_AUTHOR_EMAIL: email || "longtable@users.noreply.github.com" };
+  const commit = wgit(p, ["commit-tree", tree, "-p", work.base, "-m", message],
+    { ...id, GIT_COMMITTER_NAME: id.GIT_AUTHOR_NAME, GIT_COMMITTER_EMAIL: id.GIT_AUTHOR_EMAIL });
+  let pushed = true;
+  try { git(["--git-dir", p.G, "push", "--quiet", "origin", `${commit}:refs/heads/${branch}`]); } catch { pushed = false; }
+  return { files, commit: commit.slice(0, 7), pushed };
 }

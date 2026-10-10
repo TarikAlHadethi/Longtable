@@ -72,12 +72,15 @@ export function claudeVersion(claude) {
 // of the person's own settings, and no MCP servers. The prompt goes in through stdin, so a long table history never
 // hits the command-line length limit. With a schema, the result carries `structured_output`.
 // A client's AI gets no tools at all (tools ""): it only reads what the job hands it.
-export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,Grep,Glob", apiKey, timeoutMs = 4 * 60 * 1000 }) {
+// With `edit`, the file tools may also change files, still only inside the working folder and still with no commands:
+// that is how a person's own AI does work they asked for, in the connection's copy.
+export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,Grep,Glob", edit = false, apiKey, timeoutMs = 4 * 60 * 1000 }) {
+  if (edit) { tools = "Read,Grep,Glob,Edit,Write"; timeoutMs = Math.max(timeoutMs, 10 * 60 * 1000); }
   const token = apiKey ? null : loadSecret("claude-token");
   if (!token && !apiKey) return Promise.reject(new Error("This connection has no Claude sign-in yet. Run connect again."));
   // Streamed output carries the plan's usage limits (a rate_limit_event) as well as the result.
-  const args = ["-p", "--output-format", "stream-json", "--verbose", "--restricted", "--permission-mode", "dontAsk",
-    "--strict-mcp-config", "--max-turns", tools ? "25" : "4", "--tools", tools];
+  const args = ["-p", "--output-format", "stream-json", "--verbose", "--restricted", "--permission-mode", edit ? "acceptEdits" : "dontAsk",
+    "--strict-mcp-config", "--max-turns", edit ? "60" : tools ? "25" : "4", "--tools", tools];
   if (system) args.push("--append-system-prompt", system);
   if (schema) args.push("--json-schema", JSON.stringify(schema));
   if (model) args.push("--model", model);

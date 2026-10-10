@@ -1,6 +1,6 @@
 {
   "name": "longtable",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Brings your own Claude Code or Codex to your team's table on longtable.chat, quietly, on your own plan.",
   "homepage": "https://longtable.chat",
   "repository": {

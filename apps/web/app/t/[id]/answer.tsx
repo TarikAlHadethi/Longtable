@@ -47,7 +47,7 @@ export function Answer({ m, members, views }: { m: Message; members: Map<string,
           <span className={styles.messageName}>{combined ? "The table" : `${name}'s ${ai}`}</span>
           {combined && <span>· one answer from {parts.length + 1} {many}, written by {name}&apos;s {ai}</span>}
           <span><Time iso={m.created_at} /></span>
-          {m.meta?.read && <span className={styles.readTag}>read {m.meta.read}</span>}
+          {m.meta?.read && <span className={styles.readTag}>{m.meta.read.startsWith("changed ") ? m.meta.read : `read ${m.meta.read}`}</span>}
         </div>
         <div className={`${styles.messageText} ${styles.aiText}`}><Inline text={m.body} /></div>
         {sources.length > 0 && (
