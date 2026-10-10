@@ -91,3 +91,6 @@
 
 .waiting { display: flex; align-items: center; gap: 10px; font-size: 13.5px; line-height: 1.45; color: var(--ink-2); background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; animation: cn-rise 0.3s var(--ease-out) both; }
 .waiting .spin { flex-shrink: 0; }
+
+/* Centred on the middle of the room, like every other window. */
+.back { padding-left: calc(var(--pane-left, 0px) + 20px); padding-right: calc(var(--pane-right, 0px) + 20px); }

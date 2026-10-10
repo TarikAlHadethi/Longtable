@@ -70,19 +70,25 @@ try {
   const asOperator = await rpc(await accessToken(owner.context), "operator_bugs", {});
   check("a bug report is sent, and nobody at the table can read the reports", (peek.status >= 400 || (Array.isArray(peek.body) && peek.body.length === 0)) && asOperator.status >= 400, JSON.stringify(peek.body).slice(0, 120));
 
-  // The client's side, through the glass.
+  // The client's side, through the pane in the corner. With no client there is no pane.
   await p.click("[data-testid=home]");
-  // The glass drifts gently, so the pointer is sent without waiting for it to hold still.
-  await p.hover("[data-testid=client-portal]", { force: true });
-  await p.waitForTimeout(700);
-  if (process.env.SHOTS) await p.screenshot({ path: `${process.env.SHOTS}/peek.png` });
-  await p.click("[data-testid=client-portal]", { force: true });
-  await p.waitForSelector("[data-testid=client-view]");
-  if (process.env.SHOTS) { await p.waitForTimeout(700); await p.screenshot({ path: `${process.env.SHOTS}/client-side.png` }); }
-  check("the glass in the corner takes the whole window to the client's side", /No client is at this table yet/.test(await p.textContent("[data-testid=client-view]")) && (await p.locator("aside[aria-label=Menu]").count()) === 0);
+  check("with no client at the table there is no pane to their side", (await p.locator("[data-testid=client-portal]").count()) === 0);
+  const elena = await joinTable(browser, await inviteLink(p, "client"), `client-${run}@example.test`, "Elena Ruiz");
+  await elena.page.fill("input[aria-label='Ask the team']", "Can patients pick a hygienist?");
+  await elena.page.press("input[aria-label='Ask the team']", "Enter");
+  await p.click("[data-testid=home]");
+  await p.waitForSelector("[data-testid=client-portal]");
+  await p.click("[data-testid=client-portal]");
+  await p.waitForSelector("[data-testid=client-view] [data-testid=client-tree]");
+  if (process.env.SHOTS) { await p.waitForTimeout(900); await p.screenshot({ path: `${process.env.SHOTS}/client-side.png` }); }
+  check("the pane takes the whole window to the client's side, starting on their tree", /Elena Ruiz/.test(await p.textContent("[data-testid=client-tree]")) && /Nothing here can be changed/.test(await p.textContent("[data-testid=client-view]")));
+  await p.click("[data-testid=client-chat-link]");
+  await p.waitForFunction(() => document.querySelector("[data-testid=client-view] [data-testid=client-chat]")?.textContent.includes("Can patients pick a hygienist?"));
+  check("their chat opens from there, and nothing in it can be used", await p.isDisabled("[data-testid=client-view] input[aria-label='Ask the team']"));
+  if (process.env.SHOTS) await p.screenshot({ path: `${process.env.SHOTS}/client-talk.png` });
   await p.click("[data-testid=table-portal]");
   await p.waitForSelector("[data-testid=table-home]");
-  check("and the same corner leads back to the table", true);
+  check("and Back to the table returns to the team's side", true);
 
   // Handing the table over.
   await p.click("aside[aria-label=Menu] [data-member='Sam']");

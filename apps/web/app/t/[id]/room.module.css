@@ -470,3 +470,10 @@
 .setPage { animation: lt-fade 0.12s ease both; }
 
 .noClientPicture { min-height: 800px; display: grid; place-items: center; font-family: var(--font-voice); font-size: 40px; color: var(--ink-2); background: light-dark(#bec9bd, oklch(0.27 0.02 150)); }
+
+/* Windows open over the middle of the room: centred across the space between the two side panels, so they line up
+   with what is behind them. Up and down they stay in the middle of the screen. */
+.shell { --pane-left: 264px; --pane-right: 360px; }
+.shellWide { --pane-right: 0px; }
+.modalBack { padding-left: calc(var(--pane-left, 0px) + 16px); padding-right: calc(var(--pane-right, 0px) + 16px); }
+@media (max-width: 900px) { .shell { --pane-left: 0px; --pane-right: 0px; } }

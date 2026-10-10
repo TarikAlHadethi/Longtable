@@ -52,6 +52,7 @@ export async function RoomPage({ id, wanted, view, side }: { id: string; wanted?
         initialLines={(lines ?? []) as ClientLine[]}
         initialConnections={(connections ?? []) as Connection[]}
         initialJobs={(jobs ?? []) as Job[]}
+        start={wanted ? "talk" : "tree"}
       />
     );
   }

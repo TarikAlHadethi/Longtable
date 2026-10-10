@@ -520,7 +520,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   }
 
   return (
-    <div className={styles.shell}>
+    <div className={`${styles.shell} ${view === "settings" || view === "logs" ? styles.shellWide : ""}`}>
       <header className={styles.header}>
         <button className={styles.menuToggle} aria-label="Menu" aria-expanded={drawerOpen} onClick={() => { setDrawerOpen(!drawerOpen); setInboxOpen(false); }}>
           <span /><span /><span />
@@ -583,10 +583,15 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 setConnections((prev) => prev.map((c) => (c.id === conn ? { ...c, model_choice: model || null } : c)));
                 await supabase.rpc("set_model", { conn, model });
               }} onInvite={self.role === "owner" ? () => setInviting(true) : undefined} />
-            <div className={`${portal.peek} ${peek ? portal.peekOn : ""}`} aria-hidden="true">
-              {peek && <Scaled>{clientPicture()}</Scaled>}
-            </div>
-            <ClientPortal onPeek={setPeek} onEnter={() => go("client", `${base}?side=client`)}>{clientPicture()}</ClientPortal>
+            {/* With no client at the table there is no other side to look at. */}
+            {clients.length > 0 && (
+              <>
+                <div className={`${portal.peek} ${peek ? portal.peekOn : ""}`} aria-hidden="true">
+                  {peek && <Scaled>{clientPicture()}</Scaled>}
+                </div>
+                <ClientPortal clients={clients} onPeek={setPeek} onEnter={() => go("client", `${base}?side=client`)} />
+              </>
+            )}
           </main>
         )}
         {(view === "settings" || view === "logs") && (

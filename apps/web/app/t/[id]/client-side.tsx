@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Mark } from "@/components/mark";
 import s from "./client-side.module.css";
 
 // Draws its children as a page 1280 wide, shrunk or grown to fill whatever box this sits in. It is a picture of the
@@ -24,16 +25,26 @@ export function Scaled({ children, className = "" }: { children: React.ReactNode
   );
 }
 
-// The way through to the client's side: a small pane in the corner of the table, holding a real, very small picture of
-// the client's own page. Resting the pointer on it shows that page across the middle of the room; a click goes there.
-export function ClientPortal({ children, onPeek, onEnter }: { children: React.ReactNode; onPeek: (on: boolean) => void; onEnter: () => void }) {
+// The way through to the client's side: a small rounded square in the corner of the table, holding the client side's
+// own tree in little: the client, a line, the table. Resting the pointer on it for a moment and a half shows their
+// side across the middle of the room; a click goes there.
+export function ClientPortal({ clients, onPeek, onEnter }: {
+  clients: { id: string; display_name: string; color: string }[];
+  onPeek: (on: boolean) => void;
+  onEnter: () => void;
+}) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rest = () => { if (timer.current) clearTimeout(timer.current); timer.current = setTimeout(() => onPeek(true), 1500); };
+  const leave = () => { if (timer.current) clearTimeout(timer.current); timer.current = null; onPeek(false); };
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
   return (
-    // Not a <button>: the picture inside holds the client page's own buttons, and a button cannot hold buttons.
-    <div className={s.ball} role="button" tabIndex={0} aria-label="See the client's side" data-testid="client-portal"
-      onMouseEnter={() => onPeek(true)} onMouseLeave={() => onPeek(false)} onFocus={() => onPeek(true)} onBlur={() => onPeek(false)}
-      onClick={() => { onPeek(false); onEnter(); }}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPeek(false); onEnter(); } }}>
-      <Scaled className={s.ballPage}>{children}</Scaled>
-    </div>
+    <button className={s.ball} aria-label="See the client's side" data-testid="client-portal"
+      onMouseEnter={rest} onMouseLeave={leave} onFocus={rest} onBlur={leave} onClick={() => { leave(); onEnter(); }}>
+      <span className={s.miniRow}>
+        {clients.slice(0, 3).map((c) => <span key={c.id} className={s.miniFace} style={{ background: c.color }}>{c.display_name.trim().charAt(0).toUpperCase()}</span>)}
+      </span>
+      <span className={s.miniStem} />
+      <span className={s.miniTable}><Mark size={20} /></span>
+    </button>
   );
 }

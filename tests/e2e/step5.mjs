@@ -33,7 +33,7 @@ try {
   await elena.page.waitForSelector("text=What you asked for");
   const firstLook = (await textOf(elena.page)).toLowerCase();
   check("the client gets their own page", ["what you asked for", "with the team", "the team"].every((w) => firstLook.includes(w))
-    && !["chats", "ask the table", "inbox", "general"].some((w) => firstLook.includes(w)), firstLook.slice(0, 300));
+    && !["ask the table", "inbox", "general"].some((w) => firstLook.includes(w)), firstLook.slice(0, 300));
 
   const [ownerToken, devToken, elenaToken, priyaToken] = await Promise.all([owner, dev, elena, priya].map((p) => accessToken(p.context)));
   const people = (await rest(ownerToken, `members?select=id,display_name&table_id=eq.${tableId}`)).body;

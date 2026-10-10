@@ -14,6 +14,10 @@ import {
   type ClientLine, type ClientUpdate, type Connection, type Job, type Request, type RequestEvent, type RequestStatus as Status,
 } from "./types";
 import { ProfileMenu } from "./profile-menu";
+import { AI_NAME, AiLogo } from "@/components/ai-logo";
+import { Arrow, Plus } from "@/components/icons";
+import room from "./room.module.css";
+import tv from "./table-view.module.css";
 import styles from "./client.module.css";
 
 // How each status reads to the client, its pill, and the step still to come, in the design's words.
@@ -56,7 +60,7 @@ function put<T extends { id: string | number }>(prev: T[], list: T[]) {
 // It never shows the team side. With their own AI connected, the chat is with it: it answers what it can from their
 // own requests and passes the rest on. Everything arrives live on two private channels: the table's, for what
 // every client is told, and the client's own.
-export function ClientPage({ table, me, initialRequests, initialEvents, initialUpdates, initialLines, initialConnections, initialJobs, viewer }: {
+export function ClientPage({ table, me, initialRequests, initialEvents, initialUpdates, initialLines, initialConnections, initialJobs, viewer, start = "tree" }: {
   table: { id: string; name: string };
   me: { id: string; display_name: string; color?: string };
   initialRequests: Request[];
@@ -68,6 +72,8 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
   // Set when someone on the team is looking at this client's page. They see what the client sees and can use none of
   // it: nothing is sent, answered or connected from here. The client's chat with their own AI is not theirs to read,
   // so it is not here.
+  // Where it opens: on the tree, like the team's side, or straight on the chat.
+  start?: "tree" | "talk";
   viewer?: { onBack: () => void; others?: { id: string; display_name: string }[]; onPick?: (id: string) => void; preview?: boolean };
 }) {
   const supabase = useMemo(() => browserClient(), []);
@@ -80,6 +86,7 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
   const [jobs, setJobs] = useState(initialJobs);
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [connectOpen, setConnectOpen] = useState(false);
+  const [view, setView] = useState<"tree" | "talk">(start);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -161,7 +168,8 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, table.id, me.id, reload, putRequest, putEvents, putUpdates, putLines, !!viewer]);
 
-  const assistant = connections.some((c) => !c.revoked_at);
+  const mine = connections.find((c) => !c.revoked_at);
+  const assistant = !!mine;
   const thinking = jobs.some((j) => j.kind === "client" && (j.status === "queued" || j.status === "running"));
 
   // Back to the tab, and every so often while their AI is writing or the team is on something they asked: read the
@@ -239,24 +247,102 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
   }
 
   return (
-    <div className={`${styles.page} ${viewer && !viewer.preview ? styles.viewing : ""}`} data-testid={viewer && !viewer.preview ? "client-view" : undefined}>
-      <header className={styles.header}>
-        <div className={styles.brand}><Mark size={24} /> {table.name}</div>
+    <div className={`${room.shell} ${styles.clientShell} ${viewer && !viewer.preview ? styles.viewing : ""}`} data-testid={viewer && !viewer.preview ? "client-view" : undefined}>
+      <header className={room.header}>
+        <button className={`${room.brand} ${view === "tree" ? room.brandOn : ""}`} onClick={() => setView("tree")} data-testid={viewer?.preview ? undefined : "client-home"}>
+          <Mark size={26} /> Longtable
+        </button>
+        <div className={room.divider} />
+        <div className={room.project}>{table.name}</div>
+        <div className={room.spacer} />
         {viewer ? (
           <div className={styles.viewBar}>
             <span className={styles.viewTag}>Viewing {firstName(me.display_name)}&apos;s side. Nothing here can be changed.</span>
-            {(viewer.others ?? []).filter((o) => o.id !== me.id).map((o) => (
-              <button key={o.id} className={styles.headLink} onClick={() => viewer.onPick?.(o.id)}>See {firstName(o.display_name)}&apos;s</button>
-            ))}
             <button className="btn" onClick={viewer.onBack} data-testid={viewer.preview ? undefined : "table-portal"}>Back to the table</button>
           </div>
         ) : (
-          <div style={{ marginLeft: "auto" }}>
-            <ProfileMenu me={{ id: me.id, display_name: me.display_name, role: "client", color: me.color ?? "var(--sage)" }} tableId={table.id} />
-          </div>
+          <ProfileMenu me={{ id: me.id, display_name: me.display_name, role: "client", color: me.color ?? "var(--sage)" }} tableId={table.id} />
         )}
       </header>
-      <main className={styles.main}>
+      <div className={`${room.grid} ${room.gridWide}`}>
+        <aside className={room.aside} aria-label="Menu">
+          <div className={room.section}>
+            <div className={room.sectionTitle}>Chats</div>
+            <button className={`${room.chat} ${view === "talk" ? room.chatActive : ""}`} onClick={() => setView("talk")} data-testid={viewer?.preview ? undefined : "client-chat-link"}>
+              <span className={room.chatName}>{assistant ? "Your assistant" : "The team"}</span>
+              {pending && <span className={room.chatDot} />}
+            </button>
+          </div>
+          <div className={room.section}>
+            <div className={room.sectionTitle}>People</div>
+            {(viewer?.others?.length ? viewer.others : [me]).map((o) => (
+              <button key={o.id} className={`${room.person} ${room.personButton} ${o.id === me.id ? room.personOn : ""}`} onClick={() => viewer?.onPick?.(o.id)}>
+                <div className={room.avatar} style={{ background: (o as { color?: string }).color ?? me.color ?? "var(--sage)" }}>{o.display_name.trim().charAt(0).toUpperCase()}</div>
+                <div className={room.personText}><div className={room.personName}>{o.display_name}</div><div className={room.personMeta}>Client</div></div>
+              </button>
+            ))}
+          </div>
+          {!viewer && (
+            <div className={room.section} style={{ marginTop: "auto" }}>
+              <button className={room.chat} onClick={() => downloadExport("export_mine", table.id, table.name)}>Download what&apos;s mine</button>
+              <Link className={room.chat} href="/privacy">Privacy</Link>
+            </div>
+          )}
+        </aside>
+        {view === "tree" && (
+          <main className={room.main}>
+            <div className={tv.wrap} data-testid={viewer?.preview ? undefined : "client-tree"}>
+              <div className={tv.top}>
+                <Mark size={60} live={!viewer?.preview} />
+                <div className={tv.word}>Longtable</div>
+                <div className={tv.project}>{table.name}</div>
+              </div>
+              <div className={tv.scroller}>
+                <div className={tv.tree} style={{ "--cols": 1 } as React.CSSProperties}>
+                  <div className={tv.row}>
+                    <div className={tv.col} style={{ "--i": 0 } as React.CSSProperties}>
+                      <div className={tv.person}>
+                        <span className={tv.avatar} style={{ background: me.color ?? "var(--sage)" }}>{me.display_name.trim().charAt(0).toUpperCase()}</span>
+                        <div className={tv.name}>{me.display_name}</div>
+                      </div>
+                      <div className={`${tv.stem} ${assistant ? tv.stemOn : ""}`} />
+                      {mine ? (
+                        <div className={`${tv.ai} ${tv[mine.kind]}`}>
+                          <div className={tv.aiHead}><AiLogo kind={mine.kind} size={26} /><span className={tv.dot} /></div>
+                          <div className={tv.aiName}>{AI_NAME[mine.kind]}</div>
+                          <div className={tv.model}>{thinking ? "Writing…" : "Your assistant"}</div>
+                        </div>
+                      ) : viewer ? (
+                        <div className={tv.none}><span className={tv.plusTitle}>No assistant yet</span></div>
+                      ) : (
+                        <button className={tv.plus} onClick={() => setConnectOpen(true)}>
+                          <span className={tv.plusSign}><Plus size={18} stroke={2.4} /></span>
+                          <span className={tv.plusTitle}>Connect your assistant</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <svg className={tv.funnel} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                    <g className={mine ? tv[`wire_${mine.kind}`] : undefined}>
+                      <path d="M 50 -14 L 50 100" vectorEffect="non-scaling-stroke" className={mine ? tv.wire : tv.wireOff} />
+                      {mine && <path d="M 50 -14 L 50 100" vectorEffect="non-scaling-stroke" className={tv.pulse} />}
+                    </g>
+                  </svg>
+                  <div className={tv.table}>
+                    <div className={tv.tableTitle}>The team</div>
+                    <Mark size={64} />
+                    <div className={tv.tableModel}>{table.name}</div>
+                  </div>
+                </div>
+              </div>
+              <div className={tv.actions}>
+                <button className="btn" onClick={() => setView("talk")}>Open {assistant ? "your assistant" : "the chat"} <Arrow size={16} /></button>
+              </div>
+            </div>
+          </main>
+        )}
+        <main className={`${room.main} ${styles.talk}`} hidden={view !== "talk"}>
+        <div className={styles.main}>
         <div className={styles.top}>
           <h1 className={styles.hello}>{here ? greeting(me.display_name) : " "}</h1>
           <div className={styles.summary}>
@@ -351,11 +437,9 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
             {error && <div className={`error ${styles.chatError}`} role="alert">{error}</div>}
           </section>
         </div>
-      </main>
-      {!viewer && <footer className={styles.footer}>
-        <button className={styles.headLink} onClick={() => downloadExport("export_mine", table.id, table.name)}>Download what&apos;s mine</button>
-        <Link className={styles.headLink} href="/privacy">Privacy</Link>
-      </footer>}
+        </div>
+        </main>
+      </div>
       {connectOpen && (
         <ConnectModal audience="client" tableId={table.id} tableName={table.name} connected={connections.find((c) => !c.revoked_at)?.kind ?? null} onClose={() => setConnectOpen(false)} />
       )}
