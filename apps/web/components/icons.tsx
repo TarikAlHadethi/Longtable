@@ -30,12 +30,14 @@ export const Sun = (p: Props) => (
 );
 export const Moon = (p: Props) => <Svg {...p}><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.500 10.500z" /></Svg>;
 
-// The owner's crown: one plain gold shape, edged in the page's own colour so it reads cleanly where it overlaps the
-// picture it sits on.
+// The owner's crown: one plain gold shape. It is placed behind the picture it sits on, so the picture's own edge cuts
+// across its base and the two always meet all the way round.
 export const Crown = ({ size = 16 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 20" aria-hidden="true" focusable="false" style={{ display: "block", flexShrink: 0, overflow: "visible" }}>
-    <path d="M3.200 16.500 1.800 5.600a.700.700 0 0 1 1.130-.640L7.400 8.400 11.380 2.300a.740.740 0 0 1 1.240 0L16.600 8.400l4.470-3.440a.700.700 0 0 1 1.130.640L20.800 16.500a1.500 1.500 0 0 1-1.490 1.300H4.690a1.500 1.500 0 0 1-1.490-1.300z"
-      fill="OKLCH(0.8 0.15 85)" stroke="var(--paper)" strokeWidth="2.400" strokeLinejoin="round" paintOrder="stroke" />
+    <path d="M3 20 1.800 5.600a.700.700 0 0 1 1.130-.640L7.400 8.400 11.380 2.300a.740.740 0 0 1 1.240 0L16.600 8.400l4.470-3.440a.700.700 0 0 1 1.130.640L21 20z" fill="OKLCH(0.8 0.15 85)" />
   </svg>
 );
 export const Plug = (p: Props) => <Svg {...p}><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0V8zM12 17v4" /></Svg>;
+export const Dots = (p: Props) => <Svg {...p} stroke={3}><path d="M5 12h.01M12 12h.01M19 12h.01" /></Svg>;
+export const Pencil = (p: Props) => <Svg {...p}><path d="M4 20l1-4.500L16.500 4a2 2 0 0 1 2.800 0l.700.700a2 2 0 0 1 0 2.800L8.500 19 4 20z" /><path d="M14.500 6l3.500 3.500" /></Svg>;
+export const Trash = (p: Props) => <Svg {...p}><path d="M4 7h16M9 7V4.500h6V7M6.500 7l.800 12a1.500 1.500 0 0 0 1.500 1.400h6.400a1.500 1.500 0 0 0 1.500-1.400l.800-12M10 11v6M14 11v6" /></Svg>;

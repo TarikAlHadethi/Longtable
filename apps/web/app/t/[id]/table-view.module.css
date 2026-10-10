@@ -18,7 +18,7 @@
 .row { position: relative; z-index: 1; width: 100%; display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); }
 .col { display: flex; flex-direction: column; align-items: center; padding: 0 9px; min-width: 0; animation: tv-rise 0.55s var(--ease-out) both; animation-delay: calc(var(--i) * 110ms + 0.5s); }
 
-.person { display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; }
+.person { display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; isolation: isolate; }
 .avatar {
   position: relative; width: 54px; height: 54px; border-radius: 50%; color: white; font-size: 21px; font-weight: 600;
   display: flex; align-items: center; justify-content: center; margin-bottom: 5px; box-shadow: 0 6px 18px oklch(0.2 0.01 70 / 0.14);
@@ -126,4 +126,4 @@
 }
 
 /* The owner's crown, set a little crooked on the top left of their picture. */
-.crown { position: absolute; left: -6px; top: -8px; transform: rotate(-38deg); transform-origin: 50% 100%; }
+.crown { position: absolute; z-index: -1; left: -3px; top: -5px; transform: rotate(-38deg); transform-origin: 50% 100%; }

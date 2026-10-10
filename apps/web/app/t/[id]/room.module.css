@@ -332,10 +332,11 @@
 
 /* A person in the list: their picture, a dot when they are here, and a crown on the owner. */
 .avatar { position: relative; }
-.person[data-here="false"] .avatar { opacity: 0.6; }
+/* The crown goes behind the picture, and stays above the sidebar's own background. */
+.person { isolation: isolate; }
 .presence { position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--paper); background: var(--faint); }
 .presenceOn { background: var(--online); }
-.crown { position: absolute; left: -5px; top: -6px; transform: rotate(-38deg); transform-origin: 50% 100%; }
+.crown { position: absolute; z-index: -1; left: -3px; top: -4px; transform: rotate(-38deg); transform-origin: 50% 100%; }
 .modal { margin: auto; }
 
 /* Usage, beside the table. */
@@ -354,3 +355,23 @@
 .meterWarn { background: light-dark(oklch(0.65 0.13 60), oklch(0.75 0.13 60)); }
 .meterFull { background: var(--danger); }
 @keyframes lt-grow { from { transform: scaleX(0); } to { transform: none; } }
+
+/* A chat in the list: its name, and dots that show under the pointer and open a small menu. */
+.chatRow { position: relative; display: flex; align-items: center; }
+.chatRow .chat { padding-right: 34px; }
+.chatMore {
+  position: absolute; right: 5px; top: 50%; margin-top: -13px; width: 26px; height: 26px; border: 0; border-radius: 7px; background: transparent; color: var(--muted);
+  display: grid; place-items: center; cursor: pointer; opacity: 0; transition: opacity 0.12s ease, background-color 0.12s ease, color 0.12s ease;
+}
+.chatRow:hover .chatMore, .chatMore:focus-visible, .chatRowMenu .chatMore { opacity: 1; }
+.chatMore:hover, .chatRowMenu .chatMore { background: light-dark(oklch(0.88 0.008 80), oklch(0.34 0.008 80)); color: var(--ink); }
+.chatRow:has(.chatDot) .chatMore { background: var(--paper); }
+.chatMenu {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 40; min-width: 170px; padding: 6px; display: flex; flex-direction: column; gap: 2px;
+  background: var(--card); border: 1px solid var(--line-strong); border-radius: 13px; box-shadow: 0 18px 44px oklch(0.2 0.01 70 / 0.2);
+  animation: lt-modal 0.16s var(--ease-out) both; transform-origin: top right;
+}
+.chatMenu .meItem { padding: 8px 10px; white-space: nowrap; }
+.danger, .danger svg { color: var(--danger); }
+.danger:hover { color: var(--danger); background: light-dark(oklch(0.95 0.03 30), oklch(0.3 0.05 30)); }
+.chatEdit { padding: 7px 9px; font-size: 14px; border-radius: 8px; }

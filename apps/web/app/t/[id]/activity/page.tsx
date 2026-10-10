@@ -29,6 +29,8 @@ export default async function Activity({ params }: { params: Promise<{ id: strin
       case "table.started": return `${who(e)} started the table "${d.name}"`;
       case "invite.created": return `${who(e)} made an invite link for ${d.role === "client" ? "the client" : "a developer"}`;
       case "member.joined": return `${d.name ?? who(e)} joined as ${d.role === "client" ? "the client" : "a developer"}`;
+      case "chat.renamed": return `${who(e)} renamed the chat "${d.from}" to "${d.name}"`;
+      case "chat.deleted": return `${who(e)} deleted the chat "${d.name}"`;
       case "chat.created": return `${who(e)} made the chat "${d.name}"`;
       case "decision.created": return `${who(e)} asked for a decision: ${d.title}`;
       case "decision.decided": return `${who(e)} decided "${d.title}": ${d.option}`;

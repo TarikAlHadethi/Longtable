@@ -58,7 +58,7 @@ export default async function TablePage({ params, searchParams }: {
   }
 
   const [{ data: chats }, { data: recent }, { data: decisions }, { data: jobs }, { data: connections }, { data: notes }, { data: requests }] = await Promise.all([
-    supabase.from("chats").select("id, name, about, is_general, created_at").eq("table_id", id).order("created_at"),
+    supabase.from("chats").select("id, name, about, is_general, created_at, created_by").eq("table_id", id).order("created_at"),
     supabase.from("messages").select(MESSAGE_COLUMNS).eq("table_id", id).order("created_at", { ascending: false }).limit(300),
     supabase.from("decisions").select(DECISION_COLUMNS).eq("table_id", id).order("created_at", { ascending: false }).limit(100),
     supabase.from("jobs").select(JOB_COLUMNS).eq("table_id", id).in("status", ["queued", "running", "waiting", "failed"]).order("created_at", { ascending: false }).limit(50),

@@ -1,6 +1,6 @@
 "use client";
 
-import { Crown, Plus } from "@/components/icons";
+import { Crown } from "@/components/icons";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
@@ -11,6 +11,7 @@ import { browserClient } from "@/lib/supabase/browser";
 import { Inline } from "@/lib/inline";
 import { Time } from "@/components/time";
 import { Answer } from "./answer";
+import { ChatList } from "./chat-list";
 import { ConnectModal } from "./connect-modal";
 import { DecisionCard } from "./decision-card";
 import { Invite } from "./invite";
@@ -84,8 +85,9 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const [inboxOpen, setInboxOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [asking, setAsking] = useState(false);
-  const [naming, setNaming] = useState(false);
-  const [newChat, setNewChat] = useState("");
+  // The live channel is set up once; it reaches the newest dropChat through this.
+  const dropRef = useRef<(id: string) => void>(() => {});
+  const chatIdRef = useRef(initialChatId);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const atBottom = useRef(true);
@@ -191,6 +193,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         setRequests((prev) => [...prev.filter((x) => x.id !== r.id), r]);
       } else if (name === "chats") {
         const c = record as unknown as Chat;
+        if ((record as { deleted?: boolean }).deleted) return dropRef.current(c.id);
         setChats((prev) => [...prev.filter((x) => x.id !== c.id), c].sort(byTime));
       } else if (name === "decisions") {
         const d = record as unknown as Omit<Decision, "options">;
@@ -355,18 +358,39 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (!error) setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, revoked_at: new Date().toISOString() } : c)));
   }
 
-  async function makeChat(e: React.FormEvent) {
-    e.preventDefault();
-    const name = newChat.trim();
-    if (!name) return;
+  async function makeChat(name: string) {
     const { data, error } = await supabase.rpc("create_chat", { t: table.id, chat_name: name, chat_about: "" });
-    if (error || !data) return;
-    const { data: row } = await supabase.from("chats").select("id, name, about, is_general, created_at").eq("id", data).single();
+    if (error || !data) return error?.message ?? "The chat was not made. Try again.";
+    const { data: row } = await supabase.from("chats").select("id, name, about, is_general, created_at, created_by").eq("id", data).single();
     if (row) setChats((prev) => [...prev.filter((c) => c.id !== (row as Chat).id), row as Chat].sort(byTime));
-    setNewChat("");
-    setNaming(false);
     openChat(data as string);
+    return null;
   }
+
+  async function renameChat(id: string, name: string) {
+    const before = chats;
+    setChats((prev) => prev.map((c) => (c.id === id ? { ...c, name } : c)));
+    const { error } = await supabase.rpc("rename_chat", { c: id, chat_name: name });
+    if (error) { setChats(before); return error.message; }
+    return null;
+  }
+
+  // Deleting a chat takes its messages and decisions with it, here and for everyone else at the table.
+  function dropChat(id: string) {
+    setChats((prev) => prev.filter((c) => c.id !== id));
+    setMessages((prev) => prev.filter((m) => m.chat_id !== id));
+    setDecisions((prev) => prev.filter((d) => d.chat_id !== id));
+    if (chatIdRef.current === id) goHome();
+  }
+  async function deleteChat(id: string) {
+    const { error } = await supabase.rpc("delete_chat", { c: id });
+    if (error) return error.message;
+    dropChat(id);
+    return null;
+  }
+
+  dropRef.current = dropChat;
+  chatIdRef.current = chatId;
 
   function patchDecision(id: string, patch: Partial<Decision>) {
     setDecisions((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
@@ -433,24 +457,10 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         {drawerOpen && <button className={styles.drawerBack} aria-label="Close the menu" onClick={() => setDrawerOpen(false)} />}
         <aside className={`${styles.aside} ${drawerOpen ? styles.asideOpen : ""}`} aria-label="Menu">
           <div className={styles.drawerProject}>{table.name}</div>
-          <div className={styles.section}>
-            <div className={styles.sectionHead}>
-              <div className={styles.sectionTitle}>Chats</div>
-              <button className={styles.plus} title="New chat" aria-label="New chat" onClick={() => setNaming(!naming)}><Plus size={14} /></button>
-            </div>
-            {[...chats].sort((a, b) => Number(b.is_general) - Number(a.is_general) || byTime(a, b)).map((c) => (
-              <button key={c.id} className={`${styles.chat} ${view === "chat" && c.id === chat?.id ? styles.chatActive : ""}`} onClick={() => openChat(c.id)}>
-                <span className={styles.chatName}>{c.name}</span>
-                {decisions.some((d) => d.chat_id === c.id && d.status === "open") && <span className={styles.chatDot} />}
-              </button>
-            ))}
-            {naming && (
-              <form onSubmit={makeChat} className={styles.newChat}>
-                <input className="field" autoFocus maxLength={60} value={newChat} onChange={(e) => setNewChat(e.target.value)}
-                  placeholder="Name the chat" aria-label="Name the new chat" />
-              </form>
-            )}
-          </div>
+          <ChatList chats={chats} activeId={view === "chat" ? chat?.id ?? null : null}
+            waiting={new Set(decisions.filter((d) => d.status === "open").map((d) => d.chat_id))}
+            canDelete={(c) => !c.is_general && (me.role === "owner" || c.created_by === me.id)}
+            onOpen={openChat} onCreate={makeChat} onRename={renameChat} onDelete={deleteChat} />
           {notes.length > 0 && (
             <div className={styles.section}>
               <div className={styles.sectionTitle}>Pinned</div>

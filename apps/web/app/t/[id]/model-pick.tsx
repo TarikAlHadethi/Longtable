@@ -48,6 +48,7 @@ export function ModelPick({ kind, value, text, reported = [], className, canPick
   const [open, setOpen] = useState(false);
   const [fam, setFam] = useState<string | null>(null);
   const ref = useRef<HTMLSpanElement>(null);
+  const rows = useRef<Record<string, HTMLDivElement | null>>({});
   useEffect(() => {
     if (!open) return;
     const away = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
@@ -61,6 +62,14 @@ export function ModelPick({ kind, value, text, reported = [], className, canPick
   const families = familiesFor(kind, reported);
   if (!canPick || families.length === 0) return <div className={className} key={text}>{text}</div>;
   const pick = (model: string) => { setOpen(false); if (model !== value) onPick(model); };
+
+  const active = families.find((f) => f.family === fam && !(f.models.length === 1 && kind !== "claude"));
+  const activeMine = !!active && inFamily(active, value);
+  // One side menu for the whole list: it glides to the family the pointer is on and takes that family's height,
+  // instead of closing and opening again.
+  const ITEM = 37, GAP = 2, PAD = 6;
+  const sideTop = active ? rows.current[active.family]?.offsetTop ?? 0 : 0;
+  const sideHeight = active ? active.models.length * ITEM + (active.models.length - 1) * GAP + PAD * 2 + 2 : 0;
 
   return (
     <span className={`${s.wrap} ${centre ? s.centre : ""}`} ref={ref}>
@@ -78,9 +87,9 @@ export function ModelPick({ kind, value, text, reported = [], className, canPick
           {families.map((f, i) => {
             const mine = inFamily(f, value);
             const single = f.models.length === 1 && kind !== "claude";
-            const showing = fam === f.family && !single;
+            const showing = active?.family === f.family;
             return (
-              <div key={f.family} className={s.row} onMouseEnter={() => setFam(f.family)}>
+              <div key={f.family} className={s.row} ref={(el) => { rows.current[f.family] = el; }} onMouseEnter={() => setFam(f.family)}>
                 <button type="button" role="menuitemradio" aria-checked={mine} aria-haspopup={single ? undefined : "menu"} aria-expanded={single ? undefined : showing}
                   data-family={f.family} className={`${s.item} ${showing ? s.itemOn : ""}`} style={{ "--i": i + 1 } as React.CSSProperties}
                   onClick={() => (single ? pick(f.models[0]) : setFam(f.family))}>
@@ -88,25 +97,26 @@ export function ModelPick({ kind, value, text, reported = [], className, canPick
                   {/* The tick sits on the family until its models are showing; then it has moved over there. */}
                   <span className={`${s.tick} ${mine && !showing ? s.tickOn : ""}`}><Check size={15} stroke={2.6} /></span>
                 </button>
-                {showing && (
-                  <div className={s.side} role="menu" aria-label={`${f.family} models`}>
-                    <div className={s.sideMenu}>
-                      {f.models.map((id, n) => {
-                        const on = id === value || (n === 0 && mine && !f.models.includes(value));
-                        return (
-                          <button key={id} type="button" role="menuitemradio" aria-checked={on} data-model={id} className={s.item}
-                            style={{ "--i": n } as React.CSSProperties} onClick={() => pick(id)}>
-                            <span>{prettyModel(id) ?? id}</span>
-                            <span className={`${s.tick} ${s.tickLate} ${on ? s.tickOn : ""}`}><Check size={15} stroke={2.6} /></span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
               </div>
             );
           })}
+          {active && (
+            <div className={s.side} style={{ "--top": `${sideTop}px` } as React.CSSProperties}>
+              <div className={s.sideMenu} role="menu" aria-label={`${active.family} models`} style={{ height: sideHeight }}>
+                <div className={s.sideList} key={active.family}>
+                  {active.models.map((id, n) => {
+                    const on = id === value || (n === 0 && activeMine && !active.models.includes(value));
+                    return (
+                      <button key={id} type="button" role="menuitemradio" aria-checked={on} data-model={id} className={s.item} onClick={() => pick(id)}>
+                        <span>{prettyModel(id) ?? id}</span>
+                        <span className={`${s.tick} ${on ? s.tickOn : ""}`}><Check size={15} stroke={2.6} /></span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </span>
