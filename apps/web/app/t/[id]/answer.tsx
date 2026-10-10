@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Mark } from "@/components/mark";
 import { Inline } from "@/lib/inline";
 import { Time } from "@/components/time";
+import { AI_NAME } from "@/components/ai-logo";
+import { kindOfModel } from "./table-view";
 import type { Member, Message } from "./types";
 import styles from "./room.module.css";
 
@@ -16,6 +18,10 @@ export function Answer({ m, members, views }: { m: Message; members: Map<string,
   const parts = m.meta?.parts ?? [];
   const combined = !!m.meta?.round;
   const sources = m.meta?.sources ?? [];
+  // Whose AI it is: Claude or ChatGPT, read from the model that wrote it.
+  const ai = AI_NAME[kindOfModel(m.meta?.model)];
+  const allSame = views.every((v) => kindOfModel(v.meta?.model) === kindOfModel(m.meta?.model));
+  const many = allSame ? `${ai}s` : "AIs";
 
   if (m.kind === "intro") {
     return (
@@ -25,7 +31,7 @@ export function Answer({ m, members, views }: { m: Message; members: Map<string,
         </div>
         <div className={styles.messageBody}>
           <div className={styles.messageMeta}>
-            <span className={styles.messageName}>{name}&apos;s Claude joined the table</span>
+            <span className={styles.messageName}>{name}&apos;s {ai} joined the table</span>
             <span><Time iso={m.created_at} /></span>
           </div>
           <div className={`${styles.messageText} ${styles.aiText}`}><Inline text={m.body} /></div>
@@ -41,8 +47,8 @@ export function Answer({ m, members, views }: { m: Message; members: Map<string,
       </div>
       <div className={styles.messageBody}>
         <div className={styles.messageMeta}>
-          <span className={styles.messageName}>{combined ? "The table" : `${name}'s Claude`}</span>
-          {combined && <span>· one answer from {parts.length + 1} Claudes, written by {name}&apos;s Claude</span>}
+          <span className={styles.messageName}>{combined ? "The table" : `${name}'s ${ai}`}</span>
+          {combined && <span>· one answer from {parts.length + 1} {many}, written by {name}&apos;s {ai}</span>}
           <span><Time iso={m.created_at} /></span>
           {m.meta?.read && <span className={styles.readTag}>read {m.meta.read}</span>}
         </div>
@@ -66,7 +72,7 @@ export function Answer({ m, members, views }: { m: Message; members: Map<string,
                     <div key={v.id} className={styles.view}>
                       <div className={styles.viewHead}>
                         <span className={styles.viewDot} style={{ background: vw?.color ?? "var(--faint)" }} />
-                        {vw?.display_name ?? "Someone"}&apos;s Claude
+                        {vw?.display_name ?? "Someone"}&apos;s {AI_NAME[kindOfModel(v.meta?.model)]}
                         {v.meta?.confidence && <span className={styles.viewConfidence}>{v.meta.confidence} confidence</span>}
                       </div>
                       <div className={styles.viewText}><Inline text={v.body} /></div>
@@ -76,7 +82,7 @@ export function Answer({ m, members, views }: { m: Message; members: Map<string,
                     </div>
                   );
                 })}
-                {views.length === 0 && <div className="note">No views came in, so {name}&apos;s Claude answered alone.</div>}
+                {views.length === 0 && <div className="note">No views came in, so {name}&apos;s {ai} answered alone.</div>}
               </div>
             )}
           </div>

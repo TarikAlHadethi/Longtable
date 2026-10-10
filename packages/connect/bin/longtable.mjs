@@ -63,7 +63,9 @@ async function connect() {
   config.app = app;
   config.supabaseUrl = cfg.supabaseUrl;
   config.publishableKey = cfg.publishableKey;
-  config.connections = (config.connections || []).filter((c) => !(c.table_id === paired.table_id && c.kind === paired.kind));
+  // One seat per person at a table: connecting a different AI takes the place of the one that was there.
+  for (const old of (config.connections || []).filter((c) => c.table_id === paired.table_id && c.kind !== paired.kind)) forgetSecret(`device-${old.table_id}-${old.kind}`);
+  config.connections = (config.connections || []).filter((c) => c.table_id !== paired.table_id);
   config.connections.push({
     table_id: paired.table_id,
     kind: paired.kind,
@@ -83,7 +85,7 @@ async function connect() {
       say("A page is opening in your browser so this connection can have its own Claude sign-in. Approve it there.");
       // Loaded only here: it needs packages that the copy kept for start-up does not carry.
       const { signIn } = await import("../src/signin.mjs");
-      if (!(await signIn(claude))) throw new Error("The Claude sign-in didn't finish. Press Connect my Claude again.");
+      if (!(await signIn(claude))) throw new Error("The Claude sign-in didn't finish. Press Connect again.");
     }
   } else if (!codexSignedIn(codex)) {
     say("A page is opening in your browser so this connection can have its own ChatGPT sign-in for Codex. Approve it there.");

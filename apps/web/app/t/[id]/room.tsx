@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
+import { AI_NAME } from "@/components/ai-logo";
 import { Mark } from "@/components/mark";
 import { downloadExport } from "@/lib/download";
 import { browserClient } from "@/lib/supabase/browser";
@@ -103,9 +104,10 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   // Who hears a decision meant for the client: one client by name; with several, every one of them.
   const clientName = clients.length > 1 ? "every client" : client?.display_name ?? "the client";
   const chat = chatById.get(chatId) ?? chats[0];
-  const liveClaude = new Set(connections.filter((c) => !c.revoked_at && c.kind === "claude").map((c) => c.member_id));
   const liveAI = new Set(connections.filter((c) => !c.revoked_at).map((c) => c.member_id));
-  const myConnection = connections.find((c) => !c.revoked_at && c.kind === "claude" && c.member_id === me.id);
+  const myConnection = connections.find((c) => !c.revoked_at && c.member_id === me.id);
+  // What to call a person's AI: Claude or ChatGPT once it is connected, their AI before that.
+  const aiWord = (id: string) => { const c = connections.find((x) => !x.revoked_at && x.member_id === id); return c ? AI_NAME[c.kind] : "AI"; };
   const working = jobs.filter((j) => j.chat_id === chat?.id && ["queued", "running", "waiting", "failed"].includes(j.status))
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
@@ -337,7 +339,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     const res = data as { message_id: string; job_id: string | null; answered_by: string | null };
     const { data: row } = await supabase.from("messages").select(MESSAGE_COLUMNS).eq("id", res.message_id).single();
     if (row) setMessages((prev) => (prev.some((m) => m.id === (row as Message).id) ? prev : [...prev, row as Message]));
-    if (!res.answered_by) setNotice("No Claude is connected at this table yet, so nobody will answer. Connect yours in the sidebar.");
+    if (!res.answered_by) setNotice("No AI is connected at this table yet, so nobody will answer. Connect yours from the table (press Longtable, top left).");
     // Learn about the job straight away, so the room keeps checking until the answer lands even if a push is lost.
     else catchUp();
   }
@@ -462,7 +464,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
             {myConnection ? (
               <div className={styles.claudeStatus} data-testid="my-claude">
                 <span className={`${styles.dot} ${styles.dotOn}`} />
-                <span className={styles.claudeText}>Claude connected</span>
+                <span className={styles.claudeText}>{AI_NAME[myConnection.kind]} connected</span>
                 <button className={styles.toolLink} onClick={() => disconnect(myConnection.id)}>Disconnect</button>
               </div>
             ) : (
@@ -479,7 +481,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                   <div className={styles.personMeta}>
                     <span className={`${styles.dot} ${online.has(m.id) ? styles.dotOn : styles.dotOff}`} />
                     {online.has(m.id) ? "Here" : "Away"} · {ROLE_WORD[m.role]}
-                    {m.role === "client" ? (liveAI.has(m.id) ? " · Assistant on" : "") : liveClaude.has(m.id) ? " · Claude on" : ""}
+                    {m.role === "client" ? (liveAI.has(m.id) ? " · Assistant on" : "") : liveAI.has(m.id) ? ` · ${aiWord(m.id)} on` : ""}
                   </div>
                 </div>
               </div>
@@ -576,12 +578,12 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 );
               })}
               {working.filter((j) => j.status !== "failed" || now - new Date(j.created_at).getTime() < 15 * 60 * 1000).map((j) => {
-                const name = byId.get(j.member_id)?.display_name ?? "Someone";
-                const text = j.status === "failed" ? `${name}'s Claude couldn't finish: ${j.error ?? "it gave up"}`
-                  : j.kind === "combine" ? (j.status === "waiting" ? `${name}'s Claude writes the answer once the views are in` : `${name}'s Claude is writing the answer…`)
-                  : j.kind === "view" ? (j.status === "running" ? `${name}'s Claude is giving its view…` : `Waiting for ${name}'s Claude's view`)
-                  : j.kind === "intro" ? `${name}'s Claude is reading the project…`
-                  : j.status === "running" ? `${name}'s Claude is reading the code…` : `Waiting for ${name}'s Claude`;
+                const name = `${byId.get(j.member_id)?.display_name ?? "Someone"}'s ${aiWord(j.member_id)}`;
+                const text = j.status === "failed" ? `${name} couldn't finish: ${j.error ?? "it gave up"}`
+                  : j.kind === "combine" ? (j.status === "waiting" ? `${name} writes the answer once the views are in` : `${name} is writing the answer…`)
+                  : j.kind === "view" ? (j.status === "running" ? `${name} is giving its view…` : `Waiting for ${name}'s view`)
+                  : j.kind === "intro" ? `${name} is reading the project…`
+                  : j.status === "running" ? `${name} is reading the code…` : `Waiting for ${name}`;
                 return (
                   <div key={j.id} className={`${styles.working} ${j.status === "failed" ? styles.workingFailed : ""}`} data-testid="working">
                     {j.status !== "failed" && <span className={styles.workingDot} />}{text}
@@ -646,7 +648,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       )}
       {inviting && <Invite tableId={table.id} onClose={() => setInviting(false)} />}
       {connectOpen && (
-        <ConnectModal tableId={table.id} tableName={table.name} connected={!!myConnection} onClose={() => setConnectOpen(false)} />
+        <ConnectModal tableId={table.id} tableName={table.name} connected={myConnection?.kind ?? null} onClose={() => setConnectOpen(false)} />
       )}
       {asking && chat && (
         <NewDecision

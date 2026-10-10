@@ -1,5 +1,6 @@
 "use client";
 
+import { AI_NAME, AiLogo, type AiKind } from "@/components/ai-logo";
 import { Mark } from "@/components/mark";
 import type { Chat, Connection, Job, Member, Message } from "./types";
 import s from "./table-view.module.css";
@@ -14,10 +15,12 @@ export function prettyModel(model?: string | null): string | null {
   const m = name.match(/^([a-z]+)-(\d+)(?:-(\d+))?$/);
   return m ? `${m[1].charAt(0).toUpperCase()}${m[1].slice(1)} ${m[2]}${m[3] ? `.${m[3]}` : ""}` : model;
 }
-const prettyPlan = (plan?: string | null) => (plan ? `${plan.charAt(0).toUpperCase()}${plan.slice(1).replace(/_/g, " ")} plan` : null);
+const prettyPlan = (plan?: string | null) => (plan ? `${plan.charAt(0).toUpperCase()}${plan.slice(1).replace(/_/g, " ")}` : null);
+// Which maker a model name belongs to, for answers written before the table knew.
+export const kindOfModel = (model?: string | null): AiKind => (/gpt|codex|^o\d/i.test(model ?? "") ? "codex" : "claude");
 
 // The table's home: who is at the table, the AI each person brought and the model it is running, and how they all
-// meet at the table. It moves when an AI is working.
+// meet at the table. Everything hangs from one centred column, so the people always sit squarely over the table.
 export function TableView({ table, me, members, connections, jobs, online, messages, chats, onOpenChat, onConnect, onInvite }: {
   table: { id: string; name: string };
   me: Member;
@@ -36,7 +39,7 @@ export function TableView({ table, me, members, connections, jobs, online, messa
   const live = connections.filter((c) => !c.revoked_at);
   const aiOf = (id: string) => live.filter((c) => c.member_id === id).sort((a, b) => (b.last_seen ?? "").localeCompare(a.last_seen ?? ""))[0];
   const busy = new Set(jobs.filter((j) => j.status === "running" || j.status === "queued" || j.status === "waiting").map((j) => j.member_id));
-  const cols = team.length + (onInvite ? 1 : 0);
+  const cols = Math.max(team.length, 1);
   const connected = team.filter((m) => aiOf(m.id)).length;
   const anyBusy = team.some((m) => busy.has(m.id));
   const last = [...messages].reverse().find((m) => m.by_ai && (m.kind === "answer" || !m.kind));
@@ -53,7 +56,7 @@ export function TableView({ table, me, members, connections, jobs, online, messa
       </div>
 
       <div className={s.scroller}>
-        <div className={s.tree} style={{ "--cols": cols, maxWidth: cols * 250 } as React.CSSProperties}>
+        <div className={s.tree} style={{ "--cols": cols } as React.CSSProperties}>
           <div className={s.row}>
             {team.map((m, i) => {
               const ai = aiOf(m.id);
@@ -70,26 +73,24 @@ export function TableView({ table, me, members, connections, jobs, online, messa
                     <div className={s.name}>{m.display_name}{m.id === me.id ? " (you)" : ""}</div>
                     <div className={s.role}>{ROLE[m.role]} · {online.has(m.id) ? "here" : "away"}</div>
                   </div>
-                  <div className={`${s.stem} ${ai ? s.stemOn : ""} ${working ? s.stemBusy : ""}`} />
+                  <div className={`${s.stem} ${ai ? s.stemOn : ""}`} />
                   {ai ? (
-                    <div className={`${s.ai} ${working ? s.aiBusy : ""}`} data-seat-ai={ai.kind}>
+                    <div className={`${s.ai} ${s[ai.kind]} ${working ? s.aiBusy : ""}`} data-seat-ai={ai.kind}>
                       <div className={s.aiHead}>
-                        <span className={`${s.aiIcon} ${ai.kind === "codex" ? s.codex : s.claude}`}>{ai.kind === "codex" ? "⌘" : "✳"}</span>
-                        <span className={s.aiName}>{ai.kind === "codex" ? "Codex" : "Claude"}</span>
-                        <span className={`${s.dot} ${working ? s.dotBusy : ""}`} />
+                        <AiLogo kind={ai.kind} size={26} />
+                        <span className={`${s.dot} ${working ? s.dotBusy : ""}`} title={working ? "Working" : "Connected"} />
                       </div>
-                      <div className={s.model} key={model ?? "none"}>{model ?? "Model shows after its first answer"}</div>
-                      <div className={s.aiMeta}>{working ? "Reading the code…" : plan ?? `On ${m.id === me.id ? "your" : "their"} own plan`}</div>
+                      <div className={s.aiName}>{AI_NAME[ai.kind]}{plan ? ` ${plan}` : ""}</div>
+                      <div className={s.model} key={model ?? "none"}>{working ? "Reading the code…" : model ?? "Ready for its first question"}</div>
                     </div>
                   ) : m.id === me.id ? (
                     <button className={s.plus} onClick={onConnect}>
                       <span className={s.plusSign}>+</span>
                       <span className={s.plusTitle}>Connect your AI</span>
-                      <span className={s.plusNote}>It joins the table on your own plan</span>
+                      <span className={s.plusNote}>Claude or ChatGPT, on your own plan</span>
                     </button>
                   ) : (
                     <div className={s.none}>
-                      <span className={s.plusSign}>·</span>
                       <span className={s.plusTitle}>No AI yet</span>
                       <span className={s.plusNote}>{m.display_name.split(" ")[0]} has not connected one</span>
                     </div>
@@ -98,45 +99,37 @@ export function TableView({ table, me, members, connections, jobs, online, messa
               );
             })}
             {onInvite && (
-              <div className={s.col} style={{ "--i": team.length } as React.CSSProperties}>
-                <button className={s.inviteNode} onClick={onInvite}>
-                  <span className={s.inviteAvatar}>+</span>
-                  <div className={s.name}>Invite someone</div>
-                  <div className={s.role}>A developer or your client</div>
-                </button>
-              </div>
+              <button className={s.inviteSeat} onClick={onInvite} title="Invite someone" aria-label="Invite someone">+</button>
             )}
           </div>
 
           <svg className={s.funnel} viewBox={`0 0 ${cols * 100} 100`} preserveAspectRatio="none" aria-hidden="true">
-            {team.map((m, i) => {
+            {/* Unconnected wires are drawn first, so a live one is never dulled where they meet. */}
+            {team.map((m, i) => ({ m, i })).sort((a, b) => Number(!!aiOf(a.m.id)) - Number(!!aiOf(b.m.id))).map(({ m, i }) => {
               const x = i * 100 + 50;
               const cx = cols * 50;
-              const d = `M ${x} 0 C ${x} 62, ${cx} 38, ${cx} 100`;
-              const on = !!aiOf(m.id);
+              const d = x === cx ? `M ${x} 0 L ${cx} 100` : `M ${x} 0 C ${x} 62, ${cx} 38, ${cx} 100`;
+              const ai = aiOf(m.id);
               return (
-                <g key={m.id}>
-                  <path d={d} className={on ? s.wire : s.wireOff} vectorEffect="non-scaling-stroke" />
-                  {on && <path d={d} className={`${s.flow} ${busy.has(m.id) ? s.flowBusy : ""}`} vectorEffect="non-scaling-stroke" style={{ animationDelay: `${-i * 0.7}s` }} />}
-                </g>
+                <path key={m.id} d={d} vectorEffect="non-scaling-stroke"
+                  className={!ai ? s.wireOff : `${s.wire} ${s[`wire_${ai.kind}`]} ${busy.has(m.id) ? s.wireBusy : ""}`} />
               );
             })}
           </svg>
 
           <div className={`${s.table} ${anyBusy ? s.tableBusy : ""}`}>
-            <span className={s.tableMark}><Mark size={34} /></span>
-            <div>
-              <div className={s.tableTitle}>The table</div>
-              <div className={s.tableSub}>
-                {connected === 0 ? "No AI connected yet. Connect yours to ask the first question."
-                  : anyBusy ? "Working on an answer…"
-                  : `${connected} AI${connected === 1 ? "" : "s"} connected. Every question gets one answer.`}
-              </div>
-              {last && lastBy && (
-                <div className={s.tableLast}>
-                  Last answer written by {lastBy.display_name}&apos;s AI{lastModel ? <> · <b>{lastModel}</b></> : null}
-                </div>
-              )}
+            <div className={s.tableTitle}>The Table</div>
+            <span className={s.tableMark}><Mark size={46} /></span>
+            <div className={s.tableModel} key={lastModel ?? "none"}>
+              {anyBusy ? "Working on an answer…"
+                : last ? `${AI_NAME[kindOfModel(last.meta?.model)]}${lastModel ? ` ${lastModel}` : ""}`
+                : connected === 0 ? "No AI connected yet" : "Ready for its first question"}
+            </div>
+            <div className={s.tableSub}>
+              {anyBusy ? "Every connected AI is reading the code"
+                : last && lastBy ? `The last answer was written by ${lastBy.display_name}'s AI`
+                : connected === 0 ? "Connect yours to ask the first question."
+                : `${connected} AI${connected === 1 ? "" : "s"} connected. Every question gets one answer.`}
             </div>
           </div>
 
@@ -161,6 +154,7 @@ export function TableView({ table, me, members, connections, jobs, online, messa
         {chats.filter((c) => c.id !== general?.id).slice(0, 4).map((c) => (
           <button key={c.id} className="btn btn-quiet" onClick={() => onOpenChat(c.id)}>{c.name}</button>
         ))}
+        {onInvite && <button className="btn btn-quiet" onClick={onInvite}>Invite someone</button>}
       </div>
     </div>
   );

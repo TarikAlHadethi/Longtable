@@ -8,7 +8,7 @@ import { Time, useInBrowser } from "@/components/time";
 import { downloadExport } from "@/lib/download";
 import { browserClient } from "@/lib/supabase/browser";
 import { formatWhen } from "@/lib/time";
-import { ClientConnect } from "./client-connect";
+import { ConnectModal } from "./connect-modal";
 import {
   CONNECTION_COLUMNS, EVENT_COLUMNS, JOB_COLUMNS, LINE_COLUMNS, REQUEST_COLUMNS, UPDATE_COLUMNS,
   type ClientLine, type ClientUpdate, type Connection, type Job, type Request, type RequestEvent, type RequestStatus as Status,
@@ -329,7 +329,7 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
         <Link className={styles.headLink} href="/privacy">Privacy</Link>
       </footer>
       {connectOpen && (
-        <ClientConnect tableId={table.id} tableName={table.name} connected={assistant} onClose={() => setConnectOpen(false)} />
+        <ConnectModal audience="client" tableId={table.id} tableName={table.name} connected={connections.find((c) => !c.revoked_at)?.kind ?? null} onClose={() => setConnectOpen(false)} />
       )}
     </div>
   );

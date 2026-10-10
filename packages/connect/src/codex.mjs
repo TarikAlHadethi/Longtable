@@ -114,8 +114,9 @@ export function codexLimits(codex) {
   return new Promise((resolve) => {
     const child = spawn(codex.cmd, [...codex.pre, "app-server"], { env: env(), windowsHide: true });
     let buf = "";
+    let limits = null;
     const done = (value) => { clearTimeout(timer); child.kill(); resolve(value); };
-    const timer = setTimeout(() => done(null), 10000);
+    const timer = setTimeout(() => done(limits), 10000);
     const send = (m) => child.stdin.write(JSON.stringify(m) + "\n");
     const name = (mins) => mins === 300 ? "5-hour" : mins === 10080 ? "weekly" : mins === 43200 ? "30-day" : `${Math.round(mins / 60)}-hour`;
     const window = (w) => w && ({ name: name(w.windowDurationMins), used: Math.round(w.usedPercent ?? 0),
@@ -133,8 +134,14 @@ export function codexLimits(codex) {
           send({ method: "account/rateLimits/read", id: 2 });
         } else if (m.id === 2) {
           const r = m.result?.rateLimits;
-          done(r ? { ai: "codex", plan: r.planType || null, status: r.rateLimitReachedType ? "limited" : "allowed",
-            windows: [window(r.primary), window(r.secondary)].filter(Boolean) } : null);
+          limits = r ? { ai: "codex", plan: r.planType || null, status: r.rateLimitReachedType ? "limited" : "allowed",
+            windows: [window(r.primary), window(r.secondary)].filter(Boolean) } : null;
+          send({ method: "model/list", id: 3, params: {} });
+        } else if (m.id === 3) {
+          // The model Codex uses when none is asked for: the one it marks as its default, else the first it lists.
+          const list = m.result?.data || [];
+          const pick = list.find((x) => x.isDefault) || list[0];
+          done(limits ? { ...limits, model: pick?.displayName || pick?.id || null } : null);
         }
       }
     });

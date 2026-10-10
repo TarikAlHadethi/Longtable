@@ -127,7 +127,7 @@ export function SettingsForm({ table, me, people: initialPeople, chats, github: 
 
         <form className={styles.card} onSubmit={saveAnswers} aria-label="Final answers">
           <div className={styles.cardTitle}>Final answers</div>
-          <label className="label" htmlFor="s-seat">Whose Claude writes the final answer</label>
+          <label className="label" htmlFor="s-seat">Whose AI writes the final answer</label>
           <select id="s-seat" className="field" value={seat} onChange={(e) => setSeat(e.target.value)}>
             <option value="">The owner&apos;s (default)</option>
             {team.map((p) => <option key={p.id} value={p.id}>{p.display_name}&apos;s</option>)}

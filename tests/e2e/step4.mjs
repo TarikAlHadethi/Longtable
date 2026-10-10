@@ -31,6 +31,7 @@ function home() {
 // Press Connect my Claude on this page, then do what that person's Claude would do after they press Send.
 async function connect(page, dir) {
   await page.click("button:has-text('Connect my AI')");
+  await page.click("[data-testid=pick-claude]");
   const message = await page.locator("[data-testid=connect-message]").textContent();
   const [, code, app] = message.match(/connect ([0-9A-F]{20}) --app (\S+)/);
   const env = { ...process.env, LONGTABLE_HOME: dir, LONGTABLE_MODEL: "haiku" };
