@@ -477,7 +477,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               <div key={m.id} className={styles.person} data-here={online.has(m.id)}>
                 <div className={styles.avatar} style={{ background: m.color }}>
                   {initial(m.display_name)}
-                  {m.role === "owner" && <span className={styles.crown}><Crown size={15} /></span>}
+                  {m.role === "owner" && <span className={styles.crown}><Crown size={16} /></span>}
                   <i className={`${styles.presence} ${online.has(m.id) ? styles.presenceOn : ""}`} />
                 </div>
                 <div className={styles.personText}>

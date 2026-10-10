@@ -125,5 +125,11 @@
   .scroller { padding: 12px 20px 50px; }
 }
 
-/* The owner's crown, set a little crooked on the top left of their picture. */
-.crown { position: absolute; z-index: -1; left: -3px; top: -5px; transform: rotate(-38deg); transform-origin: 50% 100%; }
+/* The owner's crown. It is placed from the centre of the picture: turned to the top left, then pushed straight out
+   along that line until it rests on the rim. It sits behind the picture and --lap of it is tucked under, enough
+   that the corners of its base are under the curve too, so the base meets the picture all the way across. */
+.crown {
+  --r: 27px; --w: 26px; --lap: 4.2px; position: absolute; z-index: -1; left: 50%; top: 50%; width: var(--w); height: calc(var(--w) * 20 / 24);
+  margin: calc(var(--w) * 20 / -48) 0 0 calc(var(--w) / -2);
+  transform: rotate(-38deg) translateY(calc(var(--lap) - var(--r) - var(--w) * 20 / 48));
+}

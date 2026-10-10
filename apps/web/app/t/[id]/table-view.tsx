@@ -91,7 +91,7 @@ export function TableView({ table, me, members, connections, jobs, online, messa
                   <div className={s.person}>
                     <span className={s.avatar} style={{ background: m.color }}>
                       {initial(m.display_name)}
-                      {m.role === "owner" && <span className={s.crown}><Crown size={24} /></span>}
+                      {m.role === "owner" && <span className={s.crown}><Crown size={26} /></span>}
                       <i className={online.has(m.id) ? s.here : s.away} />
                     </span>
                     <div className={s.name}>{m.display_name}</div>

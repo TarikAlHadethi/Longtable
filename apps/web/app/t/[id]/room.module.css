@@ -285,7 +285,9 @@
 .option:not(:disabled):active { transform: scale(0.985); }
 .chat { transition: background-color 0.12s ease, color 0.12s ease; }
 .requestPill { transition: background-color 0.35s ease, color 0.35s ease; }
-.face, .avatar { animation: lt-pop 0.35s var(--ease-spring) both; }
+/* Not the sidebar's pictures: an animation would lift each onto its own layer, and the owner's crown has to sit
+   behind its picture. */
+.face { animation: lt-pop 0.35s var(--ease-spring) both; }
 .dot { transition: background-color 0.3s ease, border-color 0.3s ease; }
 .source { animation: lt-rise 0.3s var(--ease-out) both; }
 .clientWords { transition: background-color 0.3s ease; }
@@ -336,7 +338,14 @@
 .person { isolation: isolate; }
 .presence { position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--paper); background: var(--faint); }
 .presenceOn { background: var(--online); }
-.crown { position: absolute; z-index: -1; left: -3px; top: -4px; transform: rotate(-38deg); transform-origin: 50% 100%; }
+/* The owner's crown. It is placed from the centre of the picture: turned to the top left, then pushed straight out
+   along that line until it rests on the rim. It sits behind the picture and --lap of it is tucked under, enough
+   that the corners of its base are under the curve too, so the base meets the picture all the way across. */
+.crown {
+  --r: 15px; --w: 16px; --lap: 3.2px; position: absolute; z-index: -1; left: 50%; top: 50%; width: var(--w); height: calc(var(--w) * 20 / 24);
+  margin: calc(var(--w) * 20 / -48) 0 0 calc(var(--w) / -2);
+  transform: rotate(-38deg) translateY(calc(var(--lap) - var(--r) - var(--w) * 20 / 48));
+}
 .modal { margin: auto; }
 
 /* Usage, beside the table. */
