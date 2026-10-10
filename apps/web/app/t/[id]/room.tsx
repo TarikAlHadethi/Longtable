@@ -130,7 +130,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       supabase.from("decisions").select(DECISION_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(100),
       supabase.from("requests").select(REQUEST_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(200),
       supabase.from("notes").select(NOTE_COLUMNS).eq("table_id", table.id),
-      supabase.from("connections").select(CONNECTION_COLUMNS).eq("table_id", table.id).is("revoked_at", null),
+      supabase.from("connections").select(CONNECTION_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(60),
     ]);
     if (recent) setMessages((prev) => {
       const have = new Set(prev.map((m) => m.id));
@@ -500,7 +500,11 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         {view === "table" && (
           <main className={styles.main}>
             <TableView table={table} me={me} members={members} connections={connections} jobs={jobs} online={online} messages={messages}
-              chats={chats} onOpenChat={openChat} onConnect={() => setConnectOpen(true)} onInvite={me.role === "owner" ? () => setInviting(true) : undefined} />
+              chats={chats} onOpenChat={openChat} onConnect={() => setConnectOpen(true)}
+              onModel={async (conn, model) => {
+                setConnections((prev) => prev.map((c) => (c.id === conn ? { ...c, model_choice: model || null } : c)));
+                await supabase.rpc("set_model", { conn, model });
+              }} onInvite={me.role === "owner" ? () => setInviting(true) : undefined} />
           </main>
         )}
         <main className={styles.main} hidden={view === "table"}>

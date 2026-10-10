@@ -1,28 +1,63 @@
 "use client";
 
-import { Arrow, Plus } from "@/components/icons";
+import { useEffect, useState } from "react";
 import { AI_NAME, AiLogo, type AiKind } from "@/components/ai-logo";
+import { Arrow, Plus } from "@/components/icons";
 import { Mark } from "@/components/mark";
 import type { Chat, Connection, Job, Member, Message } from "./types";
 import s from "./table-view.module.css";
 
 const initial = (name: string) => name.trim().charAt(0).toUpperCase() || "?";
 const ROLE = { owner: "Owner", developer: "Developer", client: "Client" } as const;
+const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
 
-// "claude-opus-5-5" reads as "Opus 5.5"; anything unfamiliar is shown as it came.
+// "claude-opus-5-5" reads as "Opus 5.5", "opus" as "Opus"; anything unfamiliar is shown as it came.
 export function prettyModel(model?: string | null): string | null {
   if (!model || /default/i.test(model)) return null;
   const name = model.replace(/^claude-/, "").replace(/-\d{8}$/, "");
   const m = name.match(/^([a-z]+)-(\d+)(?:-(\d+))?$/);
-  return m ? `${m[1].charAt(0).toUpperCase()}${m[1].slice(1)} ${m[2]}${m[3] ? `.${m[3]}` : ""}` : model;
+  if (m) return `${cap(m[1])} ${m[2]}${m[3] ? `.${m[3]}` : ""}`;
+  return /^[a-z]+$/.test(name) ? cap(name) : model;
 }
-const prettyPlan = (plan?: string | null) => (plan ? `${plan.charAt(0).toUpperCase()}${plan.slice(1).replace(/_/g, " ")}` : null);
+const prettyPlan = (plan?: string | null) => (plan ? `${cap(plan).replace(/_/g, " ")}` : null);
 // Which maker a model name belongs to, for answers written before the table knew.
 export const kindOfModel = (model?: string | null): AiKind => (/gpt|codex|^o\d/i.test(model ?? "") ? "codex" : "claude");
 
+// A connection counts as on while it keeps checking in. After this long without a word, its seat goes quiet.
+const QUIET_MS = 75 * 1000;
+
+// The model an AI runs, as words. For the person whose AI it is, the words turn into a box to pick another the moment
+// the pointer is over them.
+function Model({ conn, mine, className, lead = "", onModel }: {
+  conn: Connection;
+  mine: boolean;
+  className: string;
+  lead?: string;
+  onModel?: (conn: string, model: string) => void;
+}) {
+  const reported = conn.limits?.model ?? null;
+  const choice = conn.model_choice ?? "";
+  const known = (conn.kind === "codex" ? conn.limits?.models : ["opus", "sonnet", "haiku"]) ?? [];
+  // What it last ran, when that matches the pick; else the pick itself until its first answer on it.
+  const shown = (id: string) => (reported && reported.toLowerCase().includes(id.toLowerCase()) ? prettyModel(reported) : prettyModel(id)) ?? id;
+  const current = choice ? shown(choice) : prettyModel(reported) ?? "Connected";
+  if (!mine || !onModel || known.length === 0) return <div className={className} key={current}>{lead}{current}</div>;
+  const options = [...new Set([choice, ...known].filter(Boolean))];
+  return (
+    <label className={`${className} ${s.pick}`}>
+      <span className={s.pickText} key={current}>{lead}{current}</span>
+      <select className={s.pickSelect} value={choice} aria-label="The model your AI runs" data-testid="model-pick"
+        onChange={(e) => onModel(conn.id, e.target.value)}>
+        <option value="">{conn.kind === "codex" ? "ChatGPT's own choice" : "Claude's own choice"}</option>
+        {options.map((id) => <option key={id} value={id}>{shown(id)}</option>)}
+      </select>
+    </label>
+  );
+}
+
 // The table's home: who is at the table, the AI each person brought and the model it is running, and how they all
 // meet at the table. Everything hangs from one centred column, so the people always sit squarely over the table.
-export function TableView({ table, me, members, connections, jobs, online, messages, chats, onOpenChat, onConnect, onInvite }: {
+export function TableView({ table, me, members, connections, jobs, online, messages, chats, onOpenChat, onConnect, onInvite, onModel }: {
   table: { id: string; name: string };
   me: Member;
   members: Member[];
@@ -34,16 +69,34 @@ export function TableView({ table, me, members, connections, jobs, online, messa
   onOpenChat: (id: string) => void;
   onConnect: () => void;
   onInvite?: () => void;
+  onModel?: (conn: string, model: string) => void;
 }) {
+  // A clock, so a seat goes quiet by itself when its computer is switched off.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 15000);
+    return () => clearInterval(t);
+  }, []);
+
   const team = members.filter((m) => m.role !== "client");
   const clients = members.filter((m) => m.role === "client");
-  const live = connections.filter((c) => !c.revoked_at);
-  const aiOf = (id: string) => live.filter((c) => c.member_id === id).sort((a, b) => (b.last_seen ?? "").localeCompare(a.last_seen ?? ""))[0];
-  const busy = new Set(jobs.filter((j) => j.status === "running" || j.status === "queued" || j.status === "waiting").map((j) => j.member_id));
+  // Each person's seat: their live connection, else the last one they had, so the tree remembers what it was.
+  const seatOf = (id: string) => {
+    const all = connections.filter((c) => c.member_id === id);
+    const conn = all.find((c) => !c.revoked_at) ?? [...all].sort((a, b) => (b.revoked_at ?? "").localeCompare(a.revoked_at ?? ""))[0];
+    if (!conn) return null;
+    const on = !conn.revoked_at && !!conn.last_seen && now - new Date(conn.last_seen).getTime() < QUIET_MS;
+    return { conn, on, removed: !!conn.revoked_at };
+  };
+  const working = new Set(jobs.filter((j) => j.status === "running" || j.status === "queued" || j.status === "waiting").map((j) => j.member_id));
+  const seats = team.map((m) => ({ m, seat: seatOf(m.id) }));
+  const busy = (id: string) => working.has(id) && !!seats.find((x) => x.m.id === id)?.seat?.on;
   // The next seat is a real place in the row, so a table of one already looks like a table.
   const cols = team.length + (onInvite ? 1 : 0) || 1;
-  const connected = team.filter((m) => aiOf(m.id)).length;
-  const anyBusy = team.some((m) => busy.has(m.id));
+  const onSeats = seats.filter((x) => x.seat?.on);
+  const anyBusy = team.some((m) => busy(m.id));
+  // The table speaks through the owner's AI when it is on, else the first one that is.
+  const writer = onSeats.find((x) => x.m.role === "owner") ?? onSeats[0];
   const last = [...messages].reverse().find((m) => m.by_ai && (m.kind === "answer" || !m.kind));
   const lastModel = prettyModel(last?.meta?.model);
   const general = [...chats].sort((a, b) => Number(b.is_general) - Number(a.is_general))[0];
@@ -59,11 +112,10 @@ export function TableView({ table, me, members, connections, jobs, online, messa
       <div className={s.scroller}>
         <div className={s.tree} style={{ "--cols": cols } as React.CSSProperties}>
           <div className={s.row}>
-            {team.map((m, i) => {
-              const ai = aiOf(m.id);
-              const working = busy.has(m.id);
-              const model = prettyModel(ai?.limits?.model);
-              const plan = prettyPlan(ai?.limits?.plan);
+            {seats.map(({ m, seat }, i) => {
+              const mine = m.id === me.id;
+              const isBusy = busy(m.id);
+              const plan = prettyPlan(seat?.conn.limits?.plan);
               return (
                 <div className={s.col} key={m.id} style={{ "--i": i } as React.CSSProperties} data-person={m.display_name}>
                   <div className={s.person}>
@@ -71,20 +123,23 @@ export function TableView({ table, me, members, connections, jobs, online, messa
                       {initial(m.display_name)}
                       <i className={online.has(m.id) ? s.here : s.away} />
                     </span>
-                    <div className={s.name}>{m.display_name}{m.id === me.id ? " (you)" : ""}</div>
+                    <div className={s.name}>{m.display_name}{mine ? " (you)" : ""}</div>
                     <div className={s.role}>{ROLE[m.role]} · {online.has(m.id) ? "here" : "away"}</div>
                   </div>
-                  <div className={`${s.stem} ${ai ? s.stemOn : ""}`} />
-                  {ai ? (
-                    <div className={`${s.ai} ${s[ai.kind]} ${working ? s.aiBusy : ""}`} data-seat-ai={ai.kind}>
+                  <div className={`${s.stem} ${seat?.on ? s.stemOn : ""}`} />
+                  {seat ? (
+                    <div className={`${s.ai} ${s[seat.conn.kind]} ${seat.on ? "" : s.aiOff} ${isBusy ? s.aiBusy : ""}`}
+                      data-seat-ai={seat.conn.kind} data-seat-on={seat.on}>
                       <div className={s.aiHead}>
-                        <AiLogo kind={ai.kind} size={26} />
-                        <span className={`${s.dot} ${working ? s.dotBusy : ""}`} title={working ? "Working" : "Connected"} />
+                        <AiLogo kind={seat.conn.kind} size={26} />
+                        <span className={`${s.dot} ${isBusy ? s.dotBusy : ""}`} title={!seat.on ? "Disconnected" : isBusy ? "Working" : "Connected"} />
                       </div>
-                      <div className={s.aiName}>{AI_NAME[ai.kind]}{plan ? ` ${plan}` : ""}</div>
-                      <div className={s.model} key={model ?? "none"}>{working ? "Reading the code…" : model ?? "Connected"}</div>
+                      <div className={s.aiName}>{AI_NAME[seat.conn.kind]}{plan ? ` ${plan}` : ""}{seat.on ? "" : " · disconnected"}</div>
+                      {isBusy ? <div className={s.model}>Reading the code…</div>
+                        : <Model conn={seat.conn} mine={mine && seat.on} className={s.model} onModel={onModel} />}
+                      {mine && seat.removed && <button className={s.again} onClick={onConnect}>Connect again</button>}
                     </div>
-                  ) : m.id === me.id ? (
+                  ) : mine ? (
                     <button className={s.plus} onClick={onConnect}>
                       <span className={s.plusSign}><Plus size={18} stroke={2.4} /></span>
                       <span className={s.plusTitle}>Connect your AI</span>
@@ -107,17 +162,17 @@ export function TableView({ table, me, members, connections, jobs, online, messa
             )}
           </div>
 
+          {/* The wires start a little above this strip, behind the boxes, so a box that lifts never shows a gap. */}
           <svg className={s.funnel} viewBox={`0 0 ${cols * 100} 100`} preserveAspectRatio="none" aria-hidden="true">
-            {/* Unconnected wires are drawn first, so a live one is never dulled where they meet. */}
-            {team.map((m, i) => ({ m, i })).sort((a, b) => Number(!!aiOf(a.m.id)) - Number(!!aiOf(b.m.id))).map(({ m, i }) => {
+            {/* Quiet wires are drawn first, so a live one is never dulled where they meet. */}
+            {seats.map((x, i) => ({ ...x, i })).sort((a, b) => Number(!!a.seat?.on) - Number(!!b.seat?.on)).map(({ m, seat, i }) => {
               const x = i * 100 + 50;
               const cx = cols * 50;
-              const d = x === cx ? `M ${x} 0 L ${cx} 100` : `M ${x} 0 C ${x} 62, ${cx} 38, ${cx} 100`;
-              const ai = aiOf(m.id);
+              const d = x === cx ? `M ${x} -14 L ${cx} 100` : `M ${x} -14 L ${x} 0 C ${x} 62, ${cx} 38, ${cx} 100`;
               return (
-                <g key={m.id} className={ai ? `${s[`wire_${ai.kind}`]} ${busy.has(m.id) ? s.wireBusy : ""}` : undefined}>
-                  <path d={d} vectorEffect="non-scaling-stroke" className={ai ? s.wire : s.wireOff} />
-                  {ai && <path d={d} vectorEffect="non-scaling-stroke" className={s.pulse} style={{ animationDelay: `${-i * 0.9}s` }} />}
+                <g key={m.id} className={seat?.on ? `${s[`wire_${seat.conn.kind}`]} ${busy(m.id) ? s.wireBusy : ""}` : undefined}>
+                  <path d={d} vectorEffect="non-scaling-stroke" className={seat?.on ? s.wire : seat ? s.wireDown : s.wireOff} />
+                  {seat?.on && <path d={d} vectorEffect="non-scaling-stroke" className={s.pulse} style={{ animationDelay: `${-i * 0.9}s` }} />}
                 </g>
               );
             })}
@@ -126,11 +181,10 @@ export function TableView({ table, me, members, connections, jobs, online, messa
           <div className={`${s.table} ${anyBusy ? s.tableBusy : ""}`}>
             <div className={s.tableTitle}>The Table</div>
             <Mark size={64} />
-            <div className={s.tableModel} key={lastModel ?? "none"}>
-              {anyBusy ? "Working on an answer…"
-                : last ? `${AI_NAME[kindOfModel(last.meta?.model)]}${lastModel ? ` ${lastModel}` : ""}`
-                : connected === 0 ? "No AI connected yet" : `${connected} AI${connected === 1 ? "" : "s"} connected`}
-            </div>
+            {anyBusy ? <div className={s.tableModel}>Working on an answer…</div>
+              : writer ? <Model conn={writer.seat!.conn} mine={writer.m.id === me.id} className={s.tableModel} lead={`${AI_NAME[writer.seat!.conn.kind]} `} onModel={onModel} />
+              : last ? <div className={`${s.tableModel} ${s.tableQuiet}`}>{AI_NAME[kindOfModel(last.meta?.model)]}{lastModel ? ` ${lastModel}` : ""}</div>
+              : <div className={s.tableModel}>No AI connected yet</div>}
           </div>
 
           {clients.length > 0 && (

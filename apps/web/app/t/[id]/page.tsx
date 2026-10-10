@@ -62,7 +62,7 @@ export default async function TablePage({ params, searchParams }: {
     supabase.from("messages").select(MESSAGE_COLUMNS).eq("table_id", id).order("created_at", { ascending: false }).limit(300),
     supabase.from("decisions").select(DECISION_COLUMNS).eq("table_id", id).order("created_at", { ascending: false }).limit(100),
     supabase.from("jobs").select(JOB_COLUMNS).eq("table_id", id).in("status", ["queued", "running", "waiting", "failed"]).order("created_at", { ascending: false }).limit(50),
-    supabase.from("connections").select(CONNECTION_COLUMNS).eq("table_id", id).is("revoked_at", null),
+    supabase.from("connections").select(CONNECTION_COLUMNS).eq("table_id", id).order("created_at", { ascending: false }).limit(60),
     supabase.from("notes").select(NOTE_COLUMNS).eq("table_id", id),
     supabase.from("requests").select(REQUEST_COLUMNS).eq("table_id", id).order("created_at", { ascending: false }).limit(200),
   ]);

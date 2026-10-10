@@ -141,7 +141,7 @@ export function codexLimits(codex) {
           // The model Codex uses when none is asked for: the one it marks as its default, else the first it lists.
           const list = m.result?.data || [];
           const pick = list.find((x) => x.isDefault) || list[0];
-          done(limits ? { ...limits, model: pick?.displayName || pick?.id || null } : null);
+          done(limits ? { ...limits, model: pick?.id || null, models: list.filter((x) => !x.hidden).map((x) => x.id).filter(Boolean).slice(0, 12) } : null);
         }
       }
     });

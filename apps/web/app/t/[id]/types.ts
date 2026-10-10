@@ -39,8 +39,8 @@ export type Job = {
   created_at: string;
 };
 
-export type Limits = { ai?: string | null; plan?: string | null; model?: string | null; status?: string | null };
-export type Connection = { id: string; member_id: string; kind: "claude" | "codex"; last_seen: string | null; revoked_at: string | null; created_at: string; limits?: Limits | null };
+export type Limits = { ai?: string | null; plan?: string | null; model?: string | null; status?: string | null; models?: string[] };
+export type Connection = { id: string; member_id: string; kind: "claude" | "codex"; last_seen: string | null; revoked_at: string | null; created_at: string; limits?: Limits | null; model_choice?: string | null };
 
 export type Note = { id: string; member_id: string | null; kind: "intro" | "summary" | "shared"; title: string; body: string; updated_at: string };
 
@@ -101,7 +101,7 @@ export type ClientUpdate = {
 export const MESSAGE_COLUMNS = "id, chat_id, member_id, body, created_at, by_ai, kind, meta";
 export const JOB_COLUMNS = "id, chat_id, member_id, kind, round, status, error, created_at";
 export const NOTE_COLUMNS = "id, member_id, kind, title, body, updated_at";
-export const CONNECTION_COLUMNS = "id, member_id, kind, last_seen, revoked_at, created_at, limits";
+export const CONNECTION_COLUMNS = "id, member_id, kind, last_seen, revoked_at, created_at, limits, model_choice";
 export const DECISION_COLUMNS =
   "id, chat_id, title, context, origin, affects_client, status, chosen, decided_by, decided_at, deliver_after, delivered_at, created_by, created_at, request_id, options:decision_options(position, label, recommended, client_words, asks_client, replies)";
 export const REQUEST_COLUMNS = "id, member_id, title, body, status, message_id, from_line, created_at, updated_at";

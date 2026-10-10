@@ -157,7 +157,7 @@ async function workClient(rpc, seat, engines, job) {
       model: seat.model || process.env.LONGTABLE_MODEL });
     if (result.is_error) throw new Error(result.result || "Claude Code reported an error");
     s = result.structured_output;
-    limits = result.limits;
+    limits = result.limits && { ...result.limits, models: ["opus", "sonnet", "haiku"] };
     info = { model: Object.keys(result.modelUsage || {})[0] || seat.model || process.env.LONGTABLE_MODEL || "default",
       usage: { input: result.usage?.input_tokens, output: result.usage?.output_tokens, wall_ms: result.wall_ms,
         cost_usd_equivalent: result.total_cost_usd } };
@@ -208,8 +208,14 @@ async function workPacked(rpc, seat, engines, job, copy) {
   await report(rpc, seat, limits, model);
 }
 
+// The model the person picked for their AI at the table, if any. It wins over the one set when connecting.
+async function chosenModel(rpc, seat) {
+  try { return (await rpc("runner_model", { token: seat.token })) || null; } catch { return null; }
+}
+
 async function work(rpc, seat, engines, job) {
   log(`${job.kind} job ${job.job_id} for ${job.me}`);
+  seat = { ...seat, model: (await chosenModel(rpc, seat)) || seat.model };
   if (job.kind === "client") {
     try {
       await workClient(rpc, seat, engines, job);
@@ -262,7 +268,7 @@ async function work(rpc, seat, engines, job) {
       },
     });
     log(`${job.kind} job ${job.job_id} done in ${result.wall_ms} ms`);
-    await report(rpc, seat, result.limits, Object.keys(result.modelUsage || {})[0] || seat.model || process.env.LONGTABLE_MODEL);
+    await report(rpc, seat, { ai: "claude", ...(result.limits || {}), models: ["opus", "sonnet", "haiku"] }, Object.keys(result.modelUsage || {})[0] || seat.model || process.env.LONGTABLE_MODEL);
   } catch (e) {
     log(`${job.kind} job ${job.job_id} failed: ${e.message}`);
     try { await rpc("runner_fail", { token: seat.token, job: job.job_id, reason: e.message }); } catch {}

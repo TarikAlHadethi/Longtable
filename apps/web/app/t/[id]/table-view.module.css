@@ -15,7 +15,7 @@
 /* Room on every side for shadows and the invite seat; scrolls sideways only when the team is wider than the page. */
 .scroller { width: 100%; overflow-x: auto; display: flex; padding: 16px 24px 56px; margin-bottom: -30px; scrollbar-width: thin; }
 .tree { margin: 0 auto; width: calc(var(--cols) * 236px); max-width: max(100%, calc(var(--cols) * 176px)); flex-shrink: 0; display: flex; flex-direction: column; align-items: center; }
-.row { position: relative; width: 100%; display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); }
+.row { position: relative; z-index: 1; width: 100%; display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); }
 .col { display: flex; flex-direction: column; align-items: center; padding: 0 9px; min-width: 0; animation: tv-rise 0.55s var(--ease-out) both; animation-delay: calc(var(--i) * 110ms + 0.5s); }
 
 .person { display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; }
@@ -54,6 +54,25 @@
 .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--online); animation: tv-ping 2.4s ease-out infinite; }
 .dotBusy { background: var(--glow); animation: tv-pulse 0.8s ease-in-out infinite; }
 .aiName { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+/* Disconnected: the box stays, greyed, on the model it last ran. */
+.aiOff { background: var(--chip); border-color: var(--line-strong); box-shadow: none; color: var(--muted); }
+.aiOff svg { filter: grayscale(1); opacity: 0.55; }
+.aiOff .dot { background: var(--faint); animation: none; }
+.aiOff .aiName, .aiOff .model { color: var(--muted); }
+.again { align-self: flex-start; margin-top: 6px; background: none; border: 0; padding: 0; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--link); text-decoration: underline; cursor: pointer; }
+
+/* The model, for the person whose AI it is: plain words until the pointer is over them, then a box to pick from.
+   The box's edge and padding are always there, see-through, so nothing moves when it appears. */
+.pick { position: relative; display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; cursor: pointer; border: 1px solid transparent; border-radius: 9px; padding: 3px 24px 3px 8px; margin: -4px -9px;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease; }
+.pick::after { content: ""; position: absolute; right: 9px; top: 50%; margin-top: -4px; width: 7px; height: 7px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: translateY(-1px) rotate(45deg); opacity: 0; transition: opacity 0.15s ease; }
+.pick:hover, .pick:focus-within { border-color: var(--line-strong); background: var(--card); box-shadow: 0 4px 14px oklch(0.2 0.01 70 / 0.1); }
+.pick:hover::after, .pick:focus-within::after { opacity: 0.7; }
+.pickText { animation: tv-swap 0.4s var(--ease-out) both; }
+.pickSelect { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 15px; }
+/* On the table the words stay dead centre: the same room on both sides, the arrow inside the right one. */
+.table .pick { align-self: center; margin: -4px 0; padding: 3px 24px; }
+.tableQuiet { color: var(--muted); }
 .model { font-size: 18px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.2; animation: tv-swap 0.4s var(--ease-out) both; overflow-wrap: anywhere; }
 
 .plus, .none { align-items: center; justify-content: center; text-align: center; gap: 4px; border: 2px dashed var(--line-dashed); background: transparent; color: var(--ink); font: inherit; }
@@ -67,9 +86,11 @@
 
 /* AI to the table: one smooth line. Faint until an AI is connected; then it takes its maker's colour and a light
    runs along it toward the table, faster while that AI is working. */
-.funnel { width: 100%; height: 104px; display: block; overflow: visible; animation: tv-fade 0.6s ease 0.85s both; }
+.funnel { position: relative; z-index: 0; width: 100%; height: 104px; display: block; overflow: visible; animation: tv-fade 0.6s ease 0.85s both; }
 .wire, .wireOff, .pulse { fill: none; stroke-linecap: round; }
 .wireOff { stroke: var(--line-strong); stroke-width: 2; }
+/* An AI that was here and is not now: its wire turns red. */
+.wireDown { fill: none; stroke-linecap: round; stroke: var(--danger); stroke-width: 3; opacity: 0.75; }
 .wire { stroke: var(--tone); stroke-width: 3; opacity: 0.45; }
 .pulse { stroke: var(--tone); stroke-width: 4; stroke-dasharray: 46 260; animation: tv-flow 2.6s linear infinite; filter: drop-shadow(0 0 4px var(--tone)); }
 .wire_claude { --tone: OKLCH(0.68 0.13 45); }
@@ -101,7 +122,7 @@
 @keyframes tv-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 @keyframes tv-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes tv-swap { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-@keyframes tv-stem { from { background-position: 0 -100%; } to { background-position: 0 200%; } }
+@keyframes tv-stem { from { background-position: 0 200%; } to { background-position: 0 -100%; } }
 @keyframes tv-flow { from { stroke-dashoffset: 306; } to { stroke-dashoffset: 0; } }
 @keyframes tv-ping { 0% { box-shadow: 0 0 0 0 oklch(0.6 0.12 150 / 0.5); } 70%, 100% { box-shadow: 0 0 0 8px oklch(0.6 0.12 150 / 0); } }
 @keyframes tv-pulse { 0%, 100% { opacity: 0.4; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.15); } }
