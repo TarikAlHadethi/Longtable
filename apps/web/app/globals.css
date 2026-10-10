@@ -142,6 +142,14 @@ a { transition: color 0.15s ease; }
 .mark-live rect { transform-box: fill-box; transform-origin: center; animation: lt-lay 0.5s var(--ease-out) both; }
 .mark-live circle { transform-box: fill-box; transform-origin: center; animation: lt-pop 0.45s var(--ease-spring) both; animation-delay: calc(var(--i) * 70ms + 260ms); }
 
+
+/* Sections rise into place the first time they scroll into view (components/reveal.tsx). */
+.reveal { opacity: 0; transform: translateY(22px); transition: opacity 0.7s var(--ease-out), transform 0.7s var(--ease-out); }
+.reveal-in { opacity: 1; transform: none; }
+html { scroll-behavior: smooth; }
+
 @media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; }
+  html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }

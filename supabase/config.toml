@@ -416,9 +416,9 @@ enabled = true
 
 # Longtable signs people in with a six-digit code by email.
 [auth.email.template.magic_link]
-subject = "Your Longtable code"
+subject = "{{ .Token }} is your Longtable code"
 content_path = "./supabase/templates/code.html"
 
 [auth.email.template.confirmation]
-subject = "Your Longtable code"
+subject = "{{ .Token }} is your Longtable code"
 content_path = "./supabase/templates/code.html"

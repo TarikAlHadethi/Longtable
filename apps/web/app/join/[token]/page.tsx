@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Mark } from "@/components/mark";
+import { AuthShell } from "@/components/auth-shell";
+import s from "@/components/auth.module.css";
 import { serverClient } from "@/lib/supabase/server";
 import { JoinForm } from "./join-form";
 
@@ -21,30 +22,22 @@ export default async function Join({ params }: { params: Promise<{ token: string
   } else if (!user) {
     body = (
       <>
-        <p className="note" style={{ margin: 0 }}>
-          You're invited to <strong>{preview.table_name}</strong> as {preview.role === "client" ? "the client" : "a developer"}.
-        </p>
+        <div className={s.invited}>You are invited to<b>{preview.table_name}</b>as {preview.role === "client" ? "the client" : "a developer"}.</div>
         <Link className="btn" href={`/sign-in?next=/join/${token}`}>Sign in to join</Link>
       </>
     );
   } else {
     body = (
       <>
-        <p className="note" style={{ margin: 0 }}>
-          You're invited to <strong>{preview.table_name}</strong> as {preview.role === "client" ? "the client" : "a developer"}.
-        </p>
+        <div className={s.invited}>You are invited to<b>{preview.table_name}</b>as {preview.role === "client" ? "the client" : "a developer"}.</div>
         <JoinForm token={token} name={preview.name} />
       </>
     );
   }
 
   return (
-    <main className="page-center">
-      <div className="panel">
-        <Mark size={40} />
-        <h1>Join a table</h1>
-        {body}
-      </div>
-    </main>
+    <AuthShell title="Join a table">
+      {body}
+    </AuthShell>
   );
 }

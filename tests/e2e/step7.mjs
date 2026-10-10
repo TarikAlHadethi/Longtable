@@ -34,7 +34,7 @@ try {
   // The opening screen: one sentence, Start, Start demo.
   await page.goto(APP);
   check("the opening screen says what it is and offers Start and the demo",
-    (await page.textContent("body")).includes("One room where your team") && await page.isVisible("a:has-text('Start demo')"));
+    (await page.textContent("body")).includes("at one table") && await page.isVisible("a:has-text('Start demo')"));
   await page.click("a:has-text('Start')");
   await signIn(page, `new-${run}@example.test`);
   await page.waitForURL(/\/start$/);
