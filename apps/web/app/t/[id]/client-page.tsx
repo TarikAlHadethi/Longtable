@@ -26,7 +26,11 @@ const SHOWN: Record<Status, { words: string; pill: string; next?: string }> = {
   done: { words: "Done", pill: styles.pillDone },
 };
 const byTime = <T extends { created_at: string }>(a: T, b: T) => a.created_at.localeCompare(b.created_at);
-const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
+// "Elena Ruiz" is greeted as Elena; "Dr. Ruiz" stays Dr. Ruiz, never just "Dr.".
+const firstName = (name: string) => {
+  const words = name.trim().split(/\s+/);
+  return /^(dr|mr|mrs|ms|miss|prof|sir|dame)\.?$/i.test(words[0] ?? "") && words[1] ? `${words[0]} ${words[1]}` : words[0] || name;
+};
 const sentence = (s: string) => `${s.charAt(0).toUpperCase()}${s.slice(1)}${/[.!?]$/.test(s) ? "" : "."}`;
 
 function greeting(name: string) {

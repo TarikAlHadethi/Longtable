@@ -70,6 +70,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const [draft, setDraft] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const [inboxOpen, setInboxOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [asking, setAsking] = useState(false);
   const [naming, setNaming] = useState(false);
   const [newChat, setNewChat] = useState("");
@@ -271,6 +272,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     atBottom.current = true;
     window.history.replaceState(null, "", `?c=${id}`);
     setInboxOpen(false);
+    setDrawerOpen(false);
   }
 
   function onScroll() {
@@ -385,6 +387,9 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   return (
     <div className={styles.shell}>
       <header className={styles.header}>
+        <button className={styles.menuToggle} aria-label="Menu" aria-expanded={drawerOpen} onClick={() => { setDrawerOpen(!drawerOpen); setInboxOpen(false); }}>
+          <span /><span /><span />
+        </button>
         <div className={styles.brand}><Mark size={26} /> Longtable</div>
         <div className={styles.divider} />
         <div className={styles.project}>{table.name}</div>
@@ -394,15 +399,17 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
             <div key={m.id} className={styles.face} style={{ background: m.color }}>{initial(m.display_name)}</div>
           ))}
         </div>
-        <button className={`btn btn-quiet ${styles.inboxToggle}`} onClick={() => setInboxOpen(!inboxOpen)}>
+        <button className={`btn btn-quiet ${styles.inboxToggle}`} onClick={() => { setInboxOpen(!inboxOpen); setDrawerOpen(false); }}>
           Inbox{open.length > 0 ? ` (${open.length})` : ""}
         </button>
-        {me.role === "owner" && <Link className="btn btn-quiet" href={`/t/${table.id}/settings`}>Settings</Link>}
+        {me.role === "owner" && <Link className={`btn btn-quiet ${styles.headerSettings}`} href={`/t/${table.id}/settings`}>Settings</Link>}
         {me.role === "owner" && <Invite tableId={table.id} />}
       </header>
 
       <div className={styles.grid}>
-        <aside className={styles.aside}>
+        {drawerOpen && <button className={styles.drawerBack} aria-label="Close the menu" onClick={() => setDrawerOpen(false)} />}
+        <aside className={`${styles.aside} ${drawerOpen ? styles.asideOpen : ""}`} aria-label="Menu">
+          <div className={styles.drawerProject}>{table.name}</div>
           <div className={styles.section}>
             <div className={styles.sectionHead}>
               <div className={styles.sectionTitle}>Chats</div>
@@ -461,6 +468,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           </div>
           <div className={styles.section}>
             <Link className={styles.chat} href={`/t/${table.id}/activity`}>Activity</Link>
+            {me.role === "owner" && <Link className={styles.chat} href={`/t/${table.id}/settings`}>Settings</Link>}
           </div>
         </aside>
 
