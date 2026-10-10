@@ -316,7 +316,14 @@
   border-radius: 16px; padding: 8px; display: flex; flex-direction: column; gap: 2px; box-shadow: 0 24px 60px oklch(0.2 0.01 70 / 0.22);
   animation: lt-modal 0.18s var(--ease-out) both; transform-origin: top right;
 }
-.meHead { display: flex; align-items: center; gap: 11px; padding: 8px 8px 12px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
+/* Your own bar: the whole of it opens your window; the pencil only says so. */
+.meHead { display: flex; align-items: center; gap: 11px; width: 100%; padding: 8px; margin-bottom: 4px; border: 0; border-radius: 11px; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; transition: background-color 0.12s ease; }
+.meHead:hover:not(:disabled) { background: var(--hover); }
+.meHead:disabled { cursor: default; }
+.meWho { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mePencil { color: var(--faint); display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; transition: color 0.12s ease, transform 0.15s var(--ease-out); }
+.meHead:hover .mePencil { color: var(--ink); transform: scale(1.1); }
+.meMenu > .meItem:first-of-type { margin-top: 4px; }
 .meFace { width: 40px; height: 40px; border-radius: 50%; color: white; font-size: 16px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
 .meName { font-size: 15px; font-weight: 600; }
 .meRole { font-size: 12px; color: var(--muted); }
@@ -412,3 +419,21 @@
 .personButton:active { transform: scale(0.985); }
 .personOn { background: var(--chip); }
 .personOn .presence, .personButton:hover .presence { border-color: var(--chip); }
+
+/* Pictures can hold a photo. */
+.face, .messageAvatar, .useFace, .meFace, .meButton { position: relative; }
+.meButton { display: grid; place-items: center; overflow: hidden; }
+
+/* The middle of the room when something floats over it: the glass, and the haze of leaning in. */
+.stage { position: relative; overflow: hidden; }
+/* Settings and logs take the room's whole width beside the sidebar. */
+.gridWide { grid-template-columns: 264px 1fr; }
+.setPage { flex: 1; min-height: 0; overflow-y: auto; padding: 32px clamp(18px, 4vw, 48px) 56px; display: flex; flex-direction: column; gap: 20px; animation: lt-rise 0.22s var(--ease-out) both; }
+.setPage > * { width: 100%; max-width: 1080px; margin: 0 auto; flex-shrink: 0; }
+.setHead { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.setTitle { margin: 0; font-size: 26px; letter-spacing: -0.02em; font-weight: 600; }
+.seg { display: flex; background: var(--chip); border-radius: 11px; padding: 3px; }
+.seg button { border: 0; background: none; font: inherit; font-size: 14px; font-weight: 600; color: var(--muted); padding: 7px 16px; border-radius: 9px; cursor: pointer; transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease; }
+.seg button:hover { color: var(--ink); }
+.seg .segOn { background: var(--card); color: var(--ink); box-shadow: 0 1px 4px oklch(0.2 0.01 70 / 0.18); }
+@media (max-width: 900px) { .gridWide { grid-template-columns: 1fr; } }

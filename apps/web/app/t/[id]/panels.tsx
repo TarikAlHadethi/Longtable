@@ -1,123 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AI_NAME, AiLogo } from "@/components/ai-logo";
-import { Bug, Crown } from "@/components/icons";
+import { Bug } from "@/components/icons";
 import { Time } from "@/components/time";
-import { downloadExport } from "@/lib/download";
 import { browserClient } from "@/lib/supabase/browser";
-import { prettyModel } from "./model-pick";
-import { UsagePanel } from "./usage-panel";
-import type { Connection, Member } from "./types";
+import type { Member } from "./types";
 import s from "./panels.module.css";
-
-const ROLE = { owner: "Owner", developer: "Developer", client: "Client" } as const;
-const initial = (name: string) => name.trim().charAt(0).toUpperCase() || "?";
-const day = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "");
-
-// One person, in the middle of the room: who they are, when they joined, their AI and its limits, and what the
-// owner may do about them.
-export function PersonPanel({ table, me, person, connections, here, onGone, onNotice }: {
-  table: { id: string; name: string };
-  me: Member;
-  person: Member;
-  connections: Connection[];
-  here: boolean;
-  onGone: () => void;
-  onNotice: (text: string) => void;
-}) {
-  const supabase = browserClient();
-  const [asking, setAsking] = useState<"owner" | "remove" | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  useEffect(() => { setAsking(null); setError(""); }, [person.id]);
-  const mine = person.id === me.id;
-  const conn = connections.find((c) => c.member_id === person.id && !c.revoked_at);
-  const model = conn ? prettyModel(conn.model_choice) ?? (conn.kind === "claude" ? "Opus 5.5" : prettyModel(conn.limits?.model)) : null;
-  const first = person.display_name.split(" ")[0];
-
-  async function run(fn: "transfer_ownership" | "remove_member", done: string) {
-    setBusy(true);
-    setError("");
-    const { error } = await supabase.rpc(fn, { m: person.id });
-    setBusy(false);
-    setAsking(null);
-    if (error) return setError(error.message);
-    onNotice(done);
-    if (fn === "remove_member") onGone();
-  }
-
-  return (
-    <div className={s.page} data-testid="person-panel" key={person.id}>
-      <div className={s.hero}>
-        <span className={s.face} style={{ background: person.color }}>
-          {initial(person.display_name)}
-          {person.role === "owner" && <span className={s.crown}><Crown /></span>}
-          <i className={here ? s.here : s.away} />
-        </span>
-        <h1 className={s.name}>{person.display_name}</h1>
-        <div className={s.sub}>{ROLE[person.role]} · {here ? "here now" : "away"}</div>
-      </div>
-
-      <div className={s.facts}>
-        <div className={s.fact}><span>Joined</span><b>{day(person.created_at) || "Not known"}</b></div>
-        <div className={s.fact}>
-          <span>AI</span>
-          <b className={s.ai}>
-            {conn ? <><AiLogo kind={conn.kind} size={18} />{AI_NAME[conn.kind]}{model ? ` ${model}` : ""}</> : "None connected"}
-          </b>
-        </div>
-        {conn?.last_seen && <div className={s.fact}><span>Last answered the table&apos;s call</span><b><Time iso={conn.last_seen} style="stamp" /></b></div>}
-      </div>
-
-      {person.role !== "client" && conn && (
-        <section className={s.block}>
-          <h2 className={s.h2}>Usage</h2>
-          <UsagePanel members={[person]} connections={connections} bare />
-        </section>
-      )}
-
-      {error && <div className="error" role="alert">{error}</div>}
-
-      {mine && (
-        <section className={s.block}>
-          <h2 className={s.h2}>Yours</h2>
-          <div className={s.row}>
-            <button className="btn btn-quiet" onClick={async () => { const p = await downloadExport("export_mine", table.id, table.name); if (p) setError(p); }}>Download what&apos;s mine</button>
-          </div>
-        </section>
-      )}
-
-      {me.role === "owner" && !mine && (
-        <section className={s.block}>
-          <h2 className={s.h2}>Owner&apos;s actions</h2>
-          {asking === "owner" ? (
-            <div className={s.ask}>
-              <p>{first} becomes the owner and you become a developer. Only {first} can hand it back.</p>
-              <div className={s.row}>
-                <button className="btn" disabled={busy} onClick={() => run("transfer_ownership", `${first} now owns ${table.name}.`)}>Make {first} the owner</button>
-                <button className="btn btn-quiet" onClick={() => setAsking(null)}>Keep it</button>
-              </div>
-            </div>
-          ) : asking === "remove" ? (
-            <div className={s.ask}>
-              <p>{first} loses access at once and their AI is disconnected. Their messages stay.</p>
-              <div className={s.row}>
-                <button className="btn" disabled={busy} onClick={() => run("remove_member", `${first} was taken off the table.`)}>Take {first} off</button>
-                <button className="btn btn-quiet" onClick={() => setAsking(null)}>Keep</button>
-              </div>
-            </div>
-          ) : (
-            <div className={s.row}>
-              {person.role === "developer" && <button className="btn btn-quiet" onClick={() => setAsking("owner")}><Crown size={15} />Make owner</button>}
-              <button className="btn btn-quiet" onClick={() => setAsking("remove")}>Take off the table</button>
-            </div>
-          )}
-        </section>
-      )}
-    </div>
-  );
-}
 
 type Entry = { id: number; actor: string | null; action: string; details: Record<string, string | boolean>; created_at: string };
 
@@ -163,8 +51,7 @@ export function LogsPanel({ table, members }: { table: { id: string; name: strin
   }
 
   return (
-    <div className={s.page} data-testid="logs-panel">
-      <h1 className={s.title}>Logs</h1>
+    <div className={s.logs} data-testid="logs-panel">
       {entries === null && <div className={s.loading}><i /><i /><i /></div>}
       {entries?.length === 0 && <p className="note">Nothing yet.</p>}
       <ol className={s.log}>

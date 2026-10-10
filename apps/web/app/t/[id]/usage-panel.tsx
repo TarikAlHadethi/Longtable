@@ -1,6 +1,7 @@
 "use client";
 
 import { AI_NAME } from "@/components/ai-logo";
+import { Face } from "@/components/face";
 import { useInBrowser } from "@/components/time";
 import { prettyModel } from "./model-pick";
 import type { Connection, Member } from "./types";
@@ -40,7 +41,7 @@ export function UsagePanel({ members, connections, bare = false }: { members: Me
         return (
           <section key={m.id} className={`${styles.use} ${conn ? "" : styles.useOff}`} style={{ animationDelay: `${i * 60}ms` }} data-usage={m.display_name}>
             {!bare && <div className={styles.useHead}>
-              <span className={styles.useFace} style={{ background: m.color }}>{m.display_name.trim().charAt(0).toUpperCase()}</span>
+              <span className={styles.useFace} style={{ background: m.color }}><Face who={m} /></span>
               <div>
                 <div className={styles.useName}>{m.display_name}</div>
                 <div className={styles.useAi}>{conn ? [AI_NAME[conn.kind], conn.limits?.plan, model].filter(Boolean).join(" · ") : "No AI"}</div>

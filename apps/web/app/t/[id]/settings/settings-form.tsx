@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Select } from "@/components/select";
 import { downloadExport } from "@/lib/download";
 import { browserClient } from "@/lib/supabase/browser";
-import panel from "../panels.module.css";
 import styles from "./settings.module.css";
 
 type Person = { id: string; display_name: string; role: "owner" | "developer" | "client"; color: string };
@@ -119,10 +118,10 @@ export function SettingsForm({ table, me, people, chats, onRenamed, onRemoved }:
   }
 
   return (
-    <div className={`${panel.page} ${loaded ? "" : styles.loadingForm}`} data-testid="settings-panel">
-        <h1 className={panel.title}>Settings</h1>
-        {error && <div className="error" role="alert">{error}</div>}
+    <div className={`${styles.cols} ${loaded ? "" : styles.loadingForm}`} data-testid="settings-panel">
+        {error && <div className={`error ${styles.wide}`} role="alert">{error}</div>}
 
+        <div className={styles.col}>
         <form className={styles.card} onSubmit={saveTable} aria-label="The table">
           <div className={styles.cardTitle}>The table</div>
           <label className="label" htmlFor="s-name">Name</label>
@@ -154,6 +153,8 @@ export function SettingsForm({ table, me, people, chats, onRenamed, onRemoved }:
           </div>
         </form>
 
+        </div>
+        <div className={styles.col}>
         <section className={styles.card} aria-label="GitHub">
           <div className={styles.cardTitle}>GitHub</div>
           <div className="note">Pushes to main, merged pull requests and failed CI runs show up in General. Longtable never keeps any code.</div>
@@ -213,6 +214,7 @@ export function SettingsForm({ table, me, people, chats, onRenamed, onRemoved }:
           ))}
           <div className="note">Taking someone off ends their access at once and disconnects their AI. Their messages stay.</div>
         </section>
+        </div>
     </div>
   );
 }

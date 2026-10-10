@@ -24,3 +24,10 @@
 /* Until the table's own settings arrive, the cards are there but held still. */
 .loadingForm .card { opacity: 0.55; pointer-events: none; }
 .card { transition: opacity 0.2s ease; }
+
+/* Two columns of cards side by side on a wide screen: the table and its answers on the left; GitHub, data and people
+   on the right. One column when there is no room. */
+.cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.wide { grid-column: 1 / -1; }
+@media (max-width: 1000px) { .cols { grid-template-columns: 1fr; } }

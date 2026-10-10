@@ -14,7 +14,7 @@ export type RoomView = "table" | "chat" | "logs" | "settings";
 
 // The room, opened on the table, a chat, the logs or the settings. Each of those has its own address, and all of them
 // are this one page: moving between them inside the room never goes back to the server.
-export async function RoomPage({ id, wanted, view }: { id: string; wanted?: string | string[]; view?: "logs" | "settings" }) {
+export async function RoomPage({ id, wanted, view, side }: { id: string; wanted?: string | string[]; view?: "logs" | "settings"; side?: boolean }) {
   const supabase = await serverClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect(`/sign-in?next=/t/${id}${view === "settings" ? "/settings" : view === "logs" ? "/activity" : ""}`);
@@ -24,7 +24,7 @@ export async function RoomPage({ id, wanted, view }: { id: string; wanted?: stri
 
   const { data: rows } = await supabase
     .from("members")
-    .select("id, user_id, display_name, role, color, created_at")
+    .select("id, user_id, display_name, role, color, created_at, avatar, name_color, status")
     .eq("table_id", id)
     .is("removed_at", null)
     .order("created_at");
@@ -86,7 +86,7 @@ export async function RoomPage({ id, wanted, view }: { id: string; wanted?: stri
       initialNotes={(notes ?? []) as Note[]}
       initialRequests={(requests ?? []) as Request[]}
       initialChatId={start?.id ?? ""}
-      initialView={view === "settings" ? (mine.role === "owner" ? "settings" : "table") : view ?? (want ? "chat" : "table")}
+      initialView={view === "settings" ? (mine.role === "owner" ? "settings" : "logs") : view ?? (side ? "client" : want ? "chat" : "table")}
       initialTableModel={(tableAi as { model: string | null } | null)?.model ?? null}
     />
   );
