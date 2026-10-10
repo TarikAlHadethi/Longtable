@@ -36,7 +36,7 @@ export function UsagePanel({ members, connections }: { members: Member[]; connec
       {team.map((m, i) => {
         const conn = connections.find((c) => c.member_id === m.id && !c.revoked_at);
         const windows = conn?.limits?.windows ?? [];
-        const model = prettyModel(conn?.model_choice) ?? prettyModel(conn?.limits?.model);
+        const model = prettyModel(conn?.model_choice) ?? (conn?.kind === "claude" ? "Opus 5.5" : prettyModel(conn?.limits?.model));
         return (
           <section key={m.id} className={`${styles.use} ${conn ? "" : styles.useOff}`} style={{ animationDelay: `${i * 60}ms` }} data-usage={m.display_name}>
             <div className={styles.useHead}>

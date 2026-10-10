@@ -30,29 +30,12 @@ export const Sun = (p: Props) => (
 );
 export const Moon = (p: Props) => <Svg {...p}><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.500 10.500z" /></Svg>;
 
-// The owner's crown: three points with a pearl on each, a band with a stone, in shaded gold. It is worn a little
-// crooked by whoever places it.
+// The owner's crown: one plain gold shape, edged in the page's own colour so it reads cleanly where it overlaps the
+// picture it sits on.
 export const Crown = ({ size = 16 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 32 28" aria-hidden="true" focusable="false" style={{ display: "block", flexShrink: 0, overflow: "visible" }}>
-    <defs>
-      <linearGradient id="lt-crown-gold" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor="#FFE9A3" />
-        <stop offset="0.45" stopColor="#F4C24B" />
-        <stop offset="1" stopColor="#C98A1B" />
-      </linearGradient>
-      <linearGradient id="lt-crown-band" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor="#E9B13A" />
-        <stop offset="1" stopColor="#A86E12" />
-      </linearGradient>
-    </defs>
-    <path d="M4.2 21.5 2.6 8.9c-.1-.7.7-1.1 1.2-.7l6 4.8c.4.3 1 .2 1.200-.2l4.200-8.300c.3-.6 1.200-.6 1.500 0l4.200 8.300c.2.4.800.5 1.200.2l6-4.800c.5-.4 1.300 0 1.200.7l-1.600 12.600z"
-      fill="url(#lt-crown-gold)" stroke="#9A640F" strokeWidth="1" strokeLinejoin="round" />
-    <rect x="4" y="21" width="24" height="4.600" rx="1.600" fill="url(#lt-crown-band)" stroke="#9A640F" strokeWidth="1" />
-    <circle cx="2.900" cy="7.600" r="1.900" fill="#FFF3C9" stroke="#9A640F" strokeWidth="0.900" />
-    <circle cx="16" cy="3.300" r="2.100" fill="#FFF3C9" stroke="#9A640F" strokeWidth="0.900" />
-    <circle cx="29.100" cy="7.600" r="1.900" fill="#FFF3C9" stroke="#9A640F" strokeWidth="0.900" />
-    <circle cx="16" cy="23.300" r="1.300" fill="#D8524A" />
-    <path d="M8 18.500c2.500-.9 5.200-1.300 8-1.300" fill="none" stroke="#FFF6D6" strokeWidth="0.900" strokeLinecap="round" opacity="0.700" />
+  <svg width={size} height={size} viewBox="0 0 24 20" aria-hidden="true" focusable="false" style={{ display: "block", flexShrink: 0, overflow: "visible" }}>
+    <path d="M3.200 16.500 1.800 5.600a.700.700 0 0 1 1.130-.640L7.400 8.400 11.380 2.300a.740.740 0 0 1 1.240 0L16.600 8.400l4.470-3.440a.700.700 0 0 1 1.130.640L20.800 16.500a1.500 1.500 0 0 1-1.490 1.300H4.690a1.500 1.500 0 0 1-1.490-1.300z"
+      fill="OKLCH(0.8 0.15 85)" stroke="var(--paper)" strokeWidth="2.400" strokeLinejoin="round" paintOrder="stroke" />
   </svg>
 );
 export const Plug = (p: Props) => <Svg {...p}><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0V8zM12 17v4" /></Svg>;

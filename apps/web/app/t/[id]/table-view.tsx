@@ -65,7 +65,10 @@ export function TableView({ table, me, members, connections, jobs, online, messa
   const last = [...messages].reverse().find((m) => m.by_ai && (m.kind === "answer" || !m.kind));
   const lastModel = prettyModel(last?.meta?.model);
   // A person's AI: what they picked, else what it last ran.
-  const modelText = (c: Connection, none = "Connected") => prettyModel(c.model_choice) ?? prettyModel(c.limits?.model) ?? none;
+  // Automatic means a set model, not a mirror of anything else: Opus 5.5 for a person's Claude, Sonnet 5.5 for the
+  // table. ChatGPT's automatic is whatever Codex itself defaults to.
+  const modelText = (c: Connection) => prettyModel(c.model_choice) ?? (c.kind === "claude" ? "Opus 5.5" : prettyModel(c.limits?.model) ?? "Connected");
+  const tableText = (c: Connection) => prettyModel(tableModel) ?? (c.kind === "claude" ? "Sonnet 5.5" : prettyModel(c.limits?.model) ?? "");
   const general = [...chats].sort((a, b) => Number(b.is_general) - Number(a.is_general))[0];
 
   return (
@@ -88,7 +91,7 @@ export function TableView({ table, me, members, connections, jobs, online, messa
                   <div className={s.person}>
                     <span className={s.avatar} style={{ background: m.color }}>
                       {initial(m.display_name)}
-                      {m.role === "owner" && <span className={s.crown}><Crown size={22} /></span>}
+                      {m.role === "owner" && <span className={s.crown}><Crown size={24} /></span>}
                       <i className={online.has(m.id) ? s.here : s.away} />
                     </span>
                     <div className={s.name}>{m.display_name}</div>
@@ -151,7 +154,7 @@ export function TableView({ table, me, members, connections, jobs, online, messa
             <Mark size={64} />
             {anyBusy ? <div className={s.tableModel}>Working on an answer…</div>
               : writer ? <ModelPick kind={writer.seat!.conn.kind} value={tableModel ?? ""} reported={writer.seat!.conn.limits?.models} centre testid="table-model"
-                  text={`${AI_NAME[writer.seat!.conn.kind]} ${tableModel ? prettyModel(tableModel) ?? tableModel : modelText(writer.seat!.conn, "")}`.trim()}
+                  text={`${AI_NAME[writer.seat!.conn.kind]} ${tableText(writer.seat!.conn)}`.trim()}
                   className={s.tableModel} canPick onPick={onTableModel} />
               : last ? <div className={`${s.tableModel} ${s.tableQuiet}`}>{AI_NAME[kindOfModel(last.meta?.model)]}{lastModel ? ` ${lastModel}` : ""}</div>
               : <div className={s.tableModel}>No AI connected yet</div>}

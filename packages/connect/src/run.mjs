@@ -209,22 +209,26 @@ async function workPacked(rpc, seat, engines, job, copy) {
 }
 
 // The model for this job. The table's own answer (a direct answer, or the one combined from views) runs on the
-// model picked for the table; a view or an introduction runs on the one the person picked for their own AI.
-// A pick made for the other maker's AI is ignored, and with no pick the AI keeps its own default.
+// model picked for the table; a view or an introduction runs on the one the person picked for their own AI. Neither
+// pick stands in for the other. With no pick, Claude runs Sonnet 5.5 for the table and Opus 5.5 for the person;
+// ChatGPT keeps Codex's own default. A pick made for the other maker's AI is ignored.
 const fits = (kind, model) => !!model && (/^(claude|opus|sonnet|haiku|fable)/i.test(model) === (kind === "claude"));
+const AUTOMATIC = { table: "claude-sonnet-5-5", mine: "claude-opus-5-5" };
 async function chosenModel(rpc, seat, job) {
+  const forTable = job.kind === "answer" || job.kind === "combine";
+  let pick = null;
   try {
     const picks = (await rpc("runner_models", { token: seat.token })) || {};
-    const wanted = job.kind === "answer" || job.kind === "combine" ? [picks.table, picks.mine] : [picks.mine];
-    return wanted.find((m) => fits(seat.kind, m)) || null;
-  } catch {
-    return null;
-  }
+    pick = forTable ? picks.table : picks.mine;
+  } catch {}
+  if (fits(seat.kind, pick)) return pick;
+  // A model named when connecting, or by the tests, comes before the automatic one.
+  return seat.model || process.env.LONGTABLE_MODEL || (seat.kind === "claude" ? AUTOMATIC[forTable ? "table" : "mine"] : null);
 }
 
 async function work(rpc, seat, engines, job) {
   log(`${job.kind} job ${job.job_id} for ${job.me}`);
-  seat = { ...seat, model: (await chosenModel(rpc, seat, job)) || seat.model };
+  seat = { ...seat, model: await chosenModel(rpc, seat, job) };
   if (job.kind === "client") {
     try {
       await workClient(rpc, seat, engines, job);
