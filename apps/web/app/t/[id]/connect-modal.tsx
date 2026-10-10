@@ -77,6 +77,7 @@ export function ConnectModal({ tableId, tableName, audience = "team", connected,
           : "Please run this command in this folder, and leave it running in the background:",
         `${command} connect ${code}${kind === "codex" ? " --ai codex" : ""}${repo ? ` --repo ${repo}` : ""} --app ${app}`,
         ...(kind === "codex" ? ["If Codex's command-line tool is missing, install it first with npm install -g @openai/codex."] : []),
+        "It is Longtable's own connection, about 60 KB of plain JavaScript. Read it before running it if you like: download the package, unpack it and look.",
         audience === "client"
           ? `It lets my ${name} answer me there on my own plan. It gets no code and changes no files.`
           : `It lets my ${name} answer questions at the table on my own plan. The code stays on this computer: the connection keeps its own copy of the project's committed code here, sends only its answers to the table, and never changes my files.`,
