@@ -26,7 +26,7 @@ try {
   await owner.page.click("div[role=dialog] button:has-text('Save')");
 
   const mine = await owner.page.locator("[data-testid=connect-message]").textContent();
-  check("the setup message carries the address and no longer asks for a folder", mine.includes(` --repo ${REPO} `) && !/in this folder/.test(mine) && /stays on this computer/.test(mine), mine);
+  check("the setup message carries the address and no longer asks for a folder", mine.includes(` --repo ${REPO} `) && !/in this folder/.test(mine) && /Only its answers leave this computer/.test(mine), mine);
 
   await dev.page.click("button:has-text('Connect my AI')");
   await dev.page.click("[data-testid=pick-codex]");

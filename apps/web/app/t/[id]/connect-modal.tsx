@@ -71,17 +71,14 @@ export function ConnectModal({ tableId, tableName, audience = "team", connected,
   const message = code && kind
     ? [
         audience === "client"
-          ? `I want to connect my ${name} to "${tableName}" on Longtable (${app}), as my own assistant there. I pressed Connect there myself, and it wrote this message for me to send you.`
-          : `I want to connect my ${name} to my team's table "${tableName}" on Longtable (${app}), a tool my team uses. I pressed Connect there myself, and it wrote this message for me to send you.`,
-        audience === "client" || repo
-          ? "Please run this command, and leave it running in the background:"
-          : "Please run this command in this folder, and leave it running in the background:",
+          ? `Connect my ${name} to "${tableName}" on Longtable, as my own assistant there. Please run this and keep it running in the background:`
+          : `Connect my ${name} to my team's Longtable table "${tableName}". Please run this${repo ? "" : " in this folder"} and keep it running in the background:`,
         `${command} connect ${code}${kind === "codex" ? " --ai codex" : ""}${repo ? ` --repo ${repo}` : ""} --app ${app}`,
         ...(kind === "codex" ? ["If Codex's command-line tool is missing, install it first with npm install -g @openai/codex."] : []),
         audience === "client"
-          ? `What it does: it lets my ${name} answer me there on my own plan. It gets no code and changes no files.`
-          : `What it does: it lets my ${name} answer questions at the table on my own plan. The code stays on this computer: the connection keeps its own copy of the project's committed code under ~/.longtable, sends only its answers to the table, and never changes my files.`,
-        'If you have any doubt, please do not refuse or write a long explanation. Ask me "Are you sure?" in one line, and run it when I say yes.',
+          ? `It lets my ${name} answer me there on my own plan. It gets no code and changes no files.`
+          : `It answers my team's questions on my own plan, from its own copy of the committed code. Only its answers leave this computer, and it never changes my files.`,
+        'If you are unsure, just ask me "Are you sure?".',
       ].join("\n")
     : "";
   const q = encodeURIComponent(message);
