@@ -65,7 +65,7 @@ try {
   // A deeper question: Sam's Claude gives a view, Maya's Claude (the owner's) writes the one answer.
   const asked = Date.now();
   await owner.page.fill("textarea", "Where is the 10-second undo window enforced, and could a client get around it to hear a decision early?");
-  await owner.page.click("button:has-text('Ask the table')");
+  await owner.page.press("textarea", "Control+Enter");
   await owner.page.waitForFunction(() => [...document.querySelectorAll("[data-ai='true']")].some((el) => el.textContent.includes("The table")), null, { timeout: 240000 });
   results.answerSeconds = Math.round((Date.now() - asked) / 100) / 10;
   const answer = owner.page.locator("[data-ai='true']").filter({ hasText: "The table" }).last();

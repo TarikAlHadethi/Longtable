@@ -682,7 +682,11 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                   </div>
                 );
               })}
-              {working.filter((j) => j.status !== "failed" || now - new Date(j.created_at).getTime() < 15 * 60 * 1000).map((j) => {
+              {working.filter((j) => j.kind !== "listen" && (j.status !== "failed" || now - new Date(j.created_at).getTime() < 15 * 60 * 1000)).map((j) => {
+                // Long work says what it is on and for how long, and anyone on the team can stop it.
+                const mins = j.status === "running" && j.started_at ? Math.floor((Date.now() - new Date(j.started_at).getTime()) / 60000) : 0;
+                const doing = j.status === "running" && (j.kind === "work" || j.kind === "answer") ? `${j.progress ? `, ${j.progress}` : ""}${mins >= 1 ? ` · ${mins} min` : ""}` : "";
+                const stoppable = j.status !== "failed" && (j.kind === "work" || j.kind === "answer" || j.kind === "look");
                 const name = `${byId.get(j.member_id)?.display_name ?? "Someone"}'s ${aiWord(j.member_id)}`;
                 const text = j.status === "failed" ? `${name} couldn't finish: ${j.error ?? "it gave up"}`
                   : j.kind === "combine" ? (j.status === "waiting" ? `${name} writes the answer once the views are in` : `${name} is writing the answer…`)
@@ -690,10 +694,12 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                   : j.kind === "review" ? (j.status === "running" ? `${name} is looking it over…` : `Waiting for ${name} to look it over`)
                   : j.kind === "view" ? (j.status === "running" ? `${name} is giving its view…` : `Waiting for ${name}'s view`)
                   : j.kind === "intro" ? `${name} is reading the project…`
+                  : j.kind === "answer" && j.status === "running" ? `${name} is on it…`
                   : j.status === "running" ? `${name} is reading the code…` : `Waiting for ${name}`;
                 return (
                   <div key={j.id} className={`${styles.working} ${j.status === "failed" ? styles.workingFailed : ""}`} data-testid="working">
-                    {j.status !== "failed" && <span className={styles.workingDot} />}{text}
+                    {j.status !== "failed" && <span className={styles.workingDot} />}{text.replace(/…$/, doing ? "" : "…")}{doing}
+                    {stoppable && <button type="button" className={styles.toolLink} data-testid="stop-job" onClick={() => supabase.rpc("stop_job", { job: j.id }).then(() => catchUp())}>Stop</button>}
                   </div>
                 );
               })}
@@ -718,7 +724,6 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                   }
                 }}
               />
-              <button type="button" className="btn btn-quiet" disabled={!draft.trim()} onClick={askTable} title="Ctrl+Enter">Ask the table</button>
               <button className="btn" disabled={!draft.trim()}>Send</button>
             </form>
             <div className={styles.composerTools}>

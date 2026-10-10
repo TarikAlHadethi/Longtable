@@ -36,8 +36,10 @@ export type Job = {
   id: string;
   chat_id: string | null;
   member_id: string;
-  kind: "answer" | "view" | "combine" | "intro" | "client" | "work" | "review";
+  kind: "answer" | "view" | "combine" | "intro" | "client" | "work" | "review" | "listen" | "look";
   stage?: number;
+  progress?: string | null;
+  started_at?: string | null;
   round: string | null;
   status: "queued" | "running" | "done" | "failed" | "waiting" | "skipped";
   error: string | null;
@@ -104,7 +106,7 @@ export type ClientUpdate = {
 };
 
 export const MESSAGE_COLUMNS = "id, chat_id, member_id, body, created_at, by_ai, kind, meta";
-export const JOB_COLUMNS = "id, chat_id, member_id, kind, round, status, error, created_at";
+export const JOB_COLUMNS = "id, chat_id, member_id, kind, round, status, error, created_at, stage, progress, started_at";
 export const NOTE_COLUMNS = "id, member_id, kind, title, body, updated_at";
 export const CONNECTION_COLUMNS = "id, member_id, kind, last_seen, revoked_at, created_at, limits, model_choice";
 export const DECISION_COLUMNS =

@@ -68,7 +68,7 @@ export function copyIsClean(tableId) {
 
 // Work the team asked for happens in a second folder that holds the files and nothing else: no .git inside it, so
 // nothing the AI writes there can change what git itself runs. Git reaches it from outside, with its own index.
-const places = (tableId) => ({ G: join(home, "copies", tableId, ".git"), W: join(home, "work", tableId), I: join(home, "work", `${tableId}.index`) });
+const places = (tableId, name = "work") => ({ G: join(home, "copies", tableId, ".git"), W: join(home, name, tableId), I: join(home, name, `${tableId}.index`) });
 const wgit = (p, args, env = {}) => execFileSync("git", ["--git-dir", p.G, "--work-tree", p.W, ...args],
   { cwd: p.W, env: { ...quiet, GIT_INDEX_FILE: p.I, ...env }, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], timeout: 120000 }).toString().trim();
 
@@ -76,8 +76,8 @@ export const workBranch = (chatName) => "longtable/" + (String(chatName || "").t
 
 // Lay out the files to work on: the chat's own branch when it already exists, so one request builds on the last,
 // else the latest default branch.
-export function openWork(tableId, branch) {
-  const p = places(tableId);
+export function openWork(tableId, branch, name = "work") {
+  const p = places(tableId, name);
   rmSync(p.W, { recursive: true, force: true });
   rmSync(p.I, { force: true });
   mkdirSync(p.W, { recursive: true });

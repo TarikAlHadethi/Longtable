@@ -23,7 +23,7 @@ const BEATS = [
 ];
 const TABS = [
   { label: "The client asks", at: 0 },
-  { label: "Ask the table", at: 2 },
+  { label: "Send", at: 2 },
   { label: "Every AI weighs in", at: 3 },
   { label: "One answer", at: 5 },
   { label: "Decide", at: 6 },
@@ -178,7 +178,7 @@ export function Stage() {
             </div>
             <div className={`${s.composer} ${step === 2 ? s.composerOn : ""}`}>
               <span className={s.composerText}>{step === 2 ? <Typed text={QUESTION} ms={BEATS[2].ms} /> : <span className={s.placeholder}>Message # General</span>}</span>
-              <span className={`${s.ask} ${step === 2 ? s.askOn : ""}`}>Ask the table</span>
+              <span className={`${s.ask} ${step === 2 ? s.askOn : ""}`}>Send</span>
             </div>
           </section>
 

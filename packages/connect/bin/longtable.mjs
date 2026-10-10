@@ -12,6 +12,7 @@
 
 import { spawn } from "node:child_process";
 import { hostname } from "node:os";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { client, fetchConfig } from "../src/api.mjs";
 import { claudeVersion, findClaude, tokenWorks } from "../src/claude.mjs";
@@ -81,6 +82,7 @@ async function connect() {
     member_name: paired.member_name,
     role: paired.role,
     source,
+    folder: /^(https?:|git@|ssh:)/.test(repo || "") ? null : resolve(repo || process.cwd()),
     model: option("model") || null,
   });
   writeConfig(config);

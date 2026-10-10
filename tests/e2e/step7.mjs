@@ -66,7 +66,7 @@ try {
   await page.waitForSelector("[data-ai='intro']", { timeout: 120000 }).then(() => check("their Claude introduces the project first", true))
     .catch(() => check("their Claude introduces the project first", false));
   await page.fill("textarea", "What does this project do, in one sentence?");
-  await page.click("button:has-text('Ask the table')");
+  await page.press("textarea", "Control+Enter");
   await page.waitForSelector("[data-ai='true']", { timeout: 120000 });
   results.secondsToFirstAnswer = Math.round((Date.now() - started) / 1000);
   const answer = await page.locator("[data-ai='true']").last().textContent();

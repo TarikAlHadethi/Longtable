@@ -70,7 +70,7 @@ try {
   // Sam asks for a change, so Sam's Claude does it and Maya's looks it over.
   const asked = Date.now();
   await dev.page.fill("textarea", "Change the greeting in greet.js to say hi, and add a farewell export that says bye.");
-  await dev.page.click("button:has-text('Ask the table')");
+  await dev.page.click("button:has-text('Send')");
   await dev.page.waitForFunction(() => [...document.querySelectorAll("[data-ai='true']")].some((el) => el.textContent.includes("The table")), null, { timeout: 420000 });
   results.seconds = Math.round((Date.now() - asked) / 1000);
   const answer = dev.page.locator("[data-ai='true']").filter({ hasText: "The table" }).last();
