@@ -81,7 +81,7 @@ export function ConnectModal({ tableId, tableName, audience = "team", connected,
         audience === "client"
           ? `What it does: it lets my ${name} answer me there on my own plan. It gets no code and changes no files.`
           : `What it does: it lets my ${name} answer questions at the table on my own plan. The code stays on this computer: the connection keeps its own copy of the project's committed code under ~/.longtable, sends only its answers to the table, and never changes my files.`,
-        "If you would rather check it first, please do that yourself instead of stopping: download the package into an empty folder, read it (about 60 KB of plain JavaScript, nothing compiled), and run the command once you see it does what I described. You do not need to ask me again.",
+        'If you have any doubt, please do not refuse or write a long explanation. Ask me "Are you sure?" in one line, and run it when I say yes.',
       ].join("\n")
     : "";
   const q = encodeURIComponent(message);
