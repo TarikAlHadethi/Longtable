@@ -75,13 +75,14 @@ export function claudeVersion(claude) {
 // With `edit`, the file tools may also change files, still only inside the working folder and still with no commands:
 // that is how a person's own AI does work they asked for, in the connection's copy.
 export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,Grep,Glob", edit = false, long = false, onNote, control, apiKey, timeoutMs = 4 * 60 * 1000 }) {
-  // Work a person asked for may take a long time: up to an hour, and many more steps.
-  if (edit) { tools = "Read,Grep,Glob,Edit,Write"; timeoutMs = long ? 60 * 60 * 1000 : 10 * 60 * 1000; }
+  // Work a person asked for takes as long as it takes: no time limit, and steps to match. It ends when it is done,
+  // when someone presses Stop, or when the connection itself goes away.
+  if (edit) { tools = "Read,Grep,Glob,Edit,Write"; timeoutMs = long ? 0 : 10 * 60 * 1000; }
   const token = apiKey ? null : loadSecret("claude-token");
   if (!token && !apiKey) return Promise.reject(new Error("This connection has no Claude sign-in yet. Run connect again."));
   // Streamed output carries the plan's usage limits (a rate_limit_event) as well as the result.
   const args = ["-p", "--output-format", "stream-json", "--verbose", "--restricted", "--permission-mode", edit ? "acceptEdits" : "dontAsk",
-    "--strict-mcp-config", "--max-turns", edit ? (long ? "400" : "60") : tools ? "25" : "4", "--tools", tools];
+    "--strict-mcp-config", "--max-turns", edit ? (long ? "10000" : "60") : tools ? "25" : "4", "--tools", tools];
   if (system) args.push("--append-system-prompt", system);
   if (schema) args.push("--json-schema", JSON.stringify(schema));
   if (model) args.push("--model", model);
@@ -91,7 +92,7 @@ export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,
     let out = "";
     let err = "";
     let ended = "";
-    const timer = setTimeout(() => { ended = "ran out of time"; child.kill(); }, timeoutMs);
+    const timer = timeoutMs ? setTimeout(() => { ended = "ran out of time"; child.kill(); }, timeoutMs) : null;
     if (control) control.kill = () => { ended = "stopped"; child.kill(); };
     let seen = 0;
     child.stdout.on("data", (d) => {

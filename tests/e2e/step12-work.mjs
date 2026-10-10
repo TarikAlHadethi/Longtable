@@ -1,6 +1,6 @@
 // Work at a table with two Claudes: the asker's Claude does the work, the other one says what it thinks before and
 // looks it over after, and the table answers once. The change lands on the chat's branch, never the default one.
-// Done when a request for a change puts a commit on longtable/general in the project's repository, a review job ran,
+// Done when a request for a change puts a commit on the task's own branch in the project's repository, a review job ran,
 // and the round stopped by itself.
 //
 // Both connections run here, each in its own settings folder, on this computer's saved Claude sign-in, on Haiku.
@@ -75,15 +75,16 @@ try {
   results.seconds = Math.round((Date.now() - asked) / 1000);
   const answer = dev.page.locator("[data-ai='true']").filter({ hasText: "The table" }).last();
   results.answer = (await answer.textContent()).slice(0, 700);
-  check("the table's answer names the branch the change is on", /changed \d+ files? on longtable\/general @ [0-9a-f]{7}/.test(results.answer), results.answer);
+  check("the table's answer names the branch the change is on", results.answer.includes(" on longtable/") && results.answer.includes("changed 1 file"), results.answer);
 
   const branches = git(scratch, "--git-dir", remote, "branch", "--list").split(/\r?\n/).map((b) => b.replace(/^[* ]+/, ""));
   results.branches = branches;
-  check("the change is on the chat's branch in the repository", branches.includes("longtable/general"), JSON.stringify(branches));
+  const made = branches.find((b) => b.startsWith("longtable/"));
+  check("the change is on the task's own branch in the repository", !!made, JSON.stringify(branches));
   const main = git(scratch, "--git-dir", remote, "show", "main:greet.js");
   check("the default branch is untouched", main.includes('"hello"') && !main.includes("farewell"), main);
-  if (branches.includes("longtable/general")) {
-    const changed = git(scratch, "--git-dir", remote, "show", "longtable/general:greet.js");
+  if (made) {
+    const changed = git(scratch, "--git-dir", remote, "show", `${made}:greet.js`);
     results.file = changed;
     check("the file says what was asked", /hi/.test(changed) && /farewell/.test(changed) && /bye/.test(changed), changed);
   }

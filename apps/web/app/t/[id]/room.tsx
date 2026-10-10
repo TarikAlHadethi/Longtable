@@ -25,9 +25,11 @@ import { loadSettings, SettingsForm, type SettingsData } from "./settings/settin
 import { ProfileMenu } from "./profile-menu";
 import { TableView } from "./table-view";
 import { UsagePanel } from "./usage-panel";
+import { WorkPanel } from "./work-panel";
 import {
   CONNECTION_COLUMNS, DECISION_COLUMNS, JOB_COLUMNS, MEMBER_COLUMNS, MESSAGE_COLUMNS, NOTE_COLUMNS, REQUEST_COLUMNS,
   type Chat, type Connection, type Decision, type Job, type Member, type Message, type Note, type Request, type RequestStatus,
+  TASK_COLUMNS, type Task,
 } from "./types";
 import styles from "./room.module.css";
 
@@ -49,7 +51,7 @@ function requestWords(status: RequestStatus, who: string): { words: string; pill
 type Change = { table?: string; record?: Record<string, unknown> };
 type View = "table" | "chat" | "client" | "logs" | "settings";
 
-export function Room({ table, me, initialMembers, initialChats, initialMessages, initialDecisions, initialJobs, initialConnections, initialNotes, initialRequests, initialChatId, initialView, initialTableModel }: {
+export function Room({ table, me, initialMembers, initialChats, initialMessages, initialDecisions, initialJobs, initialConnections, initialNotes, initialRequests, initialChatId, initialView, initialTableModel, initialTasks }: {
   table: { id: string; name: string };
   me: Member;
   initialMembers: Member[];
@@ -63,6 +65,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   initialChatId: string;
   initialView: View;
   initialTableModel: string | null;
+  initialTasks: Task[];
 }) {
   const supabase = useMemo(() => browserClient(), []);
   const [members, setMembers] = useState(initialMembers);
@@ -70,6 +73,9 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const [messages, setMessages] = useState(initialMessages);
   const [decisions, setDecisions] = useState(initialDecisions);
   const [jobs, setJobs] = useState(initialJobs);
+  const [tasks, setTasks] = useState(initialTasks);
+  // When this person last cleared the list of work: what finished before then is not shown to them.
+  const [clearedAt, setClearedAt] = useState<string | null>(initialMembers.find((m) => m.id === me.id)?.tasks_cleared_at ?? null);
   const [connections, setConnections] = useState(initialConnections);
   const [connectOpen, setConnectOpen] = useState(false);
   const [notes, setNotes] = useState(initialNotes);
@@ -152,14 +158,16 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   // database: when the channel opens or reopens, when the tab comes back, and every few seconds while an AI is
   // working or a decision is on its way out.
   const catchUp = useCallback(async () => {
-    const [{ data: recent }, { data: inFlight }, { data: ds }, { data: rq }, { data: ns }, { data: cs }] = await Promise.all([
+    const [{ data: recent }, { data: inFlight }, { data: ds }, { data: rq }, { data: ns }, { data: cs }, { data: tk }] = await Promise.all([
       supabase.from("messages").select(MESSAGE_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(100),
       supabase.from("jobs").select(JOB_COLUMNS).eq("table_id", table.id).in("status", ["queued", "running", "waiting", "failed"]).order("created_at", { ascending: false }).limit(50),
       supabase.from("decisions").select(DECISION_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(100),
       supabase.from("requests").select(REQUEST_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(200),
       supabase.from("notes").select(NOTE_COLUMNS).eq("table_id", table.id),
       supabase.from("connections").select(CONNECTION_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(60),
+      supabase.from("tasks").select(TASK_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(40),
     ]);
+    if (tk) setTasks(tk as Task[]);
     if (recent) setMessages((prev) => {
       const have = new Set(prev.map((m) => m.id));
       const fresh = (recent as Message[]).filter((m) => !have.has(m.id));
@@ -204,6 +212,9 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       } else if (name === "jobs") {
         const j = record as unknown as Job;
         setJobs((prev) => [...prev.filter((x) => x.id !== j.id), j]);
+      } else if (name === "tasks") {
+        const t = record as unknown as Task;
+        setTasks((prev) => [t, ...prev.filter((x) => x.id !== t.id)]);
       } else if (name === "notes") {
         const n = record as unknown as Note;
         if ((record as { deleted?: boolean }).deleted) return setNotes((prev) => prev.filter((x) => x.id !== n.id));
@@ -447,6 +458,17 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     setDecisions((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
   }
 
+  // The work panel: what is being worked on, then what finished since this person last cleared it. With nothing to
+  // show there is no panel, and the chat has the room to itself.
+  const shownTasks = tasks
+    .filter((t) => t.status === "working" || !clearedAt || (t.finished_at ?? t.created_at) > clearedAt)
+    .sort((a, b) => Number(b.status === "working") - Number(a.status === "working") || (b.finished_at ?? b.created_at).localeCompare(a.finished_at ?? a.created_at));
+  const noSide = view === "settings" || view === "logs" || (view === "chat" && shownTasks.length === 0);
+  async function clearTasks() {
+    setClearedAt(new Date().toISOString());
+    setInboxOpen(false);
+    await supabase.rpc("clear_tasks", { t: table.id });
+  }
   const here = members.filter((m) => online.has(m.id));
   const open = decisions.filter((d) => d.status === "open").sort(byTime);
   const decided = decisions
@@ -520,7 +542,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   }
 
   return (
-    <div className={`${styles.shell} ${view === "settings" || view === "logs" ? styles.shellWide : ""}`}>
+    <div className={`${styles.shell} ${noSide ? styles.shellWide : ""}`}>
       <header className={styles.header}>
         <button className={styles.menuToggle} aria-label="Menu" aria-expanded={drawerOpen} onClick={() => { setDrawerOpen(!drawerOpen); setInboxOpen(false); }}>
           <span /><span /><span />
@@ -534,15 +556,15 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
             <div key={m.id} className={styles.face} style={{ background: m.color }} title={m.display_name}><Face who={m} /></div>
           ))}
         </div>
-        <button className={`btn btn-quiet ${styles.inboxToggle}`} onClick={() => { setInboxOpen(!inboxOpen); setDrawerOpen(false); }}>
-          {view === "table" ? "Usage" : `Inbox${open.length > 0 ? ` (${open.length})` : ""}`}
+        <button className={`btn btn-quiet ${styles.inboxToggle}`} hidden={noSide} onClick={() => { setInboxOpen(!inboxOpen); setDrawerOpen(false); }}>
+          {view === "table" ? "Usage" : "Work"}
         </button>
         <ProfileMenu me={self} tableId={table.id} onInvite={self.role === "owner" ? () => setInviting(true) : undefined}
           onMe={() => openPerson(me.id, true)} onSettings={() => go("settings", `${base}/settings`)} onLogs={() => go("logs", `${base}/activity`)}
           ai={myConnection?.kind ?? null} onConnect={() => setConnectOpen(true)} onDisconnect={() => myConnection && disconnect(myConnection.id)} />
       </header>
 
-      <div className={`${styles.grid} ${view === "settings" || view === "logs" ? styles.gridWide : ""}`}>
+      <div className={`${styles.grid} ${noSide ? styles.gridWide : ""}`}>
         {drawerOpen && <button className={styles.drawerBack} aria-label="Close the menu" onClick={() => setDrawerOpen(false)} />}
         <aside className={`${styles.aside} ${drawerOpen ? styles.asideOpen : ""}`} aria-label="Menu">
           <div className={styles.drawerProject}>{tableName}</div>
@@ -740,22 +762,11 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               <UsagePanel members={members} connections={connections} />
             </div>
           </aside>
-        ) : (
-          <aside className={`${styles.inbox} ${inboxOpen ? styles.inboxOpen : ""}`} aria-label="Inbox">
-            <div className={styles.inboxHead}>
-              <div className={styles.inboxTitle}>Inbox</div>
-              {open.length > 0 && <div className={styles.inboxCount}>{waiting}</div>}
-            </div>
-            <div className={styles.inboxList}>
-              {open.length === 0 && <div className={styles.inboxEmpty}>Nothing waiting for a yes</div>}
-              {open.map((d) => card(d, true))}
-              {decided.length > 0 && (
-                <div className={styles.inboxDivider}><span>Decided</span><span className={styles.rule} /></div>
-              )}
-              {decided.map((d) => card(d, true))}
-            </div>
-          </aside>
-        )}
+        ) : shownTasks.length > 0 ? (
+          <WorkPanel tasks={shownTasks} jobs={jobs} members={byId} aiWord={aiWord} open={inboxOpen}
+            onOpenChat={(id) => openChat(id)} onClear={clearTasks}
+            onStop={(id) => { supabase.rpc("stop_job", { job: id }).then(() => catchUp()); }} />
+        ) : null}
       </div>
 
       {personId && byId.get(personId) && (

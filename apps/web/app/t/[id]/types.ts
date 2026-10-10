@@ -1,7 +1,7 @@
 export type Role = "owner" | "developer" | "client";
 
-export type Member = { id: string; display_name: string; role: Role; color: string; created_at?: string; avatar?: string | null; name_color?: string | null; status?: string; bubble?: string | null };
-export const MEMBER_COLUMNS = "id, display_name, role, color, created_at, avatar, name_color, status, bubble";
+export type Member = { id: string; display_name: string; role: Role; color: string; created_at?: string; avatar?: string | null; name_color?: string | null; status?: string; bubble?: string | null; tasks_cleared_at?: string | null };
+export const MEMBER_COLUMNS = "id, display_name, role, color, created_at, avatar, name_color, status, bubble, tasks_cleared_at";
 
 export type Chat = { id: string; name: string; about: string; is_general: boolean; created_at: string; created_by?: string | null };
 
@@ -36,9 +36,10 @@ export type Job = {
   id: string;
   chat_id: string | null;
   member_id: string;
-  kind: "answer" | "view" | "combine" | "intro" | "client" | "work" | "review" | "listen" | "look";
+  kind: "answer" | "view" | "combine" | "intro" | "client" | "work" | "review" | "listen" | "look" | "plan";
   stage?: number;
   progress?: string | null;
+  task_id?: string | null;
   started_at?: string | null;
   round: string | null;
   status: "queued" | "running" | "done" | "failed" | "waiting" | "skipped";
@@ -106,7 +107,10 @@ export type ClientUpdate = {
 };
 
 export const MESSAGE_COLUMNS = "id, chat_id, member_id, body, created_at, by_ai, kind, meta";
-export const JOB_COLUMNS = "id, chat_id, member_id, kind, round, status, error, created_at, stage, progress, started_at";
+export const JOB_COLUMNS = "id, chat_id, member_id, kind, round, status, error, created_at, stage, progress, started_at, task_id";
+// One piece of work the AIs took on: its title, the branch it is on, and how it ended.
+export type Task = { id: string; chat_id: string; member_id: string | null; title: string; branch: string; status: "working" | "done" | "stopped"; result: string | null; created_at: string; finished_at: string | null };
+export const TASK_COLUMNS = "id, chat_id, member_id, title, branch, status, result, created_at, finished_at";
 export const NOTE_COLUMNS = "id, member_id, kind, title, body, updated_at";
 export const CONNECTION_COLUMNS = "id, member_id, kind, last_seen, revoked_at, created_at, limits, model_choice";
 export const DECISION_COLUMNS =

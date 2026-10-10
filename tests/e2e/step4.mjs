@@ -93,11 +93,11 @@ try {
     const el = document.querySelector(`[data-mid='${id}']`);
     return el && !el.closest("[data-testid=how]");
   }).length, views.body.map((v) => v.id));
-  check("views stay in the back room, not in the chat", views.body.length === 2 && shownViews === 0, JSON.stringify({ views: views.body.length, shownViews }));
+  check("views stay in the back room, not in the chat", views.body.length === 3 && shownViews === 0, JSON.stringify({ views: views.body.length, shownViews }));
 
   const jobs = await rest(ownerToken, `jobs?select=kind,status,usage&table_id=eq.${owner.tableId}`);
   results.jobs = jobs.body.map((j) => `${j.kind}:${j.status}:${j.usage?.wall_ms ?? "-"}ms`);
-  check("intro, view, work and combine jobs all finished", jobs.body.length === 5 && jobs.body.every((j) => j.status === "done"), JSON.stringify(results.jobs));
+  check("intro, view, plan, work and combine jobs all finished", jobs.body.length === 6 && jobs.body.every((j) => j.status === "done"), JSON.stringify(results.jobs));
 
   // The wall: the client reads no notes and no views.
   const clientToken = await accessToken(client.context);

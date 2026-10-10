@@ -108,7 +108,25 @@ export function landWork(tableId, work, branch, message, who) {
   const id = { GIT_AUTHOR_NAME: name || who, GIT_AUTHOR_EMAIL: email || "longtable@users.noreply.github.com" };
   const commit = wgit(p, ["commit-tree", tree, "-p", work.base, "-m", message],
     { ...id, GIT_COMMITTER_NAME: id.GIT_AUTHOR_NAME, GIT_COMMITTER_EMAIL: id.GIT_AUTHOR_EMAIL });
-  let pushed = true;
-  try { git(["--git-dir", p.G, "push", "--quiet", "origin", `${commit}:refs/heads/${branch}`]); } catch { pushed = false; }
-  return { files, commit: commit.slice(0, 7), pushed };
+  const env = { ...id, GIT_COMMITTER_NAME: id.GIT_AUTHOR_NAME, GIT_COMMITTER_EMAIL: id.GIT_AUTHOR_EMAIL };
+  const push = (sha, to) => { try { git(["--git-dir", p.G, "push", "--quiet", "origin", `${sha}:refs/heads/${to}`]); return true; } catch { return false; } };
+  if (push(commit, branch)) return { files, commit: commit.slice(0, 7), pushed: true, branch };
+  // Refused: another AI landed its part of the same task first. Put the two together when they do not touch the
+  // same lines; when they do, this part goes to a branch of its own beside it and says so.
+  for (let i = 0; i < 3; i++) {
+    let theirs;
+    try {
+      git(["--git-dir", p.G, "fetch", "--quiet", "--no-tags", "origin", `refs/heads/${branch}`]);
+      theirs = git(["--git-dir", p.G, "rev-parse", "FETCH_HEAD"]);
+    } catch { break; }
+    let merged;
+    try {
+      const both = git(["--git-dir", p.G, "merge-tree", "--write-tree", `--merge-base=${work.base}`, theirs, commit]).split(/\r?\n/)[0];
+      merged = wgit(p, ["commit-tree", both, "-p", theirs, "-p", commit, "-m", `Put together: ${message}`], env);
+    } catch { break; }
+    if (push(merged, branch)) return { files, commit: merged.slice(0, 7), pushed: true, branch };
+  }
+  const side = `${branch}-${String(who || "part").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 20)}`;
+  if (push(commit, side)) return { files, commit: commit.slice(0, 7), pushed: true, branch: side, apart: true };
+  return { files, commit: commit.slice(0, 7), pushed: false, branch };
 }

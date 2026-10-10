@@ -6,6 +6,7 @@ import {
   CONNECTION_COLUMNS, DECISION_COLUMNS, EVENT_COLUMNS, JOB_COLUMNS, LINE_COLUMNS, MESSAGE_COLUMNS, NOTE_COLUMNS, REQUEST_COLUMNS, UPDATE_COLUMNS,
   type Chat, type ClientLine, type ClientUpdate, type Connection, type Decision, type Job, type Member, type Message, type Note, type Request,
   type RequestEvent,
+  TASK_COLUMNS, type Task,
 } from "./types";
 
 type MemberRow = Member & { user_id: string };
@@ -24,7 +25,7 @@ export async function RoomPage({ id, wanted, view, side }: { id: string; wanted?
 
   const { data: rows } = await supabase
     .from("members")
-    .select("id, user_id, display_name, role, color, created_at, avatar, name_color, status, bubble")
+    .select("id, user_id, display_name, role, color, created_at, avatar, name_color, status, bubble, tasks_cleared_at")
     .eq("table_id", id)
     .is("removed_at", null)
     .order("created_at");
@@ -67,6 +68,7 @@ export async function RoomPage({ id, wanted, view, side }: { id: string; wanted?
     supabase.from("requests").select(REQUEST_COLUMNS).eq("table_id", id).order("created_at", { ascending: false }).limit(200),
   ]);
   const { data: tableAi } = await supabase.from("table_ai").select("model").eq("table_id", id).maybeSingle();
+  const { data: tasks } = await supabase.from("tasks").select(TASK_COLUMNS).eq("table_id", id).order("created_at", { ascending: false }).limit(40);
   const chatList = (chats ?? []) as Chat[];
   const general = chatList.find((c) => c.is_general) ?? chatList[0];
   // No chat asked for: the room opens on the table itself. "?c=general" is a short way to ask for the first chat.
@@ -88,6 +90,7 @@ export async function RoomPage({ id, wanted, view, side }: { id: string; wanted?
       initialRequests={(requests ?? []) as Request[]}
       initialChatId={start?.id ?? ""}
       initialView={view === "settings" ? (mine.role === "owner" ? "settings" : "logs") : view ?? (side ? "client" : want ? "chat" : "table")}
+      initialTasks={(tasks ?? []) as Task[]}
       initialTableModel={(tableAi as { model: string | null } | null)?.model ?? null}
     />
   );
