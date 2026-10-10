@@ -56,7 +56,7 @@ function put<T extends { id: string | number }>(prev: T[], list: T[]) {
 // It never shows the team side. With their own AI connected, the chat is with it: it answers what it can from their
 // own requests and passes the rest on. Everything arrives live on two private channels: the table's, for what
 // every client is told, and the client's own.
-export function ClientPage({ table, me, initialRequests, initialEvents, initialUpdates, initialLines, initialConnections, initialJobs }: {
+export function ClientPage({ table, me, initialRequests, initialEvents, initialUpdates, initialLines, initialConnections, initialJobs, viewer }: {
   table: { id: string; name: string };
   me: { id: string; display_name: string; color?: string };
   initialRequests: Request[];
@@ -65,6 +65,10 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
   initialLines: ClientLine[];
   initialConnections: Connection[];
   initialJobs: Job[];
+  // Set when someone on the team is looking at this client's page. They see what the client sees and can use none of
+  // it: nothing is sent, answered or connected from here. The client's chat with their own AI is not theirs to read,
+  // so it is not here.
+  viewer?: { onBack: () => void; others?: { id: string; display_name: string }[]; onPick?: (id: string) => void };
 }) {
   const supabase = useMemo(() => browserClient(), []);
   const here = useInBrowser();
@@ -106,7 +110,17 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
     if (jb) setJobs(jb as Job[]);
   }, [supabase, table.id, me.id, putEvents, putUpdates, putLines]);
 
+  // A viewer has no place on the client's own channels: the page just reads again every few seconds.
   useEffect(() => {
+    if (!viewer) return;
+    reload();
+    const t = setInterval(() => { if (document.visibilityState === "visible") reload(); }, 8000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!viewer, me.id]);
+
+  useEffect(() => {
+    if (viewer) return;
     const channels: RealtimeChannel[] = [];
     let cancelled = false;
     const onChange = ({ payload }: { payload: unknown }) => {
@@ -144,7 +158,8 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
       cancelled = true;
       for (const ch of channels) supabase.removeChannel(ch);
     };
-  }, [supabase, table.id, me.id, reload, putRequest, putEvents, putUpdates, putLines]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase, table.id, me.id, reload, putRequest, putEvents, putUpdates, putLines, !!viewer]);
 
   const assistant = connections.some((c) => !c.revoked_at);
   const thinking = jobs.some((j) => j.kind === "client" && (j.status === "queued" || j.status === "running"));
@@ -153,6 +168,7 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
   // database too, so a lost push only delays what they see.
   const pending = requests.some((r) => ["asked", "being decided", "question", "answered"].includes(r.status));
   useEffect(() => {
+    if (viewer) return;
     const onShow = () => { if (document.visibilityState === "visible") reload(); };
     document.addEventListener("visibilitychange", onShow);
     const t = setInterval(() => { if (document.visibilityState === "visible") reload(); }, thinking ? 4000 : pending ? 15000 : 60000);
@@ -160,7 +176,8 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
       document.removeEventListener("visibilitychange", onShow);
       clearInterval(t);
     };
-  }, [pending, thinking, reload]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending, thinking, reload, !!viewer]);
 
   type Line = { me: boolean; id: string; created_at: string; text: string; question?: ClientUpdate };
   const chat = useMemo(() => [
@@ -222,12 +239,22 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
   }
 
   return (
-    <div className={styles.page}>
+    <div className={`${styles.page} ${viewer ? styles.viewing : ""}`} data-testid={viewer ? "client-view" : undefined}>
       <header className={styles.header}>
         <div className={styles.brand}><Mark size={24} /> {table.name}</div>
-        <div style={{ marginLeft: "auto" }}>
-          <ProfileMenu me={{ id: me.id, display_name: me.display_name, role: "client", color: me.color ?? "var(--sage)" }} tableId={table.id} />
-        </div>
+        {viewer ? (
+          <div className={styles.viewBar}>
+            <span className={styles.viewTag}>Viewing {firstName(me.display_name)}&apos;s side. Nothing here can be changed.</span>
+            {(viewer.others ?? []).filter((o) => o.id !== me.id).map((o) => (
+              <button key={o.id} className={styles.headLink} onClick={() => viewer.onPick?.(o.id)}>See {firstName(o.display_name)}&apos;s</button>
+            ))}
+            <button className="btn" onClick={viewer.onBack} data-testid="table-portal">Back to the table</button>
+          </div>
+        ) : (
+          <div style={{ marginLeft: "auto" }}>
+            <ProfileMenu me={{ id: me.id, display_name: me.display_name, role: "client", color: me.color ?? "var(--sage)" }} tableId={table.id} />
+          </div>
+        )}
       </header>
       <main className={styles.main}>
         <div className={styles.top}>
@@ -291,7 +318,7 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
           <section className={styles.chatPanel} aria-label={assistant ? "Your assistant" : "Talk to the team"}>
             <div className={styles.chatHead}>
               <span className={styles.chatMark} /> <span data-testid="chat-head">{assistant ? "Your assistant" : "The team"}</span>
-              <button className={styles.headLink} onClick={() => setConnectOpen(true)}>{assistant ? "Connected" : "Connect my assistant"}</button>
+              {!viewer && <button className={styles.headLink} onClick={() => setConnectOpen(true)}>{assistant ? "Connected" : "Connect my assistant"}</button>}
             </div>
             <div ref={chatRef} className={styles.chat} data-testid="client-chat">
               {chat.length === 0 && (
@@ -307,27 +334,28 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
                   {c.question && (
                     <div className={styles.replies} data-testid="replies">
                       {c.question.replies.map((label, k) => (
-                        <button key={label} className={styles.reply} onClick={() => answer(c.question!, k + 1)}>{label}</button>
+                        <button key={label} className={styles.reply} disabled={!!viewer} onClick={() => answer(c.question!, k + 1)}>{label}</button>
                       ))}
                     </div>
                   )}
                 </div>
               ))}
               {thinking && <div className={`${styles.bubbleTeam} ${styles.typing}`} data-testid="thinking">Your assistant is writing…</div>}
+              {viewer && assistant && <div className={styles.privateNote}>{firstName(me.display_name)}&apos;s chat with their own assistant is private and is not shown.</div>}
             </div>
-            <form className={styles.composer} onSubmit={say}>
-              <input className={styles.input} value={draft} onChange={(e) => setDraft(e.target.value)}
-                placeholder="Ask for something, in your own words" aria-label="Ask the team" maxLength={4000} />
-              <button className="btn" disabled={busy || !draft.trim()}>Send</button>
+            <form className={styles.composer} onSubmit={viewer ? (e) => e.preventDefault() : say}>
+              <input className={styles.input} value={draft} onChange={(e) => setDraft(e.target.value)} disabled={!!viewer}
+                placeholder={viewer ? "Only they can write here" : "Ask for something, in your own words"} aria-label="Ask the team" maxLength={4000} />
+              <button className="btn" disabled={!!viewer || busy || !draft.trim()}>Send</button>
             </form>
             {error && <div className={`error ${styles.chatError}`} role="alert">{error}</div>}
           </section>
         </div>
       </main>
-      <footer className={styles.footer}>
+      {!viewer && <footer className={styles.footer}>
         <button className={styles.headLink} onClick={() => downloadExport("export_mine", table.id, table.name)}>Download what&apos;s mine</button>
         <Link className={styles.headLink} href="/privacy">Privacy</Link>
-      </footer>
+      </footer>}
       {connectOpen && (
         <ConnectModal audience="client" tableId={table.id} tableName={table.name} connected={connections.find((c) => !c.revoked_at)?.kind ?? null} onClose={() => setConnectOpen(false)} />
       )}

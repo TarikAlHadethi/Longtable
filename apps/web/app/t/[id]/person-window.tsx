@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { AI_NAME, AiLogo } from "@/components/ai-logo";
 import { Face } from "@/components/face";
-import { Check, Crown } from "@/components/icons";
+import { Check, Crown, Pencil } from "@/components/icons";
 import { Time } from "@/components/time";
 import { downloadExport } from "@/lib/download";
 import { browserClient } from "@/lib/supabase/browser";
@@ -19,6 +19,8 @@ const day = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString("en
 // The colours a picture and a name can take: the table's own seat colours and a few neighbours.
 const COLORS = ["oklch(0.62 0.12 30)", "oklch(0.66 0.13 60)", "oklch(0.62 0.1 150)", "oklch(0.58 0.08 170)", "oklch(0.6 0.1 210)",
   "oklch(0.6 0.1 250)", "oklch(0.58 0.12 285)", "oklch(0.6 0.1 310)", "oklch(0.62 0.13 350)", "oklch(0.45 0.02 70)"];
+
+const BUBBLES = ["rose", "peach", "sand", "lime", "mint", "teal", "sky", "blue", "iris", "lilac", "pink", "stone"];
 
 // A photo is shrunk in the browser to a small square before it is kept, so it travels with the person's name.
 function shrink(file: File): Promise<string> {
@@ -40,18 +42,24 @@ function shrink(file: File): Promise<string> {
 
 // A person, in a window in the middle of the screen. Your own is where you change how you look at this table;
 // anyone else's shows who they are, and gives the owner the two things an owner can do.
-export function PersonWindow({ table, me, person, connections, here, onClose, onSaved, onGone }: {
+export function PersonWindow({ table, me, person, connections, here, edit = false, members, onClose, onSaved, onGone }: {
   table: { id: string; name: string };
   me: Member;
   person: Member;
   connections: Connection[];
   here: boolean;
+  // Changing how you look is opened from your own picture menu; from the list of people, you see yourself as others do.
+  edit?: boolean;
+  members: Member[];
   onClose: () => void;
   onSaved: (m: Member) => void;
   onGone: (id: string) => void;
 }) {
   const supabase = browserClient();
-  const mine = person.id === me.id;
+  const isMe = person.id === me.id;
+  const mine = isMe && edit;
+  const [bubble, setBubble] = useState(person.bubble ?? "stone");
+  const taken = new Set(members.filter((m) => m.id !== person.id && m.bubble).map((m) => m.bubble as string));
   const [name, setName] = useState(person.display_name);
   const [color, setColor] = useState(person.color);
   const [nameColor, setNameColor] = useState(person.name_color ?? "");
@@ -66,7 +74,7 @@ export function PersonWindow({ table, me, person, connections, here, onClose, on
   const first = person.display_name.split(" ")[0];
   const shown = mine ? { display_name: name || person.display_name, color, avatar: avatar || null } : person;
   const changed = mine && (name.trim() !== person.display_name || color !== person.color || nameColor !== (person.name_color ?? "")
-    || avatar !== (person.avatar ?? "") || status.trim() !== (person.status ?? ""));
+    || avatar !== (person.avatar ?? "") || status.trim() !== (person.status ?? "") || bubble !== (person.bubble ?? "stone"));
 
   async function pickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -80,9 +88,9 @@ export function PersonWindow({ table, me, person, connections, here, onClose, on
     e.preventDefault();
     setBusy(true);
     setError("");
-    const next = { ...person, display_name: name.trim(), color, name_color: nameColor || null, avatar: avatar || null, status: status.trim() };
+    const next = { ...person, display_name: name.trim(), color, name_color: nameColor || null, avatar: avatar || null, status: status.trim(), bubble };
     const { error } = await supabase.rpc("update_profile", {
-      t: table.id, new_name: next.display_name, new_color: color, new_name_color: nameColor, new_avatar: avatar, new_status: next.status,
+      t: table.id, new_name: next.display_name, new_color: color, new_name_color: nameColor, new_avatar: avatar, new_status: next.status, new_bubble: bubble,
     });
     setBusy(false);
     if (error) return setError(error.message);
@@ -105,10 +113,16 @@ export function PersonWindow({ table, me, person, connections, here, onClose, on
     <div className={room.modalBack} onClick={onClose}>
       <div className={`${room.modal} ${s.window}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-label={mine ? "You" : person.display_name} data-testid="person-window">
         <div className={s.hero}>
-          <span className={`${s.face} ${mine ? s.faceMine : ""}`} style={{ background: shown.color }} onClick={mine ? () => file.current?.click() : undefined}
-            title={mine ? "Change your picture" : undefined}>
-            <Face who={shown} />
+          <span className={s.faceWrap}>
             {person.role === "owner" && <span className={s.crown}><Crown /></span>}
+            {mine ? (
+              <button type="button" className={`${s.face} ${s.faceMine}`} style={{ background: shown.color }} onClick={() => file.current?.click()} aria-label="Change your picture">
+                <Face who={shown} />
+                <span className={s.facePencil}><Pencil size={22} /></span>
+              </button>
+            ) : (
+              <span className={s.face} style={{ background: shown.color }}><Face who={shown} /></span>
+            )}
             <i className={here ? s.here : s.away} />
           </span>
           <div className={s.name} style={{ color: (mine ? nameColor : person.name_color) || undefined }}>{mine ? name || person.display_name : person.display_name}</div>
@@ -118,10 +132,7 @@ export function PersonWindow({ table, me, person, connections, here, onClose, on
         {mine && (
           <form className={s.edit} onSubmit={save} aria-label="How you look at this table">
             <input ref={file} type="file" accept="image/*" hidden onChange={pickPhoto} />
-            <div className={s.row}>
-              <button type="button" className="btn btn-quiet" onClick={() => file.current?.click()}>{avatar ? "Change photo" : "Upload a photo"}</button>
-              {avatar && <button type="button" className="btn btn-quiet" onClick={() => setAvatar("")}>Use my letter</button>}
-            </div>
+            {avatar && <button type="button" className={`${room.toolLink} ${s.unphoto}`} onClick={() => setAvatar("")}>Use my letter instead</button>}
             <div className={s.field2}>
               <div>
                 <label className="label" htmlFor="pf-name">Name</label>
@@ -143,6 +154,17 @@ export function PersonWindow({ table, me, person, connections, here, onClose, on
               </div>
             </div>
             <div>
+              <div className="label">Bubble colour</div>
+              <div className={s.swatches} role="radiogroup" aria-label="Bubble colour">
+                {BUBBLES.map((b) => (
+                  <button key={b} type="button" role="radio" aria-checked={bubble === b} aria-label={b} disabled={taken.has(b)} title={taken.has(b) ? "Someone else has this one" : undefined}
+                    className={`${s.swatch} ${s.swatchBubble}`} data-bubble={b} onClick={() => setBubble(b)}>
+                    {bubble === b && <Check size={14} stroke={3} />}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
               <div className="label">Name colour</div>
               <div className={s.swatches} role="radiogroup" aria-label="Name colour">
                 <button type="button" role="radio" aria-checked={!nameColor} aria-label="The usual colour" className={`${s.swatch} ${s.swatchPlain}`} onClick={() => setNameColor("")}>
@@ -157,8 +179,6 @@ export function PersonWindow({ table, me, person, connections, here, onClose, on
             </div>
             {error && <div className="error" role="alert">{error}</div>}
             <div className={room.modalActions}>
-              <button type="button" className={room.toolLink} style={{ marginRight: "auto" }}
-                onClick={async () => { const p = await downloadExport("export_mine", table.id, table.name); if (p) setError(p); }}>Download what&apos;s mine</button>
               <button type="button" className="btn btn-quiet" onClick={onClose}>Close</button>
               <button className="btn" disabled={busy || !changed || !name.trim()}>{busy ? "Saving…" : "Save"}</button>
             </div>
@@ -177,7 +197,7 @@ export function PersonWindow({ table, me, person, connections, here, onClose, on
             </div>
             {person.role !== "client" && conn && <UsagePanel members={[person]} connections={connections} bare />}
             {error && <div className="error" role="alert">{error}</div>}
-            {me.role === "owner" && asking === "owner" && (
+            {me.role === "owner" && !isMe && asking === "owner" && (
               <div className={s.ask}>
                 <p>{first} becomes the owner and you become a developer. Only {first} can hand it back.</p>
                 <div className={s.row}>
@@ -186,7 +206,7 @@ export function PersonWindow({ table, me, person, connections, here, onClose, on
                 </div>
               </div>
             )}
-            {me.role === "owner" && asking === "remove" && (
+            {me.role === "owner" && !isMe && asking === "remove" && (
               <div className={s.ask}>
                 <p>{first} loses access at once and their AI is disconnected. Their messages stay.</p>
                 <div className={s.row}>
@@ -196,7 +216,11 @@ export function PersonWindow({ table, me, person, connections, here, onClose, on
               </div>
             )}
             <div className={room.modalActions}>
-              {me.role === "owner" && !asking && (
+              {isMe && (
+                <button type="button" className={room.toolLink} style={{ marginRight: "auto" }}
+                  onClick={async () => { const p = await downloadExport("export_mine", table.id, table.name); if (p) setError(p); }}>Download what&apos;s mine</button>
+              )}
+              {me.role === "owner" && !isMe && !asking && (
                 <div className={s.row} style={{ marginRight: "auto" }}>
                   {person.role === "developer" && <button className="btn btn-quiet" onClick={() => setAsking("owner")}><Crown size={15} />Make owner</button>}
                   <button className="btn btn-quiet" onClick={() => setAsking("remove")}>Take off the table</button>

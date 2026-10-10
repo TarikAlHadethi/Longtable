@@ -28,8 +28,8 @@ try {
   await dev.page.waitForFunction(() => document.body.innerText.includes("Booking flow"), null, { timeout: 5000 });
   check("new chat reaches the developer live", true);
 
-  // Ask for a decision through the form, with the words the client will be told.
-  await owner.page.click("button:has-text('Ask for a decision')");
+  // Make a poll through the form, with the words the client will be told.
+  await owner.page.click("button:has-text('Make a poll')");
   await owner.page.fill("#d-title", "Reminder channel for launch");
   await owner.page.fill("#d-context", "About a day of work.");
   await owner.page.fill("input[aria-label='Option 1']", "Text, email as fallback");

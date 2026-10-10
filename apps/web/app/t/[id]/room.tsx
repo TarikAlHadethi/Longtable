@@ -16,10 +16,11 @@ import { ConnectModal } from "./connect-modal";
 import { DecisionCard } from "./decision-card";
 import { Invite } from "./invite";
 import { NewDecision } from "./new-decision";
-import { ClientPortal, ClientSide, PortalHaze, TablePortal } from "./client-side";
+import { ClientPage } from "./client-page";
+import { ClientPortal, PortalHaze } from "./client-side";
 import { BugButton, LogsPanel } from "./panels";
 import { PersonWindow } from "./person-window";
-import { SettingsForm } from "./settings/settings-form";
+import { loadSettings, SettingsForm, type SettingsData } from "./settings/settings-form";
 import { ProfileMenu } from "./profile-menu";
 import { TableView } from "./table-view";
 import { UsagePanel } from "./usage-panel";
@@ -79,6 +80,9 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const [view, setView] = useState<View>(initialView);
   // A person opens in a window over the room, wherever you are in it.
   const [personId, setPersonId] = useState<string | null>(null);
+  const [editingMe, setEditingMe] = useState(false);
+  // Whose side is being looked at, when there is more than one client.
+  const [clientId, setClientId] = useState<string | null>(null);
   // Leaning toward the client's side: the pointer is on the glass in the corner.
   const [peek, setPeek] = useState(false);
   const [tableName, setTableName] = useState(table.name);
@@ -104,6 +108,14 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   // This person as the table has them now: their role can change while the page is open (the table handed over).
   const self = byId.get(me.id) ?? me;
+  // The table's settings are read once here, so Settings is whole the moment it is opened.
+  const [settings, setSettings] = useState<SettingsData | null>(null);
+  useEffect(() => {
+    if (self.role !== "owner") return;
+    let cancelled = false;
+    loadSettings(supabase, table.id).then((d) => { if (!cancelled) setSettings(d); });
+    return () => { cancelled = true; };
+  }, [supabase, table.id, self.role]);
   const chatById = useMemo(() => new Map(chats.map((c) => [c.id, c])), [chats]);
   const requestById = useMemo(() => new Map(requests.map((r) => [r.id, r])), [requests]);
   // The newest client card about each request is the one that offers the next decision.
@@ -176,8 +188,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]));
         if (!known.current.has(m.member_id)) refreshMembers();
       } else if (name === "members") {
-        const { id, display_name, role, color, created_at, avatar, name_color, status } = record as unknown as Member;
-        const fresh: Member = { id, display_name, role, color, created_at, avatar, name_color, status };
+        const { id, display_name, role, color, created_at, avatar, name_color, status, bubble } = record as unknown as Member;
+        const fresh: Member = { id, display_name, role, color, created_at, avatar, name_color, status, bubble };
         // Taken off the table: gone from the list, and if it is this person, their page closes.
         if ((record as { removed_at?: string | null }).removed_at) {
           if (id === me.id) setGone(true);
@@ -306,7 +318,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     setInboxOpen(false);
     setDrawerOpen(false);
   }
-  function openPerson(id: string) { setPersonId(id); setDrawerOpen(false); }
+  function openPerson(id: string, edit = false) { setEditingMe(edit); setPersonId(id); setDrawerOpen(false); }
 
   function goHome() {
     setView("table");
@@ -457,6 +469,31 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     />
   );
 
+  // Through the glass: the client's own page, whole, in place of the room. Looked at, never used.
+  if (view === "client" && !gone) {
+    const seen = clients.find((c) => c.id === clientId) ?? client;
+    if (seen) {
+      return (
+        <ClientPage key={seen.id} table={{ id: table.id, name: tableName }} me={{ id: seen.id, display_name: seen.display_name, color: seen.color }}
+          initialRequests={requests.filter((r) => r.member_id === seen.id)} initialEvents={[]} initialUpdates={[]} initialLines={[]}
+          initialConnections={connections.filter((c) => c.member_id === seen.id && !c.revoked_at)} initialJobs={[]}
+          viewer={{ onBack: goHome, others: clients, onPick: setClientId }} />
+      );
+    }
+    return (
+      <main className={`page-center ${styles.noClient}`} data-testid="client-view">
+        <div className="panel" style={{ alignItems: "center", textAlign: "center" }}>
+          <Mark size={48} />
+          <h1>No client is at this table yet</h1>
+          <div style={{ display: "flex", gap: 8 }}>
+            {self.role === "owner" && <button className="btn" onClick={() => { goHome(); setInviting(true); }}>Invite the client</button>}
+            <button className="btn btn-quiet" onClick={goHome} data-testid="table-portal">Back to the table</button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   if (gone) {
     return (
       <main className="page-center">
@@ -471,6 +508,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
 
   return (
     <div className={styles.shell}>
+      <PortalHaze on={peek} />
       <header className={styles.header}>
         <button className={styles.menuToggle} aria-label="Menu" aria-expanded={drawerOpen} onClick={() => { setDrawerOpen(!drawerOpen); setInboxOpen(false); }}>
           <span /><span /><span />
@@ -488,7 +526,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           {view === "table" ? "Usage" : `Inbox${open.length > 0 ? ` (${open.length})` : ""}`}
         </button>
         <ProfileMenu me={self} tableId={table.id} onInvite={self.role === "owner" ? () => setInviting(true) : undefined}
-          onMe={() => openPerson(me.id)} onSettings={() => go("settings", `${base}/settings`)} onLogs={() => go("logs", `${base}/activity`)}
+          onMe={() => openPerson(me.id, true)} onSettings={() => go("settings", `${base}/settings`)} onLogs={() => go("logs", `${base}/activity`)}
           ai={myConnection?.kind ?? null} onConnect={() => setConnectOpen(true)} onDisconnect={() => myConnection && disconnect(myConnection.id)} />
       </header>
 
@@ -533,14 +571,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 setConnections((prev) => prev.map((c) => (c.id === conn ? { ...c, model_choice: model || null } : c)));
                 await supabase.rpc("set_model", { conn, model });
               }} onInvite={self.role === "owner" ? () => setInviting(true) : undefined} />
-            <PortalHaze on={peek} />
             <ClientPortal onPeek={setPeek} onEnter={() => go("client", `${base}?side=client`)} />
-          </main>
-        )}
-        {view === "client" && (
-          <main className={`${styles.main} ${styles.stage}`}>
-            <ClientSide table={table} clients={clients} requests={requests} onInvite={self.role === "owner" ? () => setInviting(true) : undefined} />
-            <TablePortal onEnter={goHome} />
           </main>
         )}
         {(view === "settings" || view === "logs") && (
@@ -556,18 +587,13 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 )}
               </div>
               {view === "settings" && self.role === "owner"
-                ? <SettingsForm table={{ id: table.id, name: tableName }} me={me.id} people={members} chats={chats}
+                ? <SettingsForm table={{ id: table.id, name: tableName }} me={me.id} people={members} chats={chats} data={settings} onData={setSettings}
                     onRenamed={setTableName} onRemoved={(id) => setMembers((prev) => prev.filter((m) => m.id !== id))} />
                 : <LogsPanel table={table} members={members} />}
             </div>
           </main>
         )}
         <main className={styles.main} hidden={view !== "chat"}>
-          <div className={styles.threadHead}>
-            <div className={styles.threadTitle}>{chat?.name ?? "General"}</div>
-            <div className={styles.threadSub}>{!live ? "Connecting…" : chat?.about || "Team only"}</div>
-          </div>
-
           <div ref={scrollRef} className={styles.scroll} onScroll={onScroll} data-testid="messages">
             <div className={styles.list}>
               {items.length === 0 && (
@@ -604,12 +630,12 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                           <span>client · <Time iso={m.created_at} /></span>
                         </div>
                         {m.meta?.answers && m.meta.question && <div className={styles.questionQuote}>Answering: {m.meta.question}</div>}
-                        <div className={`${styles.messageText} ${styles.clientBubble}`}>{m.body}</div>
+                        <div className={styles.bubble} data-bubble={who?.bubble ?? "stone"}>{m.body}</div>
                         {req && shown && (
                           <div className={styles.clientTools}>
                             <span className={`${styles.requestPill} ${shown.pill}`} data-testid="request-status">{shown.words}</span>
                             {offer && (
-                              <button className={styles.toolLink} onClick={() => { setAskingFor(req); setAsking(true); }}>Ask for a decision</button>
+                              <button className={styles.toolLink} onClick={() => { setAskingFor(req); setAsking(true); }}>Make a poll</button>
                             )}
                           </div>
                         )}
@@ -620,18 +646,18 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 if (m.by_ai) {
                   return <Answer key={m.id} m={m} members={byId} views={m.meta?.round ? viewsByRound.get(m.meta.round) ?? [] : []} />;
                 }
+                const mine = m.member_id === me.id;
                 return (
-                  <div key={m.id} className={`${styles.message} ${m.state === "sending" ? styles.pending : ""}`} data-mid={m.id}>
-                    <div className={styles.messageAvatar} style={{ background: who?.color ?? "var(--faint)" }}>
-                      <Face who={who} name={name} />
-                    </div>
-                    <div className={styles.messageBody}>
-                      <div className={styles.messageMeta}>
-                        <span className={styles.messageName} style={{ color: who?.name_color || undefined }}>{name}</span>
-                        <span><Time iso={m.created_at} /></span>
-                        {m.state === "failed" && <span className={styles.failed}>Not sent</span>}
+                  <div key={m.id} className={`${styles.say} ${mine ? styles.sayMine : ""} ${m.state === "sending" ? styles.pending : ""}`} data-mid={m.id}>
+                    {!mine && (
+                      <div className={styles.messageAvatar} style={{ background: who?.color ?? "var(--faint)" }}><Face who={who} name={name} /></div>
+                    )}
+                    <div className={styles.sayCol}>
+                      {!mine && <div className={styles.sayName} style={{ color: who?.name_color || undefined }}>{name}</div>}
+                      <div className={styles.bubble} data-bubble={who?.bubble ?? "stone"}><Inline text={m.body} /></div>
+                      <div className={styles.sayWhen}>
+                        {m.state === "failed" ? <span className={styles.failed}>Not sent</span> : <Time iso={m.created_at} />}
                       </div>
-                      <div className={styles.messageText}><Inline text={m.body} /></div>
                     </div>
                   </div>
                 );
@@ -674,7 +700,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               <button className="btn" disabled={!draft.trim()}>Send</button>
             </form>
             <div className={styles.composerTools}>
-              <button className={styles.toolLink} onClick={() => { setAskingFor(null); setAsking(true); }}>Ask for a decision</button>
+              <button className={styles.toolLink} onClick={() => { setAskingFor(null); setAsking(true); }}>Make a poll</button>
               {notice && <span className={styles.notice} role="status">{notice}</span>}
             </div>
           </div>
@@ -706,7 +732,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       </div>
 
       {personId && byId.get(personId) && (
-        <PersonWindow table={{ id: table.id, name: tableName }} me={self} person={byId.get(personId)!} connections={connections} here={online.has(personId)}
+        <PersonWindow table={{ id: table.id, name: tableName }} me={self} person={byId.get(personId)!} connections={connections} here={online.has(personId)} edit={editingMe && personId === me.id} members={members}
           onClose={() => setPersonId(null)}
           onSaved={(m) => setMembers((prev) => prev.map((x) => (x.id === m.id ? { ...x, ...m } : x)))}
           onGone={(id) => setMembers((prev) => prev.filter((x) => x.id !== id))} />

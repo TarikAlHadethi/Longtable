@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Mark } from "@/components/mark";
 import { Inline } from "@/lib/inline";
 import { Time } from "@/components/time";
-import { AI_NAME } from "@/components/ai-logo";
+import { AI_NAME, AiLogo } from "@/components/ai-logo";
 import { kindOfModel } from "./table-view";
 import type { Member, Message } from "./types";
 import styles from "./room.module.css";
@@ -25,25 +25,22 @@ export function Answer({ m, members, views }: { m: Message; members: Map<string,
 
   if (m.kind === "intro") {
     return (
-      <div className={`${styles.message} ${styles.aiMessage}`} data-mid={m.id} data-ai="intro">
-        <div className={`${styles.messageAvatar} ${styles.aiAvatar}`} style={{ borderColor: who?.color ?? "var(--faint)" }}>
-          <Mark size={18} />
-        </div>
-        <div className={styles.messageBody}>
-          <div className={styles.messageMeta}>
-            <span className={styles.messageName}>{name}&apos;s {ai} joined the table</span>
-            <span><Time iso={m.created_at} /></span>
-          </div>
-          <div className={`${styles.messageText} ${styles.aiText}`}><Inline text={m.body} /></div>
-        </div>
+      <div className={styles.joined} data-mid={m.id} data-ai="intro">
+        <button className={styles.joinedLine} onClick={() => setOpen(!open)} aria-expanded={open}>
+          <AiLogo kind={kindOfModel(m.meta?.model)} size={15} />
+          <span>{name}&apos;s {ai} joined the table</span>
+          <span className={styles.joinedWhen}><Time iso={m.created_at} /></span>
+          <span className={`${styles.joinedChevron} ${open ? styles.joinedOpen : ""}`} aria-hidden="true" />
+        </button>
+        {open && <div className={`${styles.messageText} ${styles.aiText} ${styles.joinedBody}`}><Inline text={m.body} /></div>}
       </div>
     );
   }
 
   return (
     <div className={`${styles.message} ${styles.aiMessage}`} data-mid={m.id} data-ai="true">
-      <div className={`${styles.messageAvatar} ${styles.aiAvatar}`} style={{ borderColor: who?.color ?? "var(--faint)" }}>
-        <Mark size={18} />
+      <div className={styles.aiAvatar}>
+        {combined ? <Mark size={22} /> : <AiLogo kind={kindOfModel(m.meta?.model)} size={22} />}
       </div>
       <div className={styles.messageBody}>
         <div className={styles.messageMeta}>

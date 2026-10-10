@@ -9,9 +9,12 @@ import s from "./panels.module.css";
 
 type Entry = { id: number; actor: string | null; action: string; details: Record<string, string | boolean>; created_at: string };
 
+// What was read last time, by table, shown at once while the log is read again.
+const logCache = new Map<string, Entry[]>();
+
 // Every action at the table, in plain words, from the append-only log.
 export function LogsPanel({ table, members }: { table: { id: string; name: string }; members: Member[] }) {
-  const [entries, setEntries] = useState<Entry[] | null>(null);
+  const [entries, setEntries] = useState<Entry[] | null>(() => logCache.get(table.id) ?? null);
   const [names, setNames] = useState<Map<string, string>>(() => new Map(members.map((m) => [m.id, m.display_name])));
   useEffect(() => {
     let cancelled = false;
@@ -22,6 +25,7 @@ export function LogsPanel({ table, members }: { table: { id: string; name: strin
     ]).then(([rows, people]: [{ data: unknown }, { data: unknown }]) => {
       if (cancelled) return;
       setNames(new Map(((people.data ?? []) as { id: string; display_name: string }[]).map((p) => [p.id, p.display_name])));
+      logCache.set(table.id, (rows.data ?? []) as Entry[]);
       setEntries((rows.data ?? []) as Entry[]);
     });
     return () => { cancelled = true; };

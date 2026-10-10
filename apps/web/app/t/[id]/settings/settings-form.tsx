@@ -13,43 +13,58 @@ type Github = { connected: boolean; repo: string; last_event_at: string | null }
 
 const ROLE = { owner: "Owner", developer: "Developer", client: "Client" } as const;
 
+export type SettingsData = { extra: Extra | null; github: Github };
+type Db = ReturnType<typeof browserClient>;
+// The table's own settings and its GitHub link. The room reads these once when it opens, so Settings is complete the
+// moment it is shown.
+export async function loadSettings(supabase: Db, tableId: string): Promise<SettingsData> {
+  const [row, hub] = await Promise.all([
+    supabase.from("tables").select("undo_seconds, client_chat, final_seat, when_final_offline").eq("id", tableId).maybeSingle(),
+    supabase.rpc("github_status", { t: tableId }),
+  ]);
+  return { extra: (row.data as Extra | null) ?? null, github: (hub.data as Github) ?? null };
+}
+
 // Settings in plain words: the table, who writes the final answer, GitHub, your data, and the people at the table.
 // It opens inside the room at once and fills in the table's own settings a moment later.
-export function SettingsForm({ table, me, people, chats, onRenamed, onRemoved }: {
+export function SettingsForm({ table, me, people, chats, data, onData, onRenamed, onRemoved }: {
   table: { id: string; name: string };
   me: string;
   people: Person[];
   chats: { id: string; name: string; is_general: boolean }[];
+  data: SettingsData | null;
+  onData: (d: SettingsData) => void;
   onRenamed: (name: string) => void;
   onRemoved: (id: string) => void;
 }) {
   const supabase = browserClient();
-  const [loaded, setLoaded] = useState(false);
+  const loaded = !!data;
   const [name, setName] = useState(table.name);
-  const [undo, setUndo] = useState("30");
-  const [requests, setRequests] = useState("");
-  const [seat, setSeat] = useState("");
-  const [offline, setOffline] = useState("wait");
+  const [undo, setUndo] = useState(String(data?.extra?.undo_seconds ?? 30));
+  const [requests, setRequests] = useState(data?.extra?.client_chat ?? "");
+  const [seat, setSeat] = useState(data?.extra?.final_seat ?? "");
+  const [offline, setOffline] = useState(data?.extra?.when_final_offline ?? "wait");
   const [confirming, setConfirming] = useState<string | null>(null);
   const [saved, setSaved] = useState("");
   const [error, setError] = useState("");
   const team = people.filter((p) => p.role !== "client");
-  const [github, setGithub] = useState<Github>(null);
+  const [github, setGithubState] = useState<Github>(data?.github ?? null);
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
   const [confirmName, setConfirmName] = useState("");
+  // What is saved here is kept by the room too, so coming back shows it as it was left.
+  const keep = (patch: Partial<Extra>, hub: Github = github) => onData({ extra: { undo_seconds: Number(undo), client_chat: requests || null, final_seat: seat || null, when_final_offline: offline, ...patch }, github: hub });
+  const setGithub = (g: Github) => { setGithubState(g); keep({}, g); };
 
+  // Only if the room has not read them yet: read them here.
   useEffect(() => {
+    if (data) return;
     let cancelled = false;
-    Promise.all([
-      supabase.from("tables").select("undo_seconds, client_chat, final_seat, when_final_offline").eq("id", table.id).maybeSingle(),
-      supabase.rpc("github_status", { t: table.id }),
-    ]).then(([row, hub]: [{ data: unknown }, { data: unknown }]) => {
+    loadSettings(supabase, table.id).then((d) => {
       if (cancelled) return;
-      const x = row.data as Extra | null;
-      if (x) { setUndo(String(x.undo_seconds)); setRequests(x.client_chat ?? ""); setSeat(x.final_seat ?? ""); setOffline(x.when_final_offline); }
-      setGithub((hub.data as Github) ?? null);
-      setLoaded(true);
+      if (d.extra) { setUndo(String(d.extra.undo_seconds)); setRequests(d.extra.client_chat ?? ""); setSeat(d.extra.final_seat ?? ""); setOffline(d.extra.when_final_offline); }
+      setGithubState(d.github);
+      onData(d);
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -96,6 +111,7 @@ export function SettingsForm({ table, me, people, chats, onRenamed, onRemoved }:
     });
     if (error) return setError(error.message);
     setSaved("table");
+    keep({});
     onRenamed(name.trim());
   }
 
@@ -106,6 +122,7 @@ export function SettingsForm({ table, me, people, chats, onRenamed, onRemoved }:
     const { error } = await supabase.rpc("set_final_seat", { t: table.id, seat: seat || null, offline });
     if (error) return setError(error.message);
     setSaved("answers");
+    keep({});
   }
 
   async function remove(id: string) {
@@ -159,11 +176,13 @@ export function SettingsForm({ table, me, people, chats, onRenamed, onRemoved }:
           <div className={styles.cardTitle}>GitHub</div>
           <div className="note">Pushes to main, merged pull requests and failed CI runs show up in General. Longtable never keeps any code.</div>
           {github?.connected && !hook && (
-            <div className={styles.actions}>
-              <span data-testid="github-status">Connected{github.repo ? ` to ${github.repo}` : ", waiting for GitHub's first delivery"}</span>
-              <button className="btn btn-quiet" onClick={connectGithub}>New secret</button>
-              <button className="btn btn-quiet" onClick={disconnectGithub}>Disconnect</button>
-            </div>
+            <>
+              <div className={styles.connected} data-testid="github-status"><i />Connected{github.repo ? ` to ${github.repo}` : ", waiting for GitHub's first delivery"}</div>
+              <div className={styles.actions}>
+                <button className="btn btn-quiet" onClick={connectGithub}>New secret</button>
+                <button className="btn btn-quiet" onClick={disconnectGithub}>Disconnect</button>
+              </div>
+            </>
           )}
           {!github?.connected && !hook && <div className={styles.actions}><button className="btn" onClick={connectGithub}>Connect a repo</button></div>}
           {hook && (

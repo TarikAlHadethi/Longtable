@@ -78,8 +78,8 @@ export function NewDecision({ chatId, myName, clientName, hasClient, request, on
 
   return (
     <div className={styles.modalBack} onClick={onClose}>
-      <form className={styles.modal} onSubmit={save} onClick={(e) => e.stopPropagation()} aria-label="Ask for a decision">
-        <div className={styles.modalTitle}>Ask for a decision</div>
+      <form className={styles.modal} onSubmit={save} onClick={(e) => e.stopPropagation()} aria-label="Make a poll">
+        <div className={styles.modalTitle}>Make a poll</div>
         {request && <blockquote className={styles.asked} data-testid="asked">{request.who} asked: {request.body}</blockquote>}
         <div>
           <label className="label" htmlFor="d-title">What needs deciding?</label>

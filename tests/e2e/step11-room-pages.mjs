@@ -19,6 +19,10 @@ try {
   // No full page load from here on: a marker on the window survives only if the page is never reloaded.
   await p.evaluate(() => { window.__same = true; });
 
+  await p.click("aside[aria-label=Menu] [data-member='Maya']");
+  await p.waitForSelector("[data-testid=person-window]");
+  check("clicking yourself in the list shows your details, not the form to change them", (await p.locator("#pf-name").count()) === 0 && /Joined/.test(await p.textContent("[data-testid=person-window]")));
+  await p.click("[data-testid=person-window] button:has-text('Close')");
   await p.click("aside[aria-label=Menu] [data-member='Sam']");
   await p.waitForSelector("[data-testid=person-window]");
   const sam = await p.textContent("[data-testid=person-window]");
@@ -46,6 +50,10 @@ try {
   await p.fill("#pf-name", "Maya R");
   await p.fill("#pf-status", "On the booking flow");
   await p.click("[role=radiogroup][aria-label='Name colour'] button >> nth=3");
+  const samsBubble = (await rest(await accessToken(dev.context), `members?select=bubble&table_id=eq.${owner.tableId}&display_name=eq.Sam`)).body[0].bubble;
+  check("a bubble colour someone else holds is greyed out", await p.isDisabled(`[role=radiogroup][aria-label='Bubble colour'] button[aria-label='${samsBubble}']`), samsBubble);
+  const stolen = await rpc(await accessToken(owner.context), "update_profile", { t: owner.tableId, new_name: "Maya", new_color: "oklch(0.62 0.12 30)", new_name_color: "", new_avatar: "", new_status: "", new_bubble: samsBubble });
+  check("and the database refuses it too", stolen.status >= 400, JSON.stringify(stolen.body));
   await p.click("[data-testid=person-window] button:has-text('Save')");
   await dev.page.waitForFunction(() => document.querySelector("aside[aria-label=Menu] [data-member='Maya R']")?.textContent.includes("On the booking flow"), null, { timeout: 10000 })
     .then(() => check("you change your own name and status, and everyone sees it", true), () => check("you change your own name and status, and everyone sees it", false));
@@ -69,9 +77,9 @@ try {
   await p.waitForTimeout(700);
   if (process.env.SHOTS) await p.screenshot({ path: `${process.env.SHOTS}/peek.png` });
   await p.click("[data-testid=client-portal]", { force: true });
-  await p.waitForSelector("[data-testid=client-side]");
+  await p.waitForSelector("[data-testid=client-view]");
   if (process.env.SHOTS) { await p.waitForTimeout(700); await p.screenshot({ path: `${process.env.SHOTS}/client-side.png` }); }
-  check("the glass in the corner opens the client's side in the middle of the room", /The client.s side/.test(await p.textContent("[data-testid=client-side]")) && await p.isVisible("aside[aria-label=Menu]"));
+  check("the glass in the corner takes the whole window to the client's side", /No client is at this table yet/.test(await p.textContent("[data-testid=client-view]")) && (await p.locator("aside[aria-label=Menu]").count()) === 0);
   await p.click("[data-testid=table-portal]");
   await p.waitForSelector("[data-testid=table-home]");
   check("and the same corner leads back to the table", true);

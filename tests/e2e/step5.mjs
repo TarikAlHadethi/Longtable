@@ -65,7 +65,7 @@ try {
   await dev.page.waitForFunction((id) => !!document.querySelector(`[data-request='${id}'] [data-testid=request-status]`), reqId, { timeout: 5000 });
   results.teamSawItAfterMs = Date.now() - askedAt;
   const card = await dev.page.textContent(`[data-request='${reqId}']`);
-  check("the team sees it live as a client card", card.includes(ask) && card.includes("client") && card.includes("New request") && card.includes("Ask for a decision"), card);
+  check("the team sees it live as a client card", card.includes(ask) && card.includes("client") && card.includes("New request") && card.includes("Make a poll"), card);
 
   // Priya sees none of it, on her page or in the database.
   await priya.page.reload();
@@ -80,9 +80,9 @@ try {
   check("another client sees none of it", !priyaLook.includes(ask) && Object.values(priyaReads).every((n) => n === 0), JSON.stringify(priyaReads));
 
   // The developer opens a decision from the card. It starts from her words, and she will hear the answer.
-  await dev.page.click(`[data-request='${reqId}'] button:has-text('Ask for a decision')`);
+  await dev.page.click(`[data-request='${reqId}'] button:has-text('Make a poll')`);
   await dev.page.waitForSelector("[data-testid=asked]");
-  const form = "form[aria-label='Ask for a decision']";
+  const form = "form[aria-label='Make a poll']";
   const prefilled = {
     title: await dev.page.inputValue("#d-title"),
     asked: await dev.page.textContent("[data-testid=asked]"),
@@ -105,7 +105,7 @@ try {
   await waitStatus(owner.page, reqId, "request-status", "Being decided");
   check("she sees it being decided, live", true);
   const ownerCard = await owner.page.textContent(`[data-request='${reqId}']`);
-  check("the card stops offering a second decision", !ownerCard.includes("Ask for a decision"), ownerCard);
+  check("the card stops offering a second decision", !ownerCard.includes("Make a poll"), ownerCard);
 
   const { body: ds } = await rest(ownerToken, `decisions?select=id,request_id,affects_client,origin&table_id=eq.${tableId}`);
   const d = ds.find((x) => x.request_id === reqId);
@@ -204,7 +204,7 @@ try {
   await elena.page.waitForFunction((t) => document.body.innerText.includes(t), ask3, { timeout: 5000 });
   const req3 = (await rest(elenaToken, `requests?select=id,body&table_id=eq.${tableId}`)).body.find((r) => r.body === ask3)?.id;
   await dev.page.waitForFunction((id) => !!document.querySelector(`[data-request='${id}'] button`), req3, { timeout: 5000 });
-  await dev.page.click(`[data-request='${req3}'] button:has-text('Ask for a decision')`);
+  await dev.page.click(`[data-request='${req3}'] button:has-text('Make a poll')`);
   await dev.page.fill("#d-title", "Waiting list: launch or later?");
   await dev.page.fill("input[aria-label='Option 1']", "Build it for launch");
   await dev.page.fill("input[aria-label='Option 2']", "After launch");
@@ -240,7 +240,7 @@ try {
   // Her answer reaches the team live, as a client card that offers the next decision.
   await dev.page.waitForFunction((id) => [...document.querySelectorAll(`[data-request='${id}'] [data-testid=request-status]`)].some((el) => el.textContent === "Elena Ruiz answered"), req3, { timeout: 5000 });
   const cards = await dev.page.$$eval(`[data-request='${req3}']`, (els) => els.map((el) => el.textContent));
-  const offering = cards.filter((t) => t.includes("Ask for a decision")).length;
+  const offering = cards.filter((t) => t.includes("Make a poll")).length;
   check("the team gets her answer and can decide again", cards.some((t) => t.includes("Answering: " + "Would you rather") && t.includes("At launch")) && offering === 1,
     JSON.stringify(cards));
 

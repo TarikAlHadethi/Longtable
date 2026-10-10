@@ -1,9 +1,9 @@
 /* The client's side, and the glass you reach it through. One green: a very light pistachio. */
-.ball, .haze, .side { --pistachio: light-dark(oklch(0.965 0.035 135), oklch(0.25 0.035 140)); --leaf: OKLCH(0.55 0.13 145); }
+.ball, .haze, .side { --pistachio: light-dark(#bec9bd, oklch(0.27 0.02 150)); --leaf: OKLCH(0.55 0.13 145); }
 
 /* The glass: a very rounded square, hazy, in the bottom right corner of the team's side. */
 .ball {
-  position: absolute; right: 26px; bottom: 26px; z-index: 6; width: 92px; height: 92px; border-radius: 32%; padding: 0; cursor: pointer; overflow: hidden;
+  position: absolute; right: 26px; bottom: 26px; z-index: 95; width: 92px; height: 92px; border-radius: 32%; padding: 0; cursor: pointer; overflow: hidden;
   border: 1px solid light-dark(oklch(0.84 0.07 140), oklch(0.42 0.07 140));
   background:
     radial-gradient(circle at 30% 25%, light-dark(oklch(0.99 0.02 135 / 0.95), oklch(0.5 0.06 140 / 0.7)), transparent 55%),
@@ -30,14 +30,14 @@
 
 /* Leaning in. The green opens from the glass's corner across the middle of the room; the edges grow leaves. */
 .haze {
-  position: absolute; inset: 0; z-index: 5; pointer-events: none; overflow: hidden; opacity: 0;
+  position: fixed; inset: 0; z-index: 90; pointer-events: none; overflow: hidden; opacity: 0;
   background: radial-gradient(ellipse at 50% 45%, color-mix(in oklch, var(--pistachio) 62%, transparent), color-mix(in oklch, var(--pistachio) 94%, transparent) 75%);
   backdrop-filter: blur(3px) saturate(1.15);
   box-shadow: inset 0 0 120px 30px light-dark(oklch(0.72 0.12 145 / 0.45), oklch(0.4 0.1 145 / 0.6));
-  clip-path: circle(0% at calc(100% - 72px) calc(100% - 72px));
+  clip-path: circle(0% at 72% 88%);
   transition: clip-path 0.55s var(--ease-out), opacity 0.25s ease;
 }
-.hazeOn { opacity: 1; clip-path: circle(150% at calc(100% - 72px) calc(100% - 72px)); }
+.hazeOn { opacity: 1; clip-path: circle(150% at 72% 88%); }
 
 /* A leaf: a square with two pointed corners, a rib down the middle, rooted on its edge of the glass. */
 .leaf {

@@ -1,5 +1,6 @@
 /* The client's page, drawn from the design's client view. */
-.page { min-height: calc(100vh / var(--zoom)); background: light-dark(oklch(0.98 0.006 120), oklch(0.205 0.006 120)); }
+/* The client's side has its own ground: a soft grey-green (#bec9bd), and a deep one after dark. */
+.page { min-height: calc(100vh / var(--zoom)); background: light-dark(#bec9bd, oklch(0.27 0.02 150)); }
 .header {
   height: 56px; display: flex; align-items: center; padding: 0 20px; border-bottom: 1px solid light-dark(oklch(0.92 0.008 110), oklch(0.282 0.008 110));
   background: light-dark(oklch(0.99 0.004 110), oklch(0.213 0.004 110));
@@ -101,3 +102,12 @@
 @keyframes lt-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes lt-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes lt-pop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }
+
+/* Someone on the team looking in. */
+.viewing { animation: cl-arrive 0.5s var(--ease-out) both; }
+.viewBar { margin-left: auto; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: flex-end; }
+.viewTag { font-size: 13px; font-weight: 600; color: var(--ink-2); background: light-dark(oklch(0.99 0.005 140 / 0.7), oklch(0.2 0.01 150 / 0.6)); border-radius: 999px; padding: 6px 14px; }
+.privateNote { align-self: center; font-size: 12.5px; color: var(--muted); padding: 6px 0; text-align: center; }
+.viewing .reply:disabled { cursor: default; opacity: 0.75; }
+.viewing .input:disabled { cursor: default; }
+@keyframes cl-arrive { from { opacity: 0.4; filter: blur(8px) saturate(1.3); transform: scale(1.03); } to { opacity: 1; filter: none; transform: none; } }

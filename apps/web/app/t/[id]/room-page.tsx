@@ -24,7 +24,7 @@ export async function RoomPage({ id, wanted, view, side }: { id: string; wanted?
 
   const { data: rows } = await supabase
     .from("members")
-    .select("id, user_id, display_name, role, color, created_at, avatar, name_color, status")
+    .select("id, user_id, display_name, role, color, created_at, avatar, name_color, status, bubble")
     .eq("table_id", id)
     .is("removed_at", null)
     .order("created_at");

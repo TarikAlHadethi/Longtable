@@ -41,7 +41,7 @@ try {
   await owner.page.waitForFunction(() => getComputedStyle(document.querySelector("aside[aria-label=Menu]")).display === "none", null, { timeout: 3000 })
     .then(() => true, () => false)
     .then(async (closed) => {
-      const title = await owner.page.textContent("main >> div >> nth=0");
+      const title = await owner.page.getAttribute("textarea[aria-label='Message the table']", "placeholder");
       check("picking a chat closes it and opens the chat", closed && title.includes("Booking flow"), `${closed} ${title}`);
     });
   if (shots) await owner.page.screenshot({ path: `${shots}/phone-room.png` });
