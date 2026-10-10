@@ -8,7 +8,7 @@
   display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16px; letter-spacing: -0.01em; background: none; border: 0;
   color: var(--ink); cursor: pointer; padding: 6px 10px 6px 6px; margin-left: -6px; border-radius: 10px; transition: background-color 0.15s ease, transform 0.15s var(--ease-out);
 }
-.brand:hover { background: var(--hover); }
+.brand:hover, .brandOn { background: var(--hover); }
 .brand:active { transform: scale(0.97); }
 .main[hidden] { display: none; }
 .divider { width: 1px; height: 18px; background: var(--line-strong); }
@@ -335,7 +335,7 @@
 .person[data-here="false"] .avatar { opacity: 0.6; }
 .presence { position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--paper); background: var(--faint); }
 .presenceOn { background: var(--online); }
-.crown { position: absolute; left: -4px; top: -8px; transform: rotate(-24deg); filter: drop-shadow(0 1px 1px oklch(0.2 0.01 70 / 0.25)); }
+.crown { position: absolute; left: -6px; top: -10px; transform: rotate(-22deg); filter: drop-shadow(0 1px 1.5px oklch(0.3 0.08 70 / 0.35)); }
 .modal { margin: auto; }
 
 /* Usage, beside the table. */

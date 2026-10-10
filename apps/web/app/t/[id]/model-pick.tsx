@@ -19,10 +19,10 @@ export function prettyModel(model?: string | null): string | null {
 // Claude's models by family, newest first. Claude Code does not say which of them a person's plan may use, so this
 // list is kept by hand; picking one a plan lacks makes that answer fail with a plain message.
 const CLAUDE: { family: string; models: string[] }[] = [
-  { family: "Fable", models: ["claude-fable-5"] },
-  { family: "Opus", models: ["claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6"] },
-  { family: "Sonnet", models: ["claude-sonnet-5", "claude-sonnet-4-6"] },
-  { family: "Haiku", models: ["claude-haiku-4-5"] },
+  { family: "Fable", models: ["claude-fable-5-1", "claude-fable-5"] },
+  { family: "Opus", models: ["claude-opus-5-5", "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6"] },
+  { family: "Sonnet", models: ["claude-sonnet-5-5", "claude-sonnet-5", "claude-sonnet-4-6"] },
+  { family: "Haiku", models: ["claude-haiku-5-5", "claude-haiku-4-5"] },
 ];
 
 type Family = { family: string; models: string[] };

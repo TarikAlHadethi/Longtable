@@ -126,4 +126,4 @@
 }
 
 /* The owner's crown, set a little crooked on the top left of their picture. */
-.crown { position: absolute; left: -5px; top: -11px; transform: rotate(-24deg); filter: drop-shadow(0 1px 1px oklch(0.2 0.01 70 / 0.25)); }
+.crown { position: absolute; left: -7px; top: -15px; transform: rotate(-22deg); filter: drop-shadow(0 1.5px 2px oklch(0.3 0.08 70 / 0.35)); }

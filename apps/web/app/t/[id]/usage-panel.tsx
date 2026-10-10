@@ -18,6 +18,14 @@ function resets(iso: string, now: number) {
   return `resets ${new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}`;
 }
 
+// The windows by the names people know them by: the session, the week across all models, and a week for one model.
+function windowName(name: string) {
+  if (name === "5-hour") return "Session limit";
+  if (name === "weekly") return "Weekly · all models";
+  const one = name.match(/^weekly (.+)$/);
+  return one ? `Weekly · ${one[1].charAt(0).toUpperCase()}${one[1].slice(1)}` : name.charAt(0).toUpperCase() + name.slice(1);
+}
+
 // Usage, beside the table: each person's AI on their own plan, with its limits as it last reported them.
 export function UsagePanel({ members, connections }: { members: Member[]; connections: Connection[] }) {
   const here = useInBrowser();
@@ -41,7 +49,7 @@ export function UsagePanel({ members, connections }: { members: Member[]; connec
             {windows.map((w) => (
               <div key={w.name} className={styles.meter}>
                 <div className={styles.meterTop}>
-                  <b>{w.name === "weekly" ? "Weekly" : w.name}</b>
+                  <b>{windowName(w.name)}</b>
                   <span>{Math.round(w.used)}%{here && w.resets ? ` · ${resets(w.resets, now)}` : ""}</span>
                 </div>
                 <div className={styles.meterBar}>

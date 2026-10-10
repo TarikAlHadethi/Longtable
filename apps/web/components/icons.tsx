@@ -30,10 +30,29 @@ export const Sun = (p: Props) => (
 );
 export const Moon = (p: Props) => <Svg {...p}><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.500 10.500z" /></Svg>;
 
-// The owner's crown: filled, and worn a little crooked by whoever places it.
+// The owner's crown: three points with a pearl on each, a band with a stone, in shaded gold. It is worn a little
+// crooked by whoever places it.
 export const Crown = ({ size = 16 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false" style={{ display: "block", flexShrink: 0 }}>
-    <path d="M3 8.5l4.6 3.6L12 5l4.4 7.1L21 8.5 19.2 18a1 1 0 0 1-1 .8H5.8a1 1 0 0 1-1-.8L3 8.5z" fill="OKLCH(0.83 0.15 88)" stroke="OKLCH(0.55 0.12 75)" strokeWidth="1.4" strokeLinejoin="round" />
+  <svg width={size} height={size} viewBox="0 0 32 28" aria-hidden="true" focusable="false" style={{ display: "block", flexShrink: 0, overflow: "visible" }}>
+    <defs>
+      <linearGradient id="lt-crown-gold" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#FFE9A3" />
+        <stop offset="0.45" stopColor="#F4C24B" />
+        <stop offset="1" stopColor="#C98A1B" />
+      </linearGradient>
+      <linearGradient id="lt-crown-band" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#E9B13A" />
+        <stop offset="1" stopColor="#A86E12" />
+      </linearGradient>
+    </defs>
+    <path d="M4.2 21.5 2.6 8.9c-.1-.7.7-1.1 1.2-.7l6 4.8c.4.3 1 .2 1.200-.2l4.200-8.300c.3-.6 1.200-.6 1.500 0l4.200 8.300c.2.4.800.5 1.200.2l6-4.800c.5-.4 1.300 0 1.200.7l-1.600 12.600z"
+      fill="url(#lt-crown-gold)" stroke="#9A640F" strokeWidth="1" strokeLinejoin="round" />
+    <rect x="4" y="21" width="24" height="4.600" rx="1.600" fill="url(#lt-crown-band)" stroke="#9A640F" strokeWidth="1" />
+    <circle cx="2.900" cy="7.600" r="1.900" fill="#FFF3C9" stroke="#9A640F" strokeWidth="0.900" />
+    <circle cx="16" cy="3.300" r="2.100" fill="#FFF3C9" stroke="#9A640F" strokeWidth="0.900" />
+    <circle cx="29.100" cy="7.600" r="1.900" fill="#FFF3C9" stroke="#9A640F" strokeWidth="0.900" />
+    <circle cx="16" cy="23.300" r="1.300" fill="#D8524A" />
+    <path d="M8 18.500c2.500-.9 5.200-1.300 8-1.300" fill="none" stroke="#FFF6D6" strokeWidth="0.900" strokeLinecap="round" opacity="0.700" />
   </svg>
 );
 export const Plug = (p: Props) => <Svg {...p}><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0V8zM12 17v4" /></Svg>;

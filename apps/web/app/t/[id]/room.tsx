@@ -413,7 +413,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         <button className={styles.menuToggle} aria-label="Menu" aria-expanded={drawerOpen} onClick={() => { setDrawerOpen(!drawerOpen); setInboxOpen(false); }}>
           <span /><span /><span />
         </button>
-        <button className={styles.brand} onClick={goHome} title="The table" data-testid="home"><Mark size={26} /> Longtable</button>
+        <button className={`${styles.brand} ${view === "table" ? styles.brandOn : ""}`} onClick={goHome} aria-current={view === "table" ? "page" : undefined} data-testid="home"><Mark size={26} /> Longtable</button>
         <div className={styles.divider} />
         <div className={styles.project}>{table.name}</div>
         <div className={styles.spacer} />
@@ -433,11 +433,6 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         {drawerOpen && <button className={styles.drawerBack} aria-label="Close the menu" onClick={() => setDrawerOpen(false)} />}
         <aside className={`${styles.aside} ${drawerOpen ? styles.asideOpen : ""}`} aria-label="Menu">
           <div className={styles.drawerProject}>{table.name}</div>
-          <div className={styles.section}>
-            <button className={`${styles.chat} ${view === "table" ? styles.chatActive : ""}`} onClick={goHome}>
-              <span className={styles.chatName}>The table</span>
-            </button>
-          </div>
           <div className={styles.section}>
             <div className={styles.sectionHead}>
               <div className={styles.sectionTitle}>Chats</div>

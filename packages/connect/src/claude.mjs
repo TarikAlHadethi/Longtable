@@ -110,7 +110,8 @@ export function claudeLimits(rate) {
   if (!rate) return null;
   const names = { five_hour: "5-hour", seven_day: "weekly" };
   const windows = Object.entries(rate.unifiedWindows || {}).map(([k, w]) => ({
-    name: names[k] || k.replace(/_/g, " "),
+    // A week counted for one model alone arrives as seven_day_<model>.
+    name: names[k] || (k.startsWith("seven_day_") ? `weekly ${k.slice(10).replace(/_/g, " ")}` : k.replace(/_/g, " ")),
     used: Math.round((w.utilization ?? 0) * 100),
     resets: w.resetsAt ? new Date(w.resetsAt * 1000).toISOString() : null,
   }));
