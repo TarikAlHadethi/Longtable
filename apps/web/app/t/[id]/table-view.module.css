@@ -31,7 +31,7 @@
 
 /* The seat for the next person: a place in the row like anyone else's. */
 .inviteSeat { display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: 0; padding: 0; font: inherit; color: var(--muted); cursor: pointer; transition: transform 0.2s var(--ease-out), color 0.2s ease; }
-.inviteSeat:hover { transform: translateY(-3px); color: var(--ink); }
+.inviteSeat:hover { color: var(--ink); }
 .inviteAvatar {
   width: 54px; height: 54px; border-radius: 50%; border: 2px dashed var(--line-dashed); margin-bottom: 5px;
   display: grid; place-items: center; transition: border-color 0.2s ease, background-color 0.2s ease;
@@ -88,7 +88,7 @@
 /* The table: its name, the mark dead centre, and the model that last answered. */
 .table {
   position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; background: var(--card);
-  border: 1px solid var(--line-strong); border-radius: 26px; padding: 22px 40px 24px; min-width: 240px; max-width: 380px;
+  border: 1px solid var(--line-strong); border-radius: 26px; padding: 22px 20px 24px; width: 300px; max-width: 100%;
   box-shadow: 0 16px 44px oklch(0.2 0.01 70 / 0.1); animation: tv-rise 0.6s var(--ease-out) 0.9s both; transition: border-color 0.3s ease;
 }
 .tableBusy { border-color: var(--sage); animation: tv-rise 0.6s var(--ease-out) 0.9s both, tv-glow 1.6s ease-in-out infinite; }
