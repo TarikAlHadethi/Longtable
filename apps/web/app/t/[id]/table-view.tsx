@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AI_NAME, AiLogo, type AiKind } from "@/components/ai-logo";
-import { Arrow, Plus } from "@/components/icons";
+import { Arrow, Check, Plus } from "@/components/icons";
 import { Mark } from "@/components/mark";
 import type { Chat, Connection, Job, Member, Message } from "./types";
 import s from "./table-view.module.css";
@@ -41,17 +41,37 @@ function Model({ conn, mine, className, lead = "", onModel }: {
   // What it last ran, when that matches the pick; else the pick itself until its first answer on it.
   const shown = (id: string) => (reported && reported.toLowerCase().includes(id.toLowerCase()) ? prettyModel(reported) : prettyModel(id)) ?? id;
   const current = choice ? shown(choice) : prettyModel(reported) ?? "Connected";
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
+  }, [open]);
   if (!mine || !onModel || known.length === 0) return <div className={className} key={current}>{lead}{current}</div>;
-  const options = [...new Set([choice, ...known].filter(Boolean))];
+  const options = [{ id: "", name: "Automatic" }, ...[...new Set([...known, choice].filter(Boolean))].map((id) => ({ id, name: shown(id) }))];
   return (
-    <label className={`${className} ${s.pick}`}>
-      <span className={s.pickText} key={current}>{lead}{current}</span>
-      <select className={s.pickSelect} value={choice} aria-label="The model your AI runs" data-testid="model-pick"
-        onChange={(e) => onModel(conn.id, e.target.value)}>
-        <option value="">{conn.kind === "codex" ? "ChatGPT's own choice" : "Claude's own choice"}</option>
-        {options.map((id) => <option key={id} value={id}>{shown(id)}</option>)}
-      </select>
-    </label>
+    <span className={s.pickWrap} ref={ref}>
+      <button type="button" className={`${className} ${s.pick} ${open ? s.pickOpen : ""}`} aria-haspopup="listbox" aria-expanded={open}
+        data-testid="model-pick" onClick={() => setOpen(!open)}>
+        <span key={current} className={s.pickText}>{lead}{current}</span>
+      </button>
+      {open && (
+        <div className={s.menu} role="listbox" aria-label="The model your AI runs">
+          {options.map((o, i) => (
+            <button key={o.id || "auto"} type="button" role="option" aria-selected={o.id === choice} data-model={o.id || "auto"}
+              className={`${s.menuItem} ${o.id === choice ? s.menuOn : ""}`} style={{ "--i": i } as React.CSSProperties}
+              onClick={() => { setOpen(false); if (o.id !== choice) onModel(conn.id, o.id); }}>
+              <span>{o.name}</span>
+              {o.id === choice && <Check size={15} stroke={2.6} />}
+            </button>
+          ))}
+        </div>
+      )}
+    </span>
   );
 }
 
@@ -171,7 +191,7 @@ export function TableView({ table, me, members, connections, jobs, online, messa
               const d = x === cx ? `M ${x} -14 L ${cx} 100` : `M ${x} -14 L ${x} 0 C ${x} 62, ${cx} 38, ${cx} 100`;
               return (
                 <g key={m.id} className={seat?.on ? `${s[`wire_${seat.conn.kind}`]} ${busy(m.id) ? s.wireBusy : ""}` : undefined}>
-                  <path d={d} vectorEffect="non-scaling-stroke" className={seat?.on ? s.wire : seat ? s.wireDown : s.wireOff} />
+                  <path d={d} vectorEffect="non-scaling-stroke" className={seat?.on ? s.wire : s.wireOff} />
                   {seat?.on && <path d={d} vectorEffect="non-scaling-stroke" className={s.pulse} style={{ animationDelay: `${-i * 0.9}s` }} />}
                 </g>
               );
