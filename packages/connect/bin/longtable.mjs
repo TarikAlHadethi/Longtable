@@ -42,22 +42,30 @@ async function connect() {
   if (ai === "claude" && !claude) throw new Error("Claude Code isn't installed on this computer. Install it from claude.com/claude-code, then press Connect again.");
   if (ai === "codex" && !codex) throw new Error("Codex's command-line tool isn't installed on this computer. Install it with npm install -g @openai/codex, then press Connect again.");
 
+  // Find the code before the one-use code is spent: a repository this computer cannot open stops here, with
+  // nothing changed at the table. (A client's AI gets no code; whether this is one is only known after pairing.)
+  let source = null;
+  const repo = option("repo");
+  try {
+    source = resolveSource(repo || process.cwd());
+  } catch (e) {
+    if (repo) throw e;
+  }
+
   const cfg = await fetchConfig(app);
   const rpc = client(cfg);
   const paired = await rpc("pair_connection", { code, device_label: hostname() });
-  if (paired.kind !== ai) throw new Error(`That connect code is for ${paired.kind === "codex" ? "Codex" : "Claude"}. Press Connect again.`);
+  // From here on, anything that goes wrong takes the connection off the table again, so the table never shows an AI
+  // as connected that is not running.
+  const leave = async (message) => {
+    try { await rpc("runner_leave", { token: paired.token, reason: message }); } catch {}
+    forgetSecret(`device-${paired.table_id}-${paired.kind}`);
+    throw new Error(message);
+  };
+  if (paired.kind !== ai) await leave(`That connect code is for ${paired.kind === "codex" ? "Codex" : "Claude"}. Press Connect again.`);
   saveSecret(`device-${paired.table_id}-${paired.kind}`, paired.token);
-
-  // A client's AI never gets the code. A team member's reads a clean copy of the project.
-  let source = null;
-  const repo = option("repo");
-  if (paired.role !== "client") {
-    try {
-      source = resolveSource(repo || process.cwd());
-    } catch (e) {
-      if (repo) throw e;
-    }
-  }
+  if (paired.role === "client") source = null;
+  else if (!source) await leave("This folder is not the project. Open your AI in the project's own folder, then press Connect again.");
 
   const config = readConfig();
   config.app = app;
@@ -77,7 +85,14 @@ async function connect() {
   });
   writeConfig(config);
 
-  if (source) freshCopy(paired.table_id, source);
+  if (source) {
+    try {
+      freshCopy(paired.table_id, source);
+    } catch (e) {
+      writeConfig({ ...config, connections: config.connections.filter((c) => c.table_id !== paired.table_id) });
+      await leave(`The connection could not copy the project's code: ${String(e.message).split("\n").pop()}`);
+    }
+  }
 
   if (ai === "claude") {
     const token = loadSecret("claude-token");
@@ -85,11 +100,11 @@ async function connect() {
       say("A page is opening in your browser so this connection can have its own Claude sign-in. Approve it there.");
       // Loaded only here: it needs packages that the copy kept for start-up does not carry.
       const { signIn } = await import("../src/signin.mjs");
-      if (!(await signIn(claude))) throw new Error("The Claude sign-in didn't finish. Press Connect again.");
+      if (!(await signIn(claude))) await leave("The Claude sign-in didn't finish. Press Connect again.");
     }
   } else if (!codexSignedIn(codex)) {
     say("A page is opening in your browser so this connection can have its own ChatGPT sign-in for Codex. Approve it there.");
-    if (!(await codexSignIn(codex))) throw new Error("The ChatGPT sign-in didn't finish. Press Connect again.");
+    if (!(await codexSignIn(codex))) await leave("The ChatGPT sign-in didn't finish. Press Connect again.");
   }
 
   const auto = has("no-autostart") ? { started: false } : enableAutostart(process.execPath, binPath);

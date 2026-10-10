@@ -5,19 +5,36 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { home } from "./store.mjs";
 
-const git = (args, cwd) => execFileSync("git", args, { cwd, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }).toString().trim();
+// Git never stops to ask for a name or password here: if this computer's saved sign-in cannot reach a repository,
+// the command fails and the connection says so.
+const quiet = { ...process.env, GIT_TERMINAL_PROMPT: "0", GCM_INTERACTIVE: "never" };
+const git = (args, cwd) => execFileSync("git", args, { cwd, env: quiet, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], timeout: 120000 }).toString().trim();
 
-// Given a folder or a git address, find where to copy from: the folder's origin if it has one, else the folder itself.
+export function canReach(source) {
+  try {
+    git(["ls-remote", "--exit-code", source, "HEAD"]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Given a folder or a git address, find where to copy from. For a folder: its origin when this computer can reach
+// it, else the folder's own history, which is still only committed work. An address that cannot be reached is an
+// error, said before anything else happens.
 export function resolveSource(repo) {
   if (!repo) return null;
-  if (/^(https?:|git@|ssh:)/.test(repo)) return repo;
+  if (/^(https?:|git@|ssh:)/.test(repo)) {
+    if (!canReach(repo)) throw new Error(`This computer's git cannot open ${repo}. Sign in to git for it, or open your AI in the project's own folder and connect from there.`);
+    return repo;
+  }
   const folder = resolve(repo);
   if (!existsSync(join(folder, ".git"))) throw new Error(`${folder} is not a git repository`);
   try {
     const origin = git(["-C", folder, "remote", "get-url", "origin"]);
-    if (origin) return origin;
+    if (origin && canReach(origin)) return origin;
   } catch {
-    // No origin: copy from the folder's own history, which is still only committed work.
+    // No origin: fall through to the folder itself.
   }
   return "file:///" + folder.replace(/\\/g, "/");
 }
