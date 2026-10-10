@@ -102,7 +102,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
   const refreshMembers = useCallback(async () => {
-    const { data } = await supabase.from("members").select("id, display_name, role, color").eq("table_id", table.id).order("created_at");
+    const { data } = await supabase.from("members").select("id, display_name, role, color").eq("table_id", table.id).is("removed_at", null).order("created_at");
     if (data) {
       known.current = new Set((data as Member[]).map((m) => m.id));
       setMembers(data as Member[]);
@@ -151,6 +151,12 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         if (!known.current.has(m.member_id)) refreshMembers();
       } else if (name === "members") {
         const { id, display_name, role, color } = record as unknown as Member;
+        // Taken off the table: gone from the list, and if it is this person, their page closes.
+        if ((record as { removed_at?: string | null }).removed_at) {
+          if (id === me.id) setGone(true);
+          setMembers((prev) => prev.filter((m) => m.id !== id));
+          return;
+        }
         known.current.add(id);
         setMembers((prev) => (prev.some((m) => m.id === id)
           ? prev.map((m) => (m.id === id ? { id, display_name, role, color } : m))
@@ -391,6 +397,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         <button className={`btn btn-quiet ${styles.inboxToggle}`} onClick={() => setInboxOpen(!inboxOpen)}>
           Inbox{open.length > 0 ? ` (${open.length})` : ""}
         </button>
+        {me.role === "owner" && <Link className="btn btn-quiet" href={`/t/${table.id}/settings`}>Settings</Link>}
         {me.role === "owner" && <Invite tableId={table.id} />}
       </header>
 

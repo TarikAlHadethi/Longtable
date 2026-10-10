@@ -3,7 +3,7 @@ import { Mark } from "@/components/mark";
 import { serverClient } from "@/lib/supabase/server";
 import { JoinForm } from "./join-form";
 
-type Preview = { table_name: string; role: "owner" | "developer" | "client"; expired: boolean; used: boolean };
+type Preview = { table_name: string; role: "owner" | "developer" | "client"; expired: boolean; used: boolean; name: string };
 
 // An invite link lands here: who invited you to what, then your name and Join.
 export default async function Join({ params }: { params: Promise<{ token: string }> }) {
@@ -33,7 +33,7 @@ export default async function Join({ params }: { params: Promise<{ token: string
         <p className="note" style={{ margin: 0 }}>
           You're invited to <strong>{preview.table_name}</strong> as {preview.role === "client" ? "the client" : "a developer"}.
         </p>
-        <JoinForm token={token} />
+        <JoinForm token={token} name={preview.name} />
       </>
     );
   }

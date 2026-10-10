@@ -27,6 +27,7 @@ export default async function TablePage({ params, searchParams }: {
     .from("members")
     .select("id, user_id, display_name, role, color")
     .eq("table_id", id)
+    .is("removed_at", null)
     .order("created_at");
   const members = (rows ?? []) as MemberRow[];
   const mine = members.find((m) => m.user_id === user.id);

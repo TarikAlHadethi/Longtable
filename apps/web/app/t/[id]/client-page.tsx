@@ -111,6 +111,7 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
       else if (name === "requests" && record.member_id === me.id) putRequest(record as unknown as Request);
       else if (name === "client_lines" && record.member_id === me.id) putLines([record as unknown as ClientLine]);
       else if (name === "jobs" && record.member_id === me.id) setJobs((prev) => put(prev, [record as unknown as Job]));
+      else if (name === "members" && record.id === me.id && record.removed_at) setGone(true);
       else if (name === "connections" && record.member_id === me.id) setConnections((prev) => put(prev, [record as unknown as Connection]));
     };
     (async () => {

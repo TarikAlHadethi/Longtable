@@ -4,9 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { browserClient } from "@/lib/supabase/browser";
 
-export function JoinForm({ token }: { token: string }) {
+export function JoinForm({ token, name = "" }: { token: string; name?: string }) {
   const router = useRouter();
-  const [me, setMe] = useState("");
+  const [me, setMe] = useState(name);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
