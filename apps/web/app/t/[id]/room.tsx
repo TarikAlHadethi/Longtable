@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "@/components/icons";
+import { Crown, Plus } from "@/components/icons";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
@@ -17,13 +17,13 @@ import { Invite } from "./invite";
 import { NewDecision } from "./new-decision";
 import { ProfileMenu } from "./profile-menu";
 import { TableView } from "./table-view";
+import { UsagePanel } from "./usage-panel";
 import {
   CONNECTION_COLUMNS, DECISION_COLUMNS, JOB_COLUMNS, MESSAGE_COLUMNS, NOTE_COLUMNS, REQUEST_COLUMNS,
   type Chat, type Connection, type Decision, type Job, type Member, type Message, type Note, type Request, type RequestStatus,
 } from "./types";
 import styles from "./room.module.css";
 
-const ROLE_WORD = { owner: "Owner", developer: "Developer", client: "Client" } as const;
 const initial = (name: string) => name.trim().charAt(0).toUpperCase() || "?";
 const byTime = <T extends { created_at: string }>(a: T, b: T) => a.created_at.localeCompare(b.created_at);
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -423,9 +423,10 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           ))}
         </div>
         <button className={`btn btn-quiet ${styles.inboxToggle}`} onClick={() => { setInboxOpen(!inboxOpen); setDrawerOpen(false); }}>
-          Inbox{open.length > 0 ? ` (${open.length})` : ""}
+          {view === "table" ? "Usage" : `Inbox${open.length > 0 ? ` (${open.length})` : ""}`}
         </button>
-        <ProfileMenu me={me} tableId={table.id} onInvite={me.role === "owner" ? () => setInviting(true) : undefined} />
+        <ProfileMenu me={me} tableId={table.id} onInvite={me.role === "owner" ? () => setInviting(true) : undefined}
+          ai={myConnection?.kind ?? null} onConnect={() => setConnectOpen(true)} onDisconnect={() => myConnection && disconnect(myConnection.id)} />
       </header>
 
       <div className={styles.grid}>
@@ -466,35 +467,22 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
             </div>
           )}
           <div className={styles.section}>
-            <div className={styles.sectionTitle}>Your AI</div>
-            {myConnection ? (
-              <div className={styles.claudeStatus} data-testid="my-claude">
-                <span className={`${styles.dot} ${styles.dotOn}`} />
-                <span className={styles.claudeText}>{AI_NAME[myConnection.kind]} connected</span>
-                <button className={styles.toolLink} onClick={() => disconnect(myConnection.id)}>Disconnect</button>
-              </div>
-            ) : (
-              <button className={`btn btn-quiet ${styles.connectButton}`} onClick={() => setConnectOpen(true)}>Connect my AI</button>
-            )}
-          </div>
-          <div className={styles.section}>
             <div className={styles.sectionTitle}>People</div>
             {members.map((m) => (
-              <div key={m.id} className={styles.person}>
-                <div className={styles.avatar} style={{ background: m.color, opacity: online.has(m.id) ? 1 : 0.6 }}>{initial(m.display_name)}</div>
+              <div key={m.id} className={styles.person} data-here={online.has(m.id)}>
+                <div className={styles.avatar} style={{ background: m.color }}>
+                  {initial(m.display_name)}
+                  {m.role === "owner" && <span className={styles.crown}><Crown size={15} /></span>}
+                  <i className={`${styles.presence} ${online.has(m.id) ? styles.presenceOn : ""}`} />
+                </div>
                 <div className={styles.personText}>
-                  <div className={styles.personName}>{m.display_name}{m.id === me.id ? " (you)" : ""}</div>
-                  <div className={styles.personMeta}>
-                    <span className={`${styles.dot} ${online.has(m.id) ? styles.dotOn : styles.dotOff}`} />
-                    {online.has(m.id) ? "Here" : "Away"} · {ROLE_WORD[m.role]}
-                    {m.role === "client" ? (liveAI.has(m.id) ? " · Assistant on" : "") : liveAI.has(m.id) ? ` · ${aiWord(m.id)} on` : ""}
-                  </div>
+                  <div className={styles.personName}>{m.display_name}</div>
+                  {m.role === "client" && <div className={styles.personMeta}>Client</div>}
                 </div>
               </div>
             ))}
           </div>
           <div className={styles.section}>
-            <Link className={styles.chat} href={`/t/${table.id}/usage`}>Usage</Link>
             <button className={styles.chat} onClick={() => downloadExport("export_mine", table.id, table.name)}>Download what&apos;s mine</button>
             <Link className={styles.chat} href="/privacy">Privacy</Link>
             <Link className={styles.chat} href={`/t/${table.id}/activity`}>Activity</Link>
@@ -635,20 +623,29 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           </div>
         </main>
 
-        <aside className={`${styles.inbox} ${inboxOpen ? styles.inboxOpen : ""}`} aria-label="Inbox">
-          <div className={styles.inboxHead}>
-            <div className={styles.inboxTitle}>Inbox</div>
-            {open.length > 0 && <div className={styles.inboxCount}>{waiting}</div>}
-          </div>
-          <div className={styles.inboxList}>
-            {open.length === 0 && <div className={styles.inboxEmpty}>Nothing waiting for a yes</div>}
-            {open.map((d) => card(d, true))}
-            {decided.length > 0 && (
-              <div className={styles.inboxDivider}><span>Decided</span><span className={styles.rule} /></div>
-            )}
-            {decided.map((d) => card(d, true))}
-          </div>
-        </aside>
+        {view === "table" ? (
+          <aside className={`${styles.inbox} ${inboxOpen ? styles.inboxOpen : ""}`} aria-label="Usage">
+            <div className={styles.inboxHead}><div className={styles.inboxTitle}>Usage</div></div>
+            <div className={styles.inboxList}>
+              <UsagePanel members={members} connections={connections} />
+            </div>
+          </aside>
+        ) : (
+          <aside className={`${styles.inbox} ${inboxOpen ? styles.inboxOpen : ""}`} aria-label="Inbox">
+            <div className={styles.inboxHead}>
+              <div className={styles.inboxTitle}>Inbox</div>
+              {open.length > 0 && <div className={styles.inboxCount}>{waiting}</div>}
+            </div>
+            <div className={styles.inboxList}>
+              {open.length === 0 && <div className={styles.inboxEmpty}>Nothing waiting for a yes</div>}
+              {open.map((d) => card(d, true))}
+              {decided.length > 0 && (
+                <div className={styles.inboxDivider}><span>Decided</span><span className={styles.rule} /></div>
+              )}
+              {decided.map((d) => card(d, true))}
+            </div>
+          </aside>
+        )}
       </div>
 
       {openNote && (

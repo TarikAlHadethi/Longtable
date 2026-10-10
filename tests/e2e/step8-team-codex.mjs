@@ -31,6 +31,7 @@ const home = (name) => {
 };
 
 async function connect(page, kind, env) {
+  await page.click("[data-testid=me-menu]");
   await page.click("button:has-text('Connect my AI')");
   await page.click(`[data-testid=pick-${kind}]`);
   await page.click("text=It is only on my computer");
@@ -38,7 +39,7 @@ async function connect(page, kind, env) {
   const m = message.match(/connect ([0-9A-F]{20})( --ai codex)? --app (\S+)/);
   const args = [bin, "connect", m[1], ...(m[2] ? ["--ai", "codex"] : []), "--app", m[3], "--repo", repoRoot, "--no-autostart", "--no-run"];
   const out = spawnSync(process.execPath, args, { env, encoding: "utf8" });
-  await page.waitForSelector("[data-testid=my-claude]", { timeout: 15000 });
+  await page.waitForSelector("[data-testid=me-menu][data-connected]", { timeout: 15000 });
   await page.click("div[role=dialog] button >> text=/Done|Close/");
   return { message, ok: out.status === 0, said: out.stdout || out.stderr };
 }

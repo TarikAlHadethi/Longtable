@@ -1,6 +1,7 @@
 "use client";
 
-import { Gauge, Gear, Moon, Plus, SignOut, Sun } from "@/components/icons";
+import { AI_NAME, type AiKind } from "@/components/ai-logo";
+import { Gear, Moon, Plug, Plus, SignOut, Sun } from "@/components/icons";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { browserClient } from "@/lib/supabase/browser";
@@ -10,7 +11,14 @@ import styles from "./room.module.css";
 const ROLE_WORD = { owner: "Owner", developer: "Developer", client: "Client" } as const;
 
 // The person's own menu, behind their picture: invite, settings, the light or dark look, and signing out.
-export function ProfileMenu({ me, tableId, onInvite }: { me: Member; tableId: string; onInvite?: () => void }) {
+export function ProfileMenu({ me, tableId, onInvite, ai, onConnect, onDisconnect }: {
+  me: Member;
+  tableId: string;
+  onInvite?: () => void;
+  ai?: AiKind | null;
+  onConnect?: () => void;
+  onDisconnect?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [dark, setDark] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -40,7 +48,7 @@ export function ProfileMenu({ me, tableId, onInvite }: { me: Member; tableId: st
   return (
     <div className={styles.me} ref={ref}>
       <button className={styles.meButton} style={{ background: me.color }} aria-label="Your menu" aria-haspopup="menu" aria-expanded={open}
-        data-testid="me-menu" onClick={() => setOpen(!open)}>
+        data-testid="me-menu" data-connected={ai ?? undefined} onClick={() => setOpen(!open)}>
         {letter}
       </button>
       {open && (
@@ -51,7 +59,8 @@ export function ProfileMenu({ me, tableId, onInvite }: { me: Member; tableId: st
           </div>
           {onInvite && <button role="menuitem" className={styles.meItem} onClick={() => { setOpen(false); onInvite(); }}><Plus size={16} />Invite people</button>}
           {me.role === "owner" && <Link role="menuitem" className={styles.meItem} href={`/t/${tableId}/settings`}><Gear size={16} />Table settings</Link>}
-          {me.role !== "client" && <Link role="menuitem" className={styles.meItem} href={`/t/${tableId}/usage`}><Gauge size={16} />Usage</Link>}
+          {onConnect && !ai && <button role="menuitem" className={styles.meItem} onClick={() => { setOpen(false); onConnect(); }}><Plug size={16} />Connect my AI</button>}
+          {onDisconnect && ai && <button role="menuitem" className={styles.meItem} onClick={() => { setOpen(false); onDisconnect(); }}><Plug size={16} />Disconnect my {AI_NAME[ai]}</button>}
           <div className={styles.meLook}>
             <span>Appearance</span>
             <div className={styles.lookSwitch} role="group" aria-label="Appearance">

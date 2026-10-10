@@ -36,7 +36,7 @@ try {
   });
   if (shots) await owner.page.screenshot({ path: `${shots}/phone-drawer.png` });
   check("the menu opens the sidebar", drawer.shown && drawer.width > 200 && drawer.width <= 390
-    && ["booking flow", "connect my ai", "people", "settings"].every((w) => drawer.text.toLowerCase().includes(w)), JSON.stringify({ ...drawer, text: drawer.text.slice(0, 200) }));
+    && ["booking flow", "people", "settings"].every((w) => drawer.text.toLowerCase().includes(w)), JSON.stringify({ ...drawer, text: drawer.text.slice(0, 200) }));
   await owner.page.click("aside[aria-label=Menu] button:has-text('Booking flow')");
   await owner.page.waitForFunction(() => getComputedStyle(document.querySelector("aside[aria-label=Menu]")).display === "none", null, { timeout: 3000 })
     .then(() => true, () => false)

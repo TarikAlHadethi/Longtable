@@ -23,6 +23,7 @@ try {
   const dev = await joinTable(browser, await inviteLink(owner.page, "developer"), `dev-${run}@example.test`, "Sam");
   const client = await joinTable(browser, await inviteLink(owner.page, "client"), `client-${run}@example.test`, "Dr. Ruiz");
 
+  await owner.page.click("[data-testid=me-menu]");
   await owner.page.click("button:has-text('Connect my AI')");
   await owner.page.click("[data-testid=pick-claude]");
   await owner.page.fill("#repo", "not an address");
@@ -35,6 +36,7 @@ try {
   const mine = await owner.page.locator("[data-testid=connect-message]").textContent();
   check("the setup message carries the address and no longer asks for a folder", mine.includes(` --repo ${REPO} `) && !/in this folder/.test(mine) && /Only its answers leave this computer/.test(mine), mine);
 
+  await dev.page.click("[data-testid=me-menu]");
   await dev.page.click("button:has-text('Connect my AI')");
   await dev.page.click("[data-testid=pick-codex]");
   const sams = await dev.page.locator("[data-testid=connect-message]").textContent();
@@ -48,6 +50,7 @@ try {
   // A connect that cannot find the project takes itself off the table again: nobody sees a connected AI that is
   // not running.
   const other = await startTable(browser, `owner2-${run}@example.test`, "Other app", "Noor");
+  await other.page.click("[data-testid=me-menu]");
   await other.page.click("button:has-text('Connect my AI')");
   await other.page.click("[data-testid=pick-claude]");
   await other.page.click("text=It is only on my computer");

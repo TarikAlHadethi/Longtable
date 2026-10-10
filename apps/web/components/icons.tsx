@@ -29,3 +29,11 @@ export const Sun = (p: Props) => (
   </Svg>
 );
 export const Moon = (p: Props) => <Svg {...p}><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.500 10.500z" /></Svg>;
+
+// The owner's crown: filled, and worn a little crooked by whoever places it.
+export const Crown = ({ size = 16 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false" style={{ display: "block", flexShrink: 0 }}>
+    <path d="M3 8.5l4.6 3.6L12 5l4.4 7.1L21 8.5 19.2 18a1 1 0 0 1-1 .8H5.8a1 1 0 0 1-1-.8L3 8.5z" fill="OKLCH(0.83 0.15 88)" stroke="OKLCH(0.55 0.12 75)" strokeWidth="1.4" strokeLinejoin="round" />
+  </svg>
+);
+export const Plug = (p: Props) => <Svg {...p}><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0V8zM12 17v4" /></Svg>;

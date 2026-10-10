@@ -167,7 +167,7 @@
 
 /* Ask for a decision */
 .modalBack {
-  position: fixed; inset: 0; background: oklch(0.2 0.01 70 / 0.3); z-index: 50; display: flex; align-items: flex-start;
+  position: fixed; inset: 0; background: oklch(0.2 0.01 70 / 0.3); z-index: 50; display: flex; align-items: center;
   justify-content: center; padding: 48px 16px; overflow: auto;
 }
 .modal {
@@ -329,3 +329,28 @@
 .lookSwitch { display: flex; background: var(--chip); border-radius: 9px; padding: 3px; }
 .lookSwitch button { display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--muted); padding: 5px 10px; border-radius: 7px; cursor: pointer; transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease; }
 .lookSwitch .lookOn { background: var(--card); color: var(--ink); box-shadow: 0 1px 4px oklch(0.2 0.01 70 / 0.18); }
+
+/* A person in the list: their picture, a dot when they are here, and a crown on the owner. */
+.avatar { position: relative; }
+.person[data-here="false"] .avatar { opacity: 0.6; }
+.presence { position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--paper); background: var(--faint); }
+.presenceOn { background: var(--online); }
+.crown { position: absolute; left: -4px; top: -8px; transform: rotate(-24deg); filter: drop-shadow(0 1px 1px oklch(0.2 0.01 70 / 0.25)); }
+.modal { margin: auto; }
+
+/* Usage, beside the table. */
+.use { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; animation: lt-rise 0.35s var(--ease-out) both; }
+.useHead { display: flex; align-items: center; gap: 10px; }
+.useFace { width: 30px; height: 30px; border-radius: 50%; color: white; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.useName { font-size: 14px; font-weight: 600; }
+.useAi { font-size: 12px; color: var(--muted); }
+.useOff { opacity: 0.6; }
+.meter { display: flex; flex-direction: column; gap: 5px; }
+.meterTop { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12.5px; }
+.meterTop b { font-weight: 600; }
+.meterTop span { color: var(--muted); }
+.meterBar { height: 6px; border-radius: 3px; background: var(--chip); overflow: hidden; }
+.meterFill { height: 100%; border-radius: 3px; background: light-dark(oklch(0.55 0.08 150), oklch(0.7 0.1 150)); transform-origin: left; animation: lt-grow 0.8s var(--ease-out) both; }
+.meterWarn { background: light-dark(oklch(0.65 0.13 60), oklch(0.75 0.13 60)); }
+.meterFull { background: var(--danger); }
+@keyframes lt-grow { from { transform: scaleX(0); } to { transform: none; } }

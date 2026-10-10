@@ -41,6 +41,7 @@ try {
   const client = await joinTable(browser, await inviteLink(owner.page, "client"), `client-${run}@example.test`, "Dr. Ruiz");
 
   // Sam presses Connect my Claude. The window writes the message his Claude would get.
+  await dev.page.click("[data-testid=me-menu]");
   await dev.page.click("button:has-text('Connect my AI')");
   await dev.page.click("[data-testid=pick-claude]");
   await dev.page.click("text=It is only on my computer");
@@ -53,7 +54,7 @@ try {
   const connected = spawnSync(process.execPath, [bin, "connect", m[1], "--app", m[2], "--repo", repoRoot, "--no-autostart", "--no-run"], { env, encoding: "utf8" });
   check("the connection pairs", connected.status === 0 && /Connected\./.test(connected.stdout), connected.stderr || connected.stdout);
   results.connectSays = connected.stdout.trim();
-  await dev.page.waitForSelector("[data-testid=my-claude]", { timeout: 10000 });
+  await dev.page.waitForSelector("[data-testid=me-menu][data-connected]", { timeout: 10000 });
   check("Sam's screen turns to Connected live", true);
   const reused = spawnSync(process.execPath, [bin, "connect", m[1], "--app", m[2], "--no-autostart", "--no-run"], { env, encoding: "utf8" });
   check("a connect code works only once", reused.status !== 0, reused.stdout);

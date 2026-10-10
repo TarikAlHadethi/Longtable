@@ -56,7 +56,7 @@ try {
   const connected = spawnSync(process.execPath, [bin, "connect", m[1], "--app", m[2], "--repo", repoRoot, "--no-autostart", "--no-run"], { env, encoding: "utf8" });
   check("their Claude connects", connected.status === 0 && /Connected\./.test(connected.stdout), connected.stderr || connected.stdout);
   runner = spawn(process.execPath, [bin, "run"], { env, stdio: "ignore", windowsHide: true });
-  await page.waitForSelector("[data-testid=my-claude]", { timeout: 15000 });
+  await page.waitForSelector("[data-testid=me-menu][data-connected]", { timeout: 15000 });
   await page.click("div[role=dialog] button >> text=/Done|Close/");
   await page.waitForSelector("[data-testid=table-home] [data-seat-ai=claude]", { timeout: 15000 }).then(() => check("their Claude takes its place in the tree", true))
     .catch(() => check("their Claude takes its place in the tree", false));

@@ -2,14 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { AI_NAME, AiLogo, type AiKind } from "@/components/ai-logo";
-import { Arrow, Plus } from "@/components/icons";
+import { Arrow, Crown, Plus } from "@/components/icons";
 import { Mark } from "@/components/mark";
 import { ModelPick, prettyModel } from "./model-pick";
 import type { Chat, Connection, Job, Member, Message } from "./types";
 import s from "./table-view.module.css";
 
 const initial = (name: string) => name.trim().charAt(0).toUpperCase() || "?";
-const ROLE = { owner: "Owner", developer: "Developer", client: "Client" } as const;
 const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
 export { prettyModel };
 const prettyPlan = (plan?: string | null) => (plan ? `${cap(plan).replace(/_/g, " ")}` : null);
@@ -89,10 +88,10 @@ export function TableView({ table, me, members, connections, jobs, online, messa
                   <div className={s.person}>
                     <span className={s.avatar} style={{ background: m.color }}>
                       {initial(m.display_name)}
+                      {m.role === "owner" && <span className={s.crown}><Crown size={22} /></span>}
                       <i className={online.has(m.id) ? s.here : s.away} />
                     </span>
-                    <div className={s.name}>{m.display_name}{mine ? " (you)" : ""}</div>
-                    <div className={s.role}>{ROLE[m.role]} · {online.has(m.id) ? "here" : "away"}</div>
+                    <div className={s.name}>{m.display_name}</div>
                   </div>
                   <div className={`${s.stem} ${seat?.on ? s.stemOn : ""}`} />
                   {seat ? (
@@ -165,7 +164,7 @@ export function TableView({ table, me, members, connections, jobs, online, messa
                 {clients.map((c) => (
                   <div className={s.client} key={c.id}>
                     <span className={s.clientAvatar} style={{ background: c.color }}>{initial(c.display_name)}</span>
-                    <div><b>{c.display_name}</b><span>Client · hears decisions on their own page</span></div>
+                    <div><b>{c.display_name}</b><span>{connections.some((x) => x.member_id === c.id && !x.revoked_at) ? "Client · assistant on" : "Client"}</span></div>
                   </div>
                 ))}
               </div>

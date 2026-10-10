@@ -30,6 +30,7 @@ function home() {
 
 // Press Connect my Claude on this page, then do what that person's Claude would do after they press Send.
 async function connect(page, dir) {
+  await page.click("[data-testid=me-menu]");
   await page.click("button:has-text('Connect my AI')");
   await page.click("[data-testid=pick-claude]");
   await page.click("text=It is only on my computer");

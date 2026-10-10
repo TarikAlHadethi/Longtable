@@ -32,6 +32,7 @@ try {
   const dev = await joinTable(browser, await inviteLink(owner.page, "developer"), `dev-${run}@example.test`, "Sam");
   const client = await joinTable(browser, await inviteLink(owner.page, "client"), `client-${run}@example.test`, "Dr. Ruiz");
 
+  await dev.page.click("[data-testid=me-menu]");
   await dev.page.click("button:has-text('Connect my AI')");
   await dev.page.click("[data-testid=pick-claude]");
   await dev.page.click("text=It is only on my computer");

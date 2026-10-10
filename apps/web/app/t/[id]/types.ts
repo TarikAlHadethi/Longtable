@@ -39,7 +39,7 @@ export type Job = {
   created_at: string;
 };
 
-export type Limits = { ai?: string | null; plan?: string | null; model?: string | null; status?: string | null; models?: string[] };
+export type Limits = { ai?: string | null; plan?: string | null; model?: string | null; status?: string | null; models?: string[]; windows?: { name: string; used: number; resets: string | null }[] };
 export type Connection = { id: string; member_id: string; kind: "claude" | "codex"; last_seen: string | null; revoked_at: string | null; created_at: string; limits?: Limits | null; model_choice?: string | null };
 
 export type Note = { id: string; member_id: string | null; kind: "intro" | "summary" | "shared"; title: string; body: string; updated_at: string };

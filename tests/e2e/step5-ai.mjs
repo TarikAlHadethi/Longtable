@@ -70,9 +70,11 @@ try {
   await elena.page.waitForFunction(() => document.querySelector("[data-testid=chat-head]")?.textContent === "Your assistant", null, { timeout: 10000 })
     .then(() => check("her page turns to Your assistant live", true))
     .catch(() => check("her page turns to Your assistant live", false));
-  await dev.page.waitForFunction(() => document.body.innerText.includes("Assistant on"), null, { timeout: 10000 })
+  await dev.page.click("[data-testid=home]");
+  await dev.page.waitForFunction(() => document.body.innerText.includes("assistant on"), null, { timeout: 10000 })
     .then(() => check("the team sees her assistant is on", true))
     .catch(() => check("the team sees her assistant is on", false));
+  await dev.page.click("aside[aria-label=Menu] button:has-text('General')");
 
   runner = spawn(process.execPath, [bin, "run"], { env, stdio: "ignore", windowsHide: true });
 
