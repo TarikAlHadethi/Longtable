@@ -19,7 +19,6 @@ import { codexSignIn, codexSignedIn, codexVersion, findCodex } from "../src/code
 import { disableAutostart, enableAutostart } from "../src/autostart.mjs";
 import { freshCopy, resolveSource } from "../src/repo.mjs";
 import { runLoop } from "../src/run.mjs";
-import { signIn } from "../src/signin.mjs";
 import { forgetSecret, loadSecret, log, readConfig, saveSecret, writeConfig } from "../src/store.mjs";
 
 const binPath = fileURLToPath(import.meta.url);
@@ -82,6 +81,8 @@ async function connect() {
     const token = loadSecret("claude-token");
     if (!token || !tokenWorks(claude, token)) {
       say("A page is opening in your browser so this connection can have its own Claude sign-in. Approve it there.");
+      // Loaded only here: it needs packages that the copy kept for start-up does not carry.
+      const { signIn } = await import("../src/signin.mjs");
       if (!(await signIn(claude))) throw new Error("The Claude sign-in didn't finish. Press Connect my Claude again.");
     }
   } else if (!codexSignedIn(codex)) {
@@ -89,8 +90,8 @@ async function connect() {
     if (!(await codexSignIn(codex))) throw new Error("The ChatGPT sign-in didn't finish. Press Connect again.");
   }
 
-  if (!has("no-autostart")) enableAutostart(process.execPath, binPath);
-  if (!has("no-run")) {
+  const auto = has("no-autostart") ? { started: false } : enableAutostart(process.execPath, binPath);
+  if (!has("no-run") && !auto.started) {
     spawn(process.execPath, [binPath, "run"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
   }
   const word = ai === "codex" ? "Codex" : "Claude";
