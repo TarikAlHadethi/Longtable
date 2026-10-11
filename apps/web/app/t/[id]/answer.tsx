@@ -17,6 +17,8 @@ export function Answer({ m, members, views }: { m: Message; members: Map<string,
   const name = who?.display_name ?? "Someone";
   const parts = m.meta?.parts ?? [];
   const combined = !!m.meta?.round;
+  // The table speaking for itself: its quick word, with no code read and nobody's own AI behind it.
+  const quick = m.meta?.part === "reply";
   const sources = m.meta?.sources ?? [];
   // Whose AI it is: Claude or ChatGPT, read from the model that wrote it.
   const ai = AI_NAME[kindOfModel(m.meta?.model)];
@@ -40,11 +42,11 @@ export function Answer({ m, members, views }: { m: Message; members: Map<string,
   return (
     <div className={`${styles.message} ${styles.aiMessage}`} data-mid={m.id} data-ai="true">
       <div className={styles.aiAvatar}>
-        {combined ? <Mark size={22} /> : <AiLogo kind={kindOfModel(m.meta?.model)} size={22} />}
+        {combined || quick ? <Mark size={22} /> : <AiLogo kind={kindOfModel(m.meta?.model)} size={22} />}
       </div>
       <div className={styles.messageBody}>
         <div className={styles.messageMeta}>
-          <span className={styles.messageName}>{combined ? "The table" : `${name}'s ${ai}`}</span>
+          <span className={styles.messageName}>{combined || quick ? "The table" : `${name}'s ${ai}`}</span>
           {combined && <span>· one answer from {parts.length + 1} {many}, written by {name}&apos;s {ai}</span>}
           <span><Time iso={m.created_at} /></span>
           {m.meta?.read && <span className={styles.readTag}>{m.meta.read.startsWith("changed ") ? m.meta.read : `read ${m.meta.read}`}</span>}

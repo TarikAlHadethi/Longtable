@@ -118,9 +118,18 @@ function recent(history, room) {
   }
   return out;
 }
+// The plain facts of the table: who is there, whose AI is on, and what its clients are still waiting on.
+function facts(job) {
+  const people = (job.people || []).map((p) => `${p.name} (${p.role}${p.ai ? `, ${p.ai === "codex" ? "ChatGPT" : "Claude"} connected` : ""})`).join(", ");
+  const asked = (job.requests || []).map((r) => `- ${r.from}: "${r.title}" (${r.status})`).join(NL);
+  const clients = (job.people || []).some((p) => p.role === "client");
+  return [`At the table: ${people || "nobody else"}.`,
+    clients ? `What its clients have asked for that is still open:${NL}${asked || "(nothing open)"}` : "No client has joined this table yet, so nothing has been asked by one."].join(NL);
+}
 const fence = (job) => {
   const who = (m) => (m.by_ai ? `${m.name}'s AI` : m.client ? `${m.name} (the client, asking)` : m.name);
   const parts = [];
+  if (job.people?.length) parts.push(facts(job));
   if (job.pinned?.length) parts.push("Pinned notes:\n" + job.pinned.map((n) => `(${n.title || n.kind}) ${n.body}`).join("\n"));
   if (job.related?.length) parts.push("Related earlier messages from other chats:\n" + job.related.map((m) => `[${m.chat}] ${who(m)}: ${m.body}`).join("\n"));
   const talk = recent(job.history, 120000);
@@ -202,14 +211,14 @@ export function listenPrompt(job) {
   // The conversation as far back as a generous size reaches, never a fixed number of messages.
   const before = recent(job.history, 48000).map((m) => `${who(m)}: ${short(m.body, 3000)}`).join(NL);
   const tasks = (job.tasks || []).map((t, i) => `T${i + 1}: "${t.title}" (${t.status === "working" ? "being worked on now" : t.status}, asked by ${t.asked_by || "someone"}, in ${t.chat})`).join(NL);
-  return ["<<<TABLE", inert([`Work the AIs have taken on lately:${NL}${tasks || "(none)"}`, "", before || "(nothing earlier)", `${job.asker}: ${short(job.question, 6000)}`].join(NL)), "TABLE>>>"].join(NL);
+  return ["<<<TABLE", inert([facts(job), "", `Work the AIs have taken on lately:${NL}${tasks || "(none)"}`, "", before || "(nothing earlier)", `${job.asker}: ${short(job.question, 6000)}`].join(NL)), "TABLE>>>"].join(NL);
 }
 export function listenSystem(job) {
   return [
     `You are the listener at "${job.table_name}", a table where a software team talks and their AIs can read and change the project's code. You see the conversation in the chat "${job.chat_name}" and the list of work the AIs have taken on. Read the whole conversation: people talk at length with each other, and what they want from the AIs often only makes sense from what was said many messages back. Decide what the AIs should do about the newest ones, and nothing more.`,
     `You are deciding about ${job.asker}'s newest message, the last one below, and what ${job.asker} wants. If someone else asked for something else around the same time, that is being decided separately: leave it out of your decision and out of any title.`,
     "silent: the people are talking to each other, thinking aloud, joking, or nothing is wanted from an AI. When you are not sure, choose silent.",
-    "reply: they want a quick word from the AI that needs no look at the code: a hello to the AI, a question about what was said above, or a short question back when a request is too vague to act on. Write that word in reply, one to three plain sentences. Never guess about the code in a reply.",
+    "reply: they want a quick word from the AI that needs no look at the code: a hello to the AI, a question about what was said above, or a short question back when a request is too vague to act on. Write that word in reply, one to three plain sentences. You may answer from the facts you are given: who is at the table, what its clients have asked for, and what work is under way. Never guess about the code in a reply, and never offer to do something: either it is a look or work, or you say what you know.",
     "look: they want a question about the project answered, or an opinion or input, and it needs reading the code but no change to it.",
     "work: they want the code changed, built or fixed, or they said yes to a change an AI offered.",
     "When you choose work: if it is a follow-up to, a change to, or a fix of one of the listed pieces of work, put that one's label (like T2) in task and leave title empty; if it is something new, leave task empty and give it a plain title of three to six words that people would recognise. People talking about work that is already under way is not a new request: stay silent unless they ask for something or change what they want.",
