@@ -72,7 +72,7 @@ try {
 
   // The client's side, through the pane in the corner. With no client there is no pane.
   await p.click("[data-testid=home]");
-  check("with no client at the table there is no pane to their side", (await p.locator("[data-testid=client-portal]").count()) === 0);
+  check("with no client at the table there is no button to their side", (await p.locator("[data-testid=client-portal]").count()) === 0);
   const elena = await joinTable(browser, await inviteLink(p, "client"), `client-${run}@example.test`, "Elena Ruiz");
   await elena.page.fill("[aria-label='Ask the team']", "Can patients pick a hygienist?");
   await elena.page.press("[aria-label='Ask the team']", "Enter");

@@ -17,8 +17,6 @@ import { DecisionCard } from "./decision-card";
 import { Invite } from "./invite";
 import { NewDecision } from "./new-decision";
 import { ClientPage } from "./client-page";
-import { ClientPortal, Scaled } from "./client-side";
-import portal from "./client-side.module.css";
 import { BugButton, LogsPanel } from "./panels";
 import { PersonWindow } from "./person-window";
 import { loadSettings, SettingsForm, type SettingsData } from "./settings/settings-form";
@@ -111,7 +109,6 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   // Whose side is being looked at, when there is more than one client.
   const [clientId, setClientId] = useState<string | null>(null);
   // Leaning toward the client's side: the pointer is on the glass in the corner.
-  const [peek, setPeek] = useState(false);
   const [tableName, setTableName] = useState(table.name);
   const [inviting, setInviting] = useState(false);
   // The model the table's own answer is written on; null leaves it to the AI that writes it.
@@ -561,18 +558,6 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     />
   );
 
-  // The client's page as a still picture, for the pane in the corner and for leaning in.
-  const clientPicture = () => {
-    const seen = clients.find((c) => c.id === clientId) ?? client;
-    if (!seen) return <div className={styles.noClientPicture}>No client is at this table yet</div>;
-    return (
-      <ClientPage key={seen.id} table={{ id: table.id, name: tableName }} me={{ id: seen.id, display_name: seen.display_name, color: seen.color }}
-        initialRequests={requests.filter((r) => r.member_id === seen.id)} initialEvents={[]} initialUpdates={[]} initialLines={[]}
-        initialConnections={connections.filter((c) => c.member_id === seen.id && !c.revoked_at)} initialJobs={[]}
-        viewer={{ onBack: () => {}, preview: true }} />
-    );
-  };
-
   // Through the glass: the client's own page, whole, in place of the room. Looked at, never used.
   if (view === "client" && !gone) {
     const seen = clients.find((c) => c.id === clientId) ?? client;
@@ -625,6 +610,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
             <div key={m.id} className={styles.face} style={{ background: m.color }} title={m.display_name}><Face who={m} /></div>
           ))}
         </div>
+        {/* One plain way to the client's side, there whenever a client is at the table. */}
+        {clients.length > 0 && <button className={`btn btn-quiet ${styles.clientSide}`} onClick={() => go("client", `${base}?side=client`)} data-testid="client-portal">Client side</button>}
         {!noSide && <button className={`btn btn-quiet ${styles.inboxToggle}`} onClick={() => { setInboxOpen(!inboxOpen); setDrawerOpen(false); }}>
           {view === "table" ? "Usage" : "Work"}
         </button>}
@@ -662,6 +649,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               </Fragment>
             ))}
           </div>
+          {/* On a phone the top bar has no room, so the same button lives in the menu. */}
+          {clients.length > 0 && <button className={`btn btn-quiet ${styles.clientSideMenu}`} onClick={() => { setDrawerOpen(false); go("client", `${base}?side=client`); }}>Client side</button>}
           <BugButton tableId={table.id} place={view} />
         </aside>
 
@@ -678,15 +667,6 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 setConnections((prev) => prev.map((c) => (c.id === conn ? { ...c, model_choice: model || null } : c)));
                 await supabase.rpc("set_model", { conn, model });
               }} onInvite={self.role === "owner" ? () => setInviting(true) : undefined} />
-            {/* With no client at the table there is no other side to look at. */}
-            {clients.length > 0 && (
-              <>
-                <div className={`${portal.peek} ${peek ? portal.peekOn : ""}`} aria-hidden="true">
-                  {peek && <Scaled>{clientPicture()}</Scaled>}
-                </div>
-                <ClientPortal clients={clients} onPeek={setPeek} onEnter={() => go("client", `${base}?side=client`)} />
-              </>
-            )}
           </main>
         )}
         {view === "sandbox" && sandboxOf && byId.get(sandboxOf) && (

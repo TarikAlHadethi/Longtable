@@ -20,6 +20,8 @@
   display: flex; align-items: center; justify-content: center; border: 2px solid var(--raised); margin-left: -6px;
 }
 .inboxToggle { display: none; padding: 8px 14px; }
+.clientSide { padding: 8px 14px; }
+.clientSideMenu { display: none; align-self: flex-start; margin: 4px 8px; }
 
 .grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 264px 1fr 360px; }
 
@@ -188,6 +190,8 @@
 @media (max-width: 1180px) {
   .grid { grid-template-columns: 264px 1fr; }
   .inboxToggle { display: inline-flex; }
+  .clientSide { display: none; }
+  .clientSideMenu { display: inline-flex; }
   .inbox {
     display: none; position: fixed; top: 56px; right: 0; bottom: 0; width: min(380px, calc(100vw / var(--zoom))); z-index: 25;
     box-shadow: -12px 0 32px oklch(0.2 0.01 70 / 0.12);
@@ -487,7 +491,6 @@
 /* Settings arrive whole: a short fade and nothing moving. */
 .setPage { animation: lt-fade 0.12s ease both; }
 
-.noClientPicture { min-height: 800px; display: grid; place-items: center; font-family: var(--font-voice); font-size: 40px; color: var(--ink-2); background: light-dark(#bec9bd, oklch(0.27 0.02 150)); }
 
 /* Windows open over the middle of the room: centred across the space between the two side panels, so they line up
    with what is behind them. Up and down they stay in the middle of the screen. */
