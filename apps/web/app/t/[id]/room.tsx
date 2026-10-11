@@ -527,7 +527,9 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     setSandboxOf(id); setPersonId(null); setDrawerOpen(false); setInboxOpen(false); setView("sandbox");
     window.history.pushState(null, "", `/t/${table.id}?sandbox=${id}`);
   }
-  const noSide = view === "settings" || view === "logs" || view === "sandbox" || (view === "chat" && shownTasks.length === 0 && toReview.length === 0);
+  // The panel on the right is always there beside a chat (his word, 11 Oct): work when there is some, and a quiet
+  // line when there is none.
+  const noSide = view === "settings" || view === "logs" || view === "sandbox";
   async function clearTasks() {
     // At once, to the newest time the server has given for a task: never this computer's own clock, which may be off.
     const newest = tasks.reduce((m, t) => { const x = t.finished_at ?? t.created_at; return !m || after(x, m) ? x : m; }, clearedAt ?? "");
@@ -839,11 +841,11 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               <UsagePanel members={members} connections={connections} />
             </div>
           </aside>
-        ) : shownTasks.length > 0 || toReview.length > 0 ? (
+        ) : (
           <WorkPanel review={toReview.map((x) => ({ id: x.m.id, name: x.m.display_name.split(" ")[0], n: x.n }))} onReview={openSandbox} tasks={shownTasks} jobs={jobs} members={byId} aiWord={aiWord} open={inboxOpen}
             onOpenChat={(id) => openChat(id)} onClear={clearTasks}
             onStop={(id) => { supabase.rpc("stop_job", { job: id }).then(() => catchUp()); }} />
-        ) : null}
+        )}
       </div>
 
       {personId && byId.get(personId) && (

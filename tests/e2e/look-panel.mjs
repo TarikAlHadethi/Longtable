@@ -104,11 +104,18 @@ try {
   check("Clear leaves what is still in progress", (await page.locator("[data-testid=work-task]").count()) === 3 && (await page.locator("[data-testid=work-clear]").count()) === 0);
   await page.screenshot({ path: `${out}/panel-cleared.png` });
 
-  // A chat with nothing going on in a table with no work to show: no panel and no button for it.
+  // A chat with nothing going on: the panel is there all the same.
   const quiet = await startTable(browser, `quiet-${run}@example.test`, "Quiet", "Olga");
   await quiet.page.setViewportSize({ width: 390, height: 844 });
   await sleep(500);
-  check("with no work there is no panel and, on a phone, no button that opens nothing", (await quiet.page.locator("[data-testid=work-panel]").count()) === 0 && (await quiet.page.locator("button:has-text('Work')").count()) === 0);
+  await quiet.page.goto(quiet.page.url().split("?")[0] + "?c=general");
+  await quiet.page.click("button:has-text('Work')");
+  await sleep(400);
+  check("with no work the panel is still there, saying so", (await quiet.page.locator("[data-testid=work-quiet]").count()) === 1);
+  await quiet.page.screenshot({ path: `${out}/panel-quiet-phone.png` });
+  await quiet.page.setViewportSize({ width: 1440, height: 1000 });
+  await sleep(300);
+  await quiet.page.screenshot({ path: `${out}/panel-quiet.png` });
   clearInterval(pulse);
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));

@@ -73,7 +73,7 @@ try {
   const asked = Date.now();
   await dev.page.fill("textarea", "Two things for the greeter. My Claude: change the greeting in greet.js to say hi. Maya's Claude always does our docs, so hand it this part: add a section called Usage to README.md that shows how to import the greeting.");
   await dev.page.click("button:has-text('Send')");
-  await dev.page.waitForSelector("[data-testid=work-panel]", { timeout: 120000 });
+  await dev.page.waitForSelector("[data-testid=work-task]", { timeout: 120000 });
   results.panelWhileWorking = (await dev.page.locator("[data-testid=work-panel]").textContent()).slice(0, 300);
   check("the work panel opens with the task once work starts", (await dev.page.locator("[data-testid=work-task]").count()) === 1, results.panelWhileWorking);
   await dev.page.waitForFunction(() => [...document.querySelectorAll("[data-ai='true']")].some((el) => el.textContent.includes("The table")), null, { timeout: 600000 });
@@ -111,12 +111,12 @@ try {
   check("the finished task stays in the panel with its branch", results.panelAfter.includes(`On ${branch}`), results.panelAfter);
   if (process.env.SCREENSHOTS) { await dev.page.setViewportSize({ width: 1440, height: 1000 }); await dev.page.screenshot({ path: `${process.env.SCREENSHOTS}/step14-panel.png` }); }
   await dev.page.click("[data-testid=work-clear]");
-  await dev.page.waitForSelector("[data-testid=work-panel]", { state: "detached", timeout: 5000 }).then(() => check("Clear closes the panel", true), () => check("Clear closes the panel", false));
+  await dev.page.waitForSelector("[data-testid=work-quiet]", { timeout: 5000 }).then(() => check("Clear empties the panel, and the panel stays", true), () => check("Clear empties the panel, and the panel stays", false));
   await owner.page.reload();
   await owner.page.goto(owner.page.url().split("?")[0] + "?c=general");
   check("the other person still has theirs", (await owner.page.locator("[data-testid=work-task]").count()) === 1, "");
   await dev.page.reload();
-  check("it stays cleared after a reload", (await dev.page.locator("[data-testid=work-panel]").count()) === 0, "");
+  check("it stays cleared after a reload", (await dev.page.locator("[data-testid=work-task]").count()) === 0 && (await dev.page.locator("[data-testid=work-panel]").count()) === 1, "");
 } finally {
   for (const r of runners) r.kill();
   await browser.close();
