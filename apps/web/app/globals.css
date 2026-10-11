@@ -212,3 +212,6 @@ html { scroll-behavior: smooth; }
 
 /* Soft letters. Bold is a nudge, not a shout, and the weight sits in the letters themselves. */
 b, strong, h1, h2, h3, h4 { font-weight: 560; }
+
+/* Scrollbars are a thin, quiet line with no track and no arrows, wherever one is needed. */
+* { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }

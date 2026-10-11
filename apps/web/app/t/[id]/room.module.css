@@ -68,7 +68,8 @@
 .threadHead { padding: 16px 32px; border-bottom: 1px solid light-dark(oklch(0.92 0.006 80), oklch(0.282 0.006 80)); display: flex; align-items: baseline; gap: 12px; }
 .threadTitle { font-size: 19px; font-weight: 560; letter-spacing: -0.01em; }
 .threadSub { font-size: 14px; color: var(--muted); }
-.scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 20px 32px 24px; }
+.scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 20px 32px 24px; scrollbar-width: none; }
+.scroll::-webkit-scrollbar { display: none; }
 .list { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
 .empty {
   margin-top: 48px; padding: 28px; border: 1px dashed var(--line-dashed); border-radius: 14px;
@@ -230,11 +231,12 @@
 /* Answers from a person's Claude speak in the table's voice */
 /* An AI's words have no box: only people's messages sit in a bubble. */
 .aiMessage { padding: 2px 0; }
-.aiAvatar { width: 28px; height: 28px; flex-shrink: 0; display: grid; place-items: center; color: var(--ink); }
-.aiText { font-family: var(--font-voice); font-size: 17px; line-height: 1.65; color: var(--ink); white-space: normal; max-width: 46em; }
-.aiText p { margin: 0 0 0.85em; white-space: pre-wrap; }
-.aiText ul, .aiText ol { margin: 0 0 0.85em; padding-left: 1.5em; }
-.aiText li { margin: 0.4em 0; padding-left: 0.2em; white-space: pre-wrap; }
+/* As tall as the name line beside it, so the mark sits level with the name. */
+.aiAvatar { width: 28px; height: 20px; flex-shrink: 0; display: grid; place-items: center; color: var(--ink); }
+.aiText { font-family: var(--font-voice); font-size: 17px; line-height: 1.5; color: var(--ink); white-space: normal; max-width: 46em; }
+.aiText p { margin: 0 0 0.6em; white-space: pre-wrap; }
+.aiText ul, .aiText ol { margin: 0 0 0.6em; padding-left: 1.4em; }
+.aiText li { margin: 0.15em 0; padding-left: 0.2em; white-space: pre-wrap; }
 .aiText li::marker { color: var(--muted); }
 .aiText > :last-child { margin-bottom: 0; }
 .aiText strong { font-weight: 600; }
