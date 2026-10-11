@@ -1,4 +1,4 @@
-// The listener, asked for real. Thirteen kinds of message, each twice, on the model that does the listening, with
+// The listener, asked for real. Sixteen kinds of message, each twice, on the model that does the listening, with
 // what it should decide. Run this before publishing any change to what the listener is told.
 //
 //   node tests/e2e/probe-listener.mjs
@@ -27,6 +27,9 @@ const cases = [
   ["reply", { ...base, people: solo, tasks: [{ id: "1", title: "Fix the login redirect", status: "working", asked_by: "Tariq", chat: "General" }], question: "is anything being worked on?" }],
   ["silent", { ...base, people: duo, question: "faisal did you eat yet" }],
   ["silent", { ...base, people: duo, question: "lmao true" }],
+  ["silent", { ...base, asker: "Faisal", people: duo, question: "Tariq can you send me the figma link later? I need it for the meeting tomorrow" }],
+  ["silent", { ...base, people: duo, question: "faisal can you review my PR when you get a sec" }],
+  ["look", { ...base, people: duo, question: "what did faisal change in the booking flow last week" }],
   ["work", { ...base, people: solo, question: "make the booking button green on the kit page" }],
   ["work", { ...base, people: solo, history: [{ name: "Tariq", by_ai: true, body: "I can move the search box above the list if you want." }], question: "yes do it" }],
 ];
