@@ -77,7 +77,8 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   initialJobs: Job[];
   // Set when someone on the team is looking at this client's page. They see what the client sees and can use none of
   // it. The client's chat with their own assistant is not the team's to read, so it is not here.
-  viewer?: { onBack: () => void; others?: { id: string; display_name: string }[]; onPick?: (id: string) => void; preview?: boolean };
+  // acting: the owner is using the table's test client, so the page works; otherwise a viewer only looks.
+  viewer?: { onBack: () => void; others?: { id: string; display_name: string }[]; onPick?: (id: string) => void; preview?: boolean; acting?: boolean; onTest?: () => void; onRemoveTest?: () => void };
 }) {
   const supabase = useMemo(() => browserClient(), []);
   const [requests, setRequests] = useState(initialRequests);
@@ -284,6 +285,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   }
 
   const first = firstName(me.display_name);
+  const locked = !!viewer && !viewer.acting;
   // Who is answering on the left: their copy, their own assistant, or the team. Beside the name, the one state.
   const speaker = (who: "copy" | "assistant" | "team", pill?: { words: string; pill: string; testid: string; busy?: boolean }) => (
     <div className={styles.from}>
@@ -300,7 +302,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
       {u.replies?.length > 0 && !u.answer && (
         <div className={styles.replies} data-testid="replies">
           {u.replies.map((label, k) => (
-            <button key={label} className={styles.reply} disabled={!!viewer} onClick={() => answer(u, k + 1)}>{label}</button>
+            <button key={label} className={styles.reply} disabled={locked} onClick={() => answer(u, k + 1)}>{label}</button>
           ))}
         </div>
       )}
@@ -333,7 +335,11 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
 
       {viewer && !viewer.preview && (
         <div className={styles.viewing} data-testid="viewing">
-          <span>You are looking at {first}&apos;s side. Nothing here can be changed.</span>
+          {viewer.acting
+            ? <span>You are trying the client&apos;s side as a test client. What you send here reaches your table the way a real client&apos;s words would.</span>
+            : <span>You are looking at {first}&apos;s side. Nothing here can be changed.</span>}
+          {viewer.onRemoveTest && <button className={styles.other} onClick={viewer.onRemoveTest} data-testid="remove-test-client">Remove the test client</button>}
+          {viewer.onTest && <button className={styles.other} onClick={viewer.onTest} data-testid="add-test-client">Try it as a test client</button>}
           {(viewer.others?.length ?? 0) > 1 && viewer.others!.map((o) => (
             <button key={o.id} className={`${styles.other} ${o.id === me.id ? styles.otherOn : ""}`} onClick={() => viewer.onPick?.(o.id)}>{firstName(o.display_name)}</button>
           ))}
@@ -362,7 +368,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
                         {item.question && (
                           <div className={styles.replies} data-testid="replies">
                             {item.question.replies.map((label, k) => (
-                              <button key={label} className={styles.reply} disabled={!!viewer} onClick={() => answer(item.question!, k + 1)}>{label}</button>
+                              <button key={label} className={styles.reply} disabled={locked} onClick={() => answer(item.question!, k + 1)}>{label}</button>
                             ))}
                           </div>
                         )}
@@ -409,12 +415,12 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
 
         <div className={styles.foot}>
           <div className={styles.col}>
-            <form className={room.composer} onSubmit={(e) => { e.preventDefault(); if (!viewer) say(); }}>
-              <textarea ref={inputRef} className={room.input} rows={1} value={draft} disabled={!!viewer} maxLength={4000}
-                placeholder={viewer ? "Only they can write here" : sandbox?.on ? "Say what you want changed" : "Ask for something, in your own words"} aria-label="Ask the team"
+            <form className={room.composer} onSubmit={(e) => { e.preventDefault(); if (!locked) say(); }}>
+              <textarea ref={inputRef} className={room.input} rows={1} value={draft} disabled={locked} maxLength={4000}
+                placeholder={locked ? "Only they can write here" : sandbox?.on ? "Say what you want changed" : "Ask for something, in your own words"} aria-label="Ask the team"
                 onChange={(e) => { setDraft(e.target.value); grow(); }}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (!viewer) say(); } }} />
-              <button className="btn" disabled={!!viewer || busy || !draft.trim()}>Send</button>
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (!locked) say(); } }} />
+              <button className="btn" disabled={locked || busy || !draft.trim()}>Send</button>
             </form>
             {/* How many changes are left only matters when it is nearly none. */}
             {sandbox?.on && !viewer && sandbox.left !== null && sandbox.left <= 3 && (

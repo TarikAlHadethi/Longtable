@@ -233,8 +233,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]));
         if (!known.current.has(m.member_id)) refreshMembers();
       } else if (name === "members") {
-        const { id, display_name, role, color, created_at, avatar, name_color, status, bubble } = record as unknown as Member;
-        const fresh: Member = { id, display_name, role, color, created_at, avatar, name_color, status, bubble };
+        const { id, display_name, role, color, created_at, avatar, name_color, status, bubble, test } = record as unknown as Member;
+        const fresh: Member = { id, display_name, role, color, created_at, avatar, name_color, status, bubble, test };
         // This person cleared their list of work somewhere else: it is cleared here too.
         if (id === me.id && "tasks_cleared_at" in (record as object)) setClearedAt((record as { tasks_cleared_at?: string | null }).tasks_cleared_at ?? null);
         // Taken off the table: gone from the list, and if it is this person, their page closes.
@@ -558,7 +558,23 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     />
   );
 
-  // Through the glass: the client's own page, whole, in place of the room. Looked at, never used.
+  // A test client: a pretend client seat the owner adds to try the client's side for real, and takes off again.
+  const testClient = clients.find((c) => c.test);
+  const addTest = async () => {
+    const { data: id } = await supabase.rpc("add_test_client", { t: table.id });
+    if (!id) return;
+    const { data: row } = await supabase.from("members").select(MEMBER_COLUMNS).eq("id", id as string).maybeSingle();
+    if (row) setMembers((prev) => (prev.some((m) => m.id === id) ? prev : [...prev, row as unknown as Member]));
+    setClientId(id as string);
+  };
+  const removeTest = async () => {
+    await supabase.rpc("remove_test_client", { t: table.id });
+    setMembers((prev) => prev.filter((m) => !m.test));
+    setClientId(null);
+  };
+
+  // The client's own page, whole, in place of the room. A real client's is looked at, never used; the test client's
+  // is used by the owner as if they were the client.
   if (view === "client" && !gone) {
     const seen = clients.find((c) => c.id === clientId) ?? client;
     if (seen) {
@@ -566,7 +582,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         <ClientPage key={seen.id} table={{ id: table.id, name: tableName }} me={{ id: seen.id, display_name: seen.display_name, color: seen.color }}
           initialRequests={requests.filter((r) => r.member_id === seen.id)} initialEvents={[]} initialUpdates={[]} initialLines={[]}
           initialConnections={connections.filter((c) => c.member_id === seen.id && !c.revoked_at)} initialJobs={[]}
-          viewer={{ onBack: goHome, others: clients, onPick: setClientId }} />
+          viewer={{ onBack: goHome, others: clients, onPick: setClientId, acting: !!seen.test && self.role === "owner",
+            onTest: self.role === "owner" && !testClient ? addTest : undefined, onRemoveTest: seen.test && self.role === "owner" ? removeTest : undefined }} />
       );
     }
     return (
@@ -575,7 +592,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           <Mark size={48} />
           <h1>No client is at this table yet</h1>
           <div style={{ display: "flex", gap: 8 }}>
-            {self.role === "owner" && <button className="btn" onClick={() => { goHome(); setInviting(true); }}>Invite the client</button>}
+            {self.role === "owner" && <button className="btn" onClick={addTest} data-testid="add-test-client">Try it as a test client</button>}
+            {self.role === "owner" && <button className="btn btn-quiet" onClick={() => { goHome(); setInviting(true); }}>Invite the client</button>}
             <button className="btn btn-quiet" onClick={goHome} data-testid="table-portal">Back to the table</button>
           </div>
         </div>
@@ -611,7 +629,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           ))}
         </div>
         {/* One plain way to the client's side, there whenever a client is at the table. */}
-        {clients.length > 0 && <button className={`btn btn-quiet ${styles.clientSide}`} onClick={() => go("client", `${base}?side=client`)} data-testid="client-portal">Client side</button>}
+        {(clients.length > 0 || self.role === "owner") && <button className={`btn btn-quiet ${styles.clientSide}`} onClick={() => go("client", `${base}?side=client`)} data-testid="client-portal">Client side</button>}
         {!noSide && <button className={`btn btn-quiet ${styles.inboxToggle}`} onClick={() => { setInboxOpen(!inboxOpen); setDrawerOpen(false); }}>
           {view === "table" ? "Usage" : "Work"}
         </button>}
@@ -643,14 +661,14 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 </div>
                 <div className={styles.personText}>
                   <div className={styles.personName} style={{ color: m.name_color || undefined }}>{m.display_name}</div>
-                  {(m.role === "client" || m.status) && <div className={styles.personMeta}>{[m.role === "client" ? "Client" : "", m.status].filter(Boolean).join(" · ")}</div>}
+                  {(m.role === "client" || m.status) && <div className={styles.personMeta}>{[m.test ? "Test client" : m.role === "client" ? "Client" : "", m.status].filter(Boolean).join(" · ")}</div>}
                 </div>
               </button>
               </Fragment>
             ))}
           </div>
           {/* On a phone the top bar has no room, so the same button lives in the menu. */}
-          {clients.length > 0 && <button className={`btn btn-quiet ${styles.clientSideMenu}`} onClick={() => { setDrawerOpen(false); go("client", `${base}?side=client`); }}>Client side</button>}
+          {(clients.length > 0 || self.role === "owner") && <button className={`btn btn-quiet ${styles.clientSideMenu}`} onClick={() => { setDrawerOpen(false); go("client", `${base}?side=client`); }}>Client side</button>}
           <BugButton tableId={table.id} place={view} />
         </aside>
 

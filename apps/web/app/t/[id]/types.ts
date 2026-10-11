@@ -1,7 +1,7 @@
 export type Role = "owner" | "developer" | "client";
 
-export type Member = { id: string; display_name: string; role: Role; color: string; created_at?: string; avatar?: string | null; name_color?: string | null; status?: string; bubble?: string | null; tasks_cleared_at?: string | null; client_mode?: "chat" | "sandbox"; sandbox_branch?: string | null; sandbox_url?: string | null };
-export const MEMBER_COLUMNS = "id, display_name, role, color, created_at, avatar, name_color, status, bubble, tasks_cleared_at";
+export type Member = { id: string; display_name: string; role: Role; color: string; created_at?: string; avatar?: string | null; name_color?: string | null; status?: string; bubble?: string | null; test?: boolean; tasks_cleared_at?: string | null; client_mode?: "chat" | "sandbox"; sandbox_branch?: string | null; sandbox_url?: string | null };
+export const MEMBER_COLUMNS = "id, display_name, role, color, created_at, avatar, name_color, status, bubble, tasks_cleared_at, test";
 // A client's own copy, as the team is told about it. It is kept apart from the people's rows, which clients can read.
 export type SandboxRow = { member_id: string; mode: "chat" | "sandbox"; branch: string; url: string | null; opened_at?: string | null; checked_at?: string | null; open_ok?: boolean | null };
 export const SANDBOX_COLUMNS = "member_id, mode, branch, url, opened_at, checked_at, open_ok";
