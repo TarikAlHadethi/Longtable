@@ -17,3 +17,44 @@ export function Inline({ text }: { text: string }) {
   if (last < text.length) out.push(<Fragment key={key++}>{text.slice(last)}</Fragment>);
   return <>{out}</>;
 }
+
+// An AI's answer, set like a page: paragraphs with air between them, real bullets and numbers, small headings. The
+// same safety as Inline: every piece is a React element built from plain text.
+export function Prose({ text }: { text: string }) {
+  const blocks: ReactNode[] = [];
+  const lines = text.replace(/\r/g, "").split("\n");
+  let para: string[] = [];
+  let list: { ordered: boolean; items: string[] } | null = null;
+  let key = 0;
+  const endPara = () => { if (para.length) blocks.push(<p key={key++}><Inline text={para.join("\n")} /></p>); para = []; };
+  const endList = () => {
+    if (!list) return;
+    const items = list.items.map((it, i) => <li key={i}><Inline text={it} /></li>);
+    blocks.push(list.ordered ? <ol key={key++}>{items}</ol> : <ul key={key++}>{items}</ul>);
+    list = null;
+  };
+  for (const line of lines) {
+    const bullet = line.match(/^\s*[-*•]\s+(.*)$/);
+    const number = line.match(/^\s*\d{1,3}[.)]\s+(.*)$/);
+    const head = line.match(/^#{1,4}\s+(.*)$/);
+    if (bullet || number) {
+      endPara();
+      const ordered = !bullet;
+      if (list && list.ordered !== ordered) endList();
+      list ??= { ordered, items: [] };
+      list.items.push((bullet ?? number)![1]);
+    } else if (head) {
+      endPara(); endList();
+      blocks.push(<p key={key++}><strong>{head[1].replace(/\*\*/g, "")}</strong></p>);
+    } else if (!line.trim()) {
+      endPara(); endList();
+    } else if (list && /^\s{2,}\S/.test(line)) {
+      list.items[list.items.length - 1] += "\n" + line.trim();
+    } else {
+      endList();
+      para.push(line);
+    }
+  }
+  endPara(); endList();
+  return <>{blocks}</>;
+}

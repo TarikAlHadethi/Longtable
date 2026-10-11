@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Mark } from "@/components/mark";
-import { Inline } from "@/lib/inline";
+import { Inline, Prose } from "@/lib/inline";
 import { Time } from "@/components/time";
 import { AI_NAME, AiLogo } from "@/components/ai-logo";
 import { kindOfModel } from "./table-view";
@@ -34,7 +34,7 @@ export function Answer({ m, members, views }: { m: Message; members: Map<string,
           <span className={styles.joinedWhen}><Time iso={m.created_at} /></span>
           <span className={`${styles.joinedChevron} ${open ? styles.joinedOpen : ""}`} aria-hidden="true" />
         </button>
-        {open && <div className={`${styles.messageText} ${styles.aiText} ${styles.joinedBody}`}><Inline text={m.body} /></div>}
+        {open && <div className={`${styles.messageText} ${styles.aiText} ${styles.joinedBody}`}><Prose text={m.body} /></div>}
       </div>
     );
   }
@@ -51,7 +51,7 @@ export function Answer({ m, members, views }: { m: Message; members: Map<string,
           <span><Time iso={m.created_at} /></span>
           {m.meta?.read && <span className={styles.readTag}>{m.meta.read.startsWith("changed ") ? m.meta.read : `read ${m.meta.read}`}</span>}
         </div>
-        <div className={`${styles.messageText} ${styles.aiText}`}><Inline text={m.body} /></div>
+        <div className={`${styles.messageText} ${styles.aiText}`}><Prose text={m.body} /></div>
         {sources.length > 0 && (
           <div className={styles.sources} data-testid="sources">
             {sources.map((s) => <span key={s} className={styles.source}>{s}</span>)}
