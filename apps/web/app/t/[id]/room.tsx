@@ -3,7 +3,7 @@
 import { Face } from "@/components/face";
 import { Crown } from "@/components/icons";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { AI_NAME } from "@/components/ai-logo";
 import { Mark } from "@/components/mark";
@@ -643,8 +643,11 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
             onOpen={openChat} onCreate={makeChat} onRename={renameChat} onDelete={deleteChat} />
           <div className={styles.section}>
             <div className={styles.sectionTitle}>People</div>
-            {members.map((m) => (
-              <button key={m.id} className={`${styles.person} ${styles.personButton} ${personId === m.id ? styles.personOn : ""}`}
+            {/* The people working first, then a quiet line, then the clients. */}
+            {[...members.filter((m) => m.role !== "client"), ...clients].map((m, i, all) => (
+              <Fragment key={m.id}>
+              {m.role === "client" && i > 0 && all[i - 1].role !== "client" && <div className={styles.peopleRule} role="separator" data-testid="people-rule" />}
+              <button className={`${styles.person} ${styles.personButton} ${personId === m.id ? styles.personOn : ""}`}
                 data-here={online.has(m.id)} data-member={m.display_name} onClick={() => openPerson(m.id)}>
                 <div className={styles.avatar} style={{ background: m.color }}>
                   <Face who={m} />
@@ -656,6 +659,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                   {(m.role === "client" || m.status) && <div className={styles.personMeta}>{[m.role === "client" ? "Client" : "", m.status].filter(Boolean).join(" · ")}</div>}
                 </div>
               </button>
+              </Fragment>
             ))}
           </div>
           <BugButton tableId={table.id} place={view} />
