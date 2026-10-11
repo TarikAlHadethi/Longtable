@@ -182,12 +182,16 @@ try {
   // ---- a copy of her own: the owner turns it on, and what she says is built there for her to try
   await rpc(ownerToken, "disconnect", { conn: (await rest(elenaToken, `connections?select=id&table_id=eq.${tableId}`)).body[0]?.id }).catch(() => {});
   clearInterval(pulse);
-  await rpc(ownerToken, "set_client_sandbox", { m: elenaId0, enabled: true });
   const teamCode = (await rpc(ownerToken, "start_pairing", { t: tableId, ai_kind: "claude" })).body;
   const teamDevice = (await anon("pair_connection", { code: teamCode, device_label: "look" })).token;
   sql(`update public.jobs set status = 'skipped' where table_id = '${tableId}' and kind = 'intro'`);
   const teamPulse = setInterval(() => anon("runner_hello", { token: teamDevice }), 8000);
   const heavy = async () => { for (let i = 0; i < 60; i++) { const j = await anon("runner_claim", { token: teamDevice, lane: "heavy" }); if (j) return j; await sleep(500); } return null; };
+  await rpc(ownerToken, "prepare_client_sandbox", { m: elenaId0 });
+  const place = await heavy();
+  await anon("runner_finish", { token: teamDevice, job: place.job_id, answer: "", info: { commit: "a".repeat(40) } });
+  await rpc(ownerToken, "set_sandbox_links", { t: tableId, ours: "", cap: 20, m: elenaId0, theirs: "https://elena-copy.example.test" });
+  await rpc(ownerToken, "set_client_sandbox", { m: elenaId0, enabled: true });
   await page.goto(`${APP}/t/${tableId}`);
   await page.waitForSelector("[data-testid=client-chat][data-with=copy]");
   await snap(page, "a-copy-of-her-own-the-first-time");

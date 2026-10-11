@@ -149,6 +149,26 @@ export function changedSoFar(tableId, work) {
   return { files, gone, text, unread };
 }
 
+// Make the place for a copy: its branch, pushed with one empty commit of its own on top of the latest default branch,
+// so the hosting sees something new and puts it up. If the branch is already there, it is left as it is.
+export function openBranch(tableId, branch) {
+  safeBranch(branch);
+  const G = join(home, "copies", tableId, ".git");
+  try {
+    git(["--git-dir", G, "ls-remote", "--exit-code", "origin", `refs/heads/${branch}`]);
+    git(["--git-dir", G, "fetch", "--quiet", "--depth", "1", "--no-tags", "origin", `refs/heads/${branch}`]);
+    return git(["--git-dir", G, "rev-parse", "FETCH_HEAD"]);
+  } catch (e) {
+    if (e.status !== 2) throw new Error("this computer could not reach the project's repository");
+  }
+  const head = git(["--git-dir", G, "rev-parse", "HEAD"]);
+  const tree = git(["--git-dir", G, "rev-parse", `${head}^{tree}`]);
+  const who = { ...quiet, GIT_AUTHOR_NAME: "Longtable", GIT_AUTHOR_EMAIL: "longtable@users.noreply.github.com", GIT_COMMITTER_NAME: "Longtable", GIT_COMMITTER_EMAIL: "longtable@users.noreply.github.com" };
+  const commit = git(["--git-dir", G, "commit-tree", tree, "-p", head, "-m", "A copy of its own"], who);
+  git(["--git-dir", G, "push", "--quiet", "origin", `${commit}:refs/heads/${branch}`]);
+  return commit;
+}
+
 // One commit of a sandbox, as a patch the team's AI can read to see what the client ended up with.
 export function patchOf(tableId, branch, commit) {
   safeBranch(branch);

@@ -641,7 +641,7 @@ try {
     const { createHmac } = await import("node:crypto");
     await online("Maya");
     const dana = people.Dana;
-    const changesOf = () => JSON.parse(sql(`select coalesce(json_agg(x order by x.created_at), '[]') from (select id, words, status, summary, detail, files, commit, verdict, note, task_id, request_id, created_at from public.sandbox_changes where member_id = '${dana.id}') x`));
+    const changesOf = () => JSON.parse(sql(`select coalesce(json_agg(x order by x.created_at), '[]') from (select id, words, status, summary, detail, files, commit, verdict, note, task_id, request_id, created_at from public.sandbox_changes where member_id = '${dana.id}' and not test) x`));
     const mine = async () => (await rpc(dana.token, "client_sandbox", { t: table })).body;
     const sayAs = (body) => rpc(dana.token, "client_say", { t: table, body });
 
@@ -653,9 +653,49 @@ try {
     const tries = { lee: await rpc(people.Lee.token, "set_client_sandbox", { m: dana.id, enabled: true }), dana: await rpc(dana.token, "set_client_sandbox", { m: dana.id, enabled: true }),
       onDev: await rpc(people.Maya.token, "set_client_sandbox", { m: people.Lee.id, enabled: true }) };
     check("11b only the owner gives a copy, and only to a client", Object.values(tries).every((r) => r.status >= 400), Object.fromEntries(Object.entries(tries).map(([k, v]) => [k, v.status])));
+    // Setting it up comes first: the place for the copy is made by the connection, with no AI asked anything.
+    const early = await rpc(people.Maya.token, "set_client_sandbox", { m: dana.id, enabled: true });
+    check("11b0 a copy cannot be given before it is set up", early.status >= 400, early.status);
+    const prepTries = { lee: await rpc(people.Lee.token, "prepare_client_sandbox", { m: dana.id }), dana: await rpc(dana.token, "prepare_client_sandbox", { m: dana.id }),
+      notClient: await rpc(people.Maya.token, "prepare_client_sandbox", { m: people.Lee.id }) };
+    const prep = await rpc(people.Maya.token, "prepare_client_sandbox", { m: dana.id });
+    const again = await rpc(people.Maya.token, "prepare_client_sandbox", { m: dana.id });
+    const probe = await take("Maya", "heavy");
+    check("11b1 only the owner sets a copy up; doing it makes one job that only makes the branch", Object.values(prepTries).every((r) => r.status >= 400) && prep.status < 300 && again.status < 300
+      && probe?.kind === "sandbox" && probe.probe === true && probe.branch === prep.body && !("words" in probe) && (await claim("Maya", "heavy")) === null,
+      { tries: Object.fromEntries(Object.entries(prepTries).map(([k, v]) => [k, v.status])), probe });
+    check("11b1 while it is being set up the client has nothing new", (await mine()).on === false && (await mine()).url === null);
+    await fin("Maya", probe, "", { commit: "f".repeat(40) });
+    const boxNow = JSON.parse(sql(`select row_to_json(s) from public.sandboxes s where member_id = '${dana.id}'`));
+    check("11b2 the place is made: the branch is noted, and it is still the team's", boxNow.mode === "chat" && !!boxNow.opened_at && boxNow.tip === "f".repeat(40) && boxNow.url === null, boxNow);
+    const stillNo = await rpc(people.Maya.token, "set_client_sandbox", { m: dana.id, enabled: true });
+    check("11b2 it still cannot be given without somewhere to open it", stillNo.status >= 400, stillNo.status);
+
+    // The hosting reports the address by the commit that made the place.
+    await rpc(people.Maya.token, "connect_github", { t: table });
+    const secret0 = sql(`select secret from public.github_hooks where table_id = '${table}'`);
+    const send0 = (body) => { const payload = JSON.stringify(body); return anon("github_event", { t: table, signature: "sha256=" + createHmac("sha256", secret0).update(payload).digest("hex"), event: "deployment_status", payload }); };
+    const first = await send0({ deployment_status: { state: "success", environment_url: "https://dana-first.example.test" }, deployment: { ref: "f".repeat(40), sha: "f".repeat(40) }, repository: { full_name: "x/y" } });
+    check("11b3 the address arrives by itself from the first deploy of the place", first.body === "noted" && sql(`select url from public.sandboxes where member_id = '${dana.id}'`) === "https://dana-first.example.test", first.body);
+
+    // Whether it opens without a sign-in is noted by the owner's check, and by nobody else.
+    const notes = { lee: await rpc(people.Lee.token, "note_sandbox_open", { m: dana.id, ok: true }), dana: await rpc(dana.token, "note_sandbox_open", { m: dana.id, ok: true }) };
+    const noted = await rpc(people.Maya.token, "note_sandbox_open", { m: dana.id, ok: true });
+    check("11b4 only the owner's check is noted", Object.values(notes).every((r) => r.status >= 400) && noted.status < 300 && sql(`select open_ok from public.sandboxes where member_id = '${dana.id}'`) === "t");
+
+    // The team tries a change of its own before the client ever has the copy.
+    const tTries = { dana: await rpc(dana.token, "team_sandbox_change", { m: dana.id, body: "x" }), empty: await rpc(people.Maya.token, "team_sandbox_change", { m: dana.id, body: "  " }) };
+    const tried = await rpc(people.Lee.token, "team_sandbox_change", { m: dana.id, body: "Make the title blue" });
+    const tj = await take("Maya", "heavy");
+    check("11b5 a test change from the team is built like any other", Object.values(tTries).every((r) => r.status >= 400) && tried.status < 300 && tj?.kind === "sandbox" && tj.test === true && tj.words === "Make the title blue", { tries: Object.fromEntries(Object.entries(tTries).map(([k, v]) => [k, v.status])), tj: tj && { kind: tj.kind, test: tj.test } });
+    await fin("Maya", tj, "The title is blue.", { changed: true, commit: "9".repeat(40), files: ["app/page.tsx"], detail: "Blue title." });
+    const testRow = JSON.parse(sql(`select row_to_json(c) from public.sandbox_changes c where id = '${tried.body}'`));
+    check("11b5 the client never sees the team's test, and it is not theirs to be answered", testRow.status === "ready" && testRow.test === true && (await mine()).changes.length === 0
+      && (await rpc(people.Maya.token, "judge_change", { change: tried.body, answer: "take" })).status >= 400, { status: testRow.status, hers: (await mine()).changes.length });
+
     const given = await rpc(people.Maya.token, "set_client_sandbox", { m: dana.id, enabled: true });
     const branch = sql(`select branch from public.sandboxes where member_id = '${dana.id}'`);
-    check("11b the owner gives it, on a plain branch of its own", given.status < 300 && /^longtable\/sandbox-dana-[0-9a-f]{8}$/.test(branch) && (await mine()).on === true, { status: given.status, branch });
+    check("11b the owner gives it, on a plain branch of its own", given.status < 300 && /^longtable\/sandbox-dana-[0-9a-f]{8}$/.test(branch) && (await mine()).on === true && (await mine()).left === 20, { status: given.status, branch, left: (await mine()).left });
 
     // What they say is now a change in their copy, done by the team's Claude.
     const said = (await sayAs("Make the header green and bigger")).body;
@@ -726,7 +766,6 @@ try {
     check("11j only plain https addresses are kept, and only the owner sets them", Object.values(urls).every((r) => r.status >= 400) && (await mine()).url === "https://dana.example.test/app", { ...Object.fromEntries(Object.entries(urls).map(([k, v]) => [k, v.status])), url: (await mine()).url });
 
     // GitHub says where the copy was put up.
-    await rpc(people.Maya.token, "connect_github", { t: table });
     const secret = sql(`select secret from public.github_hooks where table_id = '${table}'`);
     const send = (event, body) => { const payload = JSON.stringify(body); return anon("github_event", { t: table, signature: "sha256=" + createHmac("sha256", secret).update(payload).digest("hex"), event, payload }); };
     const dep = await send("deployment_status", { deployment_status: { state: "success", environment_url: "https://sandbox-dana-abc.example.test" }, deployment: { ref: "deadbeef", sha: "a".repeat(40) }, repository: { full_name: "x/y" } });

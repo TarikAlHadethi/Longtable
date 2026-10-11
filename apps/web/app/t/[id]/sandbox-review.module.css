@@ -17,6 +17,17 @@
 .termsTitle { font-size: 15px; font-weight: 600; }
 .terms { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; line-height: 1.5; color: var(--ink-2, var(--ink)); }
 .agree { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.step { display: flex; gap: 12px; align-items: flex-start; }
+.stepMark { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 600; background: var(--chip); color: var(--muted); margin-top: 1px; }
+.stepDone .stepMark { background: light-dark(oklch(0.55 0.08 150), oklch(0.6 0.08 150)); color: white; }
+.stepBody { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.stepTitle { font-size: 14.5px; font-weight: 600; }
+.step .hint { margin-top: 0; display: block; }
+.step .hint .pulse { display: inline-block; margin-right: 6px; vertical-align: middle; }
+.step .noteForm { padding-top: 0; }
+.address { font-size: 13.5px; color: var(--link); text-decoration: none; overflow-wrap: anywhere; display: inline-flex; align-items: center; gap: 6px; }
+.address:hover { text-decoration: underline; }
+.answers { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
 .setupActions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 
 .empty { padding: 22px; border-radius: 14px; border: 1px dashed var(--line-strong); color: var(--muted); font-size: 14.5px; text-align: center; }

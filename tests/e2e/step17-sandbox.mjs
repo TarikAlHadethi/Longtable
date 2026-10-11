@@ -72,7 +72,7 @@ try {
   const token = await accessToken(owner.context);
   const branchList = () => git(scratch, "--git-dir", remote, "branch", "--list").split(NL).map((b) => b.replace(/^[* ]+/, "")).filter(Boolean);
   const show = (ref) => { try { return git(scratch, "--git-dir", remote, "show", ref); } catch { return null; } };
-  const changes = async () => (await rest(token, `sandbox_changes?select=id,words,status,summary,detail,files,verdict,task_id&table_id=eq.${owner.tableId}&order=created_at`)).body;
+  const changes = async () => (await rest(token, `sandbox_changes?select=id,words,status,summary,detail,files,verdict,task_id&table_id=eq.${owner.tableId}&test=eq.false&order=created_at`)).body;
 
   // The owner gives her a copy, from her name in the list of people.
   await owner.page.click("aside[aria-label=Menu] >> text=Elena Ruiz");
@@ -80,13 +80,35 @@ try {
   await owner.page.waitForSelector("[data-testid=sandbox-review]");
   await shot(owner.page, "s1-owner-before-giving-a-copy");
   await owner.page.click("[data-testid=sandbox-give]");
-  await shot(owner.page, "s1b-owner-what-giving-a-copy-means");
-  await owner.page.check("[data-testid=sandbox-agree]");
+  await owner.page.waitForSelector("[data-testid=sandbox-setup]");
+  await shot(owner.page, "s1b-owner-setting-a-copy-up");
+  check("it cannot be given before it is set up", await owner.page.isDisabled("[data-testid=sandbox-on]"));
+  check("it sees that the team's Claude is on", (await owner.page.locator("[data-step='1'][data-done]").count()) === 1);
+  // Step 2: the connection makes the branch and pushes it. No AI is asked anything.
+  await owner.page.click("[data-testid=sandbox-make]");
+  await owner.page.waitForSelector("[data-step='2'][data-done]", { timeout: 60000 });
+  const made = branchList().find((b) => b.startsWith("longtable/sandbox-elena-ruiz-"));
+  check("making the copy pushes its branch, one commit on top of the default one", !!made && git(scratch, "--git-dir", remote, "log", "--format=%s", "-1", made) === "A copy of its own"
+    && show(`${made}:greet.js`) === show("main:greet.js"), { made });
+  // Step 3: this scratch repository has no hosting, so the address is typed. Step 4 checks it opens with no sign-in.
+  await owner.page.fill("input[aria-label='Where the copy opens']", "https://example.com");
+  await owner.page.click("button:has-text('Use this address')");
+  await owner.page.waitForSelector("[data-step='3'][data-done]", { timeout: 10000 });
+  await owner.page.waitForSelector("[data-step='4'][data-done]", { timeout: 30000 });
+  check("it checked by itself that the address opens without a sign-in", true);
+  // Step 5: a change of the owner's own, which the client never sees.
+  await owner.page.fill("input[aria-label='A change to try']", "Add a comment at the top of greet.js that says: checked by the team.");
+  await owner.page.click("[data-testid=sandbox-setup] button:has-text('Try it')");
+  await owner.page.waitForFunction(() => /is in the copy|changed nothing|did not work/.test(document.querySelector("[data-testid=setup-test]")?.textContent ?? ""), null, { timeout: 420000 });
+  results.ownerTest = (await owner.page.textContent("[data-testid=setup-test]")).slice(0, 300);
+  check("the owner's own test change is built in the copy", /is in the copy/.test(results.ownerTest) && /checked by the team/i.test(show(`${made}:greet.js`) ?? ""), results.ownerTest);
+  check("and it still cannot be given until the owner answers for the data and the keys", await owner.page.isDisabled("[data-testid=sandbox-on]"));
+  await owner.page.check("[data-testid=setup-data]");
+  await owner.page.check("[data-testid=setup-keys]");
+  await shot(owner.page, "s2-owner-everything-is-in-place");
   await owner.page.click("[data-testid=sandbox-on]");
   await owner.page.click("button:has-text('Set up')");
-  await owner.page.fill("#sb-theirs", "https://elena-copy.example.test");
   await owner.page.fill("#sb-ours", "https://greeter.example.test");
-  await shot(owner.page, "s2-owner-setting-it-up");
   await owner.page.click("form[aria-label='Set up the copy'] button:has-text('Save')");
 
   // Her page now says so, and what she types is built in her copy.
@@ -94,13 +116,14 @@ try {
   await elena.page.reload();
   await elena.page.waitForSelector("[data-testid=open-copy]");
   await shot(elena.page, "s3-client-has-her-own-copy");
-  check("her page tells her she has a copy and where to open it", (await elena.page.locator("[data-testid=open-copy]").getAttribute("href")) === "https://elena-copy.example.test");
+  check("her page tells her she has a copy and where to open it", (await elena.page.locator("[data-testid=open-copy]").getAttribute("href")) === "https://example.com");
   await elena.page.fill("[aria-label='Ask the team']", "Change the greeting so it says good morning instead of hello.");
   await elena.page.click("button:has-text('Send')");
   await elena.page.waitForSelector("[data-change]");
   await shot(elena.page, "s4-client-her-change-is-being-built");
   await elena.page.waitForFunction(() => document.querySelector("[data-change] [data-testid=change-status]")?.textContent === "Ready to try", null, { timeout: 420000 });
   await shot(elena.page, "s5-client-ready-to-try");
+  check("she never saw the owner's test", (await elena.page.locator("[data-change]").count()) === 1 && !/checked by the team/.test(await elena.page.textContent("[data-testid=client-chat]")));
   const first = (await changes())[0];
   results.first = first;
   const sandbox = branchList().find((b) => b.startsWith("longtable/sandbox-elena-ruiz-"));

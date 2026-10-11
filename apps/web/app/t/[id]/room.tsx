@@ -522,7 +522,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     .sort((a, b) => Number(b.status === "working") - Number(a.status === "working") || (b.finished_at ?? b.created_at).localeCompare(a.finished_at ?? a.created_at));
   // A client's changes waiting for the team's answer show in the work panel too, so nobody has to go looking.
   const toReview = members.filter((m) => m.role === "client" && m.client_mode === "sandbox")
-    .map((m) => ({ m, n: changes.filter((c) => c.member_id === m.id && c.status === "ready" && !c.verdict).length })).filter((x) => x.n > 0);
+    .map((m) => ({ m, n: changes.filter((c) => c.member_id === m.id && c.status === "ready" && !c.verdict && !c.test).length })).filter((x) => x.n > 0);
   function openSandbox(id: string) {
     setSandboxOf(id); setPersonId(null); setDrawerOpen(false); setInboxOpen(false); setView("sandbox");
     window.history.pushState(null, "", `/t/${table.id}?sandbox=${id}`);
@@ -685,7 +685,9 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         )}
         {view === "sandbox" && sandboxOf && byId.get(sandboxOf) && (
           <main className={styles.main}>
-            <SandboxReview table={{ id: table.id, name: tableName }} me={self} client={byId.get(sandboxOf)!} changes={changes} jobs={jobs} onStop={(id) => { supabase.rpc("stop_job", { job: id }).then(() => catchUp()); }} links={links} onLinks={setLinks}
+            <SandboxReview table={{ id: table.id, name: tableName }} me={self} client={byId.get(sandboxOf)!} box={boxes.current.get(sandboxOf) ?? null}
+              aiOn={connections.some((c) => !c.revoked_at && c.kind === "claude" && byId.get(c.member_id)?.role !== "client" && !!c.last_seen && Date.now() - new Date(c.last_seen).getTime() < 90000)}
+              changes={changes} jobs={jobs} onStop={(id) => { supabase.rpc("stop_job", { job: id }).then(() => catchUp()); }} links={links} onLinks={setLinks}
               onBox={(b) => { boxes.current.set(b.member_id, { ...(boxes.current.get(b.member_id) ?? { member_id: b.member_id, mode: "chat", branch: "", url: null }), ...b }); setMembers((prev) => [...prev]); }}
               onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) openChat(t.chat_id); else goHome(); }} />
           </main>
@@ -849,7 +851,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           onClose={() => setPersonId(null)}
           onSaved={(m) => setMembers((prev) => prev.map((x) => (x.id === m.id ? { ...x, ...m } : x)))}
           onGone={(id) => setMembers((prev) => prev.filter((x) => x.id !== id))} onSandbox={openSandbox}
-          waiting={changes.filter((c) => c.member_id === personId && c.status === "ready" && !c.verdict).length} />
+          waiting={changes.filter((c) => c.member_id === personId && c.status === "ready" && !c.verdict && !c.test).length} />
       )}
       {inviting && <Invite tableId={table.id} onClose={() => setInviting(false)} />}
       {connectOpen && (

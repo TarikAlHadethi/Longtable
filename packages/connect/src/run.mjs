@@ -10,7 +10,7 @@ import { client } from "./api.mjs";
 import { ask, findClaude } from "./claude.mjs";
 import { askCodex, codexLimits, findCodex } from "./codex.mjs";
 import { packCode } from "./pack.mjs";
-import { changedSoFar, freshCopy, landWork, openWork, patchOf, workBranch } from "./repo.mjs";
+import { changedSoFar, freshCopy, landWork, openBranch, openWork, patchOf, workBranch } from "./repo.mjs";
 import { hideSecrets, home, loadSecret, log, readConfig } from "./store.mjs";
 
 const SOURCES = {
@@ -453,6 +453,13 @@ async function workSandbox(rpc, seat, engines, job) {
   if (!engines.claude) throw new Error("Claude Code is not on this computer");
   if (!seat.source) throw new Error("this connection has no code to work on");
   freshCopy(seat.table_id, seat.source);
+  if (job.probe) {
+    // Only making the place for a copy: no AI is asked anything.
+    const commit = openBranch(seat.table_id, job.branch);
+    await rpc("runner_finish", { token: seat.token, job: job.job_id, answer: "", info: { commit } });
+    log(`sandbox job ${job.job_id}: made ${job.branch}`);
+    return;
+  }
   const opened = openWork(seat.table_id, job.branch, "work", { refresh: true });
   let note = "";
   let told = 0;

@@ -6,7 +6,8 @@ import { Arrow } from "@/components/icons";
 import { Select } from "@/components/select";
 import { Time } from "@/components/time";
 import { browserClient } from "@/lib/supabase/browser";
-import type { Job, Member, SandboxChange } from "./types";
+import { SandboxSetup } from "./sandbox-setup";
+import type { Job, Member, SandboxChange, SandboxRow } from "./types";
 import room from "./room.module.css";
 import s from "./sandbox-review.module.css";
 
@@ -18,10 +19,13 @@ const VERDICT = { take: "Taking it", differently: "Doing it differently", no: "N
 // A client's sandbox, as the team sees it: what they changed in their own copy, newest first, each to be taken,
 // done differently, or turned down. The owner also sets it up here: on or off, where each version can be opened,
 // and how many changes it takes in a day.
-export function SandboxReview({ table, me, client, changes, jobs, onStop, links, onLinks, onBox, onOpenTask }: {
+export function SandboxReview({ table, me, client, box, aiOn, changes, jobs, onStop, links, onLinks, onBox, onOpenTask }: {
   table: { id: string; name: string };
   me: Member;
   client: Member;
+  // The copy itself, as far as it has been set up, and whether a Claude of the team is on to build in it.
+  box: SandboxRow | null;
+  aiOn: boolean;
   changes: SandboxChange[];
   // The jobs in flight, to say what the AI is on and to stop it.
   jobs: Job[];
@@ -29,7 +33,7 @@ export function SandboxReview({ table, me, client, changes, jobs, onStop, links,
   // cap: how many changes a day, or null for as many as they like.
   links: { ours: string | null; cap: number | null; paths: string };
   onLinks: (l: { ours: string | null; cap: number | null; paths: string }) => void;
-  onBox: (b: { member_id: string; mode?: "chat" | "sandbox"; url?: string | null }) => void;
+  onBox: (b: Partial<SandboxRow> & { member_id: string }) => void;
   onOpenTask: (taskId: string) => void;
 }) {
   const supabase = browserClient();
@@ -45,14 +49,13 @@ export function SandboxReview({ table, me, client, changes, jobs, onStop, links,
   const [theirs, setTheirs] = useState(client.sandbox_url ?? "");
   const [cap, setCap] = useState(String(links.cap ?? 0));
   const [paths, setPaths] = useState(links.paths);
-  // Before a copy is given, the owner reads what giving one means and says so.
-  const [giving, setGiving] = useState(false);
-  const [agreed, setAgreed] = useState(false);
+  // Before a copy is given, the owner sets it up. A copy that was started and not finished opens on its set-up.
+  const [giving, setGiving] = useState(!!box && box.mode !== "sandbox");
   useEffect(() => { setTheirs(client.sandbox_url ?? ""); }, [client.sandbox_url]);
   useEffect(() => { setOurs(links.ours ?? ""); setCap(String(links.cap ?? 0)); setPaths(links.paths); }, [links.ours, links.cap, links.paths]);
 
-  const mine = changes.filter((c) => c.member_id === client.id).sort((a, b) => b.created_at.localeCompare(a.created_at));
-  const waiting = mine.filter((c) => c.status === "ready" && !c.verdict).length;
+  const mine = changes.filter((c) => c.member_id === client.id && (!c.test || on)).sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const waiting = mine.filter((c) => c.status === "ready" && !c.verdict && !c.test).length;
 
   async function turn(enabled: boolean) {
     setBusy("turn");
@@ -103,27 +106,15 @@ export function SandboxReview({ table, me, client, changes, jobs, onStop, links,
           {on && client.sandbox_url && <a className="btn" href={client.sandbox_url} target="_blank" rel="noreferrer" data-testid="open-theirs">Open {first}&apos;s <Arrow size={16} /></a>}
           {on && links.ours && <a className="btn btn-quiet" href={links.ours} target="_blank" rel="noreferrer" data-testid="open-ours">Open ours</a>}
           {owner && on && <button className="btn btn-quiet" onClick={() => setSetup(!setup)} aria-expanded={setup}>Set up</button>}
-          {owner && !on && !giving && <button className="btn" onClick={() => setGiving(true)} data-testid="sandbox-give">Give {first} a copy</button>}
+          {owner && !on && !giving && <button className="btn" onClick={() => setGiving(true)} data-testid="sandbox-give">Set up a copy for {first}</button>}
         </div>
       </div>
 
       {error && <div className="error" role="alert">{error}</div>}
 
       {owner && !on && giving && (
-        <div className={s.setup} data-testid="sandbox-terms">
-          <div className={s.termsTitle}>Before {first} gets a copy</div>
-          <ul className={s.terms}>
-            <li>What {first} asks for is built by your team&apos;s AI, on a team member&apos;s computer and plan, up to the number of changes a day you set.</li>
-            <li>The copy is put up wherever your hosting puts a branch. That place must hold <b>no real keys and no real data</b>: code {first} asked for runs there.</li>
-            <li>Longtable refuses changes to how the product is built, run or kept safe, and to tests. That is a strong filter, not a wall, so treat the copy as something {first} could read.</li>
-            <li>Nothing {first} changes reaches the real product. You look at each change and decide.</li>
-          </ul>
-          <label className={s.agree}><input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} data-testid="sandbox-agree" /> Our previews hold no real keys or data.</label>
-          <div className={s.setupActions}>
-            <button type="button" className="btn btn-quiet" onClick={() => { setGiving(false); setAgreed(false); }}>Not now</button>
-            <button type="button" className="btn" disabled={!agreed || busy === "turn"} onClick={() => turn(true)} data-testid="sandbox-on">Give {first} a copy</button>
-          </div>
-        </div>
+        <SandboxSetup table={table} client={client} box={box} aiOn={aiOn} jobs={jobs} changes={changes} ours={links.ours}
+          onBox={onBox} onGive={() => turn(true)} giving={busy === "turn"} />
       )}
 
       {owner && on && setup && (
@@ -169,6 +160,7 @@ export function SandboxReview({ table, me, client, changes, jobs, onStop, links,
               <div className={s.when}><Time iso={c.created_at} style="stamp" /></div>
             </div>
             <div className={s.state}>
+              {c.test && <span className={s.pill}>Your test</span>}
               <span className={`${s.pill} ${c.status === "ready" ? s.pillReady : ""}`}>{c.status === "working" && <i className={s.pulse} />}{STATUS[c.status]}</span>
               {c.status === "working" && (() => {
                 const j = jobs.find((x) => x.change_id === c.id && ["queued", "running"].includes(x.status));
@@ -185,7 +177,7 @@ export function SandboxReview({ table, me, client, changes, jobs, onStop, links,
                 <b>{VERDICT[c.verdict]}</b>{c.note ? `: ${c.note}` : ""}
                 {c.verdict === "take" && c.task_id && <button className={room.toolLink} onClick={() => onOpenTask(c.task_id!)}>See the work</button>}
               </div>
-            ) : c.status === "ready" && noting?.id === c.id ? (
+            ) : c.test ? null : c.status === "ready" && noting?.id === c.id ? (
               <form className={s.noteForm} onSubmit={(e) => { e.preventDefault(); judge(c, noting.answer, note); }}>
                 <input className="field" autoFocus maxLength={1000} value={note} onChange={(e) => setNote(e.target.value)}
                   placeholder={noting.answer === "no" ? `Why not, in words ${first} will read` : `What you will do instead, in words ${first} will read`} aria-label="A note for the client" />
