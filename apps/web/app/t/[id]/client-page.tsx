@@ -106,7 +106,8 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
       supabase.from("requests").select(REQUEST_COLUMNS).eq("table_id", table.id).eq("member_id", me.id),
       supabase.from("client_updates").select(UPDATE_COLUMNS).eq("table_id", table.id),
       supabase.from("client_lines").select(LINE_COLUMNS).eq("table_id", table.id).eq("member_id", me.id).order("created_at").limit(200),
-      supabase.from("connections").select(CONNECTION_COLUMNS).eq("table_id", table.id).eq("member_id", me.id).is("revoked_at", null),
+      // Ones that were disconnected too: what their assistant said before still shows as that assistant.
+      supabase.from("connections").select(CONNECTION_COLUMNS).eq("table_id", table.id).eq("member_id", me.id).order("created_at", { ascending: false }).limit(10),
       supabase.from("jobs").select(JOB_COLUMNS).eq("table_id", table.id).eq("member_id", me.id).in("status", ["queued", "running"]),
     ]);
     if (r) setRequests(r as Request[]);
@@ -183,6 +184,8 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   }, [supabase, table.id, me.id, reload, putRequest, putUpdates, putLines, !!viewer]);
 
   const mine = connections.find((c) => !c.revoked_at);
+  // Which AI their assistant is, or was: the one connected now, else the last one they had.
+  const theirs = mine?.kind ?? [...connections].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.kind ?? null;
   const thinking = jobs.some((j) => j.kind === "client" && (j.status === "queued" || j.status === "running"));
   const building = !!sandbox?.changes.some((c) => c.status === "working");
 
@@ -284,7 +287,9 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   // Who is answering on the left: their copy, their own assistant, or the team. Beside the name, the one state.
   const speaker = (who: "copy" | "assistant" | "team", pill?: { words: string; pill: string; testid: string; busy?: boolean }) => (
     <div className={styles.from}>
-      {who === "assistant" && mine ? <AiLogo kind={mine.kind} size={18} /> : <Mark size={18} />}
+      {/* An AI answers under its maker's sign; the team answers under the table's. A copy is built by the team's
+          Claude today, so that is the sign it carries. */}
+      {who === "assistant" && theirs ? <AiLogo kind={theirs} size={18} /> : who === "copy" ? <AiLogo kind="claude" size={18} /> : <Mark size={18} />}
       <span className={styles.fromName}>{who === "copy" ? "Your copy" : who === "assistant" ? "Your assistant" : "The team"}</span>
       {pill && <span className={`${styles.pill} ${pill.pill}`} data-testid={pill.testid}>{pill.busy && <i className={styles.pulse} />}{pill.words}</span>}
     </div>
