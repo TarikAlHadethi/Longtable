@@ -5,10 +5,10 @@
 .openCopy { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; margin-right: 10px; white-space: nowrap; }
 
 /* A team member looking on. */
-.viewing { flex-shrink: 0; display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; padding: 8px 16px; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--line); background: var(--card); }
-.other { border: 1px solid var(--line); background: transparent; border-radius: 20px; padding: 3px 11px; font: inherit; font-size: 12.5px; color: var(--ink); cursor: pointer; }
+.viewing { flex-shrink: 0; display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; padding: 8px 16px; font-size: 14px; color: var(--muted); border-bottom: 1px solid var(--line); background: var(--card); }
+.other { border: 1px solid var(--line); background: transparent; border-radius: 20px; padding: 3px 11px; font: inherit; font-size: 13.5px; color: var(--ink); cursor: pointer; }
 .otherOn { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-.private { align-self: center; font-size: 12.5px; color: var(--faint); padding: 6px 0; text-align: center; }
+.private { align-self: center; font-size: 13.5px; color: var(--faint); padding: 6px 0; text-align: center; }
 
 .thread { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 28px 20px 20px; }
@@ -18,25 +18,25 @@
 /* The same box as the team writes in, the full width of the conversation, with Send beside the words on any screen. */
 .foot form { width: 100%; max-width: none; margin: 0; flex-wrap: nowrap; }
 .foot textarea { flex-basis: 0; min-width: 0; }
-.footNote { font-size: 12.5px; color: var(--muted); padding: 0 4px; }
+.footNote { font-size: 13.5px; color: var(--muted); padding: 0 4px; }
 
-.empty { margin: 18vh auto 0; max-width: 420px; text-align: center; font-size: 15.5px; line-height: 1.55; color: var(--muted); text-wrap: pretty; }
+.empty { margin: 18vh auto 0; max-width: 420px; text-align: center; font-size: 16.5px; line-height: 1.55; color: var(--muted); text-wrap: pretty; }
 
 /* One turn: what they said, and what came of it. */
 .turn { display: flex; flex-direction: column; gap: 10px; animation: lt-rise 0.26s var(--ease-out) backwards; }
 .mine { display: flex; justify-content: flex-end; }
 .mine > div { max-width: 86%; border-radius: 18px 18px 6px 18px; }
 .back { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; max-width: 92%; }
-.from { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.from { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
 .fromName { font-weight: 560; color: var(--ink); }
-.said { font-size: 15.5px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; text-wrap: pretty; display: flex; flex-direction: column; gap: 10px; }
-.answered { font-size: 13px; color: var(--muted); }
+.said { font-size: 16.5px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; text-wrap: pretty; display: flex; flex-direction: column; gap: 10px; }
+.answered { font-size: 14px; color: var(--muted); }
 .tryIt { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
-.verdict { font-size: 14px; font-weight: 560; color: light-dark(oklch(0.4 0.07 150), oklch(0.82 0.07 150)); }
+.verdict { font-size: 15px; font-weight: 560; color: light-dark(oklch(0.4 0.07 150), oklch(0.82 0.07 150)); }
 .verdictNo { color: var(--muted); font-weight: 500; }
-.writing { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.writing { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
 
-.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 560; padding: 3px 9px; border-radius: 20px; white-space: nowrap; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 560; padding: 3px 9px; border-radius: 20px; white-space: nowrap; }
 .pillWait { background: light-dark(oklch(0.94 0.04 80), oklch(0.31 0.048 80)); color: light-dark(oklch(0.42 0.07 70), oklch(0.8 0.07 70)); }
 .pillDone { background: light-dark(oklch(0.93 0.04 150), oklch(0.315 0.048 150)); color: light-dark(oklch(0.38 0.07 150), oklch(0.84 0.07 150)); }
 .pillPlan { background: var(--chip); color: var(--muted); }
@@ -44,7 +44,7 @@
 .pulse { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: cl-pulse 1.1s ease-in-out infinite; }
 
 .replies { display: flex; flex-wrap: wrap; gap: 6px; }
-.reply { border: 1px solid var(--line-strong); background: var(--card); border-radius: 20px; padding: 7px 14px; font: inherit; font-size: 14px; font-weight: 500; color: var(--ink); cursor: pointer; transition: background-color 0.12s ease, transform 0.12s var(--ease-out); }
+.reply { border: 1px solid var(--line-strong); background: var(--card); border-radius: 20px; padding: 7px 14px; font: inherit; font-size: 15px; font-weight: 500; color: var(--ink); cursor: pointer; transition: background-color 0.12s ease, transform 0.12s var(--ease-out); }
 .reply:hover:not(:disabled) { background: var(--chip); }
 .reply:active:not(:disabled) { transform: scale(0.97); }
 .reply:disabled { cursor: default; opacity: 0.7; }
@@ -53,5 +53,5 @@
 @media (max-width: 640px) {
   .scroll { padding: 18px 14px 14px; }
   .foot { padding: 0 14px 14px; }
-  .openCopy { padding: 7px 11px; font-size: 13px; margin-right: 6px; }
+  .openCopy { padding: 7px 11px; font-size: 14px; margin-right: 6px; }
 }

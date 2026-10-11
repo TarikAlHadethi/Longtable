@@ -2,16 +2,16 @@
 .header { height: 56px; display: flex; align-items: center; padding: 0 20px; border-bottom: 1px solid light-dark(oklch(0.92 0.006 80), oklch(0.282 0.006 80)); }
 .back { display: flex; align-items: center; gap: 10px; font-weight: 560; color: var(--ink); text-decoration: none; }
 .main { max-width: 640px; margin: 0 auto; padding: 32px 20px; display: flex; flex-direction: column; gap: 20px; }
-.title { margin: 0; font-size: 26px; letter-spacing: -0.01em; }
+.title { margin: 0; font-size: 27px; letter-spacing: -0.01em; }
 .card { background: var(--card); border: 1px solid light-dark(oklch(0.91 0.008 100), oklch(0.29 0.008 100)); border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px; }
-.cardTitle { font-size: 12px; font-weight: 560; letter-spacing: 0.08em; text-transform: uppercase; color: light-dark(oklch(0.5 0.01 70), oklch(0.7 0.01 70)); margin-bottom: 4px; }
+.cardTitle { font-size: 13px; font-weight: 560; letter-spacing: 0.08em; text-transform: uppercase; color: light-dark(oklch(0.5 0.01 70), oklch(0.7 0.01 70)); margin-bottom: 4px; }
 .actions { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
-.saved { font-size: 13px; font-weight: 560; color: light-dark(oklch(0.45 0.08 150), oklch(0.77 0.08 150)); }
-.radios { display: flex; flex-direction: column; gap: 6px; font-size: 14px; margin-top: 4px; }
+.saved { font-size: 14px; font-weight: 560; color: light-dark(oklch(0.45 0.08 150), oklch(0.77 0.08 150)); }
+.radios { display: flex; flex-direction: column; gap: 6px; font-size: 15px; margin-top: 4px; }
 .person { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid light-dark(oklch(0.94 0.006 80), oklch(0.266 0.006 80)); }
 .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.personName { flex: 1; min-width: 0; font-size: 15px; font-weight: 500; }
-.role { font-size: 13px; color: var(--muted); }
+.personName { flex: 1; min-width: 0; font-size: 16px; font-weight: 500; }
+.role { font-size: 14px; color: var(--muted); }
 
 .card { animation: lt-rise 0.4s var(--ease-out) both; }
 .saved { animation: lt-rise 0.25s var(--ease-out) both; }
@@ -33,5 +33,5 @@
 @media (max-width: 1000px) { .cols { grid-template-columns: 1fr; } }
 
 .actions :global(.btn) { white-space: nowrap; }
-.connected { display: flex; align-items: center; gap: 8px; font-size: 14.5px; font-weight: 500; }
+.connected { display: flex; align-items: center; gap: 8px; font-size: 15.5px; font-weight: 500; }
 .connected i { width: 8px; height: 8px; border-radius: 50%; background: var(--online); flex-shrink: 0; }

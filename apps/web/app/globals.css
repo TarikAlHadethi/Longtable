@@ -23,7 +23,7 @@
   --table-hover: oklch(0.22 0.015 170);
   color-scheme: light;
   --font-ui: var(--font-hanken), system-ui, sans-serif;
-  --font-voice: var(--font-newsreader), Georgia, serif;
+  --font-voice: var(--font-hanken), system-ui, sans-serif;
   --font-mono: ui-monospace, monospace;
 }
 
@@ -88,7 +88,7 @@ html, body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-ui);
-  font-size: 15px;
+  font-size: 16px;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -105,7 +105,7 @@ button { font: inherit; }
   border: 0;
   border-radius: 9px;
   padding: 11px 18px;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 560;
   cursor: pointer;
   text-decoration: none;
@@ -135,14 +135,14 @@ button { font: inherit; }
 
 .label {
   display: block;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 560;
   color: var(--ink-2);
   margin: 0 0 6px;
 }
 
-.note { color: var(--muted); font-size: 14px; line-height: 1.5; }
-.error { color: var(--danger); font-size: 14px; }
+.note { color: var(--muted); font-size: 15px; line-height: 1.5; }
+.error { color: var(--danger); font-size: 15px; }
 
 .page-center {
   min-height: 100%;
@@ -162,7 +162,7 @@ button { font: inherit; }
   flex-direction: column;
   gap: 18px;
 }
-.panel h1 { margin: 0; font-size: 22px; letter-spacing: -0.01em; }
+.panel h1 { margin: 0; font-size: 23px; letter-spacing: -0.01em; }
 
 .inline-code {
   font-family: var(--font-mono);
@@ -210,6 +210,5 @@ html { scroll-behavior: smooth; }
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
 
-/* Soft letters. Bold is a nudge, not a shout, and an AI's serif is drawn at its roundest. */
+/* Soft letters. Bold is a nudge, not a shout, and every letter is round. */
 b, strong, h1, h2, h3, h4 { font-weight: 560; }
-:root { font-variation-settings: "SOFT" 100; }
