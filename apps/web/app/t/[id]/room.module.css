@@ -235,7 +235,7 @@
 .readTag { font-family: var(--font-mono); font-size: 11px; color: var(--faint); }
 .working { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); padding-left: 40px; }
 .workingFailed { color: var(--danger); }
-.workingDot { width: 8px; height: 8px; border-radius: 50%; background: var(--sage); animation: pulse 1.2s ease-in-out infinite; }
+.workingDot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--sage); animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
 .notice { font-size: 13px; color: var(--muted); }
 
@@ -476,4 +476,6 @@
 .shell { --pane-left: 264px; --pane-right: 360px; }
 .shellWide { --pane-right: 0px; }
 .modalBack { padding-left: calc(var(--pane-left, 0px) + 16px); padding-right: calc(var(--pane-right, 0px) + 16px); }
+/* The right panel is already off to the side below 1180px, so windows no longer make room for it there. */
+@media (max-width: 1180px) { .shell { --pane-right: 0px; } }
 @media (max-width: 900px) { .shell { --pane-left: 0px; --pane-right: 0px; } }

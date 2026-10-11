@@ -1,5 +1,6 @@
 "use client";
 
+import { useEscape } from "@/components/use-escape";
 import { useRef, useState } from "react";
 import { AI_NAME, AiLogo } from "@/components/ai-logo";
 import { Face } from "@/components/face";
@@ -55,6 +56,7 @@ export function PersonWindow({ table, me, person, connections, here, edit = fals
   onSaved: (m: Member) => void;
   onGone: (id: string) => void;
 }) {
+  useEscape(onClose);
   const supabase = browserClient();
   const isMe = person.id === me.id;
   const mine = isMe && edit;

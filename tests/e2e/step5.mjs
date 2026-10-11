@@ -98,7 +98,7 @@ try {
   const later = "Picking a hygienist comes in the first update after launch.";
   await dev.page.fill("textarea[aria-label^='What Elena Ruiz will be told for option 1']", yes);
   await dev.page.fill("textarea[aria-label^='What Elena Ruiz will be told for option 2']", later);
-  await dev.page.click("button:has-text('Put it in the inbox')");
+  await dev.page.click("button:has-text('Start the poll')");
 
   // Her page moves to Being decided, live; the team's card follows and the button goes.
   await waitStatus(elena.page, reqId, "status", "Being decided");
@@ -112,7 +112,7 @@ try {
   check("the decision is tied to her request", !!d && d.affects_client && d.origin === "requested by Elena Ruiz", JSON.stringify(ds));
 
   // The owner decides. After the undo window she hears the chosen option's own words, and only those.
-  await owner.page.locator(`aside[aria-label='Inbox'] [data-did='${d.id}'] button:has-text('Ship it for launch')`).click();
+  await owner.page.locator(`[data-did='${d.id}'] button:has-text('Ship it for launch')`).click();
   const decidedAt = Date.now();
   await elena.page.waitForFunction((w) => document.querySelector("[data-testid=client-chat]")?.textContent?.includes(w), yes, { timeout: 30000 });
   results.heardAfterSeconds = Math.round((Date.now() - decidedAt) / 100) / 10;
@@ -215,13 +215,13 @@ try {
   await dev.page.fill("textarea[aria-label='The question Elena Ruiz will be asked']", question);
   await dev.page.fill("input[aria-label='Answer 1']", "At launch");
   await dev.page.fill("input[aria-label='Answer 2']", "Keep the time for testing");
-  await dev.page.click("button:has-text('Put it in the inbox')");
+  await dev.page.click("button:has-text('Start the poll')");
   await waitStatus(elena.page, req3, "status", "Being decided");
   const d3 = (await rest(ownerToken, `decisions?select=id,request_id&table_id=eq.${tableId}`)).body.find((x) => x.request_id === req3)?.id;
-  await owner.page.waitForSelector(`aside[aria-label='Inbox'] [data-did='${d3}']`, { timeout: 5000 });
-  await owner.page.locator(`aside[aria-label='Inbox'] [data-did='${d3}'] button:has-text('Ask Elena Ruiz first')`).click();
-  await owner.page.waitForFunction((id) => /Elena Ruiz is asked in \d+ s/.test(document.querySelector(`aside[aria-label='Inbox'] [data-did='${id}']`)?.textContent || ""), d3, { timeout: 5000 });
-  const ownerSees = await owner.page.textContent(`aside[aria-label='Inbox'] [data-did='${d3}']`);
+  await owner.page.waitForSelector(`[data-did='${d3}']`, { timeout: 5000 });
+  await owner.page.locator(`[data-did='${d3}'] button:has-text('Ask Elena Ruiz first')`).click();
+  await owner.page.waitForFunction((id) => /Elena Ruiz is asked in \d+ s/.test(document.querySelector(`[data-did='${id}']`)?.textContent || ""), d3, { timeout: 5000 });
+  const ownerSees = await owner.page.textContent(`[data-did='${d3}']`);
   check("the card shows the question and its answers", ownerSees.includes("Ask Elena Ruiz first") && ownerSees.includes("At launch") && ownerSees.includes("Keep the time for testing"), ownerSees);
 
   // After the window, the question reaches her with its answers, and the request is a question for her.

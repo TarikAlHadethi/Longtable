@@ -11,16 +11,17 @@
 // after the person presses Send. A client's AI gets no copy of the code.
 
 import { spawn } from "node:child_process";
+import { rmSync } from "node:fs";
 import { hostname } from "node:os";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { client, fetchConfig } from "../src/api.mjs";
 import { claudeVersion, findClaude, tokenWorks } from "../src/claude.mjs";
 import { codexSignIn, codexSignedIn, codexVersion, findCodex } from "../src/codex.mjs";
 import { disableAutostart, enableAutostart } from "../src/autostart.mjs";
 import { freshCopy, resolveSource } from "../src/repo.mjs";
-import { runLoop } from "../src/run.mjs";
-import { forgetSecret, loadSecret, log, readConfig, saveSecret, writeConfig } from "../src/store.mjs";
+import { runLoop, runningConnection } from "../src/run.mjs";
+import { forgetSecret, home, loadSecret, log, readConfig, saveSecret, writeConfig } from "../src/store.mjs";
 
 const binPath = fileURLToPath(import.meta.url);
 const [command, ...args] = process.argv.slice(2);
@@ -142,6 +143,12 @@ function disconnect() {
   for (const c of config.connections || []) forgetSecret(`device-${c.table_id}-${c.kind}`);
   writeConfig({ ...config, connections: [] });
   disableAutostart();
+  // The connection that is running right now still holds its keys in memory: end it.
+  try {
+    const pid = runningConnection();
+    if (pid && pid !== process.pid) process.kill(pid);
+  } catch {}
+  rmSync(join(home, "runner.pid"), { force: true });
   say("Disconnected on this computer. Remove it in Longtable's settings too if it still shows.");
 }
 

@@ -111,7 +111,10 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
     ]);
     if (r) setRequests(r as Request[]);
     if (ev) putEvents(ev as RequestEvent[]);
-    if (up) putUpdates(up as ClientUpdate[]);
+    if (up) {
+      const theirs = new Set(((r ?? []) as Request[]).map((x) => x.id));
+      putUpdates((up as ClientUpdate[]).filter((u) => !viewer || !u.request_id || theirs.has(u.request_id)));
+    }
     if (ln) putLines(ln as ClientLine[]);
     if (cn) setConnections(cn as Connection[]);
     if (jb) setJobs(jb as Job[]);

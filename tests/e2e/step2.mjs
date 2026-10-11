@@ -38,22 +38,25 @@ try {
   const words2 = "The team decided reminders will go out by email the day before.";
   await owner.page.fill("textarea[aria-label^='What Dr. Ruiz will be told for option 1']", words1);
   await owner.page.fill("textarea[aria-label^='What Dr. Ruiz will be told for option 2']", words2);
-  await owner.page.click("button:has-text('Put it in the inbox')");
+  await owner.page.click("button:has-text('Start the poll')");
 
-  // The developer sees it in the inbox, live, and decides it.
+  // The developer is in another chat: the chat with the poll gets a mark, live. They open it and decide there.
+  await dev.page.waitForFunction(() => [...document.querySelectorAll("aside[aria-label=Menu] *")].some((el) => el.textContent?.trim() === "Booking flow" && el.querySelector("span:empty")), null, { timeout: 5000 })
+    .then(() => check("a chat with an open poll is marked for people elsewhere, live", true), () => check("a chat with an open poll is marked for people elsewhere, live", false));
+  await dev.page.click("aside[aria-label=Menu] >> text=Booking flow");
   await dev.page.waitForFunction(() => document.body.innerText.includes("Reminder channel for launch"), null, { timeout: 5000 });
-  check("decision reaches the developer's inbox live", true);
+  check("the poll is in its chat for the developer", true);
   const devToken = await accessToken(dev.context);
   const clientToken = await accessToken(client.context);
   const ownerToken = await accessToken(owner.context);
   const { body: list } = await rest(devToken, `decisions?select=id,title&table_id=eq.${tableId}`);
   const d1 = list.find((d) => d.title === "Reminder channel for launch")?.id;
 
-  const cardButton = dev.page.locator(`aside[aria-label='Inbox'] [data-did='${d1}'] button:has-text('Text, email as fallback')`);
+  const cardButton = dev.page.locator(`[data-did='${d1}'] button:has-text('Text, email as fallback')`);
   await cardButton.click();
   const decidedAt = Date.now();
   await dev.page.waitForFunction((id) => {
-    const el = document.querySelector(`aside[aria-label='Inbox'] [data-did='${id}']`);
+    const el = document.querySelector(`[data-did='${id}']`);
     return el && /Dr\. Ruiz is told in \d+ s/.test(el.textContent || "") && /Undo/.test(el.textContent || "");
   }, d1, { timeout: 5000 });
   check("card shows the countdown and Undo", true);
@@ -73,7 +76,7 @@ try {
   const heardAfter = (Date.now() - decidedAt) / 1000;
   results.clientHeardAfterSeconds = Math.round(heardAfter * 10) / 10;
   check("client hears after the window, in the exact words", late.body.length === 1 && late.body[0].body === words1 && heardAfter >= 10, JSON.stringify(late.body));
-  await dev.page.waitForFunction((id) => /has been told/.test(document.querySelector(`aside[aria-label='Inbox'] [data-did='${id}']`)?.textContent || ""), d1, { timeout: 5000 });
+  await dev.page.waitForFunction((id) => /has been told/.test(document.querySelector(`[data-did='${id}']`)?.textContent || ""), d1, { timeout: 5000 });
   check("card says the client has been told", true);
 
   // Too late to undo once it has gone out, even straight through the database.
@@ -88,11 +91,12 @@ try {
               { label: "First update", recommended: false, client_words: "Picking a hygienist comes in the first update." }],
   });
   const d2 = made.body;
-  await owner.page.waitForFunction((id) => !!document.querySelector(`aside[aria-label='Inbox'] [data-did='${id}']`), d2, { timeout: 5000 });
-  await owner.page.locator(`aside[aria-label='Inbox'] [data-did='${d2}'] button:has-text('Ship it for launch')`).click();
-  await owner.page.locator(`aside[aria-label='Inbox'] [data-did='${d2}'] button:has-text('Undo')`).click();
+  await owner.page.click("aside[aria-label=Menu] >> text=General");
+  await owner.page.waitForFunction((id) => !!document.querySelector(`[data-did='${id}']`), d2, { timeout: 5000 });
+  await owner.page.locator(`[data-did='${d2}'] button:has-text('Ship it for launch')`).click();
+  await owner.page.locator(`[data-did='${d2}'] button:has-text('Undo')`).click();
   await owner.page.waitForFunction((id) => {
-    const el = document.querySelector(`aside[aria-label='Inbox'] [data-did='${id}']`);
+    const el = document.querySelector(`[data-did='${id}']`);
     return el && !/Decided by/.test(el.textContent || "");
   }, d2, { timeout: 5000 });
   await sleep(13000);

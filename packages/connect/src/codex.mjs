@@ -83,8 +83,11 @@ export function askCodex({ codex, prompt, schema, model, timeoutMs = 3 * 60 * 10
     let out = "";
     let err = "";
     const timer = setTimeout(() => child.kill(), timeoutMs);
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdin.on("error", () => {});
     child.stdout.on("data", (d) => (out += d));
-    child.stderr.on("data", (d) => (err += d));
+    child.stderr.on("data", (d) => { if (err.length < 4000) err += d; });
     child.on("error", (e) => { clearTimeout(timer); rmSync(work, { recursive: true, force: true }); reject(e); });
     child.on("close", (code) => {
       clearTimeout(timer);

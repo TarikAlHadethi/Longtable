@@ -25,7 +25,7 @@ import { loadSettings, SettingsForm, type SettingsData } from "./settings/settin
 import { ProfileMenu } from "./profile-menu";
 import { TableView } from "./table-view";
 import { UsagePanel } from "./usage-panel";
-import { WorkPanel } from "./work-panel";
+import { elapsed, WorkPanel } from "./work-panel";
 import {
   CONNECTION_COLUMNS, DECISION_COLUMNS, JOB_COLUMNS, MEMBER_COLUMNS, MESSAGE_COLUMNS, NOTE_COLUMNS, REQUEST_COLUMNS,
   type Chat, type Connection, type Decision, type Job, type Member, type Message, type Note, type Request, type RequestStatus,
@@ -50,6 +50,9 @@ function requestWords(status: RequestStatus, who: string): { words: string; pill
 
 type Change = { table?: string; record?: Record<string, unknown> };
 type View = "table" | "chat" | "client" | "logs" | "settings";
+
+// Times from the server and from this computer are written differently; they are compared as moments, not as text.
+const after = (a: string, b: string) => new Date(a).getTime() > new Date(b).getTime();
 
 export function Room({ table, me, initialMembers, initialChats, initialMessages, initialDecisions, initialJobs, initialConnections, initialNotes, initialRequests, initialChatId, initialView, initialTableModel, initialTasks }: {
   table: { id: string; name: string };
@@ -157,7 +160,16 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   // Live pushes can be lost (a reconnect, the server moving its database feed), so the room also reads the
   // database: when the channel opens or reopens, when the tab comes back, and every few seconds while an AI is
   // working or a decision is on its way out.
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((event: string) => { if (event === "SIGNED_OUT") window.location.href = "/sign-in"; });
+    return () => data.subscription.unsubscribe();
+  }, [supabase]);
+  // Reads can overlap. One is thrown away only when a newer one has already been put on the page: on a slow link
+  // each still lands, and an older one never undoes a newer one.
+  const reads = useRef(0);
+  const shown = useRef(0);
   const catchUp = useCallback(async () => {
+    const mine = ++reads.current;
     const [{ data: recent }, { data: inFlight }, { data: ds }, { data: rq }, { data: ns }, { data: cs }, { data: tk }] = await Promise.all([
       supabase.from("messages").select(MESSAGE_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(100),
       supabase.from("jobs").select(JOB_COLUMNS).eq("table_id", table.id).in("status", ["queued", "running", "waiting", "failed"]).order("created_at", { ascending: false }).limit(50),
@@ -167,6 +179,12 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       supabase.from("connections").select(CONNECTION_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(60),
       supabase.from("tasks").select(TASK_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(40),
     ]);
+    if (mine < shown.current) return;
+    // The table was closed, or this person was taken off it, with no word reaching this page.
+    const { data: still, error: gone } = await supabase.from("members").select("id").eq("id", me.id).is("removed_at", null).maybeSingle();
+    if (!gone && !still) return setGone(true);
+    if (mine < shown.current) return;
+    shown.current = mine;
     if (tk) setTasks(tk as Task[]);
     if (recent) setMessages((prev) => {
       const have = new Set(prev.map((m) => m.id));
@@ -178,7 +196,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (rq) setRequests(rq as Request[]);
     if (ns) setNotes(ns as Note[]);
     if (cs) setConnections(cs as Connection[]);
-  }, [supabase, table.id]);
+  }, [supabase, table.id, me.id]);
 
   const loadDecision = useCallback(async (id: string) => {
     const { data } = await supabase.from("decisions").select(DECISION_COLUMNS).eq("id", id).maybeSingle();
@@ -199,6 +217,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       } else if (name === "members") {
         const { id, display_name, role, color, created_at, avatar, name_color, status, bubble } = record as unknown as Member;
         const fresh: Member = { id, display_name, role, color, created_at, avatar, name_color, status, bubble };
+        // This person cleared their list of work somewhere else: it is cleared here too.
+        if (id === me.id && "tasks_cleared_at" in (record as object)) setClearedAt((record as { tasks_cleared_at?: string | null }).tasks_cleared_at ?? null);
         // Taken off the table: gone from the list, and if it is this person, their page closes.
         if ((record as { removed_at?: string | null }).removed_at) {
           if (id === me.id) setGone(true);
@@ -388,9 +408,15 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       .insert({ table_id: table.id, chat_id: chat.id, member_id: me.id, body })
       .select(MESSAGE_COLUMNS)
       .single();
+    if (error || !data) {
+      // It did not go: the words come back to the box (unless something new was typed meanwhile), and it says so.
+      setDraft((d) => (d.trim() ? `${body}\n${d}` : body));
+      requestAnimationFrame(grow);
+      setNotice("That message was not sent. It is back in the box.");
+    } else setNotice("");
     setMessages((prev) => {
-      if (error || !data) return prev.map((m) => (m.id === tempId ? { ...m, state: "failed" } : m));
       const rest = prev.filter((m) => m.id !== tempId);
+      if (error || !data) return rest;
       return rest.some((m) => m.id === (data as Message).id) ? rest : [...rest, data as Message];
     });
   }
@@ -442,6 +468,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     setChats((prev) => prev.filter((c) => c.id !== id));
     setMessages((prev) => prev.filter((m) => m.chat_id !== id));
     setDecisions((prev) => prev.filter((d) => d.chat_id !== id));
+    setTasks((prev) => prev.filter((t) => t.chat_id !== id));
+    setJobs((prev) => prev.filter((j) => j.chat_id !== id));
     if (chatIdRef.current === id) goHome();
   }
   async function deleteChat(id: string) {
@@ -461,13 +489,16 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   // The work panel: what is being worked on, then what finished since this person last cleared it. With nothing to
   // show there is no panel, and the chat has the room to itself.
   const shownTasks = tasks
-    .filter((t) => t.status === "working" || !clearedAt || (t.finished_at ?? t.created_at) > clearedAt)
+    .filter((t) => t.status === "working" || !clearedAt || after(t.finished_at ?? t.created_at, clearedAt))
     .sort((a, b) => Number(b.status === "working") - Number(a.status === "working") || (b.finished_at ?? b.created_at).localeCompare(a.finished_at ?? a.created_at));
   const noSide = view === "settings" || view === "logs" || (view === "chat" && shownTasks.length === 0);
   async function clearTasks() {
-    setClearedAt(new Date().toISOString());
+    // At once, to the newest time the server has given for a task: never this computer's own clock, which may be off.
+    const newest = tasks.reduce((m, t) => { const x = t.finished_at ?? t.created_at; return !m || after(x, m) ? x : m; }, clearedAt ?? "");
+    if (newest) setClearedAt(newest);
     setInboxOpen(false);
-    await supabase.rpc("clear_tasks", { t: table.id });
+    const { data } = await supabase.rpc("clear_tasks", { t: table.id });
+    if (data) setClearedAt(data as string);
   }
   const here = members.filter((m) => online.has(m.id));
   const open = decisions.filter((d) => d.status === "open").sort(byTime);
@@ -556,9 +587,9 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
             <div key={m.id} className={styles.face} style={{ background: m.color }} title={m.display_name}><Face who={m} /></div>
           ))}
         </div>
-        <button className={`btn btn-quiet ${styles.inboxToggle}`} hidden={noSide} onClick={() => { setInboxOpen(!inboxOpen); setDrawerOpen(false); }}>
+        {!noSide && <button className={`btn btn-quiet ${styles.inboxToggle}`} onClick={() => { setInboxOpen(!inboxOpen); setDrawerOpen(false); }}>
           {view === "table" ? "Usage" : "Work"}
-        </button>
+        </button>}
         <ProfileMenu me={self} tableId={table.id} onInvite={self.role === "owner" ? () => setInviting(true) : undefined}
           onMe={() => openPerson(me.id, true)} onSettings={() => go("settings", `${base}/settings`)} onLogs={() => go("logs", `${base}/activity`)}
           ai={myConnection?.kind ?? null} onConnect={() => setConnectOpen(true)} onDisconnect={() => myConnection && disconnect(myConnection.id)} />
@@ -704,15 +735,15 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                   </div>
                 );
               })}
-              {working.filter((j) => j.kind !== "listen" && (j.status !== "failed" || now - new Date(j.created_at).getTime() < 15 * 60 * 1000)).map((j) => {
+              {working.filter((j) => j.kind !== "listen" && (j.status !== "failed" || Date.now() - new Date(j.created_at).getTime() < 15 * 60 * 1000)).map((j) => {
                 // Long work says what it is on and for how long, and anyone on the team can stop it.
                 const mins = j.status === "running" && j.started_at ? Math.floor((Date.now() - new Date(j.started_at).getTime()) / 60000) : 0;
-                const doing = j.status === "running" && (j.kind === "work" || j.kind === "answer") ? `${j.progress ? `, ${j.progress}` : ""}${mins >= 1 ? ` · ${mins} min` : ""}` : "";
+                const doing = j.status === "running" && (j.kind === "work" || j.kind === "answer") ? `${j.progress ? `, ${j.progress}` : ""}${mins >= 1 ? ` · ${elapsed(mins)}` : ""}` : "";
                 const stoppable = j.status !== "failed" && (j.kind === "work" || j.kind === "answer" || j.kind === "look");
                 const name = `${byId.get(j.member_id)?.display_name ?? "Someone"}'s ${aiWord(j.member_id)}`;
                 const text = j.status === "failed" ? `${name} couldn't finish: ${j.error ?? "it gave up"}`
                   : j.kind === "combine" ? (j.status === "waiting" ? `${name} writes the answer once the views are in` : `${name} is writing the answer…`)
-                  : j.kind === "work" ? (j.status === "waiting" ? `${name} starts once the others have had their say` : (j.stage ?? 0) > 0 ? `${name} is fixing what the others found…` : `${name} is doing the work…`)
+                  : j.kind === "work" ? (j.status === "waiting" ? `${name} starts once the others have had their say` : j.status === "queued" ? `${name} has this next` : (j.stage ?? 0) > 0 ? `${name} is fixing what the others found…` : `${name} is doing the work…`)
                   : j.kind === "review" ? (j.status === "running" ? `${name} is looking it over…` : `Waiting for ${name} to look it over`)
                   : j.kind === "view" ? (j.status === "running" ? `${name} is giving its view…` : `Waiting for ${name}'s view`)
                   : j.kind === "intro" ? `${name} is reading the project…`
@@ -734,6 +765,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 ref={inputRef}
                 className={styles.input}
                 rows={1}
+                maxLength={8000}
                 value={draft}
                 placeholder={`Message ${chat?.name ?? "the table"}`}
                 aria-label="Message the table"

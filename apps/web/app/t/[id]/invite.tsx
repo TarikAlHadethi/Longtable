@@ -1,5 +1,6 @@
 "use client";
 
+import { useEscape } from "@/components/use-escape";
 import { useState } from "react";
 import { browserClient } from "@/lib/supabase/browser";
 import styles from "./room.module.css";
@@ -7,6 +8,7 @@ import styles from "./room.module.css";
 // Add a person: their name and email (both optional), then developer or client, and a one-time link to send them.
 // Their join page arrives with their name already filled in. Email sending comes once longtable.chat has a mailer.
 export function Invite({ tableId, onClose }: { tableId: string; onClose: () => void }) {
+  useEscape(onClose);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [link, setLink] = useState("");

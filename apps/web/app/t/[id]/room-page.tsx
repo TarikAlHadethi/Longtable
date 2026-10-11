@@ -18,7 +18,11 @@ export type RoomView = "table" | "chat" | "logs" | "settings";
 export async function RoomPage({ id, wanted, view, side }: { id: string; wanted?: string | string[]; view?: "logs" | "settings"; side?: boolean }) {
   const supabase = await serverClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect(`/sign-in?next=/t/${id}${view === "settings" ? "/settings" : view === "logs" ? "/activity" : ""}`);
+  if (!user) {
+    const chat = typeof wanted === "string" && /^[0-9a-z-]{1,40}$/.test(wanted) ? wanted : "";
+    const query = side ? "?side=client" : chat ? `?c=${chat}` : "";
+    redirect(`/sign-in?next=${encodeURIComponent(`/t/${id}${view === "settings" ? "/settings" : view === "logs" ? "/activity" : ""}${query}`)}`);
+  }
 
   const { data: table } = await supabase.from("tables").select("id, name").eq("id", id).maybeSingle();
   if (!table) notFound();

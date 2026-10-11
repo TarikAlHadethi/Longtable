@@ -89,44 +89,55 @@ export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,
   return new Promise((resolve, reject) => {
     const started = Date.now();
     const child = spawn(claude, args, { cwd, env: childEnv(token, apiKey), windowsHide: true });
-    let out = "";
+    // Output arrives a line at a time, each line one event. Only the result and the plan's limits are kept: work
+    // with no time limit would otherwise hold every file it ever read in memory.
+    let rest = "";
     let err = "";
     let ended = "";
+    let result = null;
+    let rate = null;
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
     const timer = timeoutMs ? setTimeout(() => { ended = "ran out of time"; child.kill(); }, timeoutMs) : null;
     if (control) control.kill = () => { ended = "stopped"; child.kill(); };
-    let seen = 0;
+    const take = (line) => {
+      if (!line.trim()) return;
+      let e;
+      try { e = JSON.parse(line); } catch { return; }
+      if (e.type === "result") result = e;
+      else if (e.type === "rate_limit_event") rate = e.rate_limit_info;
+      else if (onNote && e.type === "assistant") {
+        // A tool call says what the AI is doing right now.
+        for (const part of e.message?.content || []) {
+          if (part.type !== "tool_use") continue;
+          const file = String(part.input?.file_path || part.input?.path || "").split(/[/\\]/).pop();
+          onNote(part.name === "Edit" || part.name === "Write" ? `editing ${file}` : part.name === "Read" ? `reading ${file}` : "searching the code");
+        }
+      }
+    };
     child.stdout.on("data", (d) => {
-      out += d;
-      if (!onNote) return;
-      // Each finished line is one event. A tool call says what the AI is doing right now.
+      rest += d;
       let at;
-      while ((at = out.indexOf(String.fromCharCode(10), seen)) !== -1) {
-        const line = out.slice(seen, at);
-        seen = at + 1;
-        try {
-          const e = JSON.parse(line);
-          for (const part of e.type === "assistant" ? e.message?.content || [] : []) {
-            if (part.type !== "tool_use") continue;
-            const file = String(part.input?.file_path || part.input?.path || "").split(/[/\\]/).pop();
-            onNote(part.name === "Edit" || part.name === "Write" ? `editing ${file}` : part.name === "Read" ? `reading ${file}` : "searching the code");
-          }
-        } catch {}
+      while ((at = rest.indexOf(String.fromCharCode(10))) !== -1) {
+        const line = rest.slice(0, at);
+        rest = rest.slice(at + 1);
+        try { take(line); } catch {}
       }
     });
-    child.stderr.on("data", (d) => (err += d));
+    child.stderr.on("data", (d) => { if (err.length < 4000) err += d; });
     child.on("error", (e) => { clearTimeout(timer); reject(e); });
     child.on("close", (code) => {
       clearTimeout(timer);
-      const events = out.split(/\r?\n/).filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
-      const result = events.filter((e) => e.type === "result").at(-1);
+      try { take(rest); } catch {}
       if (ended) return reject(new Error(ended));
       if (!result) {
         log(`claude exited ${code} without a result: ${err.slice(0, 300)}`);
         return reject(new Error("Claude Code did not answer. See the runner log."));
       }
-      const rate = events.filter((e) => e.type === "rate_limit_event").at(-1)?.rate_limit_info;
       resolve({ ...result, wall_ms: Date.now() - started, limits: claudeLimits(rate) });
     });
+    // A child that dies before it has read the whole prompt must not take the connection down with it.
+    child.stdin.on("error", () => {});
     child.stdin.end(prompt);
   });
 }

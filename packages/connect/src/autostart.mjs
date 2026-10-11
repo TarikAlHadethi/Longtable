@@ -98,7 +98,10 @@ export function enableAutostart(nodePath, binPath) {
   }
   mkdirSync(join(homedir(), ".config", "systemd", "user"), { recursive: true });
   writeFileSync(unitFile(), `[Unit]\nDescription=Longtable connection\n\n[Service]\nExecStart=${nodePath} ${binPath} run\nRestart=always\n\n[Install]\nWantedBy=default.target\n`);
-  return { started: false, where: unitFile() };
+  // Writing the unit is not enough: it has to be switched on to come back after a restart.
+  spawnSync("systemctl", ["--user", "daemon-reload"], { stdio: "ignore" });
+  const on = spawnSync("systemctl", ["--user", "enable", "--now", "longtable.service"], { stdio: "ignore" });
+  return { started: on.status === 0, where: unitFile() };
 }
 
 export function disableAutostart() {
@@ -106,5 +109,7 @@ export function disableAutostart() {
     removeTask(TASK);
     rmSync(join(home, "start.vbs"), { force: true });
   }
+  // On Linux the service is switched off before its file goes, or it would keep bringing the connection back.
+  if (process.platform === "linux" && existsSync(unitFile())) spawnSync("systemctl", ["--user", "disable", "--now", "longtable.service"], { stdio: "ignore" });
   for (const f of [legacyStartup(), agentFile(), unitFile()]) if (existsSync(f)) rmSync(f, { force: true });
 }

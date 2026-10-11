@@ -93,7 +93,7 @@ try {
 
   const tasks = (await rest(token, `tasks?select=title,branch,status,result&table_id=eq.${owner.tableId}`)).body;
   results.tasks = tasks;
-  check("one task, with a title and a branch of its own, finished", tasks.length === 1 && tasks[0].status === "done" && /^longtable\/[a-z0-9-]+-[0-9a-f]{4}$/.test(tasks[0].branch), JSON.stringify(tasks));
+  check("one task, with a title and a branch of its own, finished", tasks.length === 1 && tasks[0].status === "done" && /^longtable\/[a-z0-9-]+-[0-9a-f]{8}$/.test(tasks[0].branch), JSON.stringify(tasks));
   const branch = tasks[0]?.branch;
   const branches = git(scratch, "--git-dir", remote, "branch", "--list").split(/\r?\n/).map((b) => b.replace(/^[* ]+/, ""));
   results.branches = branches;

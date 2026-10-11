@@ -72,31 +72,48 @@ const places = (tableId, name = "work") => ({ G: join(home, "copies", tableId, "
 const wgit = (p, args, env = {}) => execFileSync("git", ["--git-dir", p.G, "--work-tree", p.W, ...args],
   { cwd: p.W, env: { ...quiet, GIT_INDEX_FILE: p.I, ...env }, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], timeout: 120000 }).toString().trim();
 
+// Whatever the table names, the connection only ever writes to a plain branch under longtable/. Never the default
+// branch, never anything that is not a simple name: this holds even if the server it talks to is not the real one.
+export function safeBranch(b) {
+  if (typeof b !== "string" || !/^longtable\/[a-z0-9][a-z0-9-]{0,79}$/.test(b)) throw new Error("the table named a branch this connection will not write to");
+  return b;
+}
+
 export const workBranch = (chatName) => "longtable/" + (String(chatName || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "work");
 
 // Lay out the files to work on: the chat's own branch when it already exists, so one request builds on the last,
 // else the latest default branch.
 export function openWork(tableId, branch, name = "work") {
+  safeBranch(branch);
   const p = places(tableId, name);
   rmSync(p.W, { recursive: true, force: true });
   rmSync(p.I, { force: true });
   mkdirSync(p.W, { recursive: true });
   let base = git(["--git-dir", p.G, "rev-parse", "HEAD"]);
   let continued = false;
+  // "There is no such branch yet" and "the repository could not be reached" are different things. Only the first
+  // means start from the default branch; the second stops the job, or a follow-up would be built on the wrong code.
+  let exists = false;
   try {
+    git(["--git-dir", p.G, "ls-remote", "--exit-code", "origin", `refs/heads/${branch}`]);
+    exists = true;
+  } catch (e) {
+    if (e.status !== 2) throw new Error("this computer could not reach the project's repository");
+  }
+  if (exists) {
     git(["--git-dir", p.G, "fetch", "--quiet", "--depth", "1", "--no-tags", "origin", `refs/heads/${branch}`]);
     base = git(["--git-dir", p.G, "rev-parse", "FETCH_HEAD"]);
     continued = true;
-  } catch {
-    // No such branch yet: start from the default one.
   }
   wgit(p, ["read-tree", base]);
-  wgit(p, ["checkout-index", "-a", "-f"]);
+  // -u records each file's size and time in the index, so finding what changed later does not reread every file.
+  wgit(p, ["checkout-index", "-a", "-f", "-u"]);
   return { dir: p.W, base, continued };
 }
 
 // Whatever changed becomes one commit on the chat's branch, pushed for the team to look at. Never the default branch.
 export function landWork(tableId, work, branch, message, who) {
+  safeBranch(branch);
   const p = places(tableId);
   wgit(p, ["add", "-A"]);
   const files = wgit(p, ["diff", "--cached", "--name-only", work.base]).split(/\r?\n/).filter(Boolean);
@@ -121,6 +138,9 @@ export function landWork(tableId, work, branch, message, who) {
     } catch { break; }
     let merged;
     try {
+      // Putting two parts together is only right when the other part was built on the same starting point. If it
+      // was not, a merge would quietly undo what is on the branch, so this part goes beside it instead.
+      git(["--git-dir", p.G, "merge-base", "--is-ancestor", work.base, theirs]);
       const both = git(["--git-dir", p.G, "merge-tree", "--write-tree", `--merge-base=${work.base}`, theirs, commit]).split(/\r?\n/)[0];
       merged = wgit(p, ["commit-tree", both, "-p", theirs, "-p", commit, "-m", `Put together: ${message}`], env);
     } catch { break; }
@@ -128,5 +148,7 @@ export function landWork(tableId, work, branch, message, who) {
   }
   const side = `${branch}-${String(who || "part").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 20)}`;
   if (push(commit, side)) return { files, commit: commit.slice(0, 7), pushed: true, branch: side, apart: true };
+  // Nothing could be pushed. Keep the commit findable on this computer, so the work is not lost with the folder.
+  try { git(["--git-dir", p.G, "update-ref", `refs/longtable/${branch.slice(10)}`, commit]); } catch {}
   return { files, commit: commit.slice(0, 7), pushed: false, branch };
 }

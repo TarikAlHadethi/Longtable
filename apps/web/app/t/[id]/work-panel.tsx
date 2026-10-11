@@ -5,6 +5,9 @@ import type { Job, Member, Task } from "./types";
 import styles from "./room.module.css";
 import s from "./work-panel.module.css";
 
+// How long something has been going, in words: 47 min, 3 h 12 min.
+export const elapsed = (mins: number) => (mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)} h${mins % 60 ? ` ${mins % 60} min` : ""}`);
+
 // What the AIs are working on, and what they finished: one entry for each piece of work, its title first. It is only
 // in the room while there is something in it. Clear takes away what is finished, for you alone; when that leaves
 // nothing, the panel goes too.
@@ -31,7 +34,7 @@ export function WorkPanel({ tasks, jobs, members, aiWord, open, onOpenChat, onCl
       : j.kind === "review" ? "looking it over"
       : j.kind === "combine" ? "writing it up"
       : j.progress || "working";
-    return `${what}${mins >= 1 ? ` · ${mins} min` : ""}`;
+    return `${what}${mins >= 1 ? ` · ${elapsed(mins)}` : ""}`;
   };
   return (
     <aside className={`${styles.inbox} ${open ? styles.inboxOpen : ""}`} aria-label="Work" data-testid="work-panel">
@@ -43,7 +46,10 @@ export function WorkPanel({ tasks, jobs, members, aiWord, open, onOpenChat, onCl
         {running.map((t) => {
           const mine = jobs.filter((j) => j.task_id === t.id && j.kind !== "listen" && ["queued", "running", "waiting"].includes(j.status))
             .sort((a, b) => a.created_at.localeCompare(b.created_at));
-          const stop = mine.find((j) => j.kind === "work" || j.kind === "answer") ?? mine[0];
+          // Between two steps of a round there may be no job in flight for a moment; the task is still being worked
+          // on, and any job of it stops the whole of it.
+          const stop = mine.find((j) => j.kind === "work" || j.kind === "answer") ?? mine[0] ?? jobs.find((j) => j.task_id === t.id && j.kind !== "listen");
+          const fresh = Date.now() - new Date(t.created_at).getTime() < 60000;
           return (
             <div key={t.id} className={`${s.task} ${s.taskOn}`} data-testid="work-task">
               <button type="button" className={s.title} onClick={() => onOpenChat(t.chat_id)}>{t.title}</button>
@@ -51,10 +57,10 @@ export function WorkPanel({ tasks, jobs, members, aiWord, open, onOpenChat, onCl
                 <div key={j.id} className={s.line}>
                   <span className={j.status === "running" ? s.dot : s.dotIdle} />
                   <span className={s.who}>{name(j.member_id)}</span>
-                  <span className={s.what}>{doing(j)}</span>
+                  <span className={s.what} title={doing(j)}>{doing(j)}</span>
                 </div>
               ))}
-              {mine.length === 0 && <div className={s.line}><span className={s.dotIdle} /><span className={s.what}>Starting</span></div>}
+              {mine.length === 0 && <div className={s.line}><span className={s.dotIdle} /><span className={s.what}>{fresh ? "Starting" : "Working"}</span></div>}
               {stop && <button type="button" className={s.stop} onClick={() => onStop(stop.id)}>Stop</button>}
             </div>
           );

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEscape } from "@/components/use-escape";
 import { Arrow, Check } from "@/components/icons";
 import { useEffect, useState } from "react";
 import { AI_NAME, AI_TOOL, AiLogo, type AiKind } from "@/components/ai-logo";
@@ -18,6 +19,7 @@ export function ConnectModal({ tableId, tableName, audience = "team", connected,
   connected: AiKind | null;
   onClose: () => void;
 }) {
+  useEscape(onClose);
   const [kind, setKind] = useState<AiKind | null>(null);
   const [code, setCode] = useState("");
   const [error, setError] = useState("");

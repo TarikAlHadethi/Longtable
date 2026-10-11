@@ -1,5 +1,6 @@
 "use client";
 
+import { useEscape } from "@/components/use-escape";
 import { useState } from "react";
 import { browserClient } from "@/lib/supabase/browser";
 import styles from "./room.module.css";
@@ -20,6 +21,7 @@ export function NewDecision({ chatId, myName, clientName, hasClient, request, on
   request?: { id: string; title: string; body: string; who: string } | null;
   onClose: () => void;
 }) {
+  useEscape(onClose);
   const [title, setTitle] = useState(request?.title ?? "");
   const [context, setContext] = useState("");
   const [affects, setAffects] = useState(hasClient || !!request);
@@ -160,7 +162,7 @@ export function NewDecision({ chatId, myName, clientName, hasClient, request, on
         {error && <div className="error">{error}</div>}
         <div className={styles.modalActions}>
           <button type="button" className="btn btn-quiet" onClick={onClose}>Cancel</button>
-          <button className="btn" disabled={!ready || busy}>{busy ? "Adding…" : "Put it in the inbox"}</button>
+          <button className="btn" disabled={!ready || busy}>{busy ? "Adding…" : "Start the poll"}</button>
         </div>
       </form>
     </div>
