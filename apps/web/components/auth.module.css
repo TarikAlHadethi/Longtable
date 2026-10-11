@@ -2,10 +2,10 @@
 .shell { min-height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); }
 
 .left { display: flex; flex-direction: column; padding: 28px clamp(20px, 5vw, 56px); min-height: calc(100vh / var(--zoom)); }
-.brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; font-size: 17px; letter-spacing: -0.01em; color: var(--ink); text-decoration: none; align-self: flex-start; }
+.brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 560; font-size: 17px; letter-spacing: -0.01em; color: var(--ink); text-decoration: none; align-self: flex-start; }
 .brand:hover { color: var(--ink); }
 .form { flex: 1; width: 100%; max-width: 400px; margin: 0 auto; display: flex; flex-direction: column; justify-content: center; gap: 10px; padding: 40px 0; }
-.title { margin: 0; font-size: 34px; line-height: 1.1; letter-spacing: -0.03em; font-weight: 600; }
+.title { margin: 0; font-size: 34px; line-height: 1.1; letter-spacing: -0.03em; font-weight: 560; }
 .lead { margin: 0; font-size: 16px; line-height: 1.55; color: var(--muted); }
 .body { margin-top: 18px; display: flex; flex-direction: column; gap: 16px; }
 .body :global(.field) { padding: 14px 16px; font-size: 16px; border-radius: 12px; }
@@ -29,16 +29,16 @@
   background: light-dark(oklch(0.995 0.002 80), oklch(0.216 0.002 80)); color: var(--ink); border-radius: 16px; padding: 14px 16px; display: flex; gap: 11px; font-size: 14px; line-height: 1.5;
   box-shadow: 0 20px 50px oklch(0.1 0.02 170 / 0.45); animation: au-in 0.7s var(--ease-out) both, au-bob 7s ease-in-out infinite;
 }
-.float b { font-weight: 600; margin-right: 6px; }
+.float b { font-weight: 560; margin-right: 6px; }
 .float em { font-style: normal; font-size: 12px; color: var(--muted); }
 .float p { margin: 3px 0 0; }
 .f1 { margin-right: 44px; animation-delay: 0.25s, 0.9s; }
 .f2 { margin-left: 44px; animation-delay: 0.6s, 2.4s; }
 .f3 {
-  align-self: flex-end; align-items: center; gap: 8px; font-weight: 600; background: light-dark(oklch(0.93 0.05 160), oklch(0.315 0.06 160)); color: light-dark(oklch(0.32 0.07 160), oklch(0.9 0.07 160));
+  align-self: flex-end; align-items: center; gap: 8px; font-weight: 560; background: light-dark(oklch(0.93 0.05 160), oklch(0.315 0.06 160)); color: light-dark(oklch(0.32 0.07 160), oklch(0.9 0.07 160));
   padding: 11px 16px; border-radius: 999px; animation-delay: 0.95s, 3.6s;
 }
-.face { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; color: white; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
+.face { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; color: white; font-size: 13px; font-weight: 560; display: inline-flex; align-items: center; justify-content: center; }
 .ai { background: var(--card); border: 2px solid oklch(0.62 0.12 30); }
 .voice { font-family: var(--font-voice); font-size: 16.5px; }
 .chips { display: flex; gap: 6px; margin-top: 8px; }
@@ -52,7 +52,7 @@
 .tables { display: flex; flex-direction: column; gap: 8px; }
 .table {
   display: flex; align-items: center; gap: 12px; padding: 13px 14px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--card);
-  color: var(--ink); text-decoration: none; font-weight: 600; font-size: 15px;
+  color: var(--ink); text-decoration: none; font-weight: 560; font-size: 15px;
   transition: transform 0.15s var(--ease-out), box-shadow 0.2s ease, border-color 0.2s ease;
 }
 .table:hover { color: var(--ink); transform: translateY(-2px); box-shadow: 0 8px 22px oklch(0.2 0.01 70 / 0.08); border-color: var(--sage); }
@@ -61,7 +61,7 @@
 .tableRole { font-size: 12px; font-weight: 500; color: var(--muted); }
 .tableGo { color: var(--faint); transition: transform 0.2s var(--ease-out), color 0.2s ease; }
 .table:hover .tableGo { transform: translateX(3px); color: var(--ink); }
-.or { display: flex; align-items: center; gap: 12px; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); margin: 6px 0 0; }
+.or { display: flex; align-items: center; gap: 12px; font-size: 12px; font-weight: 560; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); margin: 6px 0 0; }
 .or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .invited { background: var(--card); border: 1px solid var(--line-strong); border-radius: 14px; padding: 14px 16px; font-size: 15px; line-height: 1.5; }
 .invited b { display: block; font-size: 18px; letter-spacing: -0.01em; }
@@ -74,7 +74,7 @@
 .slots { display: flex; gap: 8px; }
 .slot {
   flex: 1; min-width: 0; height: 58px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--card);
-  display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 24px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 24px; font-weight: 560;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s var(--ease-out);
 }
 .slotFilled { border-color: var(--ink-2); }

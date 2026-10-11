@@ -28,15 +28,15 @@
 .mine > div { max-width: 86%; border-radius: 18px 18px 6px 18px; }
 .back { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; max-width: 92%; }
 .from { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
-.fromName { font-weight: 600; color: var(--ink); }
+.fromName { font-weight: 560; color: var(--ink); }
 .said { font-size: 15.5px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; text-wrap: pretty; display: flex; flex-direction: column; gap: 10px; }
 .answered { font-size: 13px; color: var(--muted); }
 .tryIt { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
-.verdict { font-size: 14px; font-weight: 600; color: light-dark(oklch(0.4 0.07 150), oklch(0.82 0.07 150)); }
+.verdict { font-size: 14px; font-weight: 560; color: light-dark(oklch(0.4 0.07 150), oklch(0.82 0.07 150)); }
 .verdictNo { color: var(--muted); font-weight: 500; }
 .writing { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
 
-.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 20px; white-space: nowrap; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 560; padding: 3px 9px; border-radius: 20px; white-space: nowrap; }
 .pillWait { background: light-dark(oklch(0.94 0.04 80), oklch(0.31 0.048 80)); color: light-dark(oklch(0.42 0.07 70), oklch(0.8 0.07 70)); }
 .pillDone { background: light-dark(oklch(0.93 0.04 150), oklch(0.315 0.048 150)); color: light-dark(oklch(0.38 0.07 150), oklch(0.84 0.07 150)); }
 .pillPlan { background: var(--chip); color: var(--muted); }

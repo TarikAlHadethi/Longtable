@@ -18,7 +18,7 @@
 .ball:hover, .ball:focus-visible { transform: scale(1.08); outline: none; box-shadow: 0 16px 40px oklch(0.3 0.04 150 / 0.32); }
 .ball:active { transform: scale(0.97); }
 .miniRow { display: flex; gap: 3px; }
-.miniFace { width: 22px; height: 22px; border-radius: 50%; color: white; font-size: 10px; font-weight: 600; display: grid; place-items: center; box-shadow: 0 2px 5px oklch(0.2 0.02 150 / 0.2); }
+.miniFace { width: 22px; height: 22px; border-radius: 50%; color: white; font-size: 10px; font-weight: 560; display: grid; place-items: center; box-shadow: 0 2px 5px oklch(0.2 0.02 150 / 0.2); }
 .miniStem { width: 2px; height: 11px; background: light-dark(oklch(0.62 0.03 150), oklch(0.6 0.03 150)); border-radius: 1px; margin: 3px 0; }
 .miniTable { width: 34px; height: 26px; border-radius: 9px; background: var(--card); display: grid; place-items: center; box-shadow: 0 2px 6px oklch(0.2 0.02 150 / 0.18); }
 

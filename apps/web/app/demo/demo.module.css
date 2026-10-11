@@ -1,11 +1,11 @@
 /* The demo: the team's room and the client's page side by side (tabs on a phone), driven by recorded steps. */
 .page { min-height: calc(100vh / var(--zoom)); background: var(--bg, light-dark(oklch(0.985 0.004 80), oklch(0.209 0.004 80))); display: flex; flex-direction: column; }
 .header { height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 20px; border-bottom: 1px solid light-dark(oklch(0.92 0.006 80), oklch(0.282 0.006 80)); }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--ink); text-decoration: none; }
-.badge { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 20px; background: light-dark(oklch(0.94 0.04 80), oklch(0.31 0.048 80)); color: light-dark(oklch(0.42 0.07 70), oklch(0.8 0.07 70)); white-space: nowrap; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 560; color: var(--ink); text-decoration: none; }
+.badge { font-size: 12px; font-weight: 560; padding: 4px 10px; border-radius: 20px; background: light-dark(oklch(0.94 0.04 80), oklch(0.31 0.048 80)); color: light-dark(oklch(0.42 0.07 70), oklch(0.8 0.07 70)); white-space: nowrap; }
 .spacer { flex: 1; }
 .caption { max-width: 1100px; width: 100%; margin: 18px auto 0; padding: 0 20px; font-size: 17px; line-height: 1.5; font-family: var(--font-voice); }
-.stepNo { font-family: var(--font-ui); font-size: 12px; font-weight: 600; color: var(--muted); margin-right: 8px; }
+.stepNo { font-family: var(--font-ui); font-size: 12px; font-weight: 560; color: var(--muted); margin-right: 8px; }
 .controls { max-width: 1100px; width: 100%; margin: 10px auto 0; padding: 0 20px; display: flex; gap: 8px; }
 .tabs { display: none; }
 .tab, .tabOn { flex: 1; border: 1px solid var(--line-strong); background: var(--card); padding: 8px; font: inherit; font-size: 14px; cursor: pointer; }

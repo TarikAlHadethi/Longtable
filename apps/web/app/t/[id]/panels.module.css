@@ -1,10 +1,10 @@
 /* What opens in the middle of the room besides a chat and the table: a person, the logs, settings. */
 .page { flex: 1; min-height: 0; overflow-y: auto; width: 100%; padding: 40px 24px 56px; display: flex; flex-direction: column; align-items: center; gap: 22px; animation: pn-in 0.22s var(--ease-out) both; }
 .page > * { width: 100%; max-width: 620px; flex-shrink: 0; }
-.title { margin: 0; font-size: 26px; letter-spacing: -0.02em; font-weight: 600; }
+.title { margin: 0; font-size: 26px; letter-spacing: -0.02em; font-weight: 560; }
 
 .hero { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; isolation: isolate; }
-.face { position: relative; width: 84px; height: 84px; border-radius: 50%; color: white; font-size: 34px; font-weight: 600; display: grid; place-items: center; margin-bottom: 8px; box-shadow: 0 8px 24px oklch(0.2 0.01 70 / 0.14); }
+.face { position: relative; width: 84px; height: 84px; border-radius: 50%; color: white; font-size: 34px; font-weight: 560; display: grid; place-items: center; margin-bottom: 8px; box-shadow: 0 8px 24px oklch(0.2 0.01 70 / 0.14); }
 .face i { position: absolute; right: 3px; bottom: 3px; width: 18px; height: 18px; border-radius: 50%; border: 4px solid var(--paper); }
 .here { background: var(--online); }
 .away { background: var(--faint); }
@@ -12,18 +12,18 @@
 .crown { --r: 42px; --w: calc(var(--r) * 1.08); position: absolute; z-index: -1; width: var(--w); height: calc(var(--w) * 20 / 24);
   left: calc(50% - var(--r) * 0.453 - var(--w) / 2); top: calc(50% - var(--r) * 1.005 - var(--w) * 20 / 48); transform: rotate(-24deg); }
 .crown svg { width: 100%; height: 100%; }
-.name { margin: 0; font-size: 26px; letter-spacing: -0.02em; font-weight: 600; }
+.name { margin: 0; font-size: 26px; letter-spacing: -0.02em; font-weight: 560; }
 .sub { font-size: 14px; color: var(--muted); }
 
 .facts { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 4px 18px; }
 .fact { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 0; font-size: 14.5px; }
 .fact + .fact { border-top: 1px solid var(--line); }
 .fact span { color: var(--muted); }
-.fact b { font-weight: 600; text-align: right; }
+.fact b { font-weight: 560; text-align: right; }
 .ai { display: inline-flex; align-items: center; gap: 8px; }
 
 .block { display: flex; flex-direction: column; gap: 10px; }
-.h2 { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.h2 { margin: 0; font-size: 12px; font-weight: 560; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .ask { background: var(--card); border: 1px solid var(--line-strong); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; animation: pn-in 0.18s var(--ease-out) both; }
 .ask p { margin: 0; font-size: 14.5px; line-height: 1.5; }
@@ -43,8 +43,8 @@
 /* Fixed to the window, so the sidebar's own edges never cut it. */
 .bugCard { position: fixed; left: 14px; bottom: 58px; z-index: 70; width: 300px; max-width: calc(100vw / var(--zoom) - 32px); background: var(--card); border: 1px solid var(--line-strong);
   border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 20px 50px oklch(0.2 0.01 70 / 0.22); animation: pn-up 0.18s var(--ease-out) both; transform-origin: bottom left; }
-.bugTitle { font-size: 14.5px; font-weight: 600; }
-.bugSent { font-size: 14.5px; font-weight: 600; color: var(--sage); padding: 6px 2px; }
+.bugTitle { font-size: 14.5px; font-weight: 560; }
+.bugSent { font-size: 14.5px; font-weight: 560; color: var(--sage); padding: 6px 2px; }
 
 @keyframes pn-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes pn-up { from { opacity: 0; transform: translateY(6px) scale(0.97); } to { opacity: 1; transform: none; } }
@@ -83,7 +83,7 @@
 .swatchBubble { background: var(--bubble-dot); }
 .sandboxLink { text-align: left; font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line-strong); border-radius: 14px; padding: 12px 16px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; transition: transform 0.15s var(--ease-out); }
 .sandboxLink:hover { transform: translateY(-1px); }
-.sandboxLink b { font-size: 14.5px; font-weight: 600; }
+.sandboxLink b { font-size: 14.5px; font-weight: 560; }
 .sandboxLink span { font-size: 13px; color: var(--muted); }
 .swatch:disabled { opacity: 0.22; cursor: not-allowed; filter: grayscale(1); }
 .swatch:disabled:hover { transform: none; }

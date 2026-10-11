@@ -8,7 +8,7 @@
   border-radius: 22px; padding: 26px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 30px 80px oklch(0.2 0.01 70 / 0.3);
   animation: cn-in 0.28s var(--ease-out) both;
 }
-.title { font-size: 21px; font-weight: 600; letter-spacing: -0.02em; }
+.title { font-size: 21px; font-weight: 560; letter-spacing: -0.02em; }
 .lead { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--muted); }
 
 .picks { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 4px; }
@@ -26,7 +26,7 @@
 .pickOn { border-color: var(--tone); box-shadow: 0 0 0 4px color-mix(in oklch, var(--tone) 18%, transparent); }
 .pickDim { opacity: 0.55; filter: saturate(0.6); }
 .pickDim:hover { opacity: 1; filter: none; }
-.pickName { font-size: 16px; font-weight: 600; }
+.pickName { font-size: 16px; font-weight: 560; }
 .pickTool { font-size: 12.5px; color: var(--muted); }
 
 /* Opens downward: the row grows from nothing to its content's height. */
@@ -35,7 +35,7 @@
 /* The inset keeps a field's focus ring from being clipped by the fold. */
 .moreInner { overflow: hidden; min-height: 0; padding: 0 6px 6px; margin: 0 -6px -6px; }
 .steps { display: flex; flex-direction: column; gap: 10px; padding-top: 6px; animation: cn-fade 0.4s ease 0.1s both; }
-.stepsTitle { font-size: 15px; font-weight: 600; }
+.stepsTitle { font-size: 15px; font-weight: 560; }
 .stepsNote { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--muted); }
 
 .ways { display: flex; flex-direction: column; gap: 8px; }
@@ -49,7 +49,7 @@
 .waysWait .way { pointer-events: none; opacity: 0.6; }
 .wayIcon { width: 38px; height: 38px; border-radius: 11px; background: var(--card); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .wayText { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.wayText b { font-size: 14.5px; font-weight: 600; }
+.wayText b { font-size: 14.5px; font-weight: 560; }
 .wayText em { font-style: normal; font-size: 12.5px; color: var(--muted); }
 .wayGo { color: var(--muted); transition: transform 0.2s var(--ease-out), color 0.2s ease; width: 18px; display: grid; place-items: center; }
 .way:hover .wayGo { transform: translateX(3px); color: var(--ink); }

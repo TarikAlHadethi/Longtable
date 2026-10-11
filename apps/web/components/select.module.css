@@ -26,6 +26,6 @@
   transition: background-color 0.08s linear;
 }
 .item:hover, .item:focus-visible { background: var(--hover); outline: none; }
-.item[aria-selected="true"] { font-weight: 600; }
+.item[aria-selected="true"] { font-weight: 560; }
 .item svg { color: var(--sage); }
 @keyframes sl-open { from { opacity: 0; transform: translateY(-4px) scale(0.98); } to { opacity: 1; transform: none; } }
