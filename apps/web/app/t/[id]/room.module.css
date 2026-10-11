@@ -471,13 +471,9 @@
 
 /* An AI joining: one quiet line in the middle; its introduction opens under it. */
 /* An AI arriving: one line, no box, with the same short quiet rule above and below as between the team and clients. */
-.joined { align-self: stretch; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; color: var(--muted); padding: 14px 0; margin: 4px 0; position: relative; }
-.joined::before, .joined::after { content: ""; position: absolute; left: 22%; right: 22%; height: 1px; background: var(--line-strong); }
-.joined::before { top: 0; }
-.joined::after { bottom: 0; }
+.joined { align-self: center; width: 56%; min-width: min(260px, 100%); display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; color: var(--muted); padding: 14px 0; margin: 4px 0; border-top: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); }
 /* Two arrivals in a row share the rule between them. */
-.joined + .joined { margin-top: -18px; }
-.joined + .joined::before { display: none; }
+.joined + .joined { margin-top: -19px; border-top: 0; }
 /* The small print under an AI's answer, in the same letters as everything else, shown when you point at the answer. */
 .aiFoot { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 6px; font-size: 12.5px; line-height: 1.4; color: var(--faint); opacity: 0; transition: opacity 0.15s ease; }
 .aiMessage:hover .aiFoot, .aiMessage:focus-within .aiFoot, .aiFoot[data-open] { opacity: 1; }
