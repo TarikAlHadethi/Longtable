@@ -1,7 +1,7 @@
 // The connection's own clean copy of the team's code: the latest main, never the person's work folder.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { home } from "./store.mjs";
 
@@ -80,6 +80,15 @@ export function safeBranch(b) {
 }
 
 export const workBranch = (chatName) => "longtable/" + (String(chatName || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "work");
+
+// A folder laid beside the code for the AI to read, and never to be committed: the repository's own exclude list says so.
+export function neverCommit(tableId, name) {
+  const file = join(home, "copies", tableId, ".git", "info", "exclude");
+  try {
+    const now = existsSync(file) ? readFileSync(file, "utf8") : "";
+    if (!now.split(/\r?\n/).includes(`${name}/`)) writeFileSync(file, `${now}${now.endsWith(String.fromCharCode(10)) || !now ? "" : String.fromCharCode(10)}${name}/${String.fromCharCode(10)}`);
+  } catch {}
+}
 
 // Lay out the files to work on: the chat's own branch when it already exists, so one request builds on the last,
 // else the latest default branch.
