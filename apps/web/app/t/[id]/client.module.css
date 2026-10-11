@@ -120,4 +120,8 @@
   background: var(--paper);
 }
 .talk { overflow-y: auto; }
+/* Inside the room's column the page takes the column's width: left to itself it grew as wide as its longest line,
+   and on a phone ran off the side of the screen. */
+.talk > .main { width: 100%; min-width: 0; }
+.talk .columns > * { min-width: 0; }
 .talk[hidden] { display: none; }

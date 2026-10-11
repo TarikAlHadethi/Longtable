@@ -78,6 +78,8 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
 }) {
   const supabase = useMemo(() => browserClient(), []);
   const here = useInBrowser();
+  // On a phone the menu is a drawer, opened from the top bar as on the team's side.
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [requests, setRequests] = useState(initialRequests);
   const [events, setEvents] = useState(initialEvents);
   const [updates, setUpdates] = useState(initialUpdates);
@@ -252,7 +254,10 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
   return (
     <div className={`${room.shell} ${styles.clientShell} ${viewer && !viewer.preview ? styles.viewing : ""}`} data-testid={viewer && !viewer.preview ? "client-view" : undefined}>
       <header className={room.header}>
-        <button className={`${room.brand} ${view === "tree" ? room.brandOn : ""}`} onClick={() => setView("tree")} data-testid={viewer?.preview ? undefined : "client-home"}>
+        <button className={room.menuToggle} aria-label="Menu" aria-expanded={drawerOpen} onClick={() => setDrawerOpen(!drawerOpen)}>
+          <span /><span /><span />
+        </button>
+        <button className={`${room.brand} ${view === "tree" ? room.brandOn : ""}`} onClick={() => { setView("tree"); setDrawerOpen(false); }} data-testid={viewer?.preview ? undefined : "client-home"}>
           <Mark size={26} /> Longtable
         </button>
         <div className={room.divider} />
@@ -268,10 +273,11 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
         )}
       </header>
       <div className={`${room.grid} ${room.gridWide}`}>
-        <aside className={room.aside} aria-label="Menu">
+        {drawerOpen && <button className={room.drawerBack} aria-label="Close the menu" onClick={() => setDrawerOpen(false)} />}
+        <aside className={`${room.aside} ${drawerOpen ? room.asideOpen : ""}`} aria-label="Menu">
           <div className={room.section}>
             <div className={room.sectionTitle}>Chats</div>
-            <button className={`${room.chat} ${view === "talk" ? room.chatActive : ""}`} onClick={() => setView("talk")} data-testid={viewer?.preview ? undefined : "client-chat-link"}>
+            <button className={`${room.chat} ${view === "talk" ? room.chatActive : ""}`} onClick={() => { setView("talk"); setDrawerOpen(false); }} data-testid={viewer?.preview ? undefined : "client-chat-link"}>
               <span className={room.chatName}>{assistant ? "Your assistant" : "The team"}</span>
               {pending && <span className={room.chatDot} />}
             </button>
