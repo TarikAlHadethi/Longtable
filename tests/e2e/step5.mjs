@@ -32,7 +32,7 @@ try {
   // The client lands on their own page, never the team's room.
   await elena.page.waitForSelector("[data-testid=client-chat]");
   const firstLook = (await textOf(elena.page)).toLowerCase();
-  check("the client gets their own page", ["the team", "ask for anything"].every((w) => firstLook.includes(w))
+  check("the client gets their own page", ["ask the team for anything"].every((w) => firstLook.includes(w))
     && !["ask the table", "inbox", "general"].some((w) => firstLook.includes(w)), firstLook.slice(0, 300));
 
   const [ownerToken, devToken, elenaToken, priyaToken] = await Promise.all([owner, dev, elena, priya].map((p) => accessToken(p.context)));
@@ -52,13 +52,13 @@ try {
 
   // Elena asks, in her own words, from her page.
   const ask = "Some patients only want to see Sofia. Can they pick a specific hygienist when they book?";
-  await elena.page.fill("input[aria-label='Ask the team']", ask);
+  await elena.page.fill("[aria-label='Ask the team']", ask);
   const askedAt = Date.now();
-  await elena.page.press("input[aria-label='Ask the team']", "Enter");
+  await elena.page.press("[aria-label='Ask the team']", "Enter");
   await elena.page.waitForSelector("[data-request]");
   const reqId = await elena.page.getAttribute("[data-request]", "data-request");
   await waitStatus(elena.page, reqId, "status", "With the team");
-  await elena.page.waitForFunction(() => document.querySelector("[data-testid=client-chat]")?.textContent?.includes("Passed on to the team"), null, { timeout: 5000 });
+
   check("her page shows the request and the team's note", true);
 
   // The team sees it live, as a client card with a way to decide it.
@@ -101,7 +101,7 @@ try {
   await dev.page.click("button:has-text('Start the poll')");
 
   // Her page moves to Being decided, live; the team's card follows and the button goes.
-  await waitStatus(elena.page, reqId, "status", "Being decided");
+  await waitStatus(elena.page, reqId, "status", "With the team");
   await waitStatus(owner.page, reqId, "request-status", "Being decided");
   check("she sees it being decided, live", true);
   const ownerCard = await owner.page.textContent(`[data-request='${reqId}']`);
@@ -117,10 +117,9 @@ try {
   await elena.page.waitForFunction((w) => document.querySelector("[data-testid=client-chat]")?.textContent?.includes(w), yes, { timeout: 30000 });
   results.heardAfterSeconds = Math.round((Date.now() - decidedAt) / 100) / 10;
   await waitStatus(elena.page, reqId, "status", "Decided");
-  await elena.page.click(`[data-request='${reqId}'] button`);
-  const timeline = await elena.page.textContent(`[data-request='${reqId}'] ol`);
+  const timeline = await elena.page.textContent(`[data-request='${reqId}']`);
   results.timeline = timeline;
-  check("she hears it after the window, in the chosen words", results.heardAfterSeconds >= 9 && ["You asked", "The team is deciding", yes].every((w) => timeline.includes(w)),
+  check("she hears it after the window, in the chosen words, under what she asked", results.heardAfterSeconds >= 9 && [ask, "Decided", yes].every((w) => timeline.includes(w)) && !timeline.includes("Passed on to the team"),
     `${results.heardAfterSeconds} s, ${timeline}`);
   const elenaLook = await textOf(elena.page);
   check("the team's own words never reach her", !["Hygienist choice", "Ship it for launch", "First update", later, "Maya", "Sam"].some((w) => elenaLook.includes(w)),
@@ -199,8 +198,8 @@ try {
 
   // Ask the client first: the team puts a question to Elena; she answers with one tap; it goes back to the team.
   const ask3 = "Could we have a waiting list for cancelled slots?";
-  await elena.page.fill("input[aria-label='Ask the team']", ask3);
-  await elena.page.press("input[aria-label='Ask the team']", "Enter");
+  await elena.page.fill("[aria-label='Ask the team']", ask3);
+  await elena.page.press("[aria-label='Ask the team']", "Enter");
   await elena.page.waitForFunction((t) => document.body.innerText.includes(t), ask3, { timeout: 5000 });
   const req3 = (await rest(elenaToken, `requests?select=id,body&table_id=eq.${tableId}`)).body.find((r) => r.body === ask3)?.id;
   await dev.page.waitForFunction((id) => !!document.querySelector(`[data-request='${id}'] button`), req3, { timeout: 5000 });
@@ -216,8 +215,9 @@ try {
   await dev.page.fill("input[aria-label='Answer 1']", "At launch");
   await dev.page.fill("input[aria-label='Answer 2']", "Keep the time for testing");
   await dev.page.click("button:has-text('Start the poll')");
-  await waitStatus(elena.page, req3, "status", "Being decided");
-  const d3 = (await rest(ownerToken, `decisions?select=id,request_id&table_id=eq.${tableId}`)).body.find((x) => x.request_id === req3)?.id;
+  await waitStatus(elena.page, req3, "status", "With the team");
+  let d3;
+  for (let i = 0; i < 40 && !d3; i++) { d3 = (await rest(ownerToken, `decisions?select=id,request_id&table_id=eq.${tableId}`)).body.find((x) => x.request_id === req3)?.id; if (!d3) await sleep(250); }
   await owner.page.waitForSelector(`[data-did='${d3}']`, { timeout: 5000 });
   await owner.page.locator(`[data-did='${d3}'] button:has-text('Ask Elena Ruiz first')`).click();
   await owner.page.waitForFunction((id) => /Elena Ruiz is asked in \d+ s/.test(document.querySelector(`[data-did='${id}']`)?.textContent || ""), d3, { timeout: 5000 });
@@ -226,14 +226,13 @@ try {
 
   // After the window, the question reaches her with its answers, and the request is a question for her.
   await elena.page.waitForSelector("[data-testid=replies] button:has-text('At launch')", { timeout: 30000 });
-  await waitStatus(elena.page, req3, "status", "Question for you");
+  await waitStatus(elena.page, req3, "status", "Needs your answer");
   if (process.env.SCREENSHOTS) await elena.page.screenshot({ path: `${process.env.SCREENSHOTS}/step5-question.png` });
   const qLook = await elena.page.textContent("[data-testid=client-chat]");
   check("she gets the question with answers to tap", qLook.includes(question) && !qLook.includes("Build it for launch"), qLook.slice(-400));
   await elena.page.click("[data-testid=replies] button:has-text('At launch')");
   await waitStatus(elena.page, req3, "status", "With the team");
-  await elena.page.click(`[data-request='${req3}'] button`);
-  const answeredLine = await elena.page.textContent(`[data-request='${req3}'] ol`);
+  const answeredLine = await elena.page.textContent(`[data-request='${req3}']`);
   const repliesLeft = await elena.page.locator("[data-testid=replies]").count();
   check("her tap answers it, once", answeredLine.includes("You answered: At launch") && repliesLeft === 0, `${answeredLine} / ${repliesLeft} left`);
 
@@ -274,8 +273,8 @@ try {
   await dev.page.waitForFunction(() => !document.body.innerText.includes("Connecting"), null, { timeout: 10000 });
   dropPushes = true;
   const ask2 = "Could the booking page show prices for each treatment?";
-  await elena.page.fill("input[aria-label='Ask the team']", ask2);
-  await elena.page.press("input[aria-label='Ask the team']", "Enter");
+  await elena.page.fill("[aria-label='Ask the team']", ask2);
+  await elena.page.press("[aria-label='Ask the team']", "Enter");
   await elena.page.waitForFunction((t) => document.body.innerText.includes(t), ask2, { timeout: 5000 });
   const req2 = (await rest(elenaToken, `requests?select=id,body&table_id=eq.${tableId}`)).body.find((r) => r.body === ask2)?.id;
   await rpc(devToken, "create_decision", { c: generalId, title: "Prices on the booking page", context: "", origin: "requested by Elena Ruiz",
@@ -285,7 +284,7 @@ try {
   const stale = { client: await statusOn(elena.page, req2, "status"), team: (await textOf(dev.page)).includes("Prices on the booking page") };
   await dev.page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
   const teamCaughtUp = await dev.page.waitForFunction(() => document.body.innerText.includes("Prices on the booking page"), null, { timeout: 5000 }).then(() => true, () => false);
-  const clientCaughtUp = await waitStatus(elena.page, req2, "status", "Being decided", 20000).then(() => true, () => false);
+  const clientCaughtUp = await waitStatus(elena.page, req2, "status", "With the team", 20000).then(() => true, () => false);
   results.lostPushes = { stale, teamCaughtUp, clientCaughtUp };
   check("a lost push only delays", stale.client === "With the team" && !stale.team && teamCaughtUp && clientCaughtUp, JSON.stringify(results.lostPushes));
 

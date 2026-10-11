@@ -50,7 +50,7 @@ export async function RoomPage({ id, wanted, view, side, sandbox }: { id: string
     return (
       <ClientPage
         table={table}
-        me={{ id: mine.id, display_name: mine.display_name, color: mine.color }}
+        me={{ id: mine.id, display_name: mine.display_name, color: mine.color, bubble: mine.bubble }}
         initialRequests={(requests ?? []) as Request[]}
         initialEvents={(events ?? []) as RequestEvent[]}
         initialUpdates={(updates ?? []) as ClientUpdate[]}
@@ -99,7 +99,7 @@ export async function RoomPage({ id, wanted, view, side, sandbox }: { id: string
       initialTasks={(tasks ?? []) as Task[]}
       initialChanges={(changes ?? []) as SandboxChange[]}
       initialSandboxes={(boxes ?? []) as SandboxRow[]}
-      initialSandboxSettings={{ ours: (boxSet as { preview_url?: string | null } | null)?.preview_url ?? null, cap: (boxSet as { cap?: number } | null)?.cap ?? 20, paths: (boxSet as { paths?: string } | null)?.paths ?? "" }}
+      initialSandboxSettings={{ ours: (boxSet as { preview_url?: string | null } | null)?.preview_url ?? null, cap: boxSet ? (boxSet as { cap: number | null }).cap : 20, paths: (boxSet as { paths?: string } | null)?.paths ?? "" }}
       initialSandbox={typeof sandbox === "string" ? sandbox : null}
       initialTableModel={(tableAi as { model: string | null } | null)?.model ?? null}
     />

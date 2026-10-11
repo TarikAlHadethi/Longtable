@@ -72,7 +72,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   initialTasks: Task[];
   initialChanges: SandboxChange[];
   initialSandboxes: SandboxRow[];
-  initialSandboxSettings: { ours: string | null; cap: number; paths: string };
+  initialSandboxSettings: { ours: string | null; cap: number | null; paths: string };
   initialSandbox: string | null;
 }) {
   const supabase = useMemo(() => browserClient(), []);
@@ -567,7 +567,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       <ClientPage key={seen.id} table={{ id: table.id, name: tableName }} me={{ id: seen.id, display_name: seen.display_name, color: seen.color }}
         initialRequests={requests.filter((r) => r.member_id === seen.id)} initialEvents={[]} initialUpdates={[]} initialLines={[]}
         initialConnections={connections.filter((c) => c.member_id === seen.id && !c.revoked_at)} initialJobs={[]}
-        viewer={{ onBack: () => {}, preview: true }} start="tree" />
+        viewer={{ onBack: () => {}, preview: true }} />
     );
   };
 
@@ -579,7 +579,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         <ClientPage key={seen.id} table={{ id: table.id, name: tableName }} me={{ id: seen.id, display_name: seen.display_name, color: seen.color }}
           initialRequests={requests.filter((r) => r.member_id === seen.id)} initialEvents={[]} initialUpdates={[]} initialLines={[]}
           initialConnections={connections.filter((c) => c.member_id === seen.id && !c.revoked_at)} initialJobs={[]}
-          viewer={{ onBack: goHome, others: clients, onPick: setClientId }} start="tree" />
+          viewer={{ onBack: goHome, others: clients, onPick: setClientId }} />
       );
     }
     return (

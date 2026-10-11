@@ -11,7 +11,7 @@ import styles from "./room.module.css";
 const ROLE_WORD = { owner: "Owner", developer: "Developer", client: "Client" } as const;
 
 // The person's own menu, behind their picture: invite, settings, the light or dark look, and signing out.
-export function ProfileMenu({ me, tableId, onInvite, ai, onConnect, onDisconnect, onMe, onSettings, onLogs }: {
+export function ProfileMenu({ me, tableId, onInvite, ai, aiWord, onConnect, onDisconnect, onMe, onSettings, onLogs, onDownload, privacy }: {
   me: Member;
   tableId: string;
   onInvite?: () => void;
@@ -21,6 +21,11 @@ export function ProfileMenu({ me, tableId, onInvite, ai, onConnect, onDisconnect
   onMe?: () => void;
   onSettings?: () => void;
   onLogs?: () => void;
+  // What a client calls theirs: an assistant, not an AI.
+  aiWord?: string;
+  // For a client: a copy of what is theirs, and the privacy page.
+  onDownload?: () => void;
+  privacy?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [dark, setDark] = useState(false);
@@ -69,8 +74,10 @@ export function ProfileMenu({ me, tableId, onInvite, ai, onConnect, onDisconnect
             <a role="menuitem" className={styles.meItem} href={`/t/${tableId}/activity`}
               onClick={(e) => { if (onLogs) { e.preventDefault(); setOpen(false); onLogs(); } }}><Gear size={16} />Logs</a>
           )}
-          {onConnect && !ai && <button role="menuitem" className={styles.meItem} onClick={() => { setOpen(false); onConnect(); }}><Plug size={16} />Connect my AI</button>}
+          {onConnect && !ai && <button role="menuitem" className={styles.meItem} onClick={() => { setOpen(false); onConnect(); }}><Plug size={16} />Connect my {aiWord ?? "AI"}</button>}
           {onDisconnect && ai && <button role="menuitem" className={styles.meItem} onClick={() => { setOpen(false); onDisconnect(); }}><Plug size={16} />Disconnect my {AI_NAME[ai]}</button>}
+          {onDownload && <button role="menuitem" className={styles.meItem} onClick={() => { setOpen(false); onDownload(); }}><Gear size={16} />Download what&apos;s mine</button>}
+          {privacy && <a role="menuitem" className={styles.meItem} href="/privacy"><Gear size={16} />Privacy</a>}
           <div className={styles.meLook}>
             <span>Appearance</span>
             <div className={styles.lookSwitch} role="group" aria-label="Appearance">

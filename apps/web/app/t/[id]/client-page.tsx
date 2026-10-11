@@ -3,38 +3,38 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
+import { AI_NAME, AiLogo } from "@/components/ai-logo";
+import { Arrow } from "@/components/icons";
 import { Mark } from "@/components/mark";
-import { Time, useInBrowser } from "@/components/time";
 import { downloadExport } from "@/lib/download";
 import { browserClient } from "@/lib/supabase/browser";
 import { ConnectModal } from "./connect-modal";
 import {
-  CONNECTION_COLUMNS, EVENT_COLUMNS, JOB_COLUMNS, LINE_COLUMNS, REQUEST_COLUMNS, UPDATE_COLUMNS,
+  CONNECTION_COLUMNS, JOB_COLUMNS, LINE_COLUMNS, REQUEST_COLUMNS, UPDATE_COLUMNS,
   type ClientLine, type ClientUpdate, type Connection, type Job, type Request, type RequestEvent, type RequestStatus as Status,
 } from "./types";
 import { ProfileMenu } from "./profile-menu";
-import { AI_NAME, AiLogo } from "@/components/ai-logo";
-import { Arrow, Plus } from "@/components/icons";
 import room from "./room.module.css";
-import tv from "./table-view.module.css";
 import styles from "./client.module.css";
 
-// How each status reads to the client, its pill, and the step still to come, in the design's words.
-const SHOWN: Record<Status, { words: string; pill: string; next?: string }> = {
-  asked: { words: "With the team", pill: styles.pillWait, next: "With the team" },
-  "being decided": { words: "Being decided", pill: styles.pillWait, next: "Waiting on the team's decision" },
-  question: { words: "Question for you", pill: styles.pillAsk, next: "Waiting for your answer" },
-  answered: { words: "With the team", pill: styles.pillWait, next: "The team is finalizing" },
+// How each status reads to the client. Three things matter to them: it is with the team, it needs them, or it is
+// settled. The team's own steps in between are the team's.
+const SHOWN: Record<Status, { words: string; pill: string }> = {
+  asked: { words: "With the team", pill: styles.pillWait },
+  "being decided": { words: "With the team", pill: styles.pillWait },
+  answered: { words: "With the team", pill: styles.pillWait },
+  question: { words: "Needs your answer", pill: styles.pillAsk },
   decided: { words: "Decided", pill: styles.pillDone },
   planned: { words: "Planned", pill: styles.pillPlan },
   "ready to try": { words: "Ready to try", pill: styles.pillDone },
   done: { words: "Done", pill: styles.pillDone },
 };
-// A change in the client's own sandbox, as their page is given it: their words, where it stands, what the AI said
-// in plain words, and what the team made of it. Nothing of the team's part.
+
+// A change in the client's own copy, as their page is given it: their words, where it stands, what they were told in
+// plain words, and what the team made of it. Nothing of the team's part.
 type Change = { id: string; words: string; status: "working" | "ready" | "nothing" | "passed" | "failed" | "stopped"; summary: string | null;
   verdict: "take" | "differently" | "no" | null; note: string | null; request_id: string | null; created_at: string; finished_at: string | null };
-type Sandbox = { on: boolean; url: string | null; left: number; changes: Change[] };
+type Sandbox = { on: boolean; url: string | null; left: number | null; changes: Change[] };
 const CHANGE: Record<Change["status"], { words: string; pill: string }> = {
   working: { words: "Being built", pill: styles.pillWait },
   ready: { words: "Ready to try", pill: styles.pillDone },
@@ -46,17 +46,14 @@ const CHANGE: Record<Change["status"], { words: string; pill: string }> = {
 const VERDICT = { take: "The team is building this into the real thing.", differently: "The team will do this, in a different way.", no: "The team decided against this one." } as const;
 
 const byTime = <T extends { created_at: string }>(a: T, b: T) => a.created_at.localeCompare(b.created_at);
-// "Elena Ruiz" is greeted as Elena; "Dr. Ruiz" stays Dr. Ruiz, never just "Dr.".
+// "Elena Ruiz" is Elena; "Dr. Ruiz" stays Dr. Ruiz, never just "Dr.".
 const firstName = (name: string) => {
   const words = name.trim().split(/\s+/);
   return /^(dr|mr|mrs|ms|miss|prof|sir|dame)\.?$/i.test(words[0] ?? "") && words[1] ? `${words[0]} ${words[1]}` : words[0] || name;
 };
 const sentence = (s: string) => `${s.charAt(0).toUpperCase()}${s.slice(1)}${/[.!?]$/.test(s) ? "" : "."}`;
-
-function greeting(name: string) {
-  const h = new Date().getHours();
-  return `${h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"}, ${firstName(name)}`;
-}
+// The line every passed-on request starts with. The state beside it already says so, so it is not said twice.
+const isAck = (u: ClientUpdate) => /^(thanks, )?passed on to the team\b/i.test(u.body) && !u.replies?.length;
 
 // Upsert by id, keeping what an older copy had.
 function put<T extends { id: string | number }>(prev: T[], list: T[]) {
@@ -65,65 +62,54 @@ function put<T extends { id: string | number }>(prev: T[], list: T[]) {
   return [...byId.values()];
 }
 
-// The client's page: what they asked for, where each request stands, and what the team decided, in plain words.
-// It never shows the team side. With their own AI connected, the chat is with it: it answers what it can from their
-// own requests and passes the rest on. Everything arrives live on two private channels: the table's, for what
-// every client is told, and the client's own.
-export function ClientPage({ table, me, initialRequests, initialEvents, initialUpdates, initialLines, initialConnections, initialJobs, viewer, start = "talk" }: {
+// The client's page. One conversation and one box: what they said on the right, and under each thing what came of
+// it, with one state and at most one thing to press. It never shows the team's side. With a copy of their own, what
+// they say is built there to try; with their own assistant connected, it answers what it can and passes the rest on.
+export function ClientPage({ table, me, initialRequests, initialUpdates, initialLines, initialConnections, initialJobs, viewer }: {
   table: { id: string; name: string };
-  me: { id: string; display_name: string; color?: string };
+  me: { id: string; display_name: string; color?: string; bubble?: string | null };
   initialRequests: Request[];
-  initialEvents: RequestEvent[];
+  // Kept so callers need not change; the steps the team took are no longer drawn here.
+  initialEvents?: RequestEvent[];
   initialUpdates: ClientUpdate[];
   initialLines: ClientLine[];
   initialConnections: Connection[];
   initialJobs: Job[];
   // Set when someone on the team is looking at this client's page. They see what the client sees and can use none of
-  // it: nothing is sent, answered or connected from here. The client's chat with their own AI is not theirs to read,
-  // so it is not here.
-  // Where it opens: on the tree, like the team's side, or straight on the chat.
-  start?: "tree" | "talk";
+  // it. The client's chat with their own assistant is not the team's to read, so it is not here.
   viewer?: { onBack: () => void; others?: { id: string; display_name: string }[]; onPick?: (id: string) => void; preview?: boolean };
 }) {
   const supabase = useMemo(() => browserClient(), []);
-  const here = useInBrowser();
-  // On a phone the menu is a drawer, opened from the top bar as on the team's side.
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [requests, setRequests] = useState(initialRequests);
-  const [events, setEvents] = useState(initialEvents);
   const [updates, setUpdates] = useState(initialUpdates);
   const [lines, setLines] = useState(initialLines);
   const [connections, setConnections] = useState(initialConnections);
   const [jobs, setJobs] = useState(initialJobs);
   const [sandbox, setSandbox] = useState<Sandbox | null>(null);
-  const [open, setOpen] = useState<Record<string, boolean>>({});
   const [connectOpen, setConnectOpen] = useState(false);
-  const [view, setView] = useState<"tree" | "talk">(start);
   const [notice, setNotice] = useState("");
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [gone, setGone] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const putRequest = useCallback((r: Request) => setRequests((prev) => put(prev, [r])), []);
-  const putEvents = useCallback((list: RequestEvent[]) => setEvents((prev) => put(prev, list)), []);
   const putUpdates = useCallback((list: ClientUpdate[]) => setUpdates((prev) => put(prev, list)), []);
   const putLines = useCallback((list: ClientLine[]) => setLines((prev) => put(prev, list)), []);
 
   // Everything again from the database: covers the moment between the page loading and the channels opening,
   // and anything missed while a laptop slept.
   const reload = useCallback(async () => {
-    const [{ data: r }, { data: ev }, { data: up }, { data: ln }, { data: cn }, { data: jb }] = await Promise.all([
+    const [{ data: r }, { data: up }, { data: ln }, { data: cn }, { data: jb }] = await Promise.all([
       supabase.from("requests").select(REQUEST_COLUMNS).eq("table_id", table.id).eq("member_id", me.id),
-      supabase.from("request_events").select(EVENT_COLUMNS).eq("table_id", table.id),
       supabase.from("client_updates").select(UPDATE_COLUMNS).eq("table_id", table.id),
       supabase.from("client_lines").select(LINE_COLUMNS).eq("table_id", table.id).eq("member_id", me.id).order("created_at").limit(200),
       supabase.from("connections").select(CONNECTION_COLUMNS).eq("table_id", table.id).eq("member_id", me.id).is("revoked_at", null),
       supabase.from("jobs").select(JOB_COLUMNS).eq("table_id", table.id).eq("member_id", me.id).in("status", ["queued", "running"]),
     ]);
     if (r) setRequests(r as Request[]);
-    if (ev) putEvents(ev as RequestEvent[]);
     if (up) {
       const theirs = new Set(((r ?? []) as Request[]).map((x) => x.id));
       putUpdates((up as ClientUpdate[]).filter((u) => !viewer || !u.request_id || theirs.has(u.request_id)));
@@ -132,17 +118,18 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
     if (cn) setConnections(cn as Connection[]);
     if (jb) setJobs(jb as Job[]);
     if (viewer) {
-      const [{ data: ch }, { data: mem }] = await Promise.all([
+      const [{ data: ch }, { data: box }] = await Promise.all([
         supabase.from("sandbox_changes").select("id, words, status, summary, verdict, note, request_id, created_at, finished_at").eq("member_id", me.id).order("created_at", { ascending: false }).limit(60),
         supabase.from("sandboxes").select("mode, url").eq("member_id", me.id).maybeSingle(),
       ]);
-      const m = mem as { mode?: string; url?: string | null } | null;
-      if (ch) setSandbox({ on: m?.mode === "sandbox", url: m?.url ?? null, left: 0, changes: ch as Change[] });
+      const b = box as { mode?: string; url?: string | null } | null;
+      if (ch) setSandbox({ on: b?.mode === "sandbox", url: b?.url ?? null, left: null, changes: ch as Change[] });
     } else {
       const { data: sb } = await supabase.rpc("client_sandbox", { t: table.id });
       if (sb) setSandbox(sb as Sandbox);
     }
-  }, [supabase, table.id, me.id, putEvents, putUpdates, putLines]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase, table.id, me.id, putUpdates, putLines, !!viewer]);
 
   // A viewer has no place on the client's own channels: the page just reads again every few seconds.
   useEffect(() => {
@@ -161,7 +148,6 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
       const { table: name, record } = (payload ?? {}) as { table?: string; record?: Record<string, unknown> };
       if (!record) return;
       if (name === "client_updates") putUpdates([record as unknown as ClientUpdate]);
-      else if (name === "request_events") putEvents([record as unknown as RequestEvent]);
       else if (name === "requests" && record.member_id === me.id) putRequest(record as unknown as Request);
       else if (name === "client_lines" && record.member_id === me.id) putLines([record as unknown as ClientLine]);
       else if (name === "jobs" && record.member_id === me.id) setJobs((prev) => put(prev, [record as unknown as Job]));
@@ -194,15 +180,14 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
       for (const ch of channels) supabase.removeChannel(ch);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase, table.id, me.id, reload, putRequest, putEvents, putUpdates, putLines, !!viewer]);
+  }, [supabase, table.id, me.id, reload, putRequest, putUpdates, putLines, !!viewer]);
 
   const mine = connections.find((c) => !c.revoked_at);
-  const assistant = !!mine;
   const thinking = jobs.some((j) => j.kind === "client" && (j.status === "queued" || j.status === "running"));
   const building = !!sandbox?.changes.some((c) => c.status === "working");
 
-  // Back to the tab, and every so often while their AI is writing or the team is on something they asked: read the
-  // database too, so a lost push only delays what they see.
+  // Back to the tab, and every so often while something of theirs is in the works: read the database too, so a lost
+  // push only delays what they see.
   const pending = requests.some((r) => ["asked", "being decided", "question", "answered"].includes(r.status));
   useEffect(() => {
     if (viewer) return;
@@ -216,26 +201,25 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending, thinking, building, reload, !!viewer]);
 
-  // One feed, in the order things happened: each thing they asked for is a card that carries what the team said about
-  // it; each change in their sandbox is a card with a way to try it; anything else said is a line.
+  // One conversation, in the order things happened.
   type Item =
     | { kind: "request"; id: string; created_at: string; r: Request }
     | { kind: "change"; id: string; created_at: string; c: Change }
-    | { kind: "line"; id: string; created_at: string; me: boolean; text: string; question?: ClientUpdate };
+    | { kind: "line"; id: string; created_at: string; me: boolean; own: boolean; text: string; question?: ClientUpdate };
   const feed = useMemo(() => {
     const passed = new Set((sandbox?.changes ?? []).map((c) => c.request_id).filter(Boolean));
     const items: Item[] = [
-      // A request that came out of a sandbox change is told on that change's card, not twice.
+      // A request that came out of a change in their copy is told under that change, not twice.
       ...requests.filter((r) => !passed.has(r.id)).map((r): Item => ({ kind: "request", id: `r-${r.id}`, created_at: r.created_at, r })),
       ...(sandbox?.changes ?? []).map((c): Item => ({ kind: "change", id: `c-${c.id}`, created_at: c.created_at, c })),
-      // Their own words to their assistant show as a line unless they became a request, whose card carries them.
-      ...lines.filter((l) => !(l.who === "client" && l.request_id)).map((l): Item => ({ kind: "line", id: `l-${l.id}`, created_at: l.created_at, me: l.who === "client", text: l.body })),
+      // Their own words to their assistant show as a line unless they became a request, which carries them.
+      ...lines.filter((l) => !(l.who === "client" && l.request_id)).map((l): Item => ({ kind: "line", id: `l-${l.id}`, created_at: l.created_at, me: l.who === "client", own: true, text: l.body })),
       // What every client was told, with no request of theirs behind it.
-      ...updates.filter((u) => !u.request_id).map((u): Item => ({ kind: "line", id: `u-${u.id}`, created_at: u.created_at, me: false, text: u.body, question: u.replies?.length && !u.answer ? u : undefined })),
+      ...updates.filter((u) => !u.request_id).map((u): Item => ({ kind: "line", id: `u-${u.id}`, created_at: u.created_at, me: false, own: false, text: u.body, question: u.replies?.length && !u.answer ? u : undefined })),
     ];
     return items.sort(byTime);
   }, [requests, lines, updates, sandbox]);
-  const told = (requestId: string) => updates.filter((u) => u.request_id === requestId).sort(byTime);
+  const told = (requestId: string) => updates.filter((u) => u.request_id === requestId && !isAck(u)).sort(byTime);
 
   useEffect(() => {
     const el = chatRef.current;
@@ -254,9 +238,16 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
     reload();
   }
 
-  // What they type goes to their own AI when it is on, and straight to the team when it is not.
-  async function say(e: React.FormEvent) {
-    e.preventDefault();
+  function grow() {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }
+
+  // What they type goes to their copy when they have one, to their own assistant when it is on, and otherwise
+  // straight to the team.
+  async function say() {
     const body = draft.trim();
     if (!body || busy) return;
     setBusy(true);
@@ -265,10 +256,16 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
     setBusy(false);
     if (error) return setError(sentence(error.message));
     setDraft("");
+    requestAnimationFrame(grow);
     // When their copy could not take it, the words went to the team instead, and they are told why.
     const why = (data as { why?: string } | null)?.why;
     setNotice(why === "asleep" ? "Your copy cannot be changed right now, so this went to the team instead." : why === "full" ? "That is all the changes your copy takes in a day, so this went to the team instead." : "");
     await reload();
+  }
+
+  async function disconnect() {
+    if (mine) await supabase.rpc("disconnect", { conn: mine.id });
+    reload();
   }
 
   if (gone) {
@@ -283,248 +280,149 @@ export function ClientPage({ table, me, initialRequests, initialEvents, initialU
     );
   }
 
+  const first = firstName(me.display_name);
+  // Who is answering on the left: their copy, their own assistant, or the team. Beside the name, the one state.
+  const speaker = (who: "copy" | "assistant" | "team", pill?: { words: string; pill: string; testid: string; busy?: boolean }) => (
+    <div className={styles.from}>
+      {who === "assistant" && mine ? <AiLogo kind={mine.kind} size={18} /> : <Mark size={18} />}
+      <span className={styles.fromName}>{who === "copy" ? "Your copy" : who === "assistant" ? "Your assistant" : "The team"}</span>
+      {pill && <span className={`${styles.pill} ${pill.pill}`} data-testid={pill.testid}>{pill.busy && <i className={styles.pulse} />}{pill.words}</span>}
+    </div>
+  );
+  const answers = (u: ClientUpdate) => (
+    <div key={u.id} className={styles.said}>
+      {u.body}
+      {u.replies?.length > 0 && !u.answer && (
+        <div className={styles.replies} data-testid="replies">
+          {u.replies.map((label, k) => (
+            <button key={label} className={styles.reply} disabled={!!viewer} onClick={() => answer(u, k + 1)}>{label}</button>
+          ))}
+        </div>
+      )}
+      {u.answer && <div className={styles.answered}>You answered: {u.answer}</div>}
+    </div>
+  );
+  const myWords = (text: string) => (
+    <div className={styles.mine}><div className={room.bubble} data-bubble={me.bubble ?? "stone"}>{text}</div></div>
+  );
+
   return (
-    <div className={`${room.shell} ${styles.clientShell} ${viewer && !viewer.preview ? styles.viewing : ""}`} data-testid={viewer && !viewer.preview ? "client-view" : undefined}>
+    <div className={`${room.shell} ${room.shellWide} ${styles.client}`} data-testid={viewer && !viewer.preview ? "client-view" : undefined}>
       <header className={room.header}>
-        <button className={room.menuToggle} aria-label="Menu" aria-expanded={drawerOpen} onClick={() => setDrawerOpen(!drawerOpen)}>
-          <span /><span /><span />
-        </button>
-        <button className={`${room.brand} ${view === "tree" ? room.brandOn : ""}`} onClick={() => { setView("tree"); setDrawerOpen(false); }} data-testid={viewer?.preview ? undefined : "client-home"}>
-          <Mark size={26} /> Longtable
-        </button>
+        <div className={`${room.brand} ${styles.brand}`}><Mark size={26} /> Longtable</div>
         <div className={room.divider} />
         <div className={room.project}>{table.name}</div>
         <div className={room.spacer} />
+        {sandbox?.on && sandbox.url && (
+          <a className={`btn btn-quiet ${styles.openCopy}`} href={sandbox.url} target="_blank" rel="noreferrer" data-testid="open-copy">{viewer ? `Open ${first}'s copy` : "Open my copy"} <Arrow size={15} /></a>
+        )}
         {viewer ? (
-          <div className={styles.viewBar}>
-            <span className={styles.viewTag}>Viewing {firstName(me.display_name)}&apos;s side. Nothing here can be changed.</span>
-            <button className="btn" onClick={viewer.onBack} data-testid={viewer.preview ? undefined : "table-portal"}>Back to the table</button>
-          </div>
+          <button className="btn" onClick={viewer.onBack} data-testid={viewer.preview ? undefined : "table-portal"}>Back to the table</button>
         ) : (
-          <ProfileMenu me={{ id: me.id, display_name: me.display_name, role: "client", color: me.color ?? "var(--sage)" }} tableId={table.id} />
+          <ProfileMenu me={{ id: me.id, display_name: me.display_name, role: "client", color: me.color ?? "var(--sage)" }} tableId={table.id}
+            ai={mine?.kind ?? null} aiWord="assistant"
+            onConnect={sandbox?.on ? undefined : () => setConnectOpen(true)} onDisconnect={sandbox?.on ? undefined : disconnect}
+            onDownload={() => downloadExport("export_mine", table.id, table.name)} privacy />
         )}
       </header>
-      <div className={`${room.grid} ${room.gridWide}`}>
-        {drawerOpen && <button className={room.drawerBack} aria-label="Close the menu" onClick={() => setDrawerOpen(false)} />}
-        <aside className={`${room.aside} ${drawerOpen ? room.asideOpen : ""}`} aria-label="Menu">
-          <div className={room.section}>
-            <div className={room.sectionTitle}>Chats</div>
-            <button className={`${room.chat} ${view === "talk" ? room.chatActive : ""}`} onClick={() => { setView("talk"); setDrawerOpen(false); }} data-testid={viewer?.preview ? undefined : "client-chat-link"}>
-              <span className={room.chatName}>{assistant ? "Your assistant" : "The team"}</span>
-              {pending && <span className={room.chatDot} />}
-            </button>
-          </div>
-          <div className={room.section}>
-            <div className={room.sectionTitle}>People</div>
-            {(viewer?.others?.length ? viewer.others : [me]).map((o) => (
-              <button key={o.id} className={`${room.person} ${room.personButton} ${o.id === me.id ? room.personOn : ""}`} onClick={() => viewer?.onPick?.(o.id)}>
-                <div className={room.avatar} style={{ background: (o as { color?: string }).color ?? me.color ?? "var(--sage)" }}>{o.display_name.trim().charAt(0).toUpperCase()}</div>
-                <div className={room.personText}><div className={room.personName}>{o.display_name}</div><div className={room.personMeta}>Client</div></div>
-              </button>
-            ))}
-          </div>
-          {!viewer && (
-            <div className={room.section} style={{ marginTop: "auto" }}>
-              <button className={room.chat} onClick={() => downloadExport("export_mine", table.id, table.name)}>Download what&apos;s mine</button>
-              <Link className={room.chat} href="/privacy">Privacy</Link>
-            </div>
-          )}
-        </aside>
-        {view === "tree" && (
-          <main className={room.main}>
-            <div className={tv.wrap} data-testid={viewer?.preview ? undefined : "client-tree"}>
-              <div className={tv.top}>
-                <Mark size={60} live={!viewer?.preview} />
-                <div className={tv.word}>Longtable</div>
-                <div className={tv.project}>{table.name}</div>
-              </div>
-              <div className={tv.scroller}>
-                <div className={tv.tree} style={{ "--cols": 1 } as React.CSSProperties}>
-                  <div className={tv.row}>
-                    <div className={tv.col} style={{ "--i": 0 } as React.CSSProperties}>
-                      <div className={tv.person}>
-                        <span className={tv.avatar} style={{ background: me.color ?? "var(--sage)" }}>{me.display_name.trim().charAt(0).toUpperCase()}</span>
-                        <div className={tv.name}>{me.display_name}</div>
-                      </div>
-                      <div className={`${tv.stem} ${assistant ? tv.stemOn : ""}`} />
-                      {mine ? (
-                        <div className={`${tv.ai} ${tv[mine.kind]}`}>
-                          <div className={tv.aiHead}><AiLogo kind={mine.kind} size={26} /><span className={tv.dot} /></div>
-                          <div className={tv.aiName}>{AI_NAME[mine.kind]}</div>
-                          <div className={tv.model}>{thinking ? "Writing…" : "Your assistant"}</div>
-                        </div>
-                      ) : viewer ? (
-                        <div className={tv.none}><span className={tv.plusTitle}>No assistant yet</span></div>
-                      ) : (
-                        <button className={tv.plus} onClick={() => setConnectOpen(true)}>
-                          <span className={tv.plusSign}><Plus size={18} stroke={2.4} /></span>
-                          <span className={tv.plusTitle}>Connect your assistant</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <svg className={tv.funnel} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-                    <g className={mine ? tv[`wire_${mine.kind}`] : undefined}>
-                      <path d="M 50 -14 L 50 100" vectorEffect="non-scaling-stroke" className={mine ? tv.wire : tv.wireOff} />
-                      {mine && <path d="M 50 -14 L 50 100" vectorEffect="non-scaling-stroke" className={tv.pulse} />}
-                    </g>
-                  </svg>
-                  <div className={tv.table}>
-                    <div className={tv.tableTitle}>The team</div>
-                    <Mark size={64} />
-                    <div className={tv.tableModel}>{table.name}</div>
-                  </div>
-                </div>
-              </div>
-              <div className={tv.actions}>
-                <button className="btn" onClick={() => setView("talk")}>Open {assistant ? "your assistant" : "the chat"} <Arrow size={16} /></button>
-              </div>
-            </div>
-          </main>
-        )}
-        <main className={`${room.main} ${styles.talk}`} hidden={view !== "talk"}>
-          <div className={styles.simple}>
-            <div className={styles.simpleHead}>
-              <h1 className={styles.hello}>{here ? greeting(me.display_name) : " "}</h1>
-              <div className={styles.headRow} hidden={!!sandbox?.on}>
-                <span className={styles.label} data-testid="chat-head">{assistant ? "Your assistant" : "The team"}</span>
-                {!viewer && !sandbox?.on && <button className={styles.headLink} onClick={() => setConnectOpen(true)}>{assistant ? "Connected" : "Connect my assistant"}</button>}
-              </div>
-              {sandbox?.on && (
-                <div className={`${styles.copyBar} ${sandbox.changes.length ? styles.copyBarSmall : ""}`} data-testid="copy-bar">
-                  <div className={styles.copyText}>
-                    <b>Your own copy</b>
-                    {/* The explanation is for the first visit; after that the bar is one line. */}
-                    {sandbox.changes.length === 0 && <span>Say what you want changed. It is built there for you to try, and the team decides what goes into the real thing.</span>}
-                  </div>
-                  {sandbox.url
-                    ? <a className="btn" href={sandbox.url} target="_blank" rel="noreferrer" data-testid="open-copy">Open my copy <Arrow size={16} /></a>
-                    : <span className={styles.copySoon}>Its address appears here after your first change.</span>}
-                </div>
-              )}
-            </div>
 
-            <div ref={chatRef} className={styles.feed} data-testid="client-chat" aria-label="What you asked for">
-              {feed.length === 0 && (
-                <div className={styles.empty}>
-                  {sandbox?.on ? `Hi ${firstName(me.display_name)}. Say what you would like changed in ${table.name}, in your own words, and you can try it in your copy.`
-                    : assistant ? `Hi ${firstName(me.display_name)}. Ask me where anything stands, or for something new, and I will pass it to the team.`
-                    : `Ask for anything about ${table.name}, in your own words. The team decides, and you hear back here.`}
-                </div>
-              )}
-              {feed.map((item) => {
-                if (item.kind === "line") {
-                  return (
-                    <div key={item.id} className={item.me ? styles.lineMe : styles.lineTeam}>
-                      <div className={item.me ? styles.bubbleMe : styles.bubbleTeam}>{item.text}</div>
-                      {item.question && (
-                        <div className={styles.replies} data-testid="replies">
-                          {item.question.replies.map((label, k) => (
-                            <button key={label} className={styles.reply} disabled={!!viewer} onClick={() => answer(item.question!, k + 1)}>{label}</button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                }
-                if (item.kind === "change") {
-                  const c = item.c;
-                  const asked = c.request_id ? requests.find((r) => r.id === c.request_id) : undefined;
-                  const shown = asked ? SHOWN[asked.status] ?? CHANGE[c.status] : CHANGE[c.status];
-                  return (
-                    <div key={item.id} className={`${styles.request} ${c.status === "ready" && !c.verdict ? styles.requestReady : ""} ${asked?.status === "question" ? styles.requestAsk : ""}`} data-change={c.id}>
-                      <div className={styles.cardHead}>
-                        <div className={styles.requestTitle}>{c.words}</div>
-                        <div className={`${styles.pill} ${shown.pill}`} data-testid="change-status">{c.status === "working" && <i className={styles.pulse} />}{shown.words}</div>
-                      </div>
-                      {c.summary && <div className={styles.cardSaid}>{c.summary}</div>}
-                      {c.status === "ready" && sandbox?.url && (
-                        <a className={`btn ${styles.tryIt}`} href={sandbox.url} target="_blank" rel="noreferrer" data-testid="try-it">Try it <Arrow size={16} /></a>
-                      )}
-                      {c.request_id && told(c.request_id).map((u) => (
-                        <div key={u.id} className={styles.cardSaid}>
-                          {u.body}
-                          {u.replies?.length > 0 && !u.answer && (
-                            <div className={styles.replies} data-testid="replies">
-                              {u.replies.map((label, k) => (
-                                <button key={label} className={styles.reply} disabled={!!viewer} onClick={() => answer(u, k + 1)}>{label}</button>
-                              ))}
-                            </div>
-                          )}
-                          {u.answer && <div className={styles.cardAnswer}>You answered: {u.answer}</div>}
-                        </div>
-                      ))}
-                      {c.verdict && <div className={`${styles.cardVerdict} ${c.verdict === "no" ? styles.verdictNo : ""}`} data-testid="verdict">{VERDICT[c.verdict]}{c.note ? ` ${c.note}` : ""}</div>}
-                    </div>
-                  );
-                }
-                const r = item.r;
-                const shown = SHOWN[r.status] ?? SHOWN.asked;
-                const log = events.filter((e) => e.request_id === r.id).sort((a, b) => a.id - b.id);
-                const steps = [
-                  ...log.map((e) => ({ key: `e-${e.id}`, label: e.label, iso: e.created_at as string | null })),
-                  ...(shown.next ? [{ key: "next", label: shown.next, iso: null }] : []),
-                ];
-                const said = told(r.id);
-                const isOpen = !!open[r.id];
+      {viewer && !viewer.preview && (
+        <div className={styles.viewing} data-testid="viewing">
+          <span>You are looking at {first}&apos;s side. Nothing here can be changed.</span>
+          {(viewer.others?.length ?? 0) > 1 && viewer.others!.map((o) => (
+            <button key={o.id} className={`${styles.other} ${o.id === me.id ? styles.otherOn : ""}`} onClick={() => viewer.onPick?.(o.id)}>{firstName(o.display_name)}</button>
+          ))}
+        </div>
+      )}
+
+      <main className={styles.thread}>
+        <div ref={chatRef} className={styles.scroll} data-testid="client-chat" data-with={sandbox?.on ? "copy" : mine ? "assistant" : "team"}>
+          <div className={styles.col}>
+            {feed.length === 0 && (
+              <div className={styles.empty} data-testid="chat-head">
+                {sandbox?.on ? `Say what you would like changed in ${table.name}. It is built in your own copy for you to try, and the team decides what goes into the real thing.`
+                  : mine ? `Ask where anything stands, or for something new. Your ${AI_NAME[mine.kind]} answers what it can and passes the rest to the team.`
+                  : `Ask the team for anything about ${table.name}, in your own words. You hear back here.`}
+              </div>
+            )}
+            {feed.map((item) => {
+              if (item.kind === "line") {
+                if (item.me) return <div key={item.id} className={styles.turn}>{myWords(item.text)}</div>;
                 return (
-                  <div key={item.id} className={`${styles.request} ${r.status === "question" ? styles.requestAsk : ""}`} data-request={r.id}>
-                    <button className={styles.requestHead} onClick={() => setOpen((o) => ({ ...o, [r.id]: !isOpen }))} aria-expanded={isOpen}>
-                      <div className={styles.requestTitle}>{r.body}</div>
-                      <div className={`${styles.pill} ${shown.pill}`} data-testid="status">{shown.words}</div>
-                      <div className={`${styles.chevron} ${isOpen ? styles.chevronOpen : ""}`} aria-hidden />
-                    </button>
-                    {said.map((u) => (
-                      <div key={u.id} className={styles.cardSaid}>
-                        {u.body}
-                        {u.replies?.length > 0 && !u.answer && (
+                  <div key={item.id} className={styles.turn}>
+                    <div className={styles.back}>
+                      {speaker(item.own ? "assistant" : "team")}
+                      <div className={styles.said}>
+                        {item.text}
+                        {item.question && (
                           <div className={styles.replies} data-testid="replies">
-                            {u.replies.map((label, k) => (
-                              <button key={label} className={styles.reply} disabled={!!viewer} onClick={() => answer(u, k + 1)}>{label}</button>
+                            {item.question.replies.map((label, k) => (
+                              <button key={label} className={styles.reply} disabled={!!viewer} onClick={() => answer(item.question!, k + 1)}>{label}</button>
                             ))}
                           </div>
                         )}
-                        {u.answer && <div className={styles.cardAnswer}>You answered: {u.answer}</div>}
                       </div>
-                    ))}
-                    {isOpen && (
-                      <ol className={styles.timeline}>
-                        {steps.map((st, k) => (
-                          <li key={st.key} className={styles.step}>
-                            <div className={styles.rail}>
-                              <span className={`${styles.stepDot} ${st.iso ? styles.stepDone : ""}`} />
-                              {k < steps.length - 1 && <span className={styles.railLine} />}
-                            </div>
-                            <div className={styles.stepBody}>
-                              <span className={`${styles.stepLabel} ${st.iso ? "" : styles.stepNext}`}>{st.label}</span>
-                              {st.iso && <span className={styles.stepWhen}><Time iso={st.iso} style="when" /></span>}
-                            </div>
-                          </li>
-                        ))}
-                      </ol>
-                    )}
+                    </div>
                   </div>
                 );
-              })}
-              {thinking && <div className={`${styles.bubbleTeam} ${styles.typing}`} data-testid="thinking">Your assistant is writing…</div>}
-              {viewer && assistant && <div className={styles.privateNote}>{firstName(me.display_name)}&apos;s chat with their own assistant is private and is not shown.</div>}
-            </div>
-
-            <div className={styles.simpleFoot}>
-              <form className={styles.composer} onSubmit={viewer ? (e) => e.preventDefault() : say}>
-                <input className={styles.input} value={draft} onChange={(e) => setDraft(e.target.value)} disabled={!!viewer}
-                  placeholder={viewer ? "Only they can write here" : sandbox?.on ? "Say what you want changed" : "Ask for something, in your own words"} aria-label="Ask the team" maxLength={4000} />
-                <button className="btn" disabled={!!viewer || busy || !draft.trim()}>Send</button>
-              </form>
-              {sandbox?.on && !viewer && <div className={styles.footNote} data-testid="changes-left">{sandbox.left} {sandbox.left === 1 ? "change" : "changes"} left today</div>}
-              {notice && <div className={styles.footNote} role="status">{notice}</div>}
-              {error && <div className={`error ${styles.chatError}`} role="alert">{error}</div>}
-            </div>
+              }
+              if (item.kind === "change") {
+                const c = item.c;
+                const asked = c.request_id ? requests.find((r) => r.id === c.request_id) : undefined;
+                const shown = asked ? SHOWN[asked.status] ?? CHANGE[c.status] : CHANGE[c.status];
+                return (
+                  <div key={item.id} className={styles.turn} data-change={c.id}>
+                    {myWords(c.words)}
+                    <div className={styles.back}>
+                      {speaker(asked ? "team" : "copy", { ...shown, testid: "change-status", busy: c.status === "working" })}
+                      {c.summary && <div className={styles.said}>{c.summary}</div>}
+                      {c.request_id && told(c.request_id).map(answers)}
+                      {c.status === "ready" && sandbox?.url && !c.verdict && (
+                        <a className={`btn ${styles.tryIt}`} href={sandbox.url} target="_blank" rel="noreferrer" data-testid="try-it">Try it <Arrow size={16} /></a>
+                      )}
+                      {c.verdict && <div className={`${styles.verdict} ${c.verdict === "no" ? styles.verdictNo : ""}`} data-testid="verdict">{VERDICT[c.verdict]}{c.note ? ` ${c.note}` : ""}</div>}
+                    </div>
+                  </div>
+                );
+              }
+              const r = item.r;
+              const shown = SHOWN[r.status] ?? SHOWN.asked;
+              return (
+                <div key={item.id} className={styles.turn} data-request={r.id}>
+                  {myWords(r.body)}
+                  <div className={styles.back}>
+                    {speaker("team", { ...shown, testid: "status" })}
+                    {told(r.id).map(answers)}
+                  </div>
+                </div>
+              );
+            })}
+            {thinking && <div className={styles.writing} data-testid="thinking"><i className={styles.pulse} />Your assistant is writing…</div>}
+            {viewer && mine && <div className={styles.private}>{first}&apos;s chat with their own assistant is private and is not shown.</div>}
           </div>
-        </main>
-      </div>
+        </div>
+
+        <div className={styles.foot}>
+          <div className={styles.col}>
+            <form className={room.composer} onSubmit={(e) => { e.preventDefault(); if (!viewer) say(); }}>
+              <textarea ref={inputRef} className={room.input} rows={1} value={draft} disabled={!!viewer} maxLength={4000}
+                placeholder={viewer ? "Only they can write here" : sandbox?.on ? "Say what you want changed" : "Ask for something, in your own words"} aria-label="Ask the team"
+                onChange={(e) => { setDraft(e.target.value); grow(); }}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (!viewer) say(); } }} />
+              <button className="btn" disabled={!!viewer || busy || !draft.trim()}>Send</button>
+            </form>
+            {/* How many changes are left only matters when it is nearly none. */}
+            {sandbox?.on && !viewer && sandbox.left !== null && sandbox.left <= 3 && (
+              <div className={styles.footNote} data-testid="changes-left">{sandbox.left === 0 ? "No changes left today. What you say goes to the team." : `${sandbox.left} ${sandbox.left === 1 ? "change" : "changes"} left today`}</div>
+            )}
+            {notice && <div className={styles.footNote} role="status">{notice}</div>}
+            {error && <div className="error" role="alert">{error}</div>}
+          </div>
+        </div>
+      </main>
+
       {connectOpen && (
-        <ConnectModal audience="client" tableId={table.id} tableName={table.name} connected={connections.find((c) => !c.revoked_at)?.kind ?? null} onClose={() => setConnectOpen(false)} />
+        <ConnectModal audience="client" tableId={table.id} tableName={table.name} connected={mine?.kind ?? null} onClose={() => setConnectOpen(false)} />
       )}
     </div>
   );

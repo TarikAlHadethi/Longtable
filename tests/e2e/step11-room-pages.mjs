@@ -74,17 +74,16 @@ try {
   await p.click("[data-testid=home]");
   check("with no client at the table there is no pane to their side", (await p.locator("[data-testid=client-portal]").count()) === 0);
   const elena = await joinTable(browser, await inviteLink(p, "client"), `client-${run}@example.test`, "Elena Ruiz");
-  await elena.page.fill("input[aria-label='Ask the team']", "Can patients pick a hygienist?");
-  await elena.page.press("input[aria-label='Ask the team']", "Enter");
+  await elena.page.fill("[aria-label='Ask the team']", "Can patients pick a hygienist?");
+  await elena.page.press("[aria-label='Ask the team']", "Enter");
   await p.click("[data-testid=home]");
   await p.waitForSelector("[data-testid=client-portal]");
   await p.click("[data-testid=client-portal]");
-  await p.waitForSelector("[data-testid=client-view] [data-testid=client-tree]");
+  await p.waitForSelector("[data-testid=client-view] [data-testid=client-chat]");
   if (process.env.SHOTS) { await p.waitForTimeout(900); await p.screenshot({ path: `${process.env.SHOTS}/client-side.png` }); }
-  check("the pane takes the whole window to the client's side, starting on their tree", /Elena Ruiz/.test(await p.textContent("[data-testid=client-tree]")) && /Nothing here can be changed/.test(await p.textContent("[data-testid=client-view]")));
-  await p.click("[data-testid=client-chat-link]");
+  check("the pane takes the whole window to the client's side, and says nothing there can be changed", /Elena/.test(await p.textContent("[data-testid=viewing]")) && /Nothing here can be changed/.test(await p.textContent("[data-testid=client-view]")));
   await p.waitForFunction(() => document.querySelector("[data-testid=client-view] [data-testid=client-chat]")?.textContent.includes("Can patients pick a hygienist?"));
-  check("their chat opens from there, and nothing in it can be used", await p.isDisabled("[data-testid=client-view] input[aria-label='Ask the team']"));
+  check("their chat opens from there, and nothing in it can be used", await p.isDisabled("[data-testid=client-view] [aria-label='Ask the team']"));
   if (process.env.SHOTS) await p.screenshot({ path: `${process.env.SHOTS}/client-talk.png` });
   await p.click("[data-testid=table-portal]");
   await p.waitForSelector("[data-testid=table-home]");

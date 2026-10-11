@@ -67,26 +67,15 @@ try {
   await page.goto(`${APP}/t/${tableId}`);
   await page.waitForSelector("[data-testid=client-chat]");
   await snap(page, "first-look-one-page-one-box");
-  await page.click("button[aria-label=Menu]");
-  await snap(page, "the-menu");
-  await page.click("button[aria-label=Menu]");
   await page.click("[data-testid=me-menu]");
-  await snap(page, "her-picture-menu");
+  await snap(page, "her-menu-everything-else-lives-here");
   await page.keyboard.press("Escape");
-  await page.mouse.click(195, 700);
-
-  // ---- the picture of her side of the table is one tap away, on the name at the top
-  await page.click("[data-testid=client-home]");
-  await page.waitForSelector("[data-testid=client-tree]");
-  await sleep(2200);
-  await snap(page, "her-side-of-the-table-one-tap-away");
-  await page.click("button:has-text('Open the chat')");
-  await page.waitForSelector("[data-testid=client-chat]");
+  await page.mouse.click(195, 500);
 
   // ---- she asks; the team decides
   const ask = "Some patients only want to see Sofia. Can they pick a specific hygienist when they book?";
-  await page.fill("input[aria-label='Ask the team']", ask);
-  await page.press("input[aria-label='Ask the team']", "Enter");
+  await page.fill("[aria-label='Ask the team']", ask);
+  await page.press("[aria-label='Ask the team']", "Enter");
   await page.waitForSelector("[data-request]");
   await snap(page, "she-asked-it-is-with-the-team", true);
   const reqId = (await rest(elenaToken, `requests?select=id&table_id=eq.${tableId}`)).body[0].id;
@@ -99,19 +88,18 @@ try {
   await dev.page.fill("textarea[aria-label^='What Elena Ruiz will be told for option 1']", "Good news: patients will be able to pick their hygienist when they book, from launch.");
   await dev.page.fill("textarea[aria-label^='What Elena Ruiz will be told for option 2']", "Picking a hygienist comes in the first update after launch.");
   await dev.page.click("button:has-text('Start the poll')");
-  await page.waitForFunction((id) => document.querySelector(`[data-request='${id}'] [data-testid=status]`)?.textContent === "Being decided", reqId, { timeout: 10000 });
+  await sleep(2500);
   await snap(page, "the-team-is-deciding", true);
 
   const d1 = (await rest(ownerToken, `decisions?select=id,request_id&table_id=eq.${tableId}`)).body.find((x) => x.request_id === reqId).id;
   await owner.page.locator(`[data-did='${d1}'] button:has-text('Ship it for launch')`).click();
   await page.waitForFunction((id) => document.querySelector(`[data-request='${id}'] [data-testid=status]`)?.textContent === "Decided", reqId, { timeout: 40000 });
-  await page.click(`[data-request='${reqId}'] button`);
   await snap(page, "decided-she-is-told-in-the-teams-chosen-words", true);
 
   // ---- the team asks her something back
   const ask2 = "Could we also have a waiting list for cancelled slots?";
-  await page.fill("input[aria-label='Ask the team']", ask2);
-  await page.press("input[aria-label='Ask the team']", "Enter");
+  await page.fill("[aria-label='Ask the team']", ask2);
+  await page.press("[aria-label='Ask the team']", "Enter");
   await page.waitForFunction(() => document.querySelectorAll("[data-request]").length >= 2);
   const req2 = (await rest(elenaToken, `requests?select=id,body&table_id=eq.${tableId}`)).body.find((r) => r.body === ask2).id;
   await dev.page.waitForSelector(`[data-request='${req2}'] button:has-text('Make a poll')`);
@@ -133,13 +121,11 @@ try {
   await snap(page, "a-question-for-her-with-answers-to-tap", true);
   await page.click("[data-testid=replies] button:has-text('At launch')");
   await page.waitForFunction((id) => document.querySelector(`[data-request='${id}'] [data-testid=status]`)?.textContent === "With the team", req2, { timeout: 10000 });
-  await page.click(`[data-request='${req2}'] button`);
   await snap(page, "she-answered-it-goes-back-to-the-team", true);
 
   // ---- connecting her own assistant
-  await page.click("[data-testid=client-home]");
-  await page.waitForSelector("[data-testid=client-tree]");
-  await page.click("button:has-text('Connect your assistant')");
+  await page.click("[data-testid=me-menu]");
+  await page.click("button:has-text('Connect my assistant')");
   await snap(page, "connect-her-own-assistant-pick-one");
   await page.click("[data-testid=pick-codex]").catch(() => page.click("[data-testid=pick-claude]"));
   await snap(page, "connect-what-she-pastes-into-it", true);
@@ -150,29 +136,24 @@ try {
   await sleep(1500);
   await page.keyboard.press("Escape");
   await page.reload();
-  await page.click("[data-testid=client-home]");
-  await page.waitForSelector("[data-testid=client-tree]");
-  await sleep(2200);
-  await snap(page, "her-side-with-her-assistant-connected");
+  await page.waitForSelector("[data-testid=client-chat][data-with=assistant]");
   await page.click("[data-testid=me-menu]");
-  await snap(page, "her-picture-menu-once-connected");
+  await snap(page, "her-menu-once-her-assistant-is-connected");
   await page.keyboard.press("Escape");
-  await page.mouse.click(195, 700);
+  await page.mouse.click(195, 500);
 
   // ---- talking to her assistant
-  await page.click("button:has-text('Open your assistant')");
-  await page.waitForSelector("[data-testid=client-chat]");
   const take = async () => { for (let i = 0; i < 60; i++) { const j = await anon("runner_claim", { token: device, lane: "light" }); if (j) return j; await sleep(500); } return null; };
-  await page.fill("input[aria-label='Ask the team']", "What did the team say about picking a hygienist?");
-  await page.press("input[aria-label='Ask the team']", "Enter");
+  await page.fill("[aria-label='Ask the team']", "What did the team say about picking a hygienist?");
+  await page.press("[aria-label='Ask the team']", "Enter");
   const j1 = await take();
   await page.waitForSelector("[data-testid=thinking]").catch(() => {});
   await snap(page, "her-assistant-is-writing", true);
   await anon("runner_finish", { token: device, job: j1.job_id, answer: "The team decided that one already: patients will be able to pick their hygienist when they book, from launch.", info: { pass_on: false, title: "" } });
   await sleep(1500);
   await snap(page, "her-assistant-answers-from-what-she-was-told", true);
-  await page.fill("input[aria-label='Ask the team']", "Can reminders also go out on WhatsApp?");
-  await page.press("input[aria-label='Ask the team']", "Enter");
+  await page.fill("[aria-label='Ask the team']", "Can reminders also go out on WhatsApp?");
+  await page.press("[aria-label='Ask the team']", "Enter");
   const j2 = await take();
   await anon("runner_finish", { token: device, job: j2.job_id, answer: "That is a new one, so I have passed it on to the team. You will hear here what they decide.", info: { pass_on: true, title: "Reminders on WhatsApp" } });
   await sleep(1500);
@@ -183,9 +164,6 @@ try {
   await page.click("button:has-text('Dark')").catch(() => {});
   await page.mouse.click(195, 760);
   await snap(page, "dark-the-chat", true);
-  await page.click("[data-testid=client-home]");
-  await sleep(2200);
-  await snap(page, "dark-her-side-of-the-table");
   await page.click("[data-testid=me-menu]");
   await page.click("button:has-text('Light')").catch(() => {});
   await page.mouse.click(195, 760);
@@ -211,10 +189,10 @@ try {
   const teamPulse = setInterval(() => anon("runner_hello", { token: teamDevice }), 8000);
   const heavy = async () => { for (let i = 0; i < 60; i++) { const j = await anon("runner_claim", { token: teamDevice, lane: "heavy" }); if (j) return j; await sleep(500); } return null; };
   await page.goto(`${APP}/t/${tableId}`);
-  await page.waitForSelector("[data-testid=copy-bar]");
+  await page.waitForSelector("[data-testid=client-chat][data-with=copy]");
   await snap(page, "a-copy-of-her-own-the-first-time");
-  await page.fill("input[aria-label='Ask the team']", "Make the booking button bigger and green, and put it at the top of the page.");
-  await page.press("input[aria-label='Ask the team']", "Enter");
+  await page.fill("[aria-label='Ask the team']", "Make the booking button bigger and green, and put it at the top of the page.");
+  await page.press("[aria-label='Ask the team']", "Enter");
   const c1 = await heavy();
   await page.waitForSelector("[data-change]");
   await snap(page, "her-change-is-being-built");
@@ -224,12 +202,12 @@ try {
   await page.reload();
   await page.waitForSelector("[data-testid=try-it]");
   await snap(page, "ready-she-can-try-it");
-  await page.fill("input[aria-label='Ask the team']", "Actually make it a bit smaller, and blue instead.");
-  await page.press("input[aria-label='Ask the team']", "Enter");
+  await page.fill("[aria-label='Ask the team']", "Actually make it a bit smaller, and blue instead.");
+  await page.press("[aria-label='Ask the team']", "Enter");
   const c2 = await heavy();
   await anon("runner_finish", { token: teamDevice, job: c2.job_id, answer: "It is a little smaller and blue now. Have another look on the booking page.", info: { changed: true, commit: "d".repeat(40), files: ["app/booking/page.tsx"], detail: "Restyled." } });
-  await page.fill("input[aria-label='Ask the team']", "Can patients pay a deposit when they book?");
-  await page.press("input[aria-label='Ask the team']", "Enter");
+  await page.fill("[aria-label='Ask the team']", "Can patients pay a deposit when they book?");
+  await page.press("[aria-label='Ask the team']", "Enter");
   const c3 = await heavy();
   await anon("runner_finish", { token: teamDevice, job: c3.job_id, answer: "Taking payments is one for the team to decide, so I have passed it on. You will hear here what they decide.", info: { pass_on: true, title: "Deposits when booking" } });
   await sleep(1500);

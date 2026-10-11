@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Face } from "@/components/face";
 import { Arrow } from "@/components/icons";
+import { Select } from "@/components/select";
 import { Time } from "@/components/time";
 import { browserClient } from "@/lib/supabase/browser";
 import type { Job, Member, SandboxChange } from "./types";
@@ -25,8 +26,9 @@ export function SandboxReview({ table, me, client, changes, jobs, onStop, links,
   // The jobs in flight, to say what the AI is on and to stop it.
   jobs: Job[];
   onStop: (jobId: string) => void;
-  links: { ours: string | null; cap: number; paths: string };
-  onLinks: (l: { ours: string | null; cap: number; paths: string }) => void;
+  // cap: how many changes a day, or null for as many as they like.
+  links: { ours: string | null; cap: number | null; paths: string };
+  onLinks: (l: { ours: string | null; cap: number | null; paths: string }) => void;
   onBox: (b: { member_id: string; mode?: "chat" | "sandbox"; url?: string | null }) => void;
   onOpenTask: (taskId: string) => void;
 }) {
@@ -41,13 +43,13 @@ export function SandboxReview({ table, me, client, changes, jobs, onStop, links,
   const [setup, setSetup] = useState(false);
   const [ours, setOurs] = useState(links.ours ?? "");
   const [theirs, setTheirs] = useState(client.sandbox_url ?? "");
-  const [cap, setCap] = useState(String(links.cap));
+  const [cap, setCap] = useState(String(links.cap ?? 0));
   const [paths, setPaths] = useState(links.paths);
   // Before a copy is given, the owner reads what giving one means and says so.
   const [giving, setGiving] = useState(false);
   const [agreed, setAgreed] = useState(false);
   useEffect(() => { setTheirs(client.sandbox_url ?? ""); }, [client.sandbox_url]);
-  useEffect(() => { setOurs(links.ours ?? ""); setCap(String(links.cap)); setPaths(links.paths); }, [links.ours, links.cap, links.paths]);
+  useEffect(() => { setOurs(links.ours ?? ""); setCap(String(links.cap ?? 0)); setPaths(links.paths); }, [links.ours, links.cap, links.paths]);
 
   const mine = changes.filter((c) => c.member_id === client.id).sort((a, b) => b.created_at.localeCompare(a.created_at));
   const waiting = mine.filter((c) => c.status === "ready" && !c.verdict).length;
@@ -66,11 +68,11 @@ export function SandboxReview({ table, me, client, changes, jobs, onStop, links,
     e.preventDefault();
     setBusy("links");
     setError("");
-    const n = Math.min(200, Math.max(1, Number(cap) || links.cap));
+    const n = Number(cap) || 0;
     const { error } = await supabase.rpc("set_sandbox_links", { t: table.id, ours: ours.trim(), cap: n, m: client.id, theirs: theirs.trim(), folders: paths });
     setBusy(null);
     if (error) return setError(error.message);
-    onLinks({ ours: ours.trim() || null, cap: n, paths: paths.split(/[,\n]/).map((x) => x.trim().replace(/^\/+|\/+$/g, "")).filter(Boolean).join(", ") });
+    onLinks({ ours: ours.trim() || null, cap: n || null, paths: paths.split(/[,\n]/).map((x) => x.trim().replace(/^\/+|\/+$/g, "")).filter(Boolean).join(", ") });
     onBox({ member_id: client.id, url: theirs.trim() || null });
     setSetup(false);
   }
@@ -139,7 +141,9 @@ export function SandboxReview({ table, me, client, changes, jobs, onStop, links,
             </div>
             <div>
               <label className="label" htmlFor="sb-cap">Changes a day</label>
-              <input id="sb-cap" className="field" value={cap} onChange={(e) => setCap(e.target.value.replace(/\D/g, "").slice(0, 3))} inputMode="numeric" />
+              <Select id="sb-cap" value={cap} onChange={setCap} label="Changes a day"
+                options={[{ value: "0", label: "As many as they like" }, ...[5, 10, 20, 50, 100, 200].map((n) => ({ value: String(n), label: `${n} a day` })),
+                  ...([0, 5, 10, 20, 50, 100, 200].includes(Number(cap)) ? [] : [{ value: cap, label: `${cap} a day` }])]} />
               <div className={s.hint}>Each one runs on the team&apos;s AI.</div>
             </div>
             <div>
