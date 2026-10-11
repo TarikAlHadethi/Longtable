@@ -66,7 +66,7 @@ try {
   await owner.page.waitForFunction((n) => document.querySelectorAll("[data-ai='true']").length > n, before, { timeout: 180000 });
   const first = await owner.page.locator("[data-ai='true']").last().textContent();
   results.first = first.slice(0, 400);
-  check("a question comes back from Sam's ChatGPT, from the code it was handed", /Sam's ChatGPT/.test(first) && /MIT/.test(first) && /read main @ [0-9a-f]{7}/.test(first), first);
+  check("a question comes back from Sam's ChatGPT, from the code it was handed", /Sam's ChatGPT/.test(first) && /MIT/.test(first) && /main @ [0-9a-f]{7}/.test(first), first);
 
   // A planted instruction in the question: it has no tools, so nothing can run; it must still answer plainly.
   const n2 = await answers(owner.page);

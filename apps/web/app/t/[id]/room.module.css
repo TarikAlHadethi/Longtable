@@ -255,7 +255,7 @@
   font-family: var(--font-mono); font-size: 12px; padding: 3px 8px; border-radius: 6px;
   background: var(--card); border: 1px solid var(--line); color: var(--ink-2);
 }
-.how { margin-top: 10px; }
+.how { margin-top: 2px; }
 .howBody { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; border-left: 2px solid light-dark(oklch(0.86 0.03 170), oklch(0.33 0.03 170)); padding-left: 12px; }
 .howText { margin: 0; font-size: 15px; line-height: 1.5; color: var(--ink-2); }
 .view { display: flex; flex-direction: column; gap: 4px; }
@@ -470,13 +470,20 @@
 .list { gap: 14px; }
 
 /* An AI joining: one quiet line in the middle; its introduction opens under it. */
-.joined { align-self: center; display: flex; flex-direction: column; align-items: center; gap: 8px; max-width: 100%; }
-.joinedLine { display: inline-flex; align-items: center; gap: 8px; border: 0; background: light-dark(oklch(0.95 0.006 80), oklch(0.27 0.008 80)); color: var(--ink-2); font: inherit; font-size: 13.5px; font-weight: 560;
-  padding: 5px 12px; border-radius: 999px; cursor: pointer; transition: background-color 0.12s ease, color 0.12s ease; }
-.joinedLine:hover { background: var(--hover); color: var(--ink); }
-.joinedWhen { font-weight: 400; color: var(--muted); }
-.joinedChevron { width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-2px) rotate(45deg); transition: transform 0.18s var(--ease-out); }
-.joinedOpen { transform: translateY(1px) rotate(225deg); }
+/* An AI arriving: one line, no box, with the same short quiet rule above and below as between the team and clients. */
+.joined { align-self: stretch; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; color: var(--muted); padding: 14px 0; margin: 4px 0; position: relative; }
+.joined::before, .joined::after { content: ""; position: absolute; left: 22%; right: 22%; height: 1px; background: var(--line-strong); }
+.joined::before { top: 0; }
+.joined::after { bottom: 0; }
+/* Two arrivals in a row share the rule between them. */
+.joined + .joined { margin-top: -18px; }
+.joined + .joined::before { display: none; }
+/* The small print under an AI's answer, in the same letters as everything else, shown when you point at the answer. */
+.aiFoot { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 6px; font-size: 12.5px; line-height: 1.4; color: var(--faint); opacity: 0; transition: opacity 0.15s ease; }
+.aiMessage:hover .aiFoot, .aiMessage:focus-within .aiFoot, .aiFoot[data-open] { opacity: 1; }
+@media (hover: none) { .aiFoot { opacity: 1; } }
+.footSources { overflow-wrap: anywhere; }
+.footSources span + span::before { content: ", "; }
 .joinedBody { max-width: 620px; font-size: 16px; color: var(--ink-2); animation: lt-rise 0.2s var(--ease-out) both; }
 
 /* The glass sits above everything while the whole window leans in. */

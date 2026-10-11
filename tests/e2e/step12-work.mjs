@@ -74,7 +74,7 @@ try {
   await dev.page.waitForFunction(() => [...document.querySelectorAll("[data-ai='true']")].some((el) => el.textContent.includes("The table")), null, { timeout: 420000 });
   results.seconds = Math.round((Date.now() - asked) / 1000);
   const answer = dev.page.locator("[data-ai='true']").filter({ hasText: "The table" }).last();
-  results.answer = (await answer.textContent()).slice(0, 700);
+  results.answer = (await answer.textContent()).slice(-700);
   check("the table's answer names the branch the change is on", results.answer.includes(" on longtable/") && results.answer.includes("changed 1 file"), results.answer);
 
   const branches = git(scratch, "--git-dir", remote, "branch", "--list").split(/\r?\n/).map((b) => b.replace(/^[* ]+/, ""));

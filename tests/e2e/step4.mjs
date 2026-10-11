@@ -69,7 +69,7 @@ try {
   await owner.page.waitForFunction(() => [...document.querySelectorAll("[data-ai='true']")].some((el) => el.textContent.includes("The table")), null, { timeout: 240000 });
   results.answerSeconds = Math.round((Date.now() - asked) / 100) / 10;
   const answer = owner.page.locator("[data-ai='true']").filter({ hasText: "The table" }).last();
-  results.answer = (await answer.textContent()).slice(0, 900);
+  results.answer = (await answer.textContent()).slice(-900);
   check("one combined answer, written by Maya's Claude", /one answer from 2 Claudes, written by Maya/.test(results.answer), results.answer);
 
   const sources = await answer.locator("[data-testid=sources] span").allTextContents();

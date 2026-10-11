@@ -194,6 +194,7 @@ export function systemFor(job) {
     `You are ${job.me}'s Claude, working at their team's Longtable table "${job.table_name}".`,
     ...(job.yours ? [`You are the same Claude ${job.me} talks to on their own computer. The folder ${YOURS} in front of you holds what you know from there, whole: their instructions for this project, your memory files, and recent-conversation.md, the latest of your own conversation with them about it. When a question is about people, plans, history, what someone wants, what was decided or what you two were doing, read there before you answer, and answer as someone who knows. Never name that folder or its files at the table, never quote it at length, and never write any of it into the project.`] : []),
     ...(job.knows || job.mind ? ["The message starts with what is yours alone, between <<<YOURS and YOURS>>>: what you already know from working with your person on their own computer, and your own notes from earlier work at this table (each other AI here keeps its own). Work the way it says and use the notes as hints. Never quote it, never name its files at the table, and never write any of it into a file. Where it disagrees with the code in front of you, the code wins."] : []),
+    ...(job.kind === "combine" ? [`This time you write the table's one answer, from what the AIs here found. It is read first by ${job.me}, your own person: lead with what matters most to them by what you know of their priorities, leave out what they would not care about, and keep everything the other AIs found accurate. One answer, no second round.`] : []),
     job.doing
       ? "You can read the code and change files in this folder. You cannot run commands, tests or builds."
       : "You only read code. You cannot run commands or change files.",
@@ -683,8 +684,9 @@ async function work(rpc, seat, engines, job) {
     const onBranch = !!seat.source && !!job.work_read && (job.kind === "review" || job.kind === "combine");
     const branch = doing || onBranch ? job.branch || workBranch(job.chat_name) : null;
     const opened = branch ? openWork(seat.table_id, branch, doing ? "work" : "look") : null;
-    // What makes this person's AI theirs goes to the jobs their own model does, never to the table's own voice.
-    const own = job.kind !== "combine";
+    // What makes this person's AI theirs goes to every job it does for the team, the table's one answer included:
+    // the AI that writes it is the asker's own, so it knows what matters to them and no second pass is needed.
+    const own = true;
     job = { ...job, mind: own ? mind(seat.table_id) : "", knows: own ? knows(seat) : "" };
     // While it works, the connection tells the table it is alive and what it is on. If the table says stop, it stops.
     let note = "";

@@ -25,19 +25,17 @@ export function Answer({ m, members, views }: { m: Message; members: Map<string,
   const allSame = views.every((v) => kindOfModel(v.meta?.model) === kindOfModel(m.meta?.model));
   const many = allSame ? `${ai}s` : "AIs";
 
+  // An AI arriving is one quiet line between two rules. What it learned of the project is kept for the AIs, not shown.
   if (m.kind === "intro") {
     return (
       <div className={styles.joined} data-mid={m.id} data-ai="intro">
-        <button className={styles.joinedLine} onClick={() => setOpen(!open)} aria-expanded={open}>
-          <AiLogo kind={kindOfModel(m.meta?.model)} size={15} />
-          <span>{name}&apos;s {ai} joined the table</span>
-          <span className={styles.joinedWhen}><Time iso={m.created_at} /></span>
-          <span className={`${styles.joinedChevron} ${open ? styles.joinedOpen : ""}`} aria-hidden="true" />
-        </button>
-        {open && <div className={`${styles.messageText} ${styles.aiText} ${styles.joinedBody}`}><Prose text={m.body} /></div>}
+        <AiLogo kind={kindOfModel(m.meta?.model)} size={15} />
+        <span>{name}&apos;s {ai} joined the table</span>
       </div>
     );
   }
+  const read = m.meta?.read ?? "";
+  const changed = read.startsWith("changed ");
 
   return (
     <div className={`${styles.message} ${styles.aiMessage}`} data-mid={m.id} data-ai="true">
@@ -47,16 +45,20 @@ export function Answer({ m, members, views }: { m: Message; members: Map<string,
       <div className={styles.messageBody}>
         <div className={styles.messageMeta}>
           <span className={styles.messageName}>{combined || quick ? "The table" : `${name}'s ${ai}`}</span>
-          {combined && <span>· one answer from {parts.length + 1} {many}, written by {name}&apos;s {ai}</span>}
-          <span><Time iso={m.created_at} /></span>
-          {m.meta?.read && <span className={styles.readTag}>{m.meta.read.startsWith("changed ") ? m.meta.read : `read ${m.meta.read}`}</span>}
         </div>
         <div className={`${styles.messageText} ${styles.aiText}`}><Prose text={m.body} /></div>
-        {sources.length > 0 && (
-          <div className={styles.sources} data-testid="sources">
-            {sources.map((s) => <span key={s} className={styles.source}>{s}</span>)}
-          </div>
-        )}
+        {/* The small print: when, what it read, where a change went. There when you point at the answer. */}
+        <div className={styles.aiFoot} data-open={open || undefined}>
+          <span><Time iso={m.created_at} /></span>
+          {combined && <span>one answer from {parts.length + 1} {many}, written by {name}&apos;s {ai}</span>}
+          {changed && <span>{read}</span>}
+          {sources.length > 0 && (
+            <span className={styles.footSources} data-testid="sources">
+              read {sources.slice(0, 4).map((src) => <span key={src}>{src}</span>)}{sources.length > 4 ? ` and ${sources.length - 4} more` : ""}
+            </span>
+          )}
+          {read && !changed && <span>{read}</span>}
+        </div>
         {combined && (
           <div className={styles.how}>
             <button className={styles.toolLink} onClick={() => setOpen(!open)} aria-expanded={open}>
