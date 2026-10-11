@@ -45,7 +45,7 @@ try {
   const dev = await joinTable(browser, await inviteLink(owner.page, "developer"), `dev-${run}@example.test`, "Sam");
   const elena = await joinTable(browser, await inviteLink(owner.page, "client"), `elena-${run}@example.test`, "Elena Ruiz");
   const [ownerToken, devToken, elenaToken] = await Promise.all([owner, dev, elena].map((p) => accessToken(p.context)));
-  await elena.page.waitForSelector("text=What you asked for");
+  await elena.page.waitForSelector("[data-testid=client-chat]");
 
   // Something only the team knows, to prove it never reaches her or her AI.
   const secret = "Team only: the reminders job is behind because the SMS vendor contract is not signed.";

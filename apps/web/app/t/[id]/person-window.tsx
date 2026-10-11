@@ -43,7 +43,7 @@ function shrink(file: File): Promise<string> {
 
 // A person, in a window in the middle of the screen. Your own is where you change how you look at this table;
 // anyone else's shows who they are, and gives the owner the two things an owner can do.
-export function PersonWindow({ table, me, person, connections, here, edit = false, members, onClose, onSaved, onGone }: {
+export function PersonWindow({ table, me, person, connections, here, edit = false, members, onClose, onSaved, onGone, onSandbox, waiting = 0 }: {
   table: { id: string; name: string };
   me: Member;
   person: Member;
@@ -55,6 +55,9 @@ export function PersonWindow({ table, me, person, connections, here, edit = fals
   onClose: () => void;
   onSaved: (m: Member) => void;
   onGone: (id: string) => void;
+  // A client's own copy: opens what they changed there. How many changes are waiting for the team.
+  onSandbox?: (id: string) => void;
+  waiting?: number;
 }) {
   useEscape(onClose);
   const supabase = browserClient();
@@ -197,6 +200,12 @@ export function PersonWindow({ table, me, person, connections, here, edit = fals
               </div>
               {conn?.last_seen && <div className={s.fact}><span>Last on</span><b><Time iso={conn.last_seen} style="stamp" /></b></div>}
             </div>
+            {person.role === "client" && me.role !== "client" && onSandbox && (person.client_mode === "sandbox" || me.role === "owner") && (
+              <button type="button" className={s.sandboxLink} onClick={() => onSandbox(person.id)} data-testid="open-sandbox">
+                <b>{person.client_mode === "sandbox" ? `${first}'s own copy` : `Give ${first} a copy of their own`}</b>
+                <span>{person.client_mode === "sandbox" ? (waiting ? `${waiting} ${waiting === 1 ? "change" : "changes"} to look at` : "Nothing new to look at") : "They change it freely, you decide what to take."}</span>
+              </button>
+            )}
             {person.role !== "client" && conn && <UsagePanel members={[person]} connections={connections} bare />}
             {error && <div className="error" role="alert">{error}</div>}
             {me.role === "owner" && !isMe && asking === "owner" && (

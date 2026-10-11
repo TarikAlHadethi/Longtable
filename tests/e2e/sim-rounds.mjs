@@ -634,6 +634,165 @@ try {
     check("10b titles are cut to size and never empty", made.every((m) => m.shown && m.shown.length <= 120), made.map((m) => (m.shown ?? "").length));
     check("10b a key in a title is hidden", !made.some((m) => /sk-ant-A/.test(m.shown ?? "") || /sk-ant-a/.test(m.branch ?? "")), made.at(-1));
   }
+
+  // ================= 11. A client's own copy
+  {
+    cleanSlate();
+    const { createHmac } = await import("node:crypto");
+    await online("Maya");
+    const dana = people.Dana;
+    const changesOf = () => JSON.parse(sql(`select coalesce(json_agg(x order by x.created_at), '[]') from (select id, words, status, summary, detail, files, commit, verdict, note, task_id, request_id, created_at from public.sandbox_changes where member_id = '${dana.id}') x`));
+    const mine = async () => (await rpc(dana.token, "client_sandbox", { t: table })).body;
+    const sayAs = (body) => rpc(dana.token, "client_say", { t: table, body });
+
+    // By default a client has no copy: their words go to the team as before.
+    const plain = (await sayAs("Could the booking page be blue?")).body;
+    check("11a a client with no copy of their own just talks to the team", !!plain.request && !plain.change && (await mine()).on === false && changesOf().length === 0, plain);
+
+    // Only the owner gives one.
+    const tries = { lee: await rpc(people.Lee.token, "set_client_sandbox", { m: dana.id, enabled: true }), dana: await rpc(dana.token, "set_client_sandbox", { m: dana.id, enabled: true }),
+      onDev: await rpc(people.Maya.token, "set_client_sandbox", { m: people.Lee.id, enabled: true }) };
+    check("11b only the owner gives a copy, and only to a client", Object.values(tries).every((r) => r.status >= 400), Object.fromEntries(Object.entries(tries).map(([k, v]) => [k, v.status])));
+    const given = await rpc(people.Maya.token, "set_client_sandbox", { m: dana.id, enabled: true });
+    const branch = sql(`select branch from public.sandboxes where member_id = '${dana.id}'`);
+    check("11b the owner gives it, on a plain branch of its own", given.status < 300 && /^longtable\/sandbox-dana-[0-9a-f]{8}$/.test(branch) && (await mine()).on === true, { status: given.status, branch });
+
+    // What they say is now a change in their copy, done by the team's Claude.
+    const said = (await sayAs("Make the header green and bigger")).body;
+    check("11c with a copy, their words are a change there, and they are told how many are left", !!said.change && said.left === 19, said);
+    check("11c the quick lane does not take it", (await claim("Maya", "light")) === null);
+    const j = await take("Maya", "heavy");
+    check("11c the team's Claude gets the client's words, the branch, and nothing of the team's chats", j?.kind === "sandbox" && j.words === "Make the header green and bigger" && j.branch === branch && j.client === "Dana"
+      && !("history" in j) && !("pinned" in j) && !("views" in j), j && Object.keys(j));
+    const seenWorking = await mine();
+    check("11c she sees it being built", seenWorking.changes[0]?.status === "working" && seenWorking.changes[0].words === "Make the header green and bigger", seenWorking.changes[0]);
+    await anon("runner_beat", { token: people.Maya.device, job: j.job_id, note: "editing header.tsx" });
+    const fin1 = await fin("Maya", j, "The header is green now, and larger. Open any page to see it.", { changed: true, commit: "a".repeat(40), files: ["src/header.tsx", "src/theme.css"], detail: "Changed header.tsx and theme.css. Colours are hard-coded." });
+    const row = changesOf().at(-1);
+    check("11d when it is done the team's row has everything", fin1.ok && row.status === "ready" && row.files.length === 2 && /hard-coded/.test(row.detail) && row.commit === "a".repeat(40), row);
+    const hers = (await mine()).changes[0];
+    check("11d she gets the plain words and none of the team's part", hers.status === "ready" && /green now/.test(hers.summary) && !("detail" in hers) && !("files" in hers) && !("commit" in hers), hers);
+    const direct = (await rest(dana.token, `sandbox_changes?select=*&table_id=eq.${table}`)).body;
+    const jobsSeen = (await rest(dana.token, `jobs?select=id,kind&table_id=eq.${table}&kind=eq.sandbox`)).body;
+    check("11d she cannot read the changes table or the job itself", Array.isArray(direct) && direct.length === 0 && Array.isArray(jobsSeen) && jobsSeen.length === 0, { direct, jobsSeen });
+
+    // A question, or something only the team may do, is passed on.
+    await sayAs("When does this go live?");
+    const q = await take("Maya", "heavy");
+    await fin("Maya", q, "That one is for the team, so I passed it on. You will hear here what they decide.", { pass_on: true, title: "When does it go live" });
+    const passed = changesOf().at(-1);
+    check("11e what is not a change goes to the team as a request", passed.status === "passed" && !!passed.request_id
+      && sql(`select title from public.requests where id = '${passed.request_id}'`) === "When does it go live", passed);
+    check("11e and it still counts against her changes for the day, since it was a run of the team's AI", (await mine()).left === 18, (await mine()).left);
+
+    // What a connection sends is cleaned and cut.
+    await sayAs("Tidy the footer");
+    const big = await take("Maya", "heavy");
+    await fin("Maya", big, "x".repeat(5000) + " sk-ant-" + "Q".repeat(40), { changed: true, commit: "not a commit; drop table", files: [...Array(300)].map((_, i) => `f${i}/` + "y".repeat(600)), detail: "d".repeat(9000) });
+    const cut = changesOf().at(-1);
+    check("11f an oversized or odd answer is cut to size, and a bad commit name is dropped", cut.summary.length <= 1200 && cut.detail.length <= 4000 && cut.files.length <= 80 && cut.files.every((f) => f.length <= 300) && cut.commit === null, { s: cut.summary.length, d: cut.detail.length, f: cut.files.length, c: cut.commit });
+
+    // The team answers each one.
+    const ready = changesOf().filter((c) => c.status === "ready");
+    const wrong = { dana: await rpc(dana.token, "judge_change", { change: ready[0].id, answer: "take" }), bad: await rpc(people.Maya.token, "judge_change", { change: ready[0].id, answer: "merge it" }),
+      notReady: await rpc(people.Maya.token, "judge_change", { change: passed.id, answer: "take" }) };
+    check("11g a client cannot answer for the team, and only a ready change can be answered", Object.values(wrong).every((r) => r.status >= 400), Object.fromEntries(Object.entries(wrong).map(([k, v]) => [k, v.status])));
+    const no = await rpc(people.Maya.token, "judge_change", { change: ready[1].id, answer: "no", said: "We are keeping the footer as it is for launch." });
+    const toldNo = (await mine()).changes.find((c) => c.id === ready[1].id);
+    check("11g not this: she reads the team's reason on that change", no.status < 300 && toldNo.verdict === "no" && /keeping the footer/.test(toldNo.note), toldNo);
+    const took = await rpc(people.Maya.token, "judge_change", { change: ready[0].id, answer: "take" });
+    const task = tasksOf().find((t) => t.id === took.body);
+    const ref = JSON.parse(sql(`select reference from public.tasks where id = '${took.body}'`));
+    check("11h take it: the team's own work starts, pointing at her copy", took.status < 300 && !!task && /^From Dana: /.test(task.title) && ref.branch === branch && ref.commit === "a".repeat(40) && ref.client === "Dana", { task, ref });
+    const w = await take("Maya", "heavy");
+    check("11h the team's work is handed where to look, on the task's own branch and not hers", ["answer", "work", "plan"].includes(w?.kind) && w.reference?.branch === branch && w.branch !== branch && /from Dana's sandbox/.test(w.question) && !/header green/.test(w.question) && /header green/.test(w.reference?.words ?? ""), w && { kind: w.kind, ref: w.reference, branch: w.branch });
+    await fin("Maya", w, "Built properly.", { changed: false });
+    check("11h she is told the team is building it", (await mine()).changes.find((c) => c.id === ready[0].id).verdict === "take");
+    check("11h a taken change cannot be taken twice", (await rpc(people.Maya.token, "judge_change", { change: ready[0].id, answer: "take" })).status >= 400);
+
+    // The day's limit, and a team whose computers are off.
+    await rpc(people.Maya.token, "set_sandbox_links", { t: table, ours: "https://ours.example.test", cap: 3, m: dana.id, theirs: "https://dana.example.test/app" });
+    const full = (await sayAs("One more thing")).body;
+    check("11i past the day's limit her words go to the team, and she is told why", !!full.request && full.why === "full" && (await mine()).left === 0, full);
+    await rpc(people.Maya.token, "set_sandbox_links", { t: table, ours: "https://ours.example.test", cap: 50, m: dana.id, theirs: "https://dana.example.test/app" });
+    offline("Maya");
+    const asleep = (await sayAs("Is anyone there")).body;
+    check("11i with no team Claude on, her words go to the team, and she is told why", !!asleep.request && asleep.why === "asleep", asleep);
+    await online("Maya");
+
+    // Addresses.
+    const urls = { js: await rpc(people.Maya.token, "set_sandbox_links", { t: table, ours: "javascript:alert(1)", cap: 50 }), http: await rpc(people.Maya.token, "set_sandbox_links", { t: table, ours: "http://plain.example.test", cap: 50 }),
+      theirs: await rpc(people.Maya.token, "set_sandbox_links", { t: table, ours: "", cap: 50, m: dana.id, theirs: "https://x.test/\"><script>" }), lee: await rpc(people.Lee.token, "set_sandbox_links", { t: table, ours: "https://a.test", cap: 5 }) };
+    check("11j only plain https addresses are kept, and only the owner sets them", Object.values(urls).every((r) => r.status >= 400) && (await mine()).url === "https://dana.example.test/app", { ...Object.fromEntries(Object.entries(urls).map(([k, v]) => [k, v.status])), url: (await mine()).url });
+
+    // GitHub says where the copy was put up.
+    await rpc(people.Maya.token, "connect_github", { t: table });
+    const secret = sql(`select secret from public.github_hooks where table_id = '${table}'`);
+    const send = (event, body) => { const payload = JSON.stringify(body); return anon("github_event", { t: table, signature: "sha256=" + createHmac("sha256", secret).update(payload).digest("hex"), event, payload }); };
+    const dep = await send("deployment_status", { deployment_status: { state: "success", environment_url: "https://sandbox-dana-abc.example.test" }, deployment: { ref: "deadbeef", sha: "a".repeat(40) }, repository: { full_name: "x/y" } });
+    check("11k when the hosting reports where her copy is, its address fills itself in", dep.body === "noted" && (await mine()).url === "https://sandbox-dana-abc.example.test", { dep: dep.body, url: (await mine()).url });
+    const other = await send("deployment_status", { deployment_status: { state: "success", environment_url: "https://production.example.test" }, deployment: { ref: "main", sha: "b".repeat(40) }, repository: { full_name: "x/y" } });
+    const evil = await send("deployment_status", { deployment_status: { state: "success", environment_url: "javascript:alert(1)" }, deployment: { ref: branch, sha: "a".repeat(40) }, repository: { full_name: "x/y" } });
+    check("11k a deployment of anything else, or an address that is not https, changes nothing", other.body === "ignored" && evil.body === "ignored" && (await mine()).url === "https://sandbox-dana-abc.example.test", { other: other.body, evil: evil.body });
+
+    // Taking a change with no AI on is refused, so nobody is told the team is building something it is not.
+    await sayAs("Round the corners");
+    const rc = await take("Maya", "heavy");
+    await fin("Maya", rc, "Rounded.", { changed: true, commit: "e".repeat(40), files: ["a.css"] });
+    const rcId = changesOf().at(-1).id;
+    awake.delete("Maya");
+    sql(`update public.connections set revoked_at = now() where table_id = '${table}' and revoked_at is null`);
+    const noAi2 = await rpc(people.Maya.token, "judge_change", { change: rcId, answer: "take" });
+    check("11k2 with no AI connected, Take is refused and the change stays open", noAi2.status >= 400 && changesOf().find((c) => c.id === rcId).verdict === null, { status: noAi2.status, body: noAi2.body });
+    await pair("Maya");
+    await online("Maya");
+    sql(`delete from public.sandbox_changes where id = '${rcId}' or task_id is not null and words = 'Round the corners'`);
+
+    // Folders the owner sets, and what a folder may be.
+    const f1 = await rpc(people.Maya.token, "set_sandbox_links", { t: table, ours: "", cap: 50, folders: " /app/ , components" + String.fromCharCode(10) + "ui " });
+    const kept = sql(`select paths from public.table_sandbox where table_id = '${table}'`);
+    const f2 = await rpc(people.Maya.token, "set_sandbox_links", { t: table, ours: "", cap: 50, folders: "../../etc, app" });
+    const f3 = await rpc(people.Maya.token, "set_sandbox_links", { t: table, ours: "", cap: 50, folders: "app; rm -rf" });
+    check("11k3 the folders a copy may change are plain paths, tidied, and nothing else is kept", f1.status < 300 && kept === "app, components, ui" && f2.status >= 400 && f3.status >= 400, { kept, f2: f2.status, f3: f3.status });
+    await sayAs("Check folders");
+    const fj = await take("Maya", "heavy");
+    check("11k3 and the connection is told them", fj?.paths === "app, components, ui", fj?.paths);
+    await fin("Maya", fj, "ok", { changed: false });
+    await rpc(people.Maya.token, "set_sandbox_links", { t: table, ours: "", cap: 50, folders: "" });
+
+    // A client cannot read where anyone's copy lives, or the team's own address.
+    const peek = { boxes: (await rest(dana.token, `sandboxes?select=*`)).body, settings: (await rest(dana.token, `table_sandbox?select=*`)).body,
+      members: (await rest(dana.token, `members?select=*&table_id=eq.${table}`)).body };
+    check("11k4 a client cannot read any copy's branch or address, or the team's own", Array.isArray(peek.boxes) && peek.boxes.length === 0 && Array.isArray(peek.settings) && peek.settings.length === 0
+      && !JSON.stringify(peek.members).includes("sandbox"), { boxes: peek.boxes, settings: peek.settings });
+
+    // Stop, and a job nobody takes.
+    await sayAs("Change everything");
+    const run1 = await take("Maya", "heavy");
+    await rpc(people.Lee.token, "stop_job", { job: run1.job_id });
+    check("11l the team stops one: she is told it was stopped", (await until(async () => (await mine()).changes[0].status === "stopped", 30000)) === true && (await anon("runner_beat", { token: people.Maya.device, job: run1.job_id, note: "x" })).body === false, (await mine()).changes[0]);
+    await sayAs("And another");
+    sql(`update public.jobs set created_at = now() - interval '11 minutes' where kind = 'sandbox' and status = 'queued' and table_id = '${table}'`);
+    await sleep(14000);
+    check("11l one that is only waiting behind a busy computer is kept", (await mine()).changes[0].status === "working", (await mine()).changes[0]);
+    offline("Maya");
+    check("11l one the team's computer never takes is closed, not left being built for ever", (await until(async () => (await mine()).changes[0].status === "failed", 30000)) === true, (await mine()).changes[0]);
+
+    await online("Maya");
+
+    // Taking the copy away.
+    await rpc(people.Maya.token, "set_client_sandbox", { m: dana.id, enabled: false });
+    const after = (await sayAs("Back to talking")).body;
+    check("11m with the copy taken away she is back to talking to the team, and her history is kept", !!after.request && !after.change && (await mine()).on === false && (await mine()).changes.length >= 5 && sql(`select branch from public.sandboxes where member_id = '${dana.id}'`) === branch, after);
+
+    // Someone at another table.
+    const other2 = await startTable(browser, `other2-${run}@example.test`, "Elsewhere", "Olga");
+    const oTok = await accessToken(other2.context);
+    const cross = { read: (await rest(oTok, `sandbox_changes?select=id&table_id=eq.${table}`)).body, judge: await rpc(oTok, "judge_change", { change: ready[1].id, answer: "take" }),
+      give: await rpc(oTok, "set_client_sandbox", { m: dana.id, enabled: true }), mine: await rpc(oTok, "client_sandbox", { t: table }) };
+    check("11n someone at another table sees and touches none of it", cross.read.length === 0 && cross.judge.status >= 400 && cross.give.status >= 400 && cross.mine.status >= 400, { judge: cross.judge.status, give: cross.give.status, mine: cross.mine.status });
+    await other2.context.close();
+  }
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {

@@ -125,3 +125,40 @@
 .talk > .main { width: 100%; min-width: 0; }
 .talk .columns > * { min-width: 0; }
 .talk[hidden] { display: none; }
+
+/* The simple page: one feed, one box. Everything a client asked for, in the order it happened, each with one state. */
+.simple { width: 100%; max-width: 680px; margin: 0 auto; flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 20px; }
+.talk { display: flex; flex-direction: column; overflow: hidden; }
+.simpleHead { padding: 28px 0 14px; display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
+.simpleHead .hello { font-size: 28px; }
+.headRow { display: flex; align-items: center; gap: 10px; }
+.copyBar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 14px 16px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); }
+.copyText { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 2px; font-size: 13.5px; line-height: 1.45; color: var(--muted); }
+.copyText b { font-size: 15px; color: var(--ink); }
+.copySoon { font-size: 13px; color: var(--muted); }
+.copyBarSmall { padding: 8px 8px 8px 16px; }
+.copyBarSmall :global(.btn) { padding: 8px 14px; }
+.headRow[hidden] { display: none; }
+.feed { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 6px 2px 18px; }
+.feed .request { flex-shrink: 0; animation: lt-rise 0.3s var(--ease-out) backwards; }
+.feed .requestHead { align-items: flex-start; }
+.feed .requestTitle { flex: 1; min-width: 0; font-size: 15.5px; line-height: 1.45; white-space: pre-wrap; }
+.feed .pill { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.feed .chevron { margin-top: 6px; }
+.cardHead { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px 0; }
+.cardSaid { margin: 0 16px; padding: 12px 0; border-top: 1px solid var(--line); font-size: 15px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; display: flex; flex-direction: column; gap: 10px; }
+.cardHead + .cardSaid { margin-top: 12px; }
+.cardAnswer { font-size: 13.5px; color: var(--muted); }
+.tryIt { margin: 0 16px 14px; align-self: flex-start; display: inline-flex; }
+.request > :last-child:not(.requestHead):not(.timeline):not(.tryIt) { padding-bottom: 14px; }
+.cardHead:last-child { padding-bottom: 14px; }
+.cardVerdict { margin: 0 16px; padding: 10px 0 14px; border-top: 1px solid var(--line); font-size: 14px; font-weight: 600; color: light-dark(oklch(0.38 0.07 150), oklch(0.84 0.07 150)); }
+.verdictNo { color: var(--muted); font-weight: 500; }
+.requestReady { border-color: light-dark(oklch(0.72 0.07 150), oklch(0.46 0.07 150)); box-shadow: 0 6px 20px oklch(0.3 0.04 150 / 0.1); }
+.pulse { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: cl-pulse 1.1s ease-in-out infinite; }
+.simpleFoot { flex-shrink: 0; padding: 0 0 18px; display: flex; flex-direction: column; gap: 6px; }
+.simpleFoot .composer { border: 1px solid var(--line); border-radius: 14px; background: var(--card); padding: 8px; }
+.simpleFoot .input { border: 0; background: transparent; }
+.footNote { font-size: 12.5px; color: var(--muted); padding: 0 6px; }
+@keyframes cl-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+@media (max-width: 640px) { .simple { padding: 0 14px; } .simpleHead { padding-top: 18px; } .simpleHead .hello { font-size: 24px; } }

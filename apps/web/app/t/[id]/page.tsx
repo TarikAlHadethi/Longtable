@@ -5,5 +5,5 @@ export default async function TablePage({ params, searchParams }: {
   searchParams: Promise<Record<string, string | string[]>>;
 }) {
   const q = await searchParams;
-  return <RoomPage id={(await params).id} wanted={q.c} side={q.side === "client"} />;
+  return <RoomPage id={(await params).id} wanted={q.c} side={q.side === "client"} sandbox={q.sandbox} />;
 }

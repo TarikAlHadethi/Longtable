@@ -81,5 +81,9 @@
 .faceMine:hover .facePencil, .faceMine:focus-visible .facePencil { opacity: 1; }
 .unphoto { align-self: center; margin-top: -8px; }
 .swatchBubble { background: var(--bubble-dot); }
+.sandboxLink { text-align: left; font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line-strong); border-radius: 14px; padding: 12px 16px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; transition: transform 0.15s var(--ease-out); }
+.sandboxLink:hover { transform: translateY(-1px); }
+.sandboxLink b { font-size: 14.5px; font-weight: 600; }
+.sandboxLink span { font-size: 13px; color: var(--muted); }
 .swatch:disabled { opacity: 0.22; cursor: not-allowed; filter: grayscale(1); }
 .swatch:disabled:hover { transform: none; }

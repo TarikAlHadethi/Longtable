@@ -25,7 +25,7 @@ const snap = async (page, name, full = false) => {
   };
   if (!full) return shot("");
   // A page longer than the phone: one picture from the top, one from the bottom, as someone scrolling would see it.
-  const scroller = "main[class*=talk]";
+  const scroller = "[data-testid=client-chat]";
   const long = await page.evaluate((sel) => { const el = document.querySelector(sel) ?? document.scrollingElement; el.scrollTop = 0; return el.scrollHeight > el.clientHeight + 40; }, scroller);
   await sleep(250);
   await shot("");
@@ -60,13 +60,13 @@ try {
   const page = elena.page;
   await page.setViewportSize({ width: 390, height: 844 });
   const ownerToken = await accessToken(owner.context);
+  const elenaId0 = (await rest(ownerToken, `members?select=id,display_name&table_id=eq.${tableId}`)).body.find((m) => m.display_name === "Elena Ruiz").id;
   const elenaToken = await accessToken(elena.context);
 
   // ---- the first look
   await page.goto(`${APP}/t/${tableId}`);
-  await page.waitForSelector("[data-testid=client-tree]");
-  await sleep(2200);
-  await snap(page, "first-look-her-side-of-the-table");
+  await page.waitForSelector("[data-testid=client-chat]");
+  await snap(page, "first-look-one-page-one-box");
   await page.click("button[aria-label=Menu]");
   await snap(page, "the-menu");
   await page.click("button[aria-label=Menu]");
@@ -75,10 +75,13 @@ try {
   await page.keyboard.press("Escape");
   await page.mouse.click(195, 700);
 
-  // ---- the chat, empty
+  // ---- the picture of her side of the table is one tap away, on the name at the top
+  await page.click("[data-testid=client-home]");
+  await page.waitForSelector("[data-testid=client-tree]");
+  await sleep(2200);
+  await snap(page, "her-side-of-the-table-one-tap-away");
   await page.click("button:has-text('Open the chat')");
-  await page.waitForSelector("text=What you asked for");
-  await snap(page, "the-chat-before-she-asks-anything", true);
+  await page.waitForSelector("[data-testid=client-chat]");
 
   // ---- she asks; the team decides
   const ask = "Some patients only want to see Sofia. Can they pick a specific hygienist when they book?";
@@ -147,6 +150,7 @@ try {
   await sleep(1500);
   await page.keyboard.press("Escape");
   await page.reload();
+  await page.click("[data-testid=client-home]");
   await page.waitForSelector("[data-testid=client-tree]");
   await sleep(2200);
   await snap(page, "her-side-with-her-assistant-connected");
@@ -196,6 +200,46 @@ try {
   await page.goto(`${APP}/t/${tableId}?c=general`);
   await sleep(500);
   await snap(page, "trying-the-teams-chat-address-she-gets-her-own-chat", true);
+
+  // ---- a copy of her own: the owner turns it on, and what she says is built there for her to try
+  await rpc(ownerToken, "disconnect", { conn: (await rest(elenaToken, `connections?select=id&table_id=eq.${tableId}`)).body[0]?.id }).catch(() => {});
+  clearInterval(pulse);
+  await rpc(ownerToken, "set_client_sandbox", { m: elenaId0, enabled: true });
+  const teamCode = (await rpc(ownerToken, "start_pairing", { t: tableId, ai_kind: "claude" })).body;
+  const teamDevice = (await anon("pair_connection", { code: teamCode, device_label: "look" })).token;
+  sql(`update public.jobs set status = 'skipped' where table_id = '${tableId}' and kind = 'intro'`);
+  const teamPulse = setInterval(() => anon("runner_hello", { token: teamDevice }), 8000);
+  const heavy = async () => { for (let i = 0; i < 60; i++) { const j = await anon("runner_claim", { token: teamDevice, lane: "heavy" }); if (j) return j; await sleep(500); } return null; };
+  await page.goto(`${APP}/t/${tableId}`);
+  await page.waitForSelector("[data-testid=copy-bar]");
+  await snap(page, "a-copy-of-her-own-the-first-time");
+  await page.fill("input[aria-label='Ask the team']", "Make the booking button bigger and green, and put it at the top of the page.");
+  await page.press("input[aria-label='Ask the team']", "Enter");
+  const c1 = await heavy();
+  await page.waitForSelector("[data-change]");
+  await snap(page, "her-change-is-being-built");
+  await anon("runner_finish", { token: teamDevice, job: c1.job_id, answer: "The booking button is larger and green now, and it sits at the top of the page. Open the booking page to try it.", info: { changed: true, commit: "c".repeat(40), files: ["app/booking/page.tsx"], detail: "Moved the button." } });
+  await rpc(ownerToken, "set_sandbox_links", { t: tableId, ours: "", cap: 20, m: elenaId0, theirs: "https://elena-copy.example.test" });
+  await page.waitForFunction(() => document.querySelector("[data-change] [data-testid=change-status]")?.textContent === "Ready to try", null, { timeout: 20000 });
+  await page.reload();
+  await page.waitForSelector("[data-testid=try-it]");
+  await snap(page, "ready-she-can-try-it");
+  await page.fill("input[aria-label='Ask the team']", "Actually make it a bit smaller, and blue instead.");
+  await page.press("input[aria-label='Ask the team']", "Enter");
+  const c2 = await heavy();
+  await anon("runner_finish", { token: teamDevice, job: c2.job_id, answer: "It is a little smaller and blue now. Have another look on the booking page.", info: { changed: true, commit: "d".repeat(40), files: ["app/booking/page.tsx"], detail: "Restyled." } });
+  await page.fill("input[aria-label='Ask the team']", "Can patients pay a deposit when they book?");
+  await page.press("input[aria-label='Ask the team']", "Enter");
+  const c3 = await heavy();
+  await anon("runner_finish", { token: teamDevice, job: c3.job_id, answer: "Taking payments is one for the team to decide, so I have passed it on. You will hear here what they decide.", info: { pass_on: true, title: "Deposits when booking" } });
+  await sleep(1500);
+  const cs = (await rest(ownerToken, `sandbox_changes?select=id,status&table_id=eq.${tableId}&order=created_at`)).body;
+  await rpc(ownerToken, "judge_change", { change: cs[1].id, answer: "take" });
+  await rpc(ownerToken, "judge_change", { change: cs[0].id, answer: "no", said: "We went with the smaller blue one you asked for after this." });
+  await page.reload();
+  await page.waitForSelector("[data-testid=verdict]");
+  await snap(page, "what-the-team-made-of-each-change", true);
+  clearInterval(teamPulse);
 
   // ---- taken off the table
   const elenaId = (await rest(ownerToken, `members?select=id,display_name&table_id=eq.${tableId}`)).body.find((m) => m.display_name === "Elena Ruiz").id;

@@ -30,9 +30,9 @@ try {
   const priya = await join(browser, await inviteLink(owner.page, "client"), `priya-${run}@example.test`, "Priya Shah");
 
   // The client lands on their own page, never the team's room.
-  await elena.page.waitForSelector("text=What you asked for");
+  await elena.page.waitForSelector("[data-testid=client-chat]");
   const firstLook = (await textOf(elena.page)).toLowerCase();
-  check("the client gets their own page", ["what you asked for", "with the team", "the team"].every((w) => firstLook.includes(w))
+  check("the client gets their own page", ["the team", "ask for anything"].every((w) => firstLook.includes(w))
     && !["ask the table", "inbox", "general"].some((w) => firstLook.includes(w)), firstLook.slice(0, 300));
 
   const [ownerToken, devToken, elenaToken, priyaToken] = await Promise.all([owner, dev, elena, priya].map((p) => accessToken(p.context)));
@@ -69,7 +69,7 @@ try {
 
   // Priya sees none of it, on her page or in the database.
   await priya.page.reload();
-  await priya.page.waitForSelector("text=What you asked for");
+  await priya.page.waitForSelector("[data-testid=client-chat]");
   const priyaLook = await textOf(priya.page);
   const priyaReads = {
     requests: (await rest(priyaToken, `requests?select=id&table_id=eq.${tableId}`)).body.length,
@@ -270,7 +270,7 @@ try {
   await elena.page.routeWebSocket(/\/realtime\/v1\/websocket/, dropper);
   await dev.page.routeWebSocket(/\/realtime\/v1\/websocket/, dropper);
   await Promise.all([elena.page.reload(), dev.page.reload()]);
-  await elena.page.waitForSelector("text=What you asked for");
+  await elena.page.waitForSelector("[data-testid=client-chat]");
   await dev.page.waitForFunction(() => !document.body.innerText.includes("Connecting"), null, { timeout: 10000 });
   dropPushes = true;
   const ask2 = "Could the booking page show prices for each treatment?";

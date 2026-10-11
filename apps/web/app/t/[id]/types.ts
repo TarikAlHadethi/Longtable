@@ -1,7 +1,10 @@
 export type Role = "owner" | "developer" | "client";
 
-export type Member = { id: string; display_name: string; role: Role; color: string; created_at?: string; avatar?: string | null; name_color?: string | null; status?: string; bubble?: string | null; tasks_cleared_at?: string | null };
+export type Member = { id: string; display_name: string; role: Role; color: string; created_at?: string; avatar?: string | null; name_color?: string | null; status?: string; bubble?: string | null; tasks_cleared_at?: string | null; client_mode?: "chat" | "sandbox"; sandbox_branch?: string | null; sandbox_url?: string | null };
 export const MEMBER_COLUMNS = "id, display_name, role, color, created_at, avatar, name_color, status, bubble, tasks_cleared_at";
+// A client's own copy, as the team is told about it. It is kept apart from the people's rows, which clients can read.
+export type SandboxRow = { member_id: string; mode: "chat" | "sandbox"; branch: string; url: string | null };
+export const SANDBOX_COLUMNS = "member_id, mode, branch, url";
 
 export type Chat = { id: string; name: string; about: string; is_general: boolean; created_at: string; created_by?: string | null };
 
@@ -36,7 +39,8 @@ export type Job = {
   id: string;
   chat_id: string | null;
   member_id: string;
-  kind: "answer" | "view" | "combine" | "intro" | "client" | "work" | "review" | "listen" | "look" | "plan";
+  kind: "answer" | "view" | "combine" | "intro" | "client" | "work" | "review" | "listen" | "look" | "plan" | "sandbox";
+  change_id?: string | null;
   stage?: number;
   progress?: string | null;
   task_id?: string | null;
@@ -107,7 +111,14 @@ export type ClientUpdate = {
 };
 
 export const MESSAGE_COLUMNS = "id, chat_id, member_id, body, created_at, by_ai, kind, meta";
-export const JOB_COLUMNS = "id, chat_id, member_id, kind, round, status, error, created_at, stage, progress, started_at, task_id";
+export const JOB_COLUMNS = "id, chat_id, member_id, kind, round, status, error, created_at, stage, progress, started_at, task_id, change_id";
+// One change a client made in their own sandbox, as the team sees it.
+export type SandboxChange = {
+  id: string; member_id: string; words: string; status: "working" | "ready" | "nothing" | "passed" | "failed" | "stopped";
+  summary: string | null; detail: string | null; files: string[]; commit: string | null; stale: boolean;
+  verdict: "take" | "differently" | "no" | null; note: string | null; task_id: string | null; created_at: string; finished_at: string | null;
+};
+export const CHANGE_COLUMNS = "id, member_id, words, status, summary, detail, files, commit, stale, verdict, note, task_id, created_at, finished_at";
 // One piece of work the AIs took on: its title, the branch it is on, and how it ended.
 export type Task = { id: string; chat_id: string; member_id: string | null; title: string; branch: string; status: "working" | "done" | "stopped"; result: string | null; created_at: string; finished_at: string | null };
 export const TASK_COLUMNS = "id, chat_id, member_id, title, branch, status, result, created_at, finished_at";

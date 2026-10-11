@@ -11,7 +11,10 @@ export const elapsed = (mins: number) => (mins < 60 ? `${mins} min` : `${Math.fl
 // What the AIs are working on, and what they finished: one entry for each piece of work, its title first. It is only
 // in the room while there is something in it. Clear takes away what is finished, for you alone; when that leaves
 // nothing, the panel goes too.
-export function WorkPanel({ tasks, jobs, members, aiWord, open, onOpenChat, onClear, onStop }: {
+export function WorkPanel({ review = [], onReview, tasks, jobs, members, aiWord, open, onOpenChat, onClear, onStop }: {
+  // Clients whose own copies have changes waiting for the team's answer.
+  review?: { id: string; name: string; n: number }[];
+  onReview?: (memberId: string) => void;
   tasks: Task[];
   jobs: Job[];
   members: Map<string, Member>;
@@ -43,6 +46,12 @@ export function WorkPanel({ tasks, jobs, members, aiWord, open, onOpenChat, onCl
         {past.length > 0 && <button type="button" className={s.clear} onClick={onClear} data-testid="work-clear">Clear</button>}
       </div>
       <div className={styles.inboxList}>
+        {review.map((r) => (
+          <button key={r.id} type="button" className={`${s.task} ${s.review}`} onClick={() => onReview?.(r.id)} data-testid="work-review">
+            <span className={s.title}>{r.name} changed {r.n === 1 ? "something" : `${r.n} things`} in their copy</span>
+            <span className={s.result}>Have a look, and decide what to take.</span>
+          </button>
+        ))}
         {running.map((t) => {
           const mine = jobs.filter((j) => j.task_id === t.id && j.kind !== "listen" && ["queued", "running", "waiting"].includes(j.status))
             .sort((a, b) => a.created_at.localeCompare(b.created_at));

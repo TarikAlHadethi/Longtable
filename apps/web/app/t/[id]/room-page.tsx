@@ -6,7 +6,7 @@ import {
   CONNECTION_COLUMNS, DECISION_COLUMNS, EVENT_COLUMNS, JOB_COLUMNS, LINE_COLUMNS, MESSAGE_COLUMNS, NOTE_COLUMNS, REQUEST_COLUMNS, UPDATE_COLUMNS,
   type Chat, type ClientLine, type ClientUpdate, type Connection, type Decision, type Job, type Member, type Message, type Note, type Request,
   type RequestEvent,
-  TASK_COLUMNS, type Task,
+  CHANGE_COLUMNS, type SandboxChange, SANDBOX_COLUMNS, type SandboxRow, TASK_COLUMNS, type Task,
 } from "./types";
 
 type MemberRow = Member & { user_id: string };
@@ -15,7 +15,7 @@ export type RoomView = "table" | "chat" | "logs" | "settings";
 
 // The room, opened on the table, a chat, the logs or the settings. Each of those has its own address, and all of them
 // are this one page: moving between them inside the room never goes back to the server.
-export async function RoomPage({ id, wanted, view, side }: { id: string; wanted?: string | string[]; view?: "logs" | "settings"; side?: boolean }) {
+export async function RoomPage({ id, wanted, view, side, sandbox }: { id: string; wanted?: string | string[]; view?: "logs" | "settings"; side?: boolean; sandbox?: string | string[] }) {
   const supabase = await serverClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
@@ -57,7 +57,6 @@ export async function RoomPage({ id, wanted, view, side }: { id: string; wanted?
         initialLines={(lines ?? []) as ClientLine[]}
         initialConnections={(connections ?? []) as Connection[]}
         initialJobs={(jobs ?? []) as Job[]}
-        start={wanted ? "talk" : "tree"}
       />
     );
   }
@@ -72,6 +71,9 @@ export async function RoomPage({ id, wanted, view, side }: { id: string; wanted?
     supabase.from("requests").select(REQUEST_COLUMNS).eq("table_id", id).order("created_at", { ascending: false }).limit(200),
   ]);
   const { data: tableAi } = await supabase.from("table_ai").select("model").eq("table_id", id).maybeSingle();
+  const { data: boxes } = await supabase.from("sandboxes").select(SANDBOX_COLUMNS).eq("table_id", id);
+  const { data: boxSet } = await supabase.from("table_sandbox").select("preview_url, cap, paths").eq("table_id", id).maybeSingle();
+  const { data: changes } = await supabase.from("sandbox_changes").select(CHANGE_COLUMNS).eq("table_id", id).order("created_at", { ascending: false }).limit(120);
   const { data: tasks } = await supabase.from("tasks").select(TASK_COLUMNS).eq("table_id", id).order("created_at", { ascending: false }).limit(40);
   const chatList = (chats ?? []) as Chat[];
   const general = chatList.find((c) => c.is_general) ?? chatList[0];
@@ -93,8 +95,12 @@ export async function RoomPage({ id, wanted, view, side }: { id: string; wanted?
       initialNotes={(notes ?? []) as Note[]}
       initialRequests={(requests ?? []) as Request[]}
       initialChatId={start?.id ?? ""}
-      initialView={view === "settings" ? (mine.role === "owner" ? "settings" : "logs") : view ?? (side ? "client" : want ? "chat" : "table")}
+      initialView={view === "settings" ? (mine.role === "owner" ? "settings" : "logs") : view ?? (typeof sandbox === "string" && members.some((m) => m.id === sandbox && m.role === "client") ? "sandbox" : side ? "client" : want ? "chat" : "table")}
       initialTasks={(tasks ?? []) as Task[]}
+      initialChanges={(changes ?? []) as SandboxChange[]}
+      initialSandboxes={(boxes ?? []) as SandboxRow[]}
+      initialSandboxSettings={{ ours: (boxSet as { preview_url?: string | null } | null)?.preview_url ?? null, cap: (boxSet as { cap?: number } | null)?.cap ?? 20, paths: (boxSet as { paths?: string } | null)?.paths ?? "" }}
+      initialSandbox={typeof sandbox === "string" ? sandbox : null}
       initialTableModel={(tableAi as { model: string | null } | null)?.model ?? null}
     />
   );

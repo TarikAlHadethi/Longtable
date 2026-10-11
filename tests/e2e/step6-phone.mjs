@@ -47,7 +47,7 @@ try {
   if (shots) await owner.page.screenshot({ path: `${shots}/phone-room.png` });
 
   await client.page.goto(`${APP}/t/${tableId}?c=general`);
-  await client.page.waitForSelector("text=What you asked for");
+  await client.page.waitForSelector("[data-testid=client-chat]");
   const clientOver = await sideways(client.page);
   if (shots) await client.page.screenshot({ path: `${shots}/phone-client.png`, fullPage: true });
   check("the client page fits a phone", clientOver <= 0, String(clientOver));

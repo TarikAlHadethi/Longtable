@@ -26,10 +26,11 @@ import { ProfileMenu } from "./profile-menu";
 import { TableView } from "./table-view";
 import { UsagePanel } from "./usage-panel";
 import { elapsed, WorkPanel } from "./work-panel";
+import { SandboxReview } from "./sandbox-review";
 import {
   CONNECTION_COLUMNS, DECISION_COLUMNS, JOB_COLUMNS, MEMBER_COLUMNS, MESSAGE_COLUMNS, NOTE_COLUMNS, REQUEST_COLUMNS,
   type Chat, type Connection, type Decision, type Job, type Member, type Message, type Note, type Request, type RequestStatus,
-  TASK_COLUMNS, type Task,
+  CHANGE_COLUMNS, type SandboxChange, SANDBOX_COLUMNS, type SandboxRow, TASK_COLUMNS, type Task,
 } from "./types";
 import styles from "./room.module.css";
 
@@ -49,12 +50,12 @@ function requestWords(status: RequestStatus, who: string): { words: string; pill
 }
 
 type Change = { table?: string; record?: Record<string, unknown> };
-type View = "table" | "chat" | "client" | "logs" | "settings";
+type View = "table" | "chat" | "client" | "logs" | "settings" | "sandbox";
 
 // Times from the server and from this computer are written differently; they are compared as moments, not as text.
 const after = (a: string, b: string) => new Date(a).getTime() > new Date(b).getTime();
 
-export function Room({ table, me, initialMembers, initialChats, initialMessages, initialDecisions, initialJobs, initialConnections, initialNotes, initialRequests, initialChatId, initialView, initialTableModel, initialTasks }: {
+export function Room({ table, me, initialMembers, initialChats, initialMessages, initialDecisions, initialJobs, initialConnections, initialNotes, initialRequests, initialChatId, initialView, initialTableModel, initialTasks, initialChanges, initialSandboxes, initialSandboxSettings, initialSandbox }: {
   table: { id: string; name: string };
   me: Member;
   initialMembers: Member[];
@@ -69,14 +70,30 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   initialView: View;
   initialTableModel: string | null;
   initialTasks: Task[];
+  initialChanges: SandboxChange[];
+  initialSandboxes: SandboxRow[];
+  initialSandboxSettings: { ours: string | null; cap: number; paths: string };
+  initialSandbox: string | null;
 }) {
   const supabase = useMemo(() => browserClient(), []);
-  const [members, setMembers] = useState(initialMembers);
+  // Which clients have a copy of their own is kept apart from the people (clients can read those), and laid over
+  // them here for the team.
+  const boxes = useRef(new Map(initialSandboxes.map((b) => [b.member_id, b])));
+  const boxed = useCallback((list: Member[]) => list.map((m) => {
+    const b = boxes.current.get(m.id);
+    return { ...m, client_mode: b?.mode ?? "chat", sandbox_branch: b?.branch ?? null, sandbox_url: b?.url ?? null } as Member;
+  }), []);
+  const [members, setMembersRaw] = useState(() => boxed(initialMembers));
+  const setMembers = useCallback((next: Member[] | ((prev: Member[]) => Member[])) => setMembersRaw((prev) => boxed(typeof next === "function" ? next(prev) : next)), [boxed]);
   const [chats, setChats] = useState(initialChats);
   const [messages, setMessages] = useState(initialMessages);
   const [decisions, setDecisions] = useState(initialDecisions);
   const [jobs, setJobs] = useState(initialJobs);
   const [tasks, setTasks] = useState(initialTasks);
+  // Clients' own copies: what each changed there, whose copy is open in the middle, and where the versions open.
+  const [changes, setChanges] = useState(initialChanges);
+  const [sandboxOf, setSandboxOf] = useState<string | null>(initialSandbox);
+  const [links, setLinks] = useState(initialSandboxSettings);
   // When this person last cleared the list of work: what finished before then is not shown to them.
   const [clearedAt, setClearedAt] = useState<string | null>(initialMembers.find((m) => m.id === me.id)?.tasks_cleared_at ?? null);
   const [connections, setConnections] = useState(initialConnections);
@@ -170,7 +187,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const shown = useRef(0);
   const catchUp = useCallback(async () => {
     const mine = ++reads.current;
-    const [{ data: recent }, { data: inFlight }, { data: ds }, { data: rq }, { data: ns }, { data: cs }, { data: tk }] = await Promise.all([
+    const [{ data: recent }, { data: inFlight }, { data: ds }, { data: rq }, { data: ns }, { data: cs }, { data: tk }, { data: sc }, { data: bx }] = await Promise.all([
       supabase.from("messages").select(MESSAGE_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(100),
       supabase.from("jobs").select(JOB_COLUMNS).eq("table_id", table.id).in("status", ["queued", "running", "waiting", "failed"]).order("created_at", { ascending: false }).limit(50),
       supabase.from("decisions").select(DECISION_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(100),
@@ -178,6 +195,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       supabase.from("notes").select(NOTE_COLUMNS).eq("table_id", table.id),
       supabase.from("connections").select(CONNECTION_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(60),
       supabase.from("tasks").select(TASK_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(40),
+      supabase.from("sandbox_changes").select(CHANGE_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(120),
+      supabase.from("sandboxes").select(SANDBOX_COLUMNS).eq("table_id", table.id),
     ]);
     if (mine < shown.current) return;
     // The table was closed, or this person was taken off it, with no word reaching this page.
@@ -186,6 +205,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (mine < shown.current) return;
     shown.current = mine;
     if (tk) setTasks(tk as Task[]);
+    if (sc) setChanges(sc as SandboxChange[]);
+    if (bx) { boxes.current = new Map((bx as SandboxRow[]).map((b) => [b.member_id, b])); setMembers((prev) => [...prev]); }
     if (recent) setMessages((prev) => {
       const have = new Set(prev.map((m) => m.id));
       const fresh = (recent as Message[]).filter((m) => !have.has(m.id));
@@ -232,6 +253,13 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       } else if (name === "jobs") {
         const j = record as unknown as Job;
         setJobs((prev) => [...prev.filter((x) => x.id !== j.id), j]);
+      } else if (name === "sandboxes") {
+        const b = record as unknown as SandboxRow;
+        boxes.current.set(b.member_id, b);
+        setMembers((prev) => [...prev]);
+      } else if (name === "sandbox_changes") {
+        const c = record as unknown as SandboxChange;
+        setChanges((prev) => [c, ...prev.filter((x) => x.id !== c.id)]);
       } else if (name === "tasks") {
         const t = record as unknown as Task;
         setTasks((prev) => [t, ...prev.filter((x) => x.id !== t.id)]);
@@ -375,6 +403,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       const c = url.searchParams.get("c");
       if (url.pathname.endsWith("/settings")) setView(self.role === "owner" ? "settings" : "logs");
       else if (url.pathname.endsWith("/activity")) setView("logs");
+      else if (url.searchParams.get("sandbox")) { setSandboxOf(url.searchParams.get("sandbox")); setView("sandbox"); }
       else if (url.searchParams.get("side") === "client") setView("client");
       else if (c) { if (c !== "general") setChatId(c); setView("chat"); }
       else setView("table");
@@ -491,7 +520,14 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const shownTasks = tasks
     .filter((t) => t.status === "working" || !clearedAt || after(t.finished_at ?? t.created_at, clearedAt))
     .sort((a, b) => Number(b.status === "working") - Number(a.status === "working") || (b.finished_at ?? b.created_at).localeCompare(a.finished_at ?? a.created_at));
-  const noSide = view === "settings" || view === "logs" || (view === "chat" && shownTasks.length === 0);
+  // A client's changes waiting for the team's answer show in the work panel too, so nobody has to go looking.
+  const toReview = members.filter((m) => m.role === "client" && m.client_mode === "sandbox")
+    .map((m) => ({ m, n: changes.filter((c) => c.member_id === m.id && c.status === "ready" && !c.verdict).length })).filter((x) => x.n > 0);
+  function openSandbox(id: string) {
+    setSandboxOf(id); setPersonId(null); setDrawerOpen(false); setInboxOpen(false); setView("sandbox");
+    window.history.pushState(null, "", `/t/${table.id}?sandbox=${id}`);
+  }
+  const noSide = view === "settings" || view === "logs" || view === "sandbox" || (view === "chat" && shownTasks.length === 0 && toReview.length === 0);
   async function clearTasks() {
     // At once, to the newest time the server has given for a task: never this computer's own clock, which may be off.
     const newest = tasks.reduce((m, t) => { const x = t.finished_at ?? t.created_at; return !m || after(x, m) ? x : m; }, clearedAt ?? "");
@@ -531,7 +567,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       <ClientPage key={seen.id} table={{ id: table.id, name: tableName }} me={{ id: seen.id, display_name: seen.display_name, color: seen.color }}
         initialRequests={requests.filter((r) => r.member_id === seen.id)} initialEvents={[]} initialUpdates={[]} initialLines={[]}
         initialConnections={connections.filter((c) => c.member_id === seen.id && !c.revoked_at)} initialJobs={[]}
-        viewer={{ onBack: () => {}, preview: true }} />
+        viewer={{ onBack: () => {}, preview: true }} start="tree" />
     );
   };
 
@@ -543,7 +579,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         <ClientPage key={seen.id} table={{ id: table.id, name: tableName }} me={{ id: seen.id, display_name: seen.display_name, color: seen.color }}
           initialRequests={requests.filter((r) => r.member_id === seen.id)} initialEvents={[]} initialUpdates={[]} initialLines={[]}
           initialConnections={connections.filter((c) => c.member_id === seen.id && !c.revoked_at)} initialJobs={[]}
-          viewer={{ onBack: goHome, others: clients, onPick: setClientId }} />
+          viewer={{ onBack: goHome, others: clients, onPick: setClientId }} start="tree" />
       );
     }
     return (
@@ -645,6 +681,13 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 <ClientPortal clients={clients} onPeek={setPeek} onEnter={() => go("client", `${base}?side=client`)} />
               </>
             )}
+          </main>
+        )}
+        {view === "sandbox" && sandboxOf && byId.get(sandboxOf) && (
+          <main className={styles.main}>
+            <SandboxReview table={{ id: table.id, name: tableName }} me={self} client={byId.get(sandboxOf)!} changes={changes} jobs={jobs} onStop={(id) => { supabase.rpc("stop_job", { job: id }).then(() => catchUp()); }} links={links} onLinks={setLinks}
+              onBox={(b) => { boxes.current.set(b.member_id, { ...(boxes.current.get(b.member_id) ?? { member_id: b.member_id, mode: "chat", branch: "", url: null }), ...b }); setMembers((prev) => [...prev]); }}
+              onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) openChat(t.chat_id); else goHome(); }} />
           </main>
         )}
         {(view === "settings" || view === "logs") && (
@@ -787,15 +830,15 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           </div>
         </main>
 
-        {view === "settings" || view === "logs" ? null : view === "table" ? (
+        {view === "settings" || view === "logs" || view === "sandbox" ? null : view === "table" ? (
           <aside className={`${styles.inbox} ${inboxOpen ? styles.inboxOpen : ""}`} aria-label="Usage">
             <div className={styles.inboxHead}><div className={styles.inboxTitle}>Usage</div></div>
             <div className={styles.inboxList}>
               <UsagePanel members={members} connections={connections} />
             </div>
           </aside>
-        ) : shownTasks.length > 0 ? (
-          <WorkPanel tasks={shownTasks} jobs={jobs} members={byId} aiWord={aiWord} open={inboxOpen}
+        ) : shownTasks.length > 0 || toReview.length > 0 ? (
+          <WorkPanel review={toReview.map((x) => ({ id: x.m.id, name: x.m.display_name.split(" ")[0], n: x.n }))} onReview={openSandbox} tasks={shownTasks} jobs={jobs} members={byId} aiWord={aiWord} open={inboxOpen}
             onOpenChat={(id) => openChat(id)} onClear={clearTasks}
             onStop={(id) => { supabase.rpc("stop_job", { job: id }).then(() => catchUp()); }} />
         ) : null}
@@ -805,7 +848,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         <PersonWindow table={{ id: table.id, name: tableName }} me={self} person={byId.get(personId)!} connections={connections} here={online.has(personId)} edit={editingMe && personId === me.id} members={members}
           onClose={() => setPersonId(null)}
           onSaved={(m) => setMembers((prev) => prev.map((x) => (x.id === m.id ? { ...x, ...m } : x)))}
-          onGone={(id) => setMembers((prev) => prev.filter((x) => x.id !== id))} />
+          onGone={(id) => setMembers((prev) => prev.filter((x) => x.id !== id))} onSandbox={openSandbox}
+          waiting={changes.filter((c) => c.member_id === personId && c.status === "ready" && !c.verdict).length} />
       )}
       {inviting && <Invite tableId={table.id} onClose={() => setInviting(false)} />}
       {connectOpen && (
