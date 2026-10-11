@@ -404,6 +404,8 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
                   <div className={styles.back}>
                     {speaker("team", { ...shown, testid: "status" })}
                     {told(r.id).map(answers)}
+                    {/* Until the team says something, the line is not left empty. */}
+                    {told(r.id).length === 0 && shown.words === "With the team" && <div className={styles.waiting} data-testid="waiting">They have your message. Their answer will show here.</div>}
                   </div>
                 </div>
               );
