@@ -133,3 +133,11 @@
   transform: rotate(-24deg);
 }
 .crown svg { width: 100%; height: 100%; }
+
+/* Anything on the table that opens a window: it says so under the pointer, and to the keyboard. */
+.open { cursor: pointer; font: inherit; color: inherit; }
+button.open { background: none; border: 0; padding: 0; }
+button.client.open { border: 1px solid var(--line); background: light-dark(oklch(0.97 0.012 120), oklch(0.25 0.012 120)); padding: 7px 16px 7px 7px; }
+.person.open { border-radius: 16px; padding: 6px 10px; margin: -6px -10px; transition: background-color 0.15s ease; }
+.person.open:hover, button.client.open:hover { background: var(--hover); }
+.open:focus-visible { outline: 2px solid oklch(0.58 0.08 170 / 0.5); outline-offset: 3px; }

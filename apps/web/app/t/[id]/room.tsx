@@ -9,6 +9,8 @@ import { AI_NAME } from "@/components/ai-logo";
 import { Mark } from "@/components/mark";
 import { browserClient } from "@/lib/supabase/browser";
 import { Inline } from "@/lib/inline";
+import { AttachButtons, AttachTray, Files, dropHandlers, useAttach } from "./attach";
+import { AiWindow, TableWindow } from "./seat-windows";
 import { Time } from "@/components/time";
 import { Answer } from "./answer";
 import { ChatList } from "./chat-list";
@@ -116,6 +118,11 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const [online, setOnline] = useState<Set<string>>(() => new Set([me.id]));
   const [live, setLive] = useState(false);
   const [gone, setGone] = useState(false);
+  // What is waiting to go with the next message, and the windows of an AI and of the table.
+  const attach = useAttach(supabase, table.id, me.id);
+  const [aiOf, setAiOf] = useState<string | null>(null);
+  const [tableOpen, setTableOpen] = useState(false);
+  const [slashAt, setSlashAt] = useState(0);
   const [draft, setDraft] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const [inboxOpen, setInboxOpen] = useState(false);
@@ -230,7 +237,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       if (!record) return;
       if (name === "messages") {
         const m = record as unknown as Message;
-        setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]));
+        setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev.map((x) => (x.id === m.id ? { ...x, ...m } : x)) : [...prev, m]));
         if (!known.current.has(m.member_id)) refreshMembers();
       } else if (name === "members") {
         const { id, display_name, role, color, created_at, avatar, name_color, status, bubble, test } = record as unknown as Member;
@@ -266,7 +273,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         setNotes((prev) => [...prev.filter((x) => x.id !== n.id), n]);
       } else if (name === "connections") {
         const c = record as unknown as Connection;
-        setConnections((prev) => [...prev.filter((x) => x.id !== c.id), c]);
+        setConnections((prev) => [...prev.filter((x) => x.id !== c.id), { ...prev.find((x) => x.id === c.id), ...c }]);
       } else if (name === "table_ai") {
         setTableModel(((record as { model?: string | null }).model) ?? null);
       } else if (name === "requests") {
@@ -421,7 +428,29 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
   }
 
+  // A message with things attached: they are uploaded first, then the message carries them.
+  async function sendFiles(ask = false) {
+    if (!chat || attach.busy) return;
+    const body = draft.trim();
+    const files = await attach.upload();
+    if (!files) return;
+    const { data, error } = ask
+      ? await supabase.rpc("ask_table", { c: chat.id, body, files })
+      : await supabase.rpc("send_with_files", { c: chat.id, body, files });
+    if (error) return setNotice(error.message);
+    attach.clear();
+    setDraft("");
+    setNotice("");
+    requestAnimationFrame(grow);
+    atBottom.current = true;
+    const id = ask ? (data as { message_id: string }).message_id : (data as string);
+    const { data: row } = await supabase.from("messages").select(MESSAGE_COLUMNS).eq("id", id).single();
+    if (row) setMessages((prev) => (prev.some((m) => m.id === (row as Message).id) ? prev.map((m) => (m.id === (row as Message).id ? (row as Message) : m)) : [...prev, row as Message]));
+    if (ask) catchUp();
+  }
+
   async function send() {
+    if (attach.pending.length) return sendFiles();
     const body = draft.trim();
     if (!body || !chat) return;
     setDraft("");
@@ -448,6 +477,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   }
 
   async function askTable() {
+    if (attach.pending.length) return sendFiles(true);
     const body = draft.trim();
     if (!body || !chat) return;
     setDraft("");
@@ -465,6 +495,17 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (!res.answered_by) setNotice("No AI is connected at this table yet, so nobody will answer. Connect yours from the table (press Longtable, top left).");
     // Learn about the job straight away, so the room keeps checking until the answer lands even if a push is lost.
     else catchUp();
+  }
+
+  // Their own AI's commands and skills, offered while the box holds only "/" and the start of a name.
+  const slashWord = draft.match(/^\/([A-Za-z0-9:_-]*)$/)?.[1];
+  const slash = slashWord === undefined ? [] : (myConnection?.commands ?? []).filter((c) => c.name.toLowerCase().includes(slashWord.toLowerCase()))
+    .sort((x, y) => Number(y.name.toLowerCase().startsWith(slashWord.toLowerCase())) - Number(x.name.toLowerCase().startsWith(slashWord.toLowerCase())) || x.name.localeCompare(y.name)).slice(0, 8);
+  const slashIndex = Math.min(slashAt, Math.max(0, slash.length - 1));
+  function pickSlash(name: string) {
+    setDraft(`/${name} `);
+    setSlashAt(0);
+    requestAnimationFrame(() => { grow(); inputRef.current?.focus(); });
   }
 
   async function disconnect(id: string) {
@@ -582,7 +623,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         <ClientPage key={seen.id} table={{ id: table.id, name: tableName }} me={{ id: seen.id, display_name: seen.display_name, color: seen.color }}
           initialRequests={requests.filter((r) => r.member_id === seen.id)} initialEvents={[]} initialUpdates={[]} initialLines={[]}
           initialConnections={connections.filter((c) => c.member_id === seen.id && !c.revoked_at)} initialJobs={[]}
-          viewer={{ onBack: goHome, others: clients, onPick: setClientId, acting: !!seen.test && self.role === "owner",
+          viewer={{ onBack: goHome, others: clients, onPick: setClientId, acting: !!seen.test && self.role === "owner", uploader: self.id,
             onTest: self.role === "owner" && !testClient ? addTest : undefined, onRemoveTest: seen.test && self.role === "owner" ? removeTest : undefined }} />
       );
     }
@@ -684,7 +725,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               onModel={async (conn, model) => {
                 setConnections((prev) => prev.map((c) => (c.id === conn ? { ...c, model_choice: model || null } : c)));
                 await supabase.rpc("set_model", { conn, model });
-              }} onInvite={self.role === "owner" ? () => setInviting(true) : undefined} />
+              }} onInvite={self.role === "owner" ? () => setInviting(true) : undefined}
+              onPerson={(id) => openPerson(id)} onAi={setAiOf} onTable={() => setTableOpen(true)} />
           </main>
         )}
         {view === "sandbox" && sandboxOf && byId.get(sandboxOf) && (
@@ -749,6 +791,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                         <div className={styles.messageAvatar} style={{ background: who?.color ?? "var(--faint)" }}><Face who={who} name={name} /></div>
                         <div className={styles.bubble} data-bubble={who?.bubble ?? "stone"}>{m.body}</div>
                       </div>
+                      {m.meta?.files?.length ? <div className={styles.clientFiles}><Files supabase={supabase} files={m.meta.files} /></div> : null}
                       <div className={styles.clientTools}>
                         {req && shown && <span className={`${styles.requestPill} ${shown.pill}`} data-testid="request-status">{shown.words}</span>}
                         {req && shown && offer && (
@@ -772,6 +815,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                     <div className={styles.sayCol}>
                       {!mine && <div className={styles.sayName} style={{ color: who?.name_color || undefined }}>{name}</div>}
                       <div className={styles.bubble} data-bubble={who?.bubble ?? "stone"}><Inline text={m.body} /></div>
+                      {m.meta?.files?.length ? <div className={styles.sayFiles}><Files supabase={supabase} files={m.meta.files} /></div> : null}
                       <div className={styles.sayWhen}>
                         {m.state === "failed" ? <span className={styles.failed}>Not sent</span> : <Time iso={m.created_at} />}
                       </div>
@@ -803,7 +847,18 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
             </div>
           </div>
 
-          <div className={styles.composerWrap}>
+          <div className={styles.composerWrap} {...dropHandlers(attach)}>
+            <AttachTray a={attach} />
+            {slash.length > 0 && (
+              <div className={styles.slash} role="listbox" aria-label={`Your ${aiWord(me.id)}'s own commands`} data-testid="slash-menu">
+                {slash.map((c, i) => (
+                  <button key={c.name} type="button" role="option" aria-selected={i === slashIndex} className={`${styles.slashItem} ${i === slashIndex ? styles.slashOn : ""}`}
+                    onMouseEnter={() => setSlashAt(i)} onMouseDown={(e) => { e.preventDefault(); pickSlash(c.name); }}>
+                    <b>/{c.name}</b><span>{c.about || (c.kind === "skill" ? "A skill of yours" : "A command of yours")}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <form className={styles.composer} onSubmit={(e) => { e.preventDefault(); send(); }}>
               <textarea
                 ref={inputRef}
@@ -815,6 +870,12 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 aria-label="Message the table"
                 onChange={(e) => { setDraft(e.target.value); grow(); }}
                 onKeyDown={(e) => {
+                  // With the list of their own commands open, the arrows move through it and Enter or Tab takes one.
+                  if (slash.length > 0) {
+                    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); return setSlashAt((slashIndex + (e.key === "ArrowDown" ? 1 : slash.length - 1)) % slash.length); }
+                    if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") { e.preventDefault(); return pickSlash(slash[slashIndex].name); }
+                    if (e.key === "Escape") { e.preventDefault(); return setDraft(""); }
+                  }
                   if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                     e.preventDefault();
                     if (e.ctrlKey || e.metaKey) askTable();
@@ -822,7 +883,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                   }
                 }}
               />
-              <button className="btn" disabled={!draft.trim()}>Send</button>
+              <AttachButtons a={attach} />
+              <button className="btn" disabled={(!draft.trim() && attach.pending.length === 0) || attach.busy || attach.recording}>Send</button>
             </form>
             <div className={styles.composerTools}>
               <button className={styles.toolLink} onClick={() => { setAskingFor(null); setAsking(true); }}>Make a poll</button>
@@ -853,6 +915,33 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           waiting={changes.filter((c) => c.member_id === personId && c.status === "ready" && !c.verdict && !c.test).length} />
       )}
       {inviting && <Invite tableId={table.id} onClose={() => setInviting(false)} />}
+      {aiOf && byId.get(aiOf) && (() => {
+        const all = connections.filter((c) => c.member_id === aiOf);
+        const conn = all.find((c) => !c.revoked_at) ?? [...all].sort((a, b) => (b.revoked_at ?? "").localeCompare(a.revoked_at ?? ""))[0] ?? null;
+        const on = !!conn && !conn.revoked_at && !!conn.last_seen && Date.now() - new Date(conn.last_seen).getTime() < 75000;
+        return (
+          <AiWindow me={self} person={byId.get(aiOf)!} conn={conn} on={on} busy={on && jobs.some((j) => j.member_id === aiOf && (j.status === "running" || j.status === "queued"))}
+            onClose={() => setAiOf(null)} onConnect={() => setConnectOpen(true)} onDisconnect={disconnect}
+            onModel={async (id, model) => {
+              setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, model_choice: model || null } : c)));
+              await supabase.rpc("set_model", { conn: id, model });
+            }}
+            onOptions={async (id, patch) => {
+              setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+              await supabase.rpc("set_connection_options", { conn: id, open: patch.open_paths ?? null, share: patch.share_paths ?? null });
+            }} />
+        );
+      })()}
+      {tableOpen && (() => {
+        const onNow = connections.filter((c) => !c.revoked_at && !!c.last_seen && Date.now() - new Date(c.last_seen).getTime() < 75000 && byId.get(c.member_id)?.role !== "client");
+        const w = onNow.find((c) => byId.get(c.member_id)?.role === "owner") ?? onNow[0];
+        return (
+          <TableWindow me={self} tableName={tableName} writer={w && byId.get(w.member_id) ? { person: byId.get(w.member_id)!, conn: w } : null}
+            tableModel={tableModel} people={members.filter((m) => m.role !== "client").length} aisOn={onNow.length}
+            onTableModel={async (model) => { setTableModel(model || null); await supabase.rpc("set_table_model", { t: table.id, model }); }}
+            onSettings={self.role === "owner" ? () => go("settings", `${base}/settings`) : undefined} onClose={() => setTableOpen(false)} />
+        );
+      })()}
       {connectOpen && (
         <ConnectModal tableId={table.id} tableName={table.name} connected={myConnection?.kind ?? null} onClose={() => setConnectOpen(false)} />
       )}

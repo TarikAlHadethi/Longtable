@@ -14,6 +14,7 @@ import {
   type ClientLine, type ClientUpdate, type Connection, type Job, type Request, type RequestEvent, type RequestStatus as Status,
 } from "./types";
 import { ProfileMenu } from "./profile-menu";
+import { AttachButtons, AttachTray, Files, dropHandlers, useAttach } from "./attach";
 import room from "./room.module.css";
 import styles from "./client.module.css";
 
@@ -78,7 +79,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   // Set when someone on the team is looking at this client's page. They see what the client sees and can use none of
   // it. The client's chat with their own assistant is not the team's to read, so it is not here.
   // acting: the owner is using the table's test client, so the page works; otherwise a viewer only looks.
-  viewer?: { onBack: () => void; others?: { id: string; display_name: string }[]; onPick?: (id: string) => void; preview?: boolean; acting?: boolean; onTest?: () => void; onRemoveTest?: () => void };
+  viewer?: { onBack: () => void; others?: { id: string; display_name: string }[]; onPick?: (id: string) => void; preview?: boolean; acting?: boolean; uploader?: string; onTest?: () => void; onRemoveTest?: () => void };
 }) {
   const supabase = useMemo(() => browserClient(), []);
   const [requests, setRequests] = useState(initialRequests);
@@ -90,6 +91,8 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   const [connectOpen, setConnectOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [draft, setDraft] = useState("");
+  // What they attach goes into the folder of whoever is really signed in: themselves, or the owner trying their side.
+  const attach = useAttach(supabase, table.id, viewer?.uploader ?? me.id);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [gone, setGone] = useState(false);
@@ -257,12 +260,15 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   // straight to the team.
   async function say() {
     const body = draft.trim();
-    if (!body || busy) return;
+    if ((!body && !attach.pending.length) || busy || attach.busy) return;
     setBusy(true);
     setError("");
-    const { data, error } = await supabase.rpc("client_say", { t: table.id, body });
+    const files = await attach.upload();
+    if (!files) return setBusy(false);
+    const { data, error } = await supabase.rpc("client_say", { t: table.id, body, files });
     setBusy(false);
     if (error) return setError(sentence(error.message));
+    attach.clear();
     setDraft("");
     requestAnimationFrame(grow);
     // When their copy could not take it, the words went to the team instead, and they are told why.
@@ -405,6 +411,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
               return (
                 <div key={item.id} className={styles.turn} data-request={r.id}>
                   {myWords(r.body)}
+                  {r.files?.length ? <div className={styles.mineFiles}><Files supabase={supabase} files={r.files} /></div> : null}
                   <div className={styles.back}>
                     {speaker("team", { ...shown, testid: "status" })}
                     {told(r.id).map(answers)}
@@ -421,12 +428,14 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
 
         <div className={styles.foot}>
           <div className={styles.col}>
-            <form className={room.composer} onSubmit={(e) => { e.preventDefault(); if (!locked) say(); }}>
+            {!locked && <AttachTray a={attach} />}
+            <form className={room.composer} onSubmit={(e) => { e.preventDefault(); if (!locked) say(); }} {...(locked ? {} : dropHandlers(attach))}>
               <textarea ref={inputRef} className={room.input} rows={1} value={draft} disabled={locked} maxLength={4000}
                 placeholder={locked ? "Only they can write here" : sandbox?.on ? "Say what you want changed" : "Ask for something, in your own words"} aria-label="Ask the team"
                 onChange={(e) => { setDraft(e.target.value); grow(); }}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (!locked) say(); } }} />
-              <button className="btn" disabled={locked || busy || !draft.trim()}>Send</button>
+              {!locked && <AttachButtons a={attach} disabled={busy} />}
+              <button className="btn" disabled={locked || busy || attach.busy || attach.recording || (!draft.trim() && attach.pending.length === 0)}>Send</button>
             </form>
             {/* How many changes are left only matters when it is nearly none. */}
             {sandbox?.on && !viewer && sandbox.left !== null && sandbox.left <= 3 && (

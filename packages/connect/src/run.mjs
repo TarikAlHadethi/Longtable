@@ -4,6 +4,7 @@
 // with no code and no tools.
 
 import { layPointed, pointedPaths, pointedSystem } from "./pointed.mjs";
+import { attachedPrompt, commandPrompt, fetchAttachments, loadCommand, materialsPrompt, scanCommands, shareable } from "./extras.mjs";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, uptime } from "node:os";
 import { isAbsolute, join, normalize, relative, resolve } from "node:path";
@@ -107,7 +108,7 @@ export const KINDS = {
 
 const NL = String.fromCharCode(10);
 // Text from the table, a file or another AI is fenced so it reads as information. Nothing inside may close a fence.
-const inert = (t) => String(t ?? "").replace(/<<<(TABLE|CODE|YOURS|PART)\b|\b(TABLE|CODE|YOURS|PART)>>>/g, "[marker]");
+const inert = (t) => String(t ?? "").replace(/<<<(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT)\b|\b(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT)>>>/g, "[marker]");
 // The conversation as it is, newest kept: every message whole, back to wherever a generous size runs out. There is
 // no count of messages: a long talk between people is all there.
 function recent(history, room) {
@@ -221,7 +222,8 @@ export function listenPrompt(job) {
   // The conversation as far back as a generous size reaches, never a fixed number of messages.
   const before = recent(job.history, 48000).map((m) => `${who(m)}: ${short(m.body, 3000)}`).join(NL);
   const tasks = (job.tasks || []).map((t, i) => `T${i + 1}: "${t.title}" (${t.status === "working" ? "being worked on now" : t.status}, asked by ${t.asked_by || "someone"}, in ${t.chat})`).join(NL);
-  return ["<<<TABLE", inert([facts(job), "", `Work the AIs have taken on lately:${NL}${tasks || "(none)"}`, "", before || "(nothing earlier)", `${job.asker}: ${short(job.question, 6000)}`].join(NL)), "TABLE>>>"].join(NL);
+  return ["<<<TABLE", inert([facts(job), "", `Work the AIs have taken on lately:${NL}${tasks || "(none)"}`, "", before || "(nothing earlier)", `${job.asker}: ${short(job.question, 6000)}`,
+    ...(job.command ? ["", `That message runs ${job.asker}'s own AI command /${job.command.name}${job.command.about ? `, which is for: ${job.command.about}` : ""}. Running a command is asking for it to be done: choose look, or work when the command is about changing the project. Never silent, never reply.`] : [])].join(NL)), "TABLE>>>"].join(NL);
 }
 export function listenSystem(job) {
   return [
@@ -717,8 +719,23 @@ async function work(rpc, seat, engines, job) {
         if (seat.source) neverCommit(seat.table_id, YOURS);
         laid = layPointed(join(dir, YOURS), at, { reading: !doing });
         log(`job ${job.job_id}: opened ${laid.files.length + laid.dirs.length + laid.copied.length} pointed place(s), left ${laid.skipped.length}`);
+        // And, while their person leaves it on, the text of them for the other AIs on this same request.
+        if (job.share_paths && ["plan", "work", "look", "answer"].includes(job.kind)) {
+          const files = shareable(laid);
+          if (files.length) { try { await rpc("runner_share", { token: seat.token, job: job.job_id, files }); log(`job ${job.job_id}: shared ${files.length} file(s) with the other AIs`); } catch (e) { log(`sharing failed: ${e.message}`); } }
+        }
       }
     }
+    // What was attached in the chat, fetched to where this AI can open it.
+    let attached = null;
+    if (job.attachments?.length && seat.kind === "claude") {
+      if (seat.source) neverCommit(seat.table_id, YOURS);
+      attached = await fetchAttachments(rpc.base, seat.table_id, job.attachments, join(dir, YOURS));
+      log(`job ${job.job_id}: ${attached.here.length} attachment(s) here, ${attached.not.length} not`);
+    }
+    // One of their own commands or skills, when their message runs one.
+    const cmd = job.command?.mine ? loadCommand(seat, job.question) : null;
+    if (cmd) log(`job ${job.job_id}: running their /${cmd.name}`);
     const result = await ask({
       claude,
       cwd: dir,
@@ -727,7 +744,9 @@ async function work(rpc, seat, engines, job) {
       // What it is doing reaches the room within a few seconds of changing, and no more often than that.
       onNote: (n) => { if (n !== note) { note = n; if (Date.now() - told > 4000) tell(); } },
       control,
-      prompt: yours(job) + (doing ? `${buildPrompt(job)}\n\n${DOING(branch)}` : buildPrompt(job)) + fromSandbox(seat, job),
+      prompt: yours(job) + (cmd ? commandPrompt(job.me, cmd) : "") + (doing ? `${buildPrompt(job)}\n\n${DOING(branch)}` : buildPrompt(job)) + fromSandbox(seat, job)
+        + materialsPrompt(job.materials) + attachedPrompt(attached, dir)
+        + (job.command && !job.command.mine ? `${NL}${NL}${job.asker}'s message runs their own AI's command /${job.command.name}${job.command.about ? ` (${job.command.about})` : ""}. Their own AI has its instructions; you do not. Help with what it is for.` : ""),
       system: [systemFor({ ...job, doing }), ...(laid ? pointedSystem(job.me, laid, dir) : [])].join(NL),
       addDirs: laid ? laid.dirs : [],
       schema: KINDS[job.kind].schema,
@@ -801,6 +820,18 @@ export function runningConnection() {
   }
 }
 
+// The names of this person's own commands and skills, and a line on each, so "/" at the table can offer them. Never
+// what is in them: that stays on this computer and is read only when they run one.
+async function tellCommands(rpc, seat) {
+  try {
+    const list = scanCommands(seat).map(({ name, about, kind }) => ({ name, about, kind }));
+    const key = JSON.stringify(list);
+    if (seat.told === key) return;
+    await rpc("runner_commands", { token: seat.token, list });
+    seat.told = key;
+  } catch (e) { log(`commands not sent: ${e.message}`); }
+}
+
 export async function runLoop({ pollMs = 2000 } = {}) {
   const config = readConfig();
   if (!config.connections?.length) throw new Error("Not connected to any table yet.");
@@ -825,6 +856,7 @@ export async function runLoop({ pollMs = 2000 } = {}) {
       try {
         const who = await rpc("runner_hello", { token: s.token });
         log(`at "${who.table_name}" for ${who.member_name}`);
+        tellCommands(rpc, s);
         break;
       } catch (e) {
         log(`hello failed: ${e.message}`);
@@ -834,6 +866,8 @@ export async function runLoop({ pollMs = 2000 } = {}) {
     }
   }
   if (seats.every((s) => s.gone)) throw new Error("Every table has taken this connection off. Connect again from Longtable.");
+  // The person's commands change as they write new ones: the table hears again every few minutes.
+  setInterval(() => { for (const s of seats) if (!s.gone) tellCommands(rpc, s); }, 5 * 60 * 1000).unref?.();
   // Two lanes on one connection: long work in one, everything quick in the other, so an hour of work never keeps
   // the table from hearing people or answering a question.
   await Promise.all([lane("light"), lane("heavy")]);

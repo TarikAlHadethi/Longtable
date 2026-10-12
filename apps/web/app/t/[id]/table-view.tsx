@@ -20,7 +20,7 @@ const QUIET_MS = 75 * 1000;
 
 // The table's home: who is at the table, the AI each person brought and the model it is running, and how they all
 // meet at the table. Everything hangs from one centred column, so the people always sit squarely over the table.
-export function TableView({ table, me, members, connections, jobs, online, messages, chats, onOpenChat, onConnect, onInvite, onModel, tableModel, onTableModel }: {
+export function TableView({ table, me, members, connections, jobs, online, messages, chats, onOpenChat, onConnect, onInvite, onModel, tableModel, onTableModel, onPerson, onAi, onTable }: {
   table: { id: string; name: string };
   me: Member;
   members: Member[];
@@ -35,7 +35,12 @@ export function TableView({ table, me, members, connections, jobs, online, messa
   onModel?: (conn: string, model: string) => void;
   tableModel: string | null;
   onTableModel: (model: string) => void;
+  // Every card on the table opens its own window.
+  onPerson: (id: string) => void;
+  onAi: (member: string) => void;
+  onTable: () => void;
 }) {
+  const keyOpen = (go: () => void) => (e: React.KeyboardEvent) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); go(); } };
   // A clock, so a seat goes quiet by itself when its computer is switched off.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -88,27 +93,27 @@ export function TableView({ table, me, members, connections, jobs, online, messa
               const plan = prettyPlan(seat?.conn.limits?.plan);
               return (
                 <div className={s.col} key={m.id} style={{ "--i": i } as React.CSSProperties} data-person={m.display_name}>
-                  <div className={s.person}>
+                  <button type="button" className={`${s.person} ${s.open}`} onClick={() => onPerson(m.id)} aria-label={`${m.display_name}: open`}>
                     <span className={s.avatar} style={{ background: m.color }}>
                       <Face who={m} />
                       {m.role === "owner" && <span className={s.crown}><Crown size={26} /></span>}
                       <i className={online.has(m.id) ? s.here : s.away} />
                     </span>
                     <div className={s.name} style={{ color: m.name_color || undefined }}>{m.display_name}</div>
-                  </div>
+                  </button>
                   <div className={`${s.stem} ${seat?.on ? s.stemOn : ""}`} />
                   {seat ? (
-                    <div className={`${s.ai} ${s[seat.conn.kind]} ${seat.on ? "" : s.aiOff} ${isBusy ? s.aiBusy : ""}`}
-                      data-seat-ai={seat.conn.kind} data-seat-on={seat.on}>
+                    <div className={`${s.ai} ${s.open} ${s[seat.conn.kind]} ${seat.on ? "" : s.aiOff} ${isBusy ? s.aiBusy : ""}`}
+                      data-seat-ai={seat.conn.kind} data-seat-on={seat.on} role="button" tabIndex={0} onClick={() => onAi(m.id)} onKeyDown={keyOpen(() => onAi(m.id))}>
                       <div className={s.aiHead}>
                         <AiLogo kind={seat.conn.kind} size={26} />
                         <span className={`${s.dot} ${isBusy ? s.dotBusy : ""}`} title={!seat.on ? "Disconnected" : isBusy ? "Working" : "Connected"} />
                       </div>
                       <div className={s.aiName}>{AI_NAME[seat.conn.kind]}{plan ? ` ${plan}` : ""}{seat.on ? "" : " · disconnected"}</div>
                       {isBusy ? <div className={s.model}>Reading the code…</div>
-                        : <ModelPick kind={seat.conn.kind} value={seat.conn.model_choice ?? ""} text={modelText(seat.conn)} reported={seat.conn.limits?.models}
-                            className={s.model} canPick={mine && seat.on && !!onModel} onPick={(model) => onModel?.(seat.conn.id, model)} />}
-                      {mine && seat.removed && <button className={s.again} onClick={onConnect}>Connect again</button>}
+                        : <span onClick={(e) => e.stopPropagation()}><ModelPick kind={seat.conn.kind} value={seat.conn.model_choice ?? ""} text={modelText(seat.conn)} reported={seat.conn.limits?.models}
+                            className={s.model} canPick={mine && seat.on && !!onModel} onPick={(model) => onModel?.(seat.conn.id, model)} /></span>}
+                      {mine && seat.removed && <button className={s.again} onClick={(e) => { e.stopPropagation(); onConnect(); }}>Connect again</button>}
                     </div>
                   ) : mine ? (
                     <button className={s.plus} onClick={onConnect}>
@@ -149,13 +154,13 @@ export function TableView({ table, me, members, connections, jobs, online, messa
             })}
           </svg>
 
-          <div className={`${s.table} ${anyBusy ? s.tableBusy : ""}`}>
+          <div className={`${s.table} ${s.open} ${anyBusy ? s.tableBusy : ""}`} role="button" tabIndex={0} onClick={onTable} onKeyDown={keyOpen(onTable)} data-testid="table-card">
             <div className={s.tableTitle}>The Table</div>
             <Mark size={64} />
             {anyBusy ? <div className={s.tableModel}>Working on an answer…</div>
-              : writer ? <ModelPick kind={writer.seat!.conn.kind} value={tableModel ?? ""} reported={writer.seat!.conn.limits?.models} centre testid="table-model"
+              : writer ? <span onClick={(e) => e.stopPropagation()}><ModelPick kind={writer.seat!.conn.kind} value={tableModel ?? ""} reported={writer.seat!.conn.limits?.models} centre testid="table-model"
                   text={`${AI_NAME[writer.seat!.conn.kind]} ${tableText(writer.seat!.conn)}`.trim()}
-                  className={s.tableModel} canPick onPick={onTableModel} />
+                  className={s.tableModel} canPick onPick={onTableModel} /></span>
               : last ? <div className={`${s.tableModel} ${s.tableQuiet}`}>{AI_NAME[kindOfModel(last.meta?.model)]}{lastModel ? ` ${lastModel}` : ""}</div>
               : <div className={s.tableModel}>No AI connected yet</div>}
           </div>
@@ -165,10 +170,10 @@ export function TableView({ table, me, members, connections, jobs, online, messa
               <div className={s.clientStem} />
               <div className={s.clients}>
                 {clients.map((c) => (
-                  <div className={s.client} key={c.id}>
+                  <button type="button" className={`${s.client} ${s.open}`} key={c.id} onClick={() => onPerson(c.id)}>
                     <span className={s.clientAvatar} style={{ background: c.color }}><Face who={c} /></span>
-                    <div><b>{c.display_name}</b><span>{connections.some((x) => x.member_id === c.id && !x.revoked_at) ? "Client · assistant on" : "Client"}</span></div>
-                  </div>
+                    <div><b>{c.display_name}</b><span>{c.test ? "Not a real person" : connections.some((x) => x.member_id === c.id && !x.revoked_at) ? "Client · assistant on" : "Client"}</span></div>
+                  </button>
                 ))}
               </div>
             </>

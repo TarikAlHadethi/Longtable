@@ -508,3 +508,17 @@
 /* The right panel is already off to the side below 1180px, so windows no longer make room for it there. */
 @media (max-width: 1180px) { .shell { --pane-right: 0px; } }
 @media (max-width: 900px) { .shell { --pane-left: 0px; --pane-right: 0px; } }
+
+/* What a message carries sits under its bubble, on the bubble's side. */
+.sayFiles { grid-column: 2; grid-row: 3; }
+.say .sayFiles + .sayWhen { grid-row: 4; }
+.sayMine .sayFiles { grid-column: 1; justify-self: end; }
+.sayMine .sayFiles > div { justify-content: flex-end; }
+.clientFiles { padding-left: 38px; }
+/* The person's own commands, above the box while they type "/". */
+.slash { max-width: 720px; margin: 0 auto 8px; background: var(--card); border: 1px solid var(--line-strong); border-radius: 14px; padding: 6px; display: flex; flex-direction: column; gap: 2px;
+  box-shadow: 0 12px 32px oklch(0.2 0.01 70 / 0.12); animation: lt-rise 0.16s var(--ease-out) both; }
+.slashItem { display: flex; align-items: baseline; gap: 12px; text-align: left; border: 0; background: transparent; font: inherit; color: var(--ink); padding: 8px 10px; border-radius: 9px; cursor: pointer; min-width: 0; }
+.slashItem b { font-weight: 560; font-size: 15px; white-space: nowrap; }
+.slashItem span { font-size: 14px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.slashOn { background: var(--hover); }

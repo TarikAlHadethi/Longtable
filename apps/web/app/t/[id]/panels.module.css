@@ -87,3 +87,21 @@
 .sandboxLink span { font-size: 14px; color: var(--muted); }
 .swatch:disabled { opacity: 0.22; cursor: not-allowed; filter: grayscale(1); }
 .swatch:disabled:hover { transform: none; }
+
+/* The windows of an AI and of the table: the same centred window as a person's. */
+.seatMark { width: 84px; height: 84px; border-radius: 26px; display: grid; place-items: center; background: var(--card); border: 1px solid var(--line); margin-bottom: 8px; color: var(--ink); }
+.switches { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 2px 18px; }
+.switchRow { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 14px 0; cursor: pointer; }
+.switchRow + .switchRow { border-top: 1px solid var(--line); }
+.switchText { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.switchText b { font-size: 15.5px; font-weight: 560; }
+.switchText span { font-size: 14px; line-height: 1.45; color: var(--muted); }
+.switchOff { opacity: 0.55; cursor: default; }
+.switch { appearance: none; flex: none; width: 42px; height: 25px; border-radius: 999px; background: var(--line-strong); position: relative; cursor: pointer; margin: 2px 0 0; transition: background-color 0.18s ease; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 19px; height: 19px; border-radius: 50%; background: var(--card); box-shadow: 0 1px 3px oklch(0.2 0.01 70 / 0.25); transition: transform 0.18s var(--ease-out); }
+.switch:checked { background: var(--sage); }
+.switch:checked::after { transform: translateX(17px); }
+.switch:disabled { cursor: default; }
+.switch:focus-visible { outline: 2px solid oklch(0.58 0.08 170 / 0.45); outline-offset: 2px; }
+.steps { margin: 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; font-size: 15px; line-height: 1.45; color: var(--ink-2); }
+.steps li::marker { color: var(--faint); }

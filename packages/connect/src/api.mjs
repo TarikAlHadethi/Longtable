@@ -8,7 +8,10 @@ export async function fetchConfig(app) {
 }
 
 export function client({ supabaseUrl, publishableKey }) {
-  return async function rpc(fn, args) {
+  // Where Longtable's own storage is, so an attachment is only ever fetched from there.
+  rpc.base = supabaseUrl;
+  return rpc;
+  async function rpc(fn, args) {
     const res = await fetch(`${supabaseUrl}/rest/v1/rpc/${fn}`, {
       method: "POST",
       headers: { apikey: publishableKey, "Content-Type": "application/json" },
@@ -19,5 +22,5 @@ export function client({ supabaseUrl, publishableKey }) {
     try { body = text ? JSON.parse(text) : null; } catch { body = text; }
     if (!res.ok) throw new Error(body?.message || `Longtable said no (${res.status})`);
     return body;
-  };
+  }
 }

@@ -58,3 +58,7 @@
 
 /* What a request says while the team has not answered yet. */
 .waiting { font-size: 15px; line-height: 1.5; color: var(--muted); }
+
+/* What they attached, under their own words, on their side. */
+.mineFiles { display: flex; justify-content: flex-end; }
+.mineFiles > div { justify-content: flex-end; }
