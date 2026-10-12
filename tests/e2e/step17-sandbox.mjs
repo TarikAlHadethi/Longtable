@@ -66,7 +66,22 @@ const shot = async (page, name) => { if (process.env.SCREENSHOTS) { await wait(6
 const NL = /\r?\n/;
 try {
   const owner = await startTable(browser, `owner-${run}@example.test`, "Greeter", "Maya");
-  const elena = await joinTable(browser, await inviteLink(owner.page, "client"), `elena-${run}@example.test`, "Elena Ruiz");
+  // TEST_CLIENT=1 runs the whole thing with the owner's own test client in place of a real one, on a second page.
+  const TEST = !!process.env.TEST_CLIENT;
+  const WHO = TEST ? "Test client" : "Elena Ruiz";
+  const SLUG = TEST ? "longtable/sandbox-test-client-" : "longtable/sandbox-elena-ruiz-";
+  let elena;
+  if (TEST) {
+    await owner.page.click("[data-testid=client-portal]");
+    await owner.page.click("[data-testid=add-test-client]");
+    await owner.page.waitForSelector("[data-testid=remove-test-client]");
+    await owner.page.click("[data-testid=table-portal]");
+    await owner.page.waitForSelector("[data-testid=table-home]");
+    const side = await owner.context.newPage();
+    await side.goto(owner.page.url().split("?")[0] + "?side=client");
+    await side.waitForSelector("[data-testid=client-chat]");
+    elena = { page: side };
+  } else elena = await joinTable(browser, await inviteLink(owner.page, "client"), `elena-${run}@example.test`, "Elena Ruiz");
   runners.push(await connect(owner.page, homes[0]));
   await owner.page.waitForFunction(() => document.querySelectorAll("[data-ai='intro']").length >= 1, null, { timeout: 180000 });
   const token = await accessToken(owner.context);
@@ -75,7 +90,7 @@ try {
   const changes = async () => (await rest(token, `sandbox_changes?select=id,words,status,summary,detail,files,verdict,task_id&table_id=eq.${owner.tableId}&test=eq.false&order=created_at`)).body;
 
   // The owner gives her a copy, from her name in the list of people.
-  await owner.page.click("aside[aria-label=Menu] >> text=Elena Ruiz");
+  await owner.page.click(`aside[aria-label=Menu] [data-member="${WHO}"]`);
   await owner.page.click("[data-testid=open-sandbox]");
   await owner.page.waitForSelector("[data-testid=sandbox-review]");
   await shot(owner.page, "s1-owner-before-giving-a-copy");
@@ -87,7 +102,7 @@ try {
   // Step 2: the connection makes the branch and pushes it. No AI is asked anything.
   await owner.page.click("[data-testid=sandbox-make]");
   await owner.page.waitForSelector("[data-step='2'][data-done]", { timeout: 60000 });
-  const made = branchList().find((b) => b.startsWith("longtable/sandbox-elena-ruiz-"));
+  const made = branchList().find((b) => b.startsWith(SLUG));
   check("making the copy pushes its branch, one commit on top of the default one", !!made && git(scratch, "--git-dir", remote, "log", "--format=%s", "-1", made) === "A copy of its own"
     && show(`${made}:greet.js`) === show("main:greet.js"), { made });
   // Step 3: this scratch repository has no hosting, so the address is typed. Step 4 checks it opens with no sign-in.
@@ -97,7 +112,7 @@ try {
   await owner.page.waitForSelector("[data-step='4'][data-done]", { timeout: 30000 });
   check("it checked by itself that the address opens without a sign-in", true);
   // Step 5: a change of the owner's own, which the client never sees.
-  await owner.page.fill("input[aria-label='A change to try']", "Add a comment at the top of greet.js that says: checked by the team.");
+  await owner.page.fill("input[aria-label='A change to try']", "Change the greeting so it says: hello, checked by the team.");
   await owner.page.click("[data-testid=sandbox-setup] button:has-text('Try it')");
   await owner.page.waitForFunction(() => /is in the copy|changed nothing|did not work/.test(document.querySelector("[data-testid=setup-test]")?.textContent ?? ""), null, { timeout: 420000 });
   results.ownerTest = (await owner.page.textContent("[data-testid=setup-test]")).slice(0, 300);
@@ -107,6 +122,10 @@ try {
   await owner.page.check("[data-testid=setup-keys]");
   await shot(owner.page, "s2-owner-everything-is-in-place");
   await owner.page.click("[data-testid=sandbox-on]");
+  // What the owner tried is not the client's: the copy goes back to the product as it stands.
+  let clean = false;
+  for (let i = 0; i < 60 && !clean; i++) { clean = show(`${made}:greet.js`) === show("main:greet.js"); if (!clean) await wait(1000); }
+  check("the copy is given clean, without what the owner tried in it", clean, show(`${made}:greet.js`));
   await owner.page.click("button:has-text('Set up')");
   await owner.page.fill("#sb-ours", "https://greeter.example.test");
   await owner.page.click("form[aria-label='Set up the copy'] button:has-text('Save')");
@@ -126,7 +145,7 @@ try {
   check("she never saw the owner's test", (await elena.page.locator("[data-change]").count()) === 1 && !/checked by the team/.test(await elena.page.textContent("[data-testid=client-chat]")));
   const first = (await changes())[0];
   results.first = first;
-  const sandbox = branchList().find((b) => b.startsWith("longtable/sandbox-elena-ruiz-"));
+  const sandbox = branchList().find((b) => b.startsWith(SLUG));
   results.branches = branchList();
   check("her change is on the branch that is her copy", !!sandbox && /good morning/i.test(show(`${sandbox}:greet.js`) ?? ""), { branches: results.branches, file: sandbox && show(`${sandbox}:greet.js`) });
   check("the real product is untouched", show("main:greet.js").includes('"hello"'));
@@ -155,7 +174,7 @@ try {
   // The team looks at what she changed and takes it.
   await owner.page.goto(owner.page.url().split("?")[0] + "?c=general");
   await owner.page.waitForSelector("[data-testid=work-review]");
-  check("the owner is told there is something to look at, without going looking", /Elena changed/.test(await owner.page.textContent("[data-testid=work-review]")));
+  check("the owner is told there is something to look at, without going looking", (TEST ? /Test changed/ : /Elena changed/).test(await owner.page.textContent("[data-testid=work-review]")));
   await shot(owner.page, "s7-owner-told-there-is-something-to-look-at");
   await owner.page.click("[data-testid=work-review]");
   await owner.page.waitForSelector("[data-testid=sandbox-review] [data-testid=take]");
@@ -168,7 +187,7 @@ try {
   const tasks = (await rest(token, `tasks?select=title,branch,status,reference&table_id=eq.${owner.tableId}`)).body;
   results.tasks = tasks;
   const built = tasks[0]?.branch;
-  check("taking it starts the work of the team on a branch that is not her copy", tasks.length === 1 && /^From Elena: /.test(tasks[0].title) && built !== sandbox && tasks[0].reference?.branch === sandbox, tasks);
+  check("taking it starts the work of the team on a branch that is not her copy", tasks.length === 1 && (TEST ? /^From Test: / : /^From Elena: /).test(tasks[0].title) && built !== sandbox && tasks[0].reference?.branch === sandbox, tasks);
   results.answer = (await owner.page.locator("[data-ai='true']").last().textContent()).slice(0, 500);
   check("the AI of the team rebuilt it from what she had", branchList().includes(built) && /good morning/i.test(show(`${built}:greet.js`) ?? ""), { branches: branchList(), file: built && show(`${built}:greet.js`) });
   check("and the real product is still untouched until someone merges", show("main:greet.js").includes('"hello"'));

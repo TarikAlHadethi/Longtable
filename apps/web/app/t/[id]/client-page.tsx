@@ -121,7 +121,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
     if (jb) setJobs(jb as Job[]);
     if (viewer) {
       const [{ data: ch }, { data: box }] = await Promise.all([
-        supabase.from("sandbox_changes").select("id, words, status, summary, verdict, note, request_id, created_at, finished_at").eq("member_id", me.id).order("created_at", { ascending: false }).limit(60),
+        supabase.from("sandbox_changes").select("id, words, status, summary, verdict, note, request_id, created_at, finished_at").eq("member_id", me.id).eq("test", false).order("created_at", { ascending: false }).limit(60),
         supabase.from("sandboxes").select("mode, url").eq("member_id", me.id).maybeSingle(),
       ]);
       const b = box as { mode?: string; url?: string | null } | null;

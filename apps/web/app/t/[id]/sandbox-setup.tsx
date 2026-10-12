@@ -14,6 +14,20 @@ const WHY: Record<string, string> = {
   unreachable: "It could not be reached from here.",
 };
 
+// One step of the set-up. Kept outside the form on purpose: defined inside, it would be a new component on every
+// render, and whatever was being typed or pressed in it would be thrown away each time.
+function Step({ n, done, title, children }: { n: number; done: boolean; title: string; children?: React.ReactNode }) {
+  return (
+    <div className={`${s.step} ${done ? s.stepDone : ""}`} data-step={n} data-done={done || undefined}>
+      <span className={s.stepMark}>{done ? <Check size={14} stroke={3} /> : n}</span>
+      <div className={s.stepBody}>
+        <div className={s.stepTitle}>{title}</div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // Setting a client's copy up, before it is theirs. Five things, in order, each one either done or saying what is
 // missing. What Longtable can see for itself it checks; the two it cannot (what data and what keys the copy runs
 // with) the owner answers for. It works the same whatever the project and wherever it is hosted.
@@ -98,16 +112,6 @@ export function SandboxSetup({ table, client, box, aiOn, jobs, changes, ours, on
 
   const steps = [aiOn, made, !!box?.url, !!check?.ok];
   const ready = steps.every(Boolean) && data && keys;
-  const Step = ({ n, done, title, children }: { n: number; done: boolean; title: string; children?: React.ReactNode }) => (
-    <div className={`${s.step} ${done ? s.stepDone : ""}`} data-step={n} data-done={done || undefined}>
-      <span className={s.stepMark}>{done ? <Check size={14} stroke={3} /> : n}</span>
-      <div className={s.stepBody}>
-        <div className={s.stepTitle}>{title}</div>
-        {children}
-      </div>
-    </div>
-  );
-
   return (
     <div className={s.setup} data-testid="sandbox-setup">
       <div className={s.termsTitle}>Before {first} gets a copy</div>

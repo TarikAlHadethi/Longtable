@@ -160,13 +160,22 @@ export function changedSoFar(tableId, work) {
 
 // Make the place for a copy: its branch, pushed with one empty commit of its own on top of the latest default branch,
 // so the hosting sees something new and puts it up. If the branch is already there, it is left as it is.
-export function openBranch(tableId, branch) {
+// With fresh, a copy that already exists is put back to the product as it stands: one more commit on top, holding the
+// default branch's files, so whatever was tried in it before is gone from what the hosting puts up.
+export function openBranch(tableId, branch, fresh = false) {
   safeBranch(branch);
   const G = join(home, "copies", tableId, ".git");
   try {
     git(["--git-dir", G, "ls-remote", "--exit-code", "origin", `refs/heads/${branch}`]);
     git(["--git-dir", G, "fetch", "--quiet", "--depth", "1", "--no-tags", "origin", `refs/heads/${branch}`]);
-    return git(["--git-dir", G, "rev-parse", "FETCH_HEAD"]);
+    const tip = git(["--git-dir", G, "rev-parse", "FETCH_HEAD"]);
+    if (!fresh) return tip;
+    const clean = git(["--git-dir", G, "rev-parse", "HEAD^{tree}"]);
+    if (git(["--git-dir", G, "rev-parse", `${tip}^{tree}`]) === clean) return tip;
+    const as = { ...quiet, GIT_AUTHOR_NAME: "Longtable", GIT_AUTHOR_EMAIL: "longtable@users.noreply.github.com", GIT_COMMITTER_NAME: "Longtable", GIT_COMMITTER_EMAIL: "longtable@users.noreply.github.com" };
+    const again = git(["--git-dir", G, "commit-tree", clean, "-p", tip, "-m", "A clean copy"], as);
+    git(["--git-dir", G, "push", "--quiet", "origin", `${again}:refs/heads/${branch}`]);
+    return again;
   } catch (e) {
     if (e.status !== 2) throw new Error("this computer could not reach the project's repository");
   }

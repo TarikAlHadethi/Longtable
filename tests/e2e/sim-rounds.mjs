@@ -697,6 +697,11 @@ try {
     const branch = sql(`select branch from public.sandboxes where member_id = '${dana.id}'`);
     check("11b the owner gives it, on a plain branch of its own", given.status < 300 && /^longtable\/sandbox-dana-[0-9a-f]{8}$/.test(branch) && (await mine()).on === true && (await mine()).left === 20, { status: given.status, branch, left: (await mine()).left });
 
+    // The owner tried a change in it first, so giving it puts the copy back as the product stands: no AI asked.
+    const clean = await take("Maya", "heavy");
+    check("11b6 giving a copy the owner tried things in first makes it clean", clean?.kind === "sandbox" && clean.probe === true && clean.fresh === true && clean.branch === branch, clean && Object.keys(clean));
+    await fin("Maya", clean, "", { commit: "8".repeat(40) });
+
     // What they say is now a change in their copy, done by the team's Claude.
     const said = (await sayAs("Make the header green and bigger")).body;
     check("11c with a copy, their words are a change there, and they are told how many are left", !!said.change && said.left === 19, said);

@@ -550,7 +550,7 @@ async function workSandbox(rpc, seat, engines, job) {
   freshCopy(seat.table_id, seat.source);
   if (job.probe) {
     // Only making the place for a copy: no AI is asked anything.
-    const commit = openBranch(seat.table_id, job.branch);
+    const commit = openBranch(seat.table_id, job.branch, !!job.fresh);
     await rpc("runner_finish", { token: seat.token, job: job.job_id, answer: "", info: { commit } });
     log(`sandbox job ${job.job_id}: made ${job.branch}`);
     return;
