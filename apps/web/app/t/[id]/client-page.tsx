@@ -190,7 +190,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   // Their own assistant's job is theirs to see. When the team's AI is answering, the sign is their own last words
   // still waiting: sent to it, not yet answered, not yet passed on, and not long ago.
   const lastLine = lines.length ? [...lines].sort(byTime)[lines.length - 1] : null;
-  const deskBusy = !!lastLine && lastLine.who === "client" && !!lastLine.by_table && !lastLine.request_id && Date.now() - new Date(lastLine.created_at).getTime() < 120000;
+  const deskBusy = !!lastLine && lastLine.who === "client" && !!lastLine.by_table && !lastLine.request_id && Date.now() - new Date(lastLine.created_at).getTime() < 300000;
   const thinking = deskBusy || jobs.some((j) => j.kind === "client" && (j.status === "queued" || j.status === "running"));
   const building = !!sandbox?.changes.some((c) => c.status === "working");
 

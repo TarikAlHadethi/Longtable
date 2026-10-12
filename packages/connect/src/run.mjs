@@ -3,6 +3,7 @@
 // Claude, reading the clean copy. A client's AI has one kind, a reply in their private chat, on Claude or Codex,
 // with no code and no tools.
 
+import { layPointed, pointedPaths, pointedSystem } from "./pointed.mjs";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, uptime } from "node:os";
 import { isAbsolute, join, normalize, relative, resolve } from "node:path";
@@ -708,6 +709,16 @@ async function work(rpc, seat, engines, job) {
     // And the whole of it beside the code, to read when the question needs it. Never in a folder that is committed
     // without the repository being told to leave it out.
     if (own && seat.source) { neverCommit(seat.table_id, YOURS); job = { ...job, yours: layYours(seat, dir) }; }
+    // Places on this computer that the connection's own person pointed at in their own message.
+    let laid = null;
+    if (job.own_paths && seat.kind === "claude") {
+      const at = pointedPaths(job.question);
+      if (at.length) {
+        if (seat.source) neverCommit(seat.table_id, YOURS);
+        laid = layPointed(join(dir, YOURS), at, { reading: !doing });
+        log(`job ${job.job_id}: opened ${laid.files.length + laid.dirs.length + laid.copied.length} pointed place(s), left ${laid.skipped.length}`);
+      }
+    }
     const result = await ask({
       claude,
       cwd: dir,
@@ -717,7 +728,8 @@ async function work(rpc, seat, engines, job) {
       onNote: (n) => { if (n !== note) { note = n; if (Date.now() - told > 4000) tell(); } },
       control,
       prompt: yours(job) + (doing ? `${buildPrompt(job)}\n\n${DOING(branch)}` : buildPrompt(job)) + fromSandbox(seat, job),
-      system: systemFor({ ...job, doing }),
+      system: [systemFor({ ...job, doing }), ...(laid ? pointedSystem(job.me, laid, dir) : [])].join(NL),
+      addDirs: laid ? laid.dirs : [],
       schema: KINDS[job.kind].schema,
       model: seat.model || process.env.LONGTABLE_MODEL,
     }).catch((e) => {

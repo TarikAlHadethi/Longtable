@@ -74,7 +74,7 @@ export function claudeVersion(claude) {
 // A client's AI gets no tools at all (tools ""): it only reads what the job hands it.
 // With `edit`, the file tools may also change files, still only inside the working folder and still with no commands:
 // that is how a person's own AI does work they asked for, in the connection's copy.
-export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,Grep,Glob", edit = false, long = false, onNote, control, apiKey, timeoutMs = 4 * 60 * 1000 }) {
+export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,Grep,Glob", edit = false, long = false, onNote, control, apiKey, timeoutMs = 4 * 60 * 1000, addDirs = [] }) {
   // Work a person asked for takes as long as it takes: no time limit, and steps to match. It ends when it is done,
   // when someone presses Stop, or when the connection itself goes away.
   if (edit) { tools = "Read,Grep,Glob,Edit,Write"; timeoutMs = long ? 0 : 10 * 60 * 1000; }
@@ -86,6 +86,8 @@ export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,
   if (system) args.push("--append-system-prompt", system);
   if (schema) args.push("--json-schema", JSON.stringify(schema));
   if (model) args.push("--model", model);
+  // Folders beside the working one that this job may read: only ever ones the connection chose.
+  for (const d of addDirs) args.push("--add-dir", d);
   return new Promise((resolve, reject) => {
     const started = Date.now();
     const child = spawn(claude, args, { cwd, env: childEnv(token, apiKey), windowsHide: true });

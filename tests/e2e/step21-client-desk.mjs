@@ -3,7 +3,7 @@
 //   node --experimental-websocket tests/e2e/step21-client-desk.mjs
 
 import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -127,6 +127,7 @@ try {
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {
+  if (process.env.SHOWLOG) { try { console.log(readFileSync(join(homes[0], 'runner.log'), 'utf8').slice(-6000)); } catch (e) { console.log('nolog', e.message); } }
   for (const r of runners) r.kill();
   await browser.close();
   for (const h of [...homes, scratch]) { try { rmSync(h, { recursive: true, force: true }); } catch {} }
