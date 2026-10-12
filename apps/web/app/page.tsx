@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Mark } from "@/components/mark";
 import { Reveal } from "@/components/reveal";
 import { Stage } from "./stage";
+import { serverClient } from "@/lib/supabase/server";
 import s from "./landing.module.css";
 
 const i = (n: number) => ({ "--i": n }) as React.CSSProperties;
@@ -9,6 +10,9 @@ const i = (n: number) => ({ "--i": n }) as React.CSSProperties;
 // The opening screen: what Longtable is, a live look at one request going all the way through, how it works, and Start.
 export default async function Home({ searchParams }: { searchParams: Promise<Record<string, string | string[]>> }) {
   const deleted = (await searchParams).deleted === "1";
+  // Someone already signed in is shown the way to their tables, not asked to sign in again.
+  const supabase = await serverClient();
+  const { data: { user } } = await supabase.auth.getUser();
   return (
     <div className={s.page}>
       <div className={s.glow} aria-hidden="true"><i /><i /><i /><i /></div>
@@ -21,8 +25,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           <Link href="/demo">Demo</Link>
         </nav>
         <span className={s.spacer} />
-        <Link href="/sign-in?next=/start" className={s.signIn}>Sign in</Link>
-        <Link href="/start" className="btn">Start</Link>
+        {user ? <Link href="/start" className="btn" data-testid="my-tables">Your tables</Link> : (
+          <>
+            <Link href="/sign-in?next=/start" className={s.signIn}>Sign in</Link>
+            <Link href="/start" className="btn">Start</Link>
+          </>
+        )}
       </header>
 
       <main className={s.main}>

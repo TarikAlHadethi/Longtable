@@ -17,8 +17,10 @@ export default async function Start() {
 
   const { data } = await supabase
     .from("members")
-    .select("table_id, role, tables(name)")
+    // Named by its key: tables point back at members too (whose AI speaks for the table), so the plain name is two ways.
+    .select("table_id, role, tables!members_table_id_fkey(name)")
     .eq("user_id", user.id)
+    .is("removed_at", null)
     .order("created_at", { ascending: false });
   const rows = (data ?? []) as unknown as Row[];
 
