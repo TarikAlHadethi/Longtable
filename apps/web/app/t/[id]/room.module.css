@@ -270,7 +270,15 @@
 
 /* A client's request in the team chat: the design's tinted bubble, its status, and the way to decide it. */
 .clientBubble { background: light-dark(oklch(0.955 0.015 120), oklch(0.254 0.015 120)); padding: 12px 14px; border-radius: 12px; }
-.clientTools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
+.clientTools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 4px; padding-left: 38px; min-height: 18px; }
+/* A client's words in the team's chat: set like anyone's message, the picture beside the bubble, with what the
+   team can do about it underneath. */
+.clientSay { display: flex; flex-direction: column; gap: 3px; align-self: flex-start; max-width: 86%; animation: lt-rise 0.25s var(--ease-out) both; }
+.clientSay .sayName { padding-left: 44px; }
+.clientSay .questionQuote { margin-left: 38px; }
+.clientRow { display: flex; align-items: center; gap: 10px; }
+.clientTag { font-weight: 400; color: var(--muted); }
+.clientSay:hover .sayWhen { opacity: 1; }
 .requestPill { font-size: 13px; font-weight: 560; padding: 3px 9px; border-radius: 20px; white-space: nowrap; background: light-dark(oklch(0.94 0.04 80), oklch(0.31 0.048 80)); color: light-dark(oklch(0.42 0.07 70), oklch(0.8 0.07 70)); }
 .requestPillDone { background: light-dark(oklch(0.93 0.04 150), oklch(0.315 0.048 150)); color: light-dark(oklch(0.38 0.07 150), oklch(0.84 0.07 150)); }
 .requestPillPlan { background: light-dark(oklch(0.94 0.006 80), oklch(0.266 0.006 80)); color: light-dark(oklch(0.42 0.01 70), oklch(0.78 0.01 70)); }

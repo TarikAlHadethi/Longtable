@@ -661,7 +661,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 </div>
                 <div className={styles.personText}>
                   <div className={styles.personName} style={{ color: m.name_color || undefined }}>{m.display_name}</div>
-                  {(m.role === "client" || m.status) && <div className={styles.personMeta}>{[m.test ? "Test client" : m.role === "client" ? "Client" : "", m.status].filter(Boolean).join(" · ")}</div>}
+                  {(m.role === "client" || m.status) && <div className={styles.personMeta}>{[m.test ? "Not a real person" : m.role === "client" ? "Client" : "", m.status].filter(Boolean).join(" · ")}</div>}
                 </div>
               </button>
               </Fragment>
@@ -742,31 +742,26 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                   const shown = req ? requestWords(req.status, name) : null;
                   const offer = !!req && (req.status === "asked" || req.status === "answered") && lastCard.get(req.id)?.id === m.id;
                   return (
-                    <div key={m.id} className={styles.message} data-mid={m.id} data-request={m.meta?.request ?? ""}>
-                      <div className={styles.messageAvatar} style={{ background: who?.color ?? "var(--faint)" }}>
-                        <Face who={who} name={name} />
-                      </div>
-                      <div className={styles.messageBody}>
-                        <div className={styles.messageMeta}>
-                          <span className={styles.messageName} style={{ color: who?.name_color || undefined }}>{name}</span>
-                          <span>client · <Time iso={m.created_at} /></span>
-                        </div>
-                        {m.meta?.answers && m.meta.question && <div className={styles.questionQuote}>Answering: {m.meta.question}</div>}
+                    <div key={m.id} className={styles.clientSay} data-mid={m.id} data-request={m.meta?.request ?? ""}>
+                      <div className={styles.sayName} style={{ color: who?.name_color || undefined }}>{name} <span className={styles.clientTag}>client</span></div>
+                      {m.meta?.answers && m.meta.question && <div className={styles.questionQuote}>Answering: {m.meta.question}</div>}
+                      <div className={styles.clientRow}>
+                        <div className={styles.messageAvatar} style={{ background: who?.color ?? "var(--faint)" }}><Face who={who} name={name} /></div>
                         <div className={styles.bubble} data-bubble={who?.bubble ?? "stone"}>{m.body}</div>
-                        {req && shown && (
-                          <div className={styles.clientTools}>
-                            <span className={`${styles.requestPill} ${shown.pill}`} data-testid="request-status">{shown.words}</span>
-                            {offer && (
-                              <button className={styles.toolLink} onClick={() => { setAskingFor(req); setAsking(true); }}>Make a poll</button>
-                            )}
-                          </div>
+                      </div>
+                      <div className={styles.clientTools}>
+                        {req && shown && <span className={`${styles.requestPill} ${shown.pill}`} data-testid="request-status">{shown.words}</span>}
+                        {req && shown && offer && (
+                          <button className={styles.toolLink} onClick={() => { setAskingFor(req); setAsking(true); }}>Make a poll</button>
                         )}
+                        <span className={styles.sayWhen}><Time iso={m.created_at} /></span>
                       </div>
                     </div>
                   );
                 }
                 if (m.by_ai) {
-                  return <Answer key={m.id} m={m} members={byId} views={m.meta?.round ? viewsByRound.get(m.meta.round) ?? [] : []} />;
+                  return <Answer key={m.id} m={m} members={byId} views={m.meta?.round ? viewsByRound.get(m.meta.round) ?? [] : []}
+                    again={m.kind === "intro" && items.some((o) => o.kind !== "decision" && o.m.kind === "intro" && o.m.member_id === m.member_id && o.m.created_at < m.created_at)} />;
                 }
                 const mine = m.member_id === me.id;
                 return (

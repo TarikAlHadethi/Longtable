@@ -11,7 +11,7 @@ import styles from "./room.module.css";
 
 // An answer from the table: one AI's, or one combined from several. Sources are the files it read; "How they got
 // here" opens the back-room views and how they were settled.
-export function Answer({ m, members, views }: { m: Message; members: Map<string, Member>; views: Message[] }) {
+export function Answer({ m, members, views, again }: { m: Message; members: Map<string, Member>; views: Message[]; again?: boolean }) {
   const [open, setOpen] = useState(false);
   const who = members.get(m.member_id);
   const name = who?.display_name ?? "Someone";
@@ -27,6 +27,8 @@ export function Answer({ m, members, views }: { m: Message; members: Map<string,
 
   // An AI arriving is one quiet line between two rules. What it learned of the project is kept for the AIs, not shown.
   if (m.kind === "intro") {
+    // It arrived once. Connecting again later is not said again.
+    if (again) return null;
     return (
       <div className={styles.joined} data-mid={m.id} data-ai="intro">
         <AiLogo kind={kindOfModel(m.meta?.model)} size={15} />
