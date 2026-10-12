@@ -647,7 +647,15 @@ try {
 
     // By default a client has no copy: their words go to the team as before.
     const plain = (await sayAs("Could the booking page be blue?")).body;
-    check("11a a client with no copy of their own just talks to the team", !!plain.request && !plain.change && (await mine()).on === false && changesOf().length === 0, plain);
+    // With one of the team's AIs on, it answers her for the team: only what she may know, on the quick lane.
+    const desk = await take("Maya", "light");
+    check("11a a client with no copy is answered by the team's AI, from her side only", !!plain.line && !plain.change && (await mine()).on === false && changesOf().length === 0
+      && desk?.kind === "client" && desk.for_team === true && desk.me === "Dana" && desk.question === "Could the booking page be blue?" && !("history" in desk && desk.history.some((h) => h.name)) && !("pinned" in desk) && !("views" in desk),
+      { plain, desk: desk && Object.keys(desk) });
+    await fin("Maya", desk, "Passed on to the team.", { pass_on: true, title: "A blue booking page" });
+    const deskLines = JSON.parse(sql(`select coalesce(json_agg(json_build_object('who', who, 'by_table', by_table, 'req', request_id is not null) order by created_at), '[]') from public.client_lines where member_id = '${dana.id}'`));
+    check("11a2 what it cannot answer becomes a request, and the team can read the exchange", deskLines.length === 2 && deskLines.every((l) => l.by_table) && deskLines[1].who === "assistant" && deskLines[1].req === true
+      && (await rest(people.Maya.token, `client_lines?select=id&member_id=eq.${dana.id}`)).body.length === 2, deskLines);
 
     // Only the owner gives one.
     const tries = { lee: await rpc(people.Lee.token, "set_client_sandbox", { m: dana.id, enabled: true }), dana: await rpc(dana.token, "set_client_sandbox", { m: dana.id, enabled: true }),
@@ -827,7 +835,7 @@ try {
     // Taking the copy away.
     await rpc(people.Maya.token, "set_client_sandbox", { m: dana.id, enabled: false });
     const after = (await sayAs("Back to talking")).body;
-    check("11m with the copy taken away she is back to talking to the team, and her history is kept", !!after.request && !after.change && (await mine()).on === false && (await mine()).changes.length >= 5 && sql(`select branch from public.sandboxes where member_id = '${dana.id}'`) === branch, after);
+    check("11m with the copy taken away she is back to talking to the team, and her history is kept", (!!after.request || !!after.line) && !after.change && (await mine()).on === false && (await mine()).changes.length >= 5 && sql(`select branch from public.sandboxes where member_id = '${dana.id}'`) === branch, after);
 
     // Someone at another table.
     const other2 = await startTable(browser, `other2-${run}@example.test`, "Elsewhere", "Olga");

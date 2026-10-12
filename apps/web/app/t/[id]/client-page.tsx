@@ -137,7 +137,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   useEffect(() => {
     if (!viewer) return;
     reload();
-    const t = setInterval(() => { if (document.visibilityState === "visible") reload(); }, viewer.preview ? 30000 : 8000);
+    const t = setInterval(() => { if (document.visibilityState === "visible") reload(); }, viewer.preview ? 30000 : viewer.acting ? 3000 : 8000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!viewer, me.id]);
@@ -187,7 +187,11 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   const mine = connections.find((c) => !c.revoked_at);
   // Which AI their assistant is, or was: the one connected now, else the last one they had.
   const theirs = mine?.kind ?? [...connections].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.kind ?? null;
-  const thinking = jobs.some((j) => j.kind === "client" && (j.status === "queued" || j.status === "running"));
+  // Their own assistant's job is theirs to see. When the team's AI is answering, the sign is their own last words
+  // still waiting: sent to it, not yet answered, not yet passed on, and not long ago.
+  const lastLine = lines.length ? [...lines].sort(byTime)[lines.length - 1] : null;
+  const deskBusy = !!lastLine && lastLine.who === "client" && !!lastLine.by_table && !lastLine.request_id && Date.now() - new Date(lastLine.created_at).getTime() < 120000;
+  const thinking = deskBusy || jobs.some((j) => j.kind === "client" && (j.status === "queued" || j.status === "running"));
   const building = !!sandbox?.changes.some((c) => c.status === "working");
 
   // Back to the tab, and every so often while something of theirs is in the works: read the database too, so a lost
@@ -209,7 +213,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   type Item =
     | { kind: "request"; id: string; created_at: string; r: Request }
     | { kind: "change"; id: string; created_at: string; c: Change }
-    | { kind: "line"; id: string; created_at: string; me: boolean; own: boolean; text: string; question?: ClientUpdate };
+    | { kind: "line"; id: string; created_at: string; me: boolean; own: boolean; desk?: boolean; text: string; question?: ClientUpdate };
   const feed = useMemo(() => {
     const passed = new Set((sandbox?.changes ?? []).map((c) => c.request_id).filter(Boolean));
     const items: Item[] = [
@@ -217,7 +221,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
       ...requests.filter((r) => !passed.has(r.id)).map((r): Item => ({ kind: "request", id: `r-${r.id}`, created_at: r.created_at, r })),
       ...(sandbox?.changes ?? []).map((c): Item => ({ kind: "change", id: `c-${c.id}`, created_at: c.created_at, c })),
       // Their own words to their assistant show as a line unless they became a request, which carries them.
-      ...lines.filter((l) => !(l.who === "client" && l.request_id)).map((l): Item => ({ kind: "line", id: `l-${l.id}`, created_at: l.created_at, me: l.who === "client", own: true, text: l.body })),
+      ...lines.filter((l) => !(l.who === "client" && l.request_id)).map((l): Item => ({ kind: "line", id: `l-${l.id}`, created_at: l.created_at, me: l.who === "client", own: true, desk: !!l.by_table, text: l.body })),
       // What every client was told, with no request of theirs behind it.
       ...updates.filter((u) => !u.request_id).map((u): Item => ({ kind: "line", id: `u-${u.id}`, created_at: u.created_at, me: false, own: false, text: u.body, question: u.replies?.length && !u.answer ? u : undefined })),
     ];
@@ -287,12 +291,12 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   const first = firstName(me.display_name);
   const locked = !!viewer && !viewer.acting;
   // Who is answering on the left: their copy, their own assistant, or the team. Beside the name, the one state.
-  const speaker = (who: "copy" | "assistant" | "team", pill?: { words: string; pill: string; testid: string; busy?: boolean }) => (
+  const speaker = (who: "copy" | "assistant" | "desk" | "team", pill?: { words: string; pill: string; testid: string; busy?: boolean }) => (
     <div className={styles.from}>
       {/* An AI answers under its maker's sign; the team answers under the table's. A copy is built by the team's
           Claude today, so that is the sign it carries. */}
       {who === "assistant" && theirs ? <AiLogo kind={theirs} size={18} /> : who === "copy" ? <AiLogo kind="claude" size={18} /> : <Mark size={18} />}
-      <span className={styles.fromName}>{who === "copy" ? "Your copy" : who === "assistant" ? "Your assistant" : "The team"}</span>
+      <span className={styles.fromName}>{who === "copy" ? "Your copy" : who === "assistant" ? "Your assistant" : who === "desk" ? "The team's assistant" : "The team"}</span>
       {pill && <span className={`${styles.pill} ${pill.pill}`} data-testid={pill.testid}>{pill.busy && <i className={styles.pulse} />}{pill.words}</span>}
     </div>
   );
@@ -362,7 +366,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
                 return (
                   <div key={item.id} className={styles.turn}>
                     <div className={styles.back}>
-                      {speaker(item.own ? "assistant" : "team")}
+                      {speaker(item.own ? (item.desk ? "desk" : "assistant") : "team")}
                       <div className={styles.said}>
                         {item.text}
                         {item.question && (
@@ -410,7 +414,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
                 </div>
               );
             })}
-            {thinking && <div className={styles.writing} data-testid="thinking"><i className={styles.pulse} />Your assistant is writing…</div>}
+            {thinking && <div className={styles.writing} data-testid="thinking"><i className={styles.pulse} />{deskBusy ? "The team's assistant is writing…" : "Your assistant is writing…"}</div>}
             {viewer && mine && <div className={styles.private}>{first}&apos;s chat with their own assistant is private and is not shown.</div>}
           </div>
         </div>
