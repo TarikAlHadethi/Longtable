@@ -72,6 +72,16 @@ try {
     && !JSON.stringify(desk.history).includes("budget"), desk && { kind: desk.kind, history: desk.history });
   await fin("Sam", desk, "The team is on it.", { pass_on: false });
 
+  // ---- one client's words do not ride into another client's assistant
+  const taskId = sql(`insert into public.tasks (table_id, chat_id, member_id, title, branch, status, reference) values ('${table}', '${chat}', '${id("Maya")}',
+    'From Priya: make the price list private to me', 'longtable/from-priya-${run}', 'done', '{"client":"Priya Shah","words":"make the price list private to me"}') returning id`).split("\n")[0];
+  sql(`insert into public.tasks (table_id, chat_id, member_id, title, branch, status) values ('${table}', '${chat}', '${id("Maya")}', 'Faster search', 'longtable/faster-search-${run}', 'done')`);
+  await rpc(tokens.Elena, "client_say", { t: table, body: "What has been finished lately?" });
+  const desk2 = await take("Sam", "light");
+  const titles = (desk2?.work || []).map((w) => w.title);
+  check("a client hears what the team finished, but never work that came from another client's own words", !!taskId && titles.includes("Faster search") && !titles.some((x) => /Priya|price list/.test(x)), titles);
+  await fin("Sam", desk2, "Search is faster now.", { pass_on: false });
+
   clearInterval(pulse);
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
