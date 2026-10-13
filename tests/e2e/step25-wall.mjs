@@ -92,6 +92,11 @@ try {
   const withFile = await rpc(tokens.Elena, "client_say", { t: table, body: "", files: [{ path, name: "note.txt", mime: "text/plain", url: `${API}/storage/v1${signed.signedURL}` }] });
   check("past the hourly limit a message with an attachment is refused like one without", up.ok && !!signed.signedURL && words.status >= 400 && withFile.status >= 400 && /a lot of requests/.test(JSON.stringify(withFile.body)), { up: up.status, words: words.status, withFile: withFile.status, body: withFile.body });
 
+  // ---- a client taken off the table cannot ask
+  await rpc(tokens.Maya, "remove_member", { m: id("Priya") });
+  const gone = { ask: await rpc(tokens.Priya, "client_ask", { t: table, body: "Still here" }), say: await rpc(tokens.Priya, "client_say", { t: table, body: "Still here" }) };
+  const fromPriya = (await rest(tokens.Maya, `requests?select=id&table_id=eq.${table}&member_id=eq.${id("Priya")}`)).body;
+  check("a client taken off the table cannot put a request in front of the team", gone.ask.status >= 400 && gone.say.status >= 400 && fromPriya.length === 0, { ask: gone.ask.status, say: gone.say.status, requests: fromPriya.length });
   clearInterval(pulse);
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
