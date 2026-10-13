@@ -210,6 +210,17 @@ try {
   writeFileSync(join(nw.dir, "f.txt"), "changed" + NL);
   const nl = landWork("n1", nw, N, "A change", "Maya");
   check("the folder that is the person's alone is left out of the commit whatever git's own set-up", nl?.pushed && nl.files.join() === "f.txt" && show(own, `${N}:.longtable-yours/memory.md`) === null, nl);
+  // When the list cannot be written at all, the table hears one plain sentence and the cause stays in the log here.
+  freshCopy("n2", own.url);
+  const info = join(process.env.LONGTABLE_HOME, "copies", "n2", ".git", "info");
+  rmSync(info, { recursive: true, force: true });
+  writeFileSync(info, "in the way" + NL);
+  let said = "";
+  try { neverCommit("n2", ".longtable-yours"); } catch (e) { said = e.message; }
+  const logFile = join(process.env.LONGTABLE_HOME, "runner.log");
+  const logged = existsSync(logFile) ? readFileSync(logFile, "utf8") : "";
+  check("when the list cannot be written the job stops with one plain sentence that names no folder, and the cause is in the log on that computer",
+    /alone/.test(said) && !/[\\/:]|EEXIST|ENOTDIR|ENOENT/.test(said) && !said.includes(NL) && /never committed for n2/.test(logged), { said, logged: logged.slice(-300) });
 
   // ---- file names with letters outside plain English are read as they are, not as git writes them when it quotes
   const acc = repo("acc", { "café/next.config.js": "module.exports = {};" + NL, "café/page.tsx": "old" + NL });

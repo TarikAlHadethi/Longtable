@@ -3,7 +3,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { home } from "./store.mjs";
+import { home, log } from "./store.mjs";
 
 // Git never stops to ask for a name or password here: if this computer's saved sign-in cannot reach a repository,
 // the command fails and the connection says so.
@@ -93,9 +93,16 @@ export function neverCommit(tableId, name) {
   const file = join(home, "copies", tableId, ".git", "info", "exclude");
   // Git does not always make the info folder (a person's own template may leave it out). If the list cannot be
   // written this throws and the job stops: better no answer than their own notes pushed to the team's branch.
-  mkdirSync(join(home, "copies", tableId, ".git", "info"), { recursive: true });
-  const now = existsSync(file) ? readFileSync(file, "utf8") : "";
-  if (!now.split(/\r?\n/).includes(`${name}/`)) writeFileSync(file, `${now}${now.endsWith(String.fromCharCode(10)) || !now ? "" : String.fromCharCode(10)}${name}/${String.fromCharCode(10)}`);
+  try {
+    mkdirSync(join(home, "copies", tableId, ".git", "info"), { recursive: true });
+    const now = existsSync(file) ? readFileSync(file, "utf8") : "";
+    if (!now.split(/\r?\n/).includes(`${name}/`)) writeFileSync(file, `${now}${now.endsWith(String.fromCharCode(10)) || !now ? "" : String.fromCharCode(10)}${name}/${String.fromCharCode(10)}`);
+  } catch (e) {
+    // The table is sent one plain sentence. What the system said names folders on this person's computer, so that
+    // stays in the log here, where they can read it.
+    log(`could not write the list of what is never committed for ${tableId}: ${e.message}`);
+    throw new Error("could not set aside what is this person's alone on their computer, so nothing was done; the connection's log there says why");
+  }
 }
 
 // Lay out the files to work on: the chat's own branch when it already exists, so one request builds on the last,
