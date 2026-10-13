@@ -24,25 +24,27 @@ export function Prose({ text }: { text: string }) {
   const blocks: ReactNode[] = [];
   const lines = text.replace(/\r/g, "").split("\n");
   let para: string[] = [];
-  let list: { ordered: boolean; items: string[] } | null = null;
+  let list: { ordered: boolean; start: number; items: string[] } | null = null;
   let key = 0;
   const endPara = () => { if (para.length) blocks.push(<p key={key++}><Inline text={para.join("\n")} /></p>); para = []; };
   const endList = () => {
     if (!list) return;
     const items = list.items.map((it, i) => <li key={i}><Inline text={it} /></li>);
-    blocks.push(list.ordered ? <ol key={key++}>{items}</ol> : <ul key={key++}>{items}</ul>);
+    blocks.push(list.ordered ? <ol key={key++} start={list.start}>{items}</ol> : <ul key={key++}>{items}</ul>);
     list = null;
   };
   for (const line of lines) {
     const bullet = line.match(/^\s*[-*•]\s+(.*)$/);
-    const number = line.match(/^\s*\d{1,3}[.)]\s+(.*)$/);
+    const number = line.match(/^\s*(\d{1,3})[.)]\s+(.*)$/);
     const head = line.match(/^#{1,4}\s+(.*)$/);
     if (bullet || number) {
       endPara();
       const ordered = !bullet;
       if (list && list.ordered !== ordered) endList();
-      list ??= { ordered, items: [] };
-      list.items.push((bullet ?? number)![1]);
+      // A numbered list starts at the number it was written with: a blank line or a bullet under an item ends one
+      // list and begins the next, and the next must carry on counting, not start again at 1.
+      list ??= { ordered, start: number ? Number(number[1]) : 1, items: [] };
+      list.items.push(bullet ? bullet[1] : number![2]);
     } else if (head) {
       endPara(); endList();
       blocks.push(<p key={key++}><strong>{head[1].replace(/\*\*/g, "")}</strong></p>);
