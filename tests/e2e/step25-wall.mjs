@@ -49,6 +49,12 @@ try {
   const open = sql(`select count(*) from public.decisions where table_id = '${table}' and affects_client and status = 'open'`);
   check("and no decision about the test client's request is left waiting to be told to every client", open === "0", open);
 
+  // ---- a person taken off the table can do nothing more
+  const code = (await rpc(tokens.Lee, "start_pairing", { t: table, ai_kind: "claude" })).body;
+  await rpc(tokens.Maya, "remove_member", { m: id("Lee") });
+  const late = await anon("pair_connection", { code, device_label: "late" });
+  check("a connect code made before someone was taken off no longer connects anything", late.status >= 400 && !late.body?.token, { status: late.status, token: !!late.body?.token });
+
   clearInterval(pulse);
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
