@@ -54,6 +54,8 @@ check("a path with a space and no quotes is the file meant, never the folder bef
 const cut = pointedPaths(`go through ${join(root, "Client")} B${sep}nothing.md please`);
 check("when only the part before the space is there, it is not opened and the AI is told to ask for quotes", cut.length === 1 && /quotes/.test(cut[0].refused || ""), cut);
 check("a folder with ordinary words after it is still opened", JSON.stringify(kinds(`go through ${join(root, "Client")} and tell me what is there`)) === '["dir"]');
+const laterSlash = [`go through ${join(root, "Client")} and fix apps/web/page.tsx`, `go through ${join(root, "Client")} and tell me yes/no`, `compare ${join(root, "Client")} with the client/team split`].filter((s) => JSON.stringify(kinds(s)) !== '["dir"]');
+check("a slash in a later word of the sentence does not stop the folder being opened", laterSlash.length === 0, laterSlash);
 check("two places in one sentence are both opened", JSON.stringify(kinds(`compare ${join(root, "Client")} with ${join(root, "note.txt")} for me`)) === '["dir","file"]');
 check("no more than five", pointedPaths(Array.from({ length: 9 }, (_, i) => { const f = join(docs, `f${i}.txt`); writeFileSync(f, "x"); return `"${f}"`; }).join(" ")).length === 5);
 

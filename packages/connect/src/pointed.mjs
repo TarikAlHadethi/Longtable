@@ -71,7 +71,9 @@ export function pointedPaths(text) {
     // A path with a space in it and no quotes round it stops at the space here, and what comes before the space may
     // be a real place of its own ("C:\work\Client" in "C:\work\Client A\brief.md"), which nobody pointed at. So the
     // words that follow are tried too, and the longest place that is really there is the one meant. When none is, and
-    // the words that follow carry on like a path, nothing is opened and the AI is told why.
+    // the very next word carries on like a path ("Client B\brief.md"), nothing is opened and the AI is told why. Only
+    // the very next word counts: a slash further on is ordinary writing ("and fix apps/web/page.tsx", "yes/no"), and
+    // taking it for more of the path refused folders that were pointed at plainly.
     let grown = m[1];
     let longest = "";
     let carriesOn = false;
@@ -80,7 +82,7 @@ export function pointedPaths(text) {
     for (let i = 0, w; i < 6 && !/[,;!?)]$/.test(grown) && (w = word.exec(tail)); i++) {
       if (/^(?:[A-Za-z]:[\\/]|~[\\/]|\/)/.test(w[1])) break;
       grown += w[0];
-      if (/[\\/]/.test(w[1])) carriesOn = true;
+      if (i === 0 && /[\\/]/.test(w[1])) carriesOn = true;
       if (existsSync(tidy(grown))) longest = grown;
     }
     if (longest) take(longest);
