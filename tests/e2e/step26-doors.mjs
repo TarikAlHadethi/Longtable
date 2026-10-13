@@ -40,6 +40,22 @@ try {
   check("and an ordinary page of this site is still where they are sent", page.url() === `${APP}/start?from=door`, { url: page.url(), says: (await page.textContent("main").catch(() => "")).slice(0, 200) });
   await context.close();
 
+  // ---- the copy check
+  const owner = await startTable(browser, `owner-${run}@example.test`, "Booking app", "Maya");
+  const sam = await joinTable(browser, await inviteLink(owner.page, "developer"), `sam-${run}@example.test`, "Sam");
+  const elena = await joinTable(browser, await inviteLink(owner.page, "client"), `elena-${run}@example.test`, "Elena Ruiz");
+  const member = sql(`select id from public.members where table_id = '${owner.tableId}' and role = 'client'`);
+  const ask = async (who, data = { member }) => {
+    const started = Date.now();
+    const res = await who.context.request.post(`${APP}/api/sandbox/check`, { data, timeout: 30000 });
+    return { status: res.status(), body: await res.json().catch(() => null), ms: Date.now() - started };
+  };
+  // An address nothing answers at: whoever makes the server go there waits out its nine seconds.
+  sql(`insert into public.sandboxes (table_id, member_id, branch, url) values ('${owner.tableId}', '${member}', 'longtable/sandbox-doors-${run}', 'https://192.0.2.1/') on conflict (member_id) do update set url = excluded.url`);
+  const dev = await ask(sam);
+  check("a developer asking is refused at once, before the server goes anywhere", dev.status === 403 && dev.ms < 4000, dev);
+  const client = await ask(elena);
+  check("a client asking learns nothing", client.status >= 400 && client.ms < 4000, client);
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {
