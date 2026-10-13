@@ -535,9 +535,11 @@ const NOT_IN_A_SANDBOX = new RegExp([
 ].join("|"), "i");
 const NOT_A_SANDBOX_WORD = new RegExp([
   "\\bprocess\\s*\\??\\.[A-Za-z_$]", "\\bprocess\\s*\\[", "[=(,:]\\s*process\\s*[;),}\\]]", "\\bprocess\\s*$", "import\\s*[.]\\s*meta", "\\b(Deno|Bun)\\s*[.]", "\\benv\\s*[\\[.})]", "\\bgetenv\\b", "os[.]environ", "\\bENV\\s*[\\[.]",
-  "\\b(readFile|readFileSync|readdir|readdirSync|createReadStream|child_process|execSync|spawn)\\b", "[\"'](node:)?(fs|fs/promises|vm|net|dns|child_process|worker_threads)[\"']",
-  "\\beval\\s*\\(", "new\\s+Function\\b", "\\bglobalThis\\b", "[\"']use server[\"']", "\\bserver-only\\b", "dangerouslySetInnerHTML",
-  "\\b(fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\\b[^;]{0,80}https?:", "<script\\b", "\\bsecrets[.][A-Za-z_]",
+  "\\b(readFile|readFileSync|readdir|readdirSync|createReadStream|child_process|execSync|spawn)\\b", "[\"'`](node:)?(fs|fs/promises|vm|net|dns|child_process|worker_threads)[\"'`]",
+  // The server's other ways out, named where a module is asked for, so "http" in an ordinary sentence is left alone.
+  "\\b(require|import)\\s*\\(\\s*[\"'`](node:)?(https?|http2|os|tls|dgram|module)[\"'`]", "\\bfrom\\s*[\"'`](node:)?(https?|http2|os|tls|dgram|module)[\"'`]",
+  "\\beval\\s*\\(", "new\\s+Function\\b", "\\bFunction\\s*\\(", "\\bglobalThis\\b", "[\"']use server[\"']", "\\bserver-only\\b", "dangerouslySetInnerHTML",
+  "\\b(fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\\b[^;]{0,80}(https?:|[\"'`]//)", "<script\\b", "\\bsecrets[.][A-Za-z_]",
 ].join("|"), "m");
 export function sandboxRefusal({ files, text, unread }, paths = "") {
   const file = files.find((f) => NOT_IN_A_SANDBOX.test(f));
