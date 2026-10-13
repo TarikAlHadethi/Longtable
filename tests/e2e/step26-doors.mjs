@@ -5,6 +5,7 @@
 //   node tests/e2e/step26-doors.mjs
 
 import { execFileSync } from "node:child_process";
+import { lookup } from "node:dns/promises";
 import { createServer } from "node:net";
 import { APP, inviteLink, join as joinTable, launch, signIn, sleep, startTable } from "./lib.mjs";
 
@@ -56,14 +57,22 @@ try {
   check("a developer asking is refused at once, before the server goes anywhere", dev.status === 403 && dev.ms < 4000, dev);
   const client = await ask(elena);
   check("a client asking learns nothing", client.status >= 400 && client.ms < 4000, client);
-  // A public name that leads back to this computer. (Needs the internet to look the name up; with none, nothing
-  // can arrive either way.)
-  sql(`update public.sandboxes set url = 'https://localtest.me:${inside.address().port}/' where member_id = '${member}'`);
-  const loop = await ask(owner);
-  await sleep(500);
-  check("a public name that leads to a private machine is never opened", knocks === 0 && loop.body?.ok === false, { knocks, loop });
-  const empty = await ask(owner, null);
-  check("a body with nothing in it is a bad request, not a crash", empty.status === 400, empty);
+  // A public name that leads back to this computer. It only proves anything when the name can be looked up from
+  // here and does lead back: with no internet nothing could arrive either way, so the check says it did not run
+  // instead of passing.
+  const leads = await lookup("localtest.me", { all: true }).catch(() => []);
+  if (leads.some((a) => a.address === "127.0.0.1")) {
+    sql(`update public.sandboxes set url = 'https://localtest.me:${inside.address().port}/' where member_id = '${member}'`);
+    const loop = await ask(owner);
+    await sleep(500);
+    check("a public name that leads to a private machine is never opened", knocks === 0 && loop.body?.ok === false, { knocks, loop });
+  } else {
+    results["a public name that leads to a private machine is never opened"] = `NOT RUN: localtest.me could not be looked up from this computer (${JSON.stringify(leads)}), so nothing was proved. Run it again with the internet on.`;
+  }
+  const empty = await owner.context.request.post(`${APP}/api/sandbox/check`, { headers: { "content-type": "application/json" }, timeout: 30000 });
+  check("a request with no body at all is a bad request", empty.status() === 400, empty.status());
+  const nothing = await ask(owner, null);
+  check("and so is a body that says null, which used to be a server error", nothing.status === 400, nothing);
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {
