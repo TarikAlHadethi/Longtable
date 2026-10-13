@@ -303,7 +303,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
           Claude today, so that is the sign it carries. */}
       {who === "assistant" && theirs ? <AiLogo kind={theirs} size={18} /> : who === "copy" ? <AiLogo kind="claude" size={18} /> : <Mark size={18} />}
       <span className={styles.fromName}>{who === "copy" ? "Your copy" : who === "assistant" ? "Your assistant" : who === "desk" ? "The team's assistant" : "The team"}</span>
-      {pill && <span className={`${styles.pill} ${pill.pill}`} data-testid={pill.testid}>{pill.busy && <i className={styles.pulse} />}{pill.words}</span>}
+      {pill && <span key={pill.words} className={`${styles.pill} ${pill.pill}`} data-testid={pill.testid}>{pill.busy && <i className={styles.pulse} />}{pill.words}</span>}
     </div>
   );
   const answers = (u: ClientUpdate) => (

@@ -95,8 +95,11 @@
 .composer {
   max-width: 720px; margin: 0 auto; display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 16px;
   border: 1px solid var(--line-strong); border-radius: 14px; background: var(--card);
+  transition: border-color 0.15s ease, box-shadow 0.2s ease, transform 0.2s var(--ease-out);
 }
-.composer:focus-within { border-color: var(--sage); }
+.composer:focus-within { border-color: var(--sage); box-shadow: 0 0 0 4px oklch(0.58 0.08 170 / 0.1); }
+/* Files held over the box: it opens up a little to take them. */
+.composerWrap[data-drop] .composer, .composer[data-drop] { border-color: var(--sage); border-style: dashed; box-shadow: 0 0 0 5px oklch(0.58 0.08 170 / 0.16); transform: scale(1.012); }
 .input {
   flex: 1; border: 0; outline: none; resize: none; background: transparent; color: var(--ink); font: inherit;
   font-size: 16px; line-height: 1.5; max-height: 200px; padding: 5px 0; align-self: center;
@@ -487,9 +490,9 @@
 /* Two arrivals in a row share the rule between them. */
 .joined + .joined { margin-top: -19px; border-top: 0; }
 /* The small print under an AI's answer, in the same letters as everything else, shown when you point at the answer. */
-.aiFoot { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 6px; font-size: 12.5px; line-height: 1.4; color: var(--faint); opacity: 0; transition: opacity 0.15s ease; }
-.aiMessage:hover .aiFoot, .aiMessage:focus-within .aiFoot, .aiFoot[data-open] { opacity: 1; }
-@media (hover: none) { .aiFoot { opacity: 1; } }
+.aiFoot { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 6px; font-size: 12.5px; line-height: 1.4; color: var(--faint); opacity: 0; transform: translateY(-3px); transition: opacity 0.18s ease, transform 0.22s var(--ease-out); }
+.aiMessage:hover .aiFoot, .aiMessage:focus-within .aiFoot, .aiFoot[data-open] { opacity: 1; transform: none; }
+@media (hover: none) { .aiFoot { opacity: 1; transform: none; } }
 .footSources { overflow-wrap: anywhere; }
 .footSources span + span::before { content: ", "; }
 .joinedBody { max-width: 620px; font-size: 16px; color: var(--ink-2); animation: lt-rise 0.2s var(--ease-out) both; }
@@ -517,8 +520,13 @@
 .clientFiles { padding-left: 38px; }
 /* The person's own commands, above the box while they type "/". */
 .slash { max-width: 720px; margin: 0 auto 8px; background: var(--card); border: 1px solid var(--line-strong); border-radius: 14px; padding: 6px; display: flex; flex-direction: column; gap: 2px;
-  box-shadow: 0 12px 32px oklch(0.2 0.01 70 / 0.12); animation: lt-rise 0.16s var(--ease-out) both; }
-.slashItem { display: flex; align-items: baseline; gap: 12px; text-align: left; border: 0; background: transparent; font: inherit; color: var(--ink); padding: 8px 10px; border-radius: 9px; cursor: pointer; min-width: 0; }
+  box-shadow: 0 12px 32px oklch(0.2 0.01 70 / 0.12); animation: lt-slash 0.2s var(--ease-out) both; transform-origin: bottom center; }
+.slashItem { display: flex; align-items: baseline; gap: 12px; text-align: left; border: 0; background: transparent; font: inherit; color: var(--ink); padding: 8px 10px; border-radius: 9px; cursor: pointer; min-width: 0;
+  transition: background-color 0.12s ease, transform 0.12s var(--ease-out); animation: lt-rise 0.22s var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * 24ms + 30ms); }
+.slashItem:active { transform: scale(0.985); }
+.slashItem b { transition: transform 0.15s var(--ease-out); }
+.slashOn b { transform: translateX(3px); }
+@keyframes lt-slash { from { opacity: 0; transform: translateY(8px) scale(0.97); } to { opacity: 1; transform: none; } }
 .slashItem b { font-weight: 560; font-size: 15px; white-space: nowrap; }
 .slashItem span { font-size: 14px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .slashOn { background: var(--hover); }

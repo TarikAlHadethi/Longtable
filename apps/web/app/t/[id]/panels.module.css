@@ -105,3 +105,23 @@
 .switch:focus-visible { outline: 2px solid oklch(0.58 0.08 170 / 0.45); outline-offset: 2px; }
 .steps { margin: 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; font-size: 15px; line-height: 1.45; color: var(--ink-2); }
 .steps li::marker { color: var(--faint); }
+/* A window sets itself out: the mark lands, then each part under it arrives in turn. Only on the way in, so nothing
+   inside is left sitting in a moved layer afterwards (the model list opens from inside one of these). */
+.window > *:not(.ask) { animation: pn-in 0.34s var(--ease-out) backwards; animation-delay: 150ms; }
+.window > :nth-child(1):not(.ask) { animation-delay: 40ms; }
+.window > :nth-child(2):not(.ask) { animation-delay: 85ms; }
+.window > :nth-child(3):not(.ask) { animation-delay: 125ms; }
+.seatMark { animation: pn-pop 0.5s var(--ease-spring) backwards; animation-delay: 90ms; transition: transform 0.25s var(--ease-spring), box-shadow 0.2s ease; }
+.seatMark:hover { transform: translateY(-2px) rotate(-3deg); box-shadow: 0 10px 26px oklch(0.2 0.01 70 / 0.12); }
+.switchRow { transition: opacity 0.2s ease; }
+/* The knob leans into a press before it crosses. */
+.switch { transition: background-color 0.18s ease, box-shadow 0.18s ease; }
+.switch::after { transition: transform 0.22s var(--ease-spring), width 0.15s var(--ease-out); }
+.switch:hover:not(:disabled) { box-shadow: 0 0 0 4px oklch(0.58 0.08 170 / 0.1); }
+.switch:active:not(:disabled)::after { width: 24px; }
+.switch:checked:active:not(:disabled)::after { transform: translateX(12px); }
+.steps li { animation: pn-in 0.3s var(--ease-out) backwards; animation-delay: calc(220ms + var(--n, 0) * 50ms); }
+.steps li:nth-child(2) { --n: 1; }
+.steps li:nth-child(3) { --n: 2; }
+.steps li:nth-child(4) { --n: 3; }
+@keyframes pn-pop { from { opacity: 0; transform: scale(0.55) rotate(-8deg); } to { opacity: 1; transform: none; } }

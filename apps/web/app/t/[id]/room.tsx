@@ -853,7 +853,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
             {slash.length > 0 && (
               <div className={styles.slash} role="listbox" aria-label={`Your ${aiWord(me.id)}'s own commands`} data-testid="slash-menu">
                 {slash.map((c, i) => (
-                  <button key={c.name} type="button" role="option" aria-selected={i === slashIndex} className={`${styles.slashItem} ${i === slashIndex ? styles.slashOn : ""}`}
+                  <button key={c.name} type="button" role="option" aria-selected={i === slashIndex} className={`${styles.slashItem} ${i === slashIndex ? styles.slashOn : ""}`} style={{ "--i": i } as React.CSSProperties}
                     onMouseEnter={() => setSlashAt(i)} onMouseDown={(e) => { e.preventDefault(); pickSlash(c.name); }}>
                     <b>/{c.name}</b><span>{c.about || (c.kind === "skill" ? "A skill of yours" : "A command of yours")}</span>
                   </button>
@@ -869,7 +869,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 value={draft}
                 placeholder={`Message ${chat?.name ?? "the table"}`}
                 aria-label="Message the table"
-                onChange={(e) => { setDraft(e.target.value); grow(); }}
+                onChange={(e) => { setDraft(e.target.value); setSlashAt(0); grow(); }}
                 onKeyDown={(e) => {
                   // With the list of their own commands open, the arrows move through it and Enter or Tab takes one.
                   if (slash.length > 0) {

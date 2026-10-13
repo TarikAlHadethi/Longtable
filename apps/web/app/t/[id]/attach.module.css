@@ -1,33 +1,53 @@
 /* Attaching, and what a message carries. Same quiet marks as the rest: no colour until something is happening. */
 .buttons { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
-.icon { width: 34px; height: 34px; display: grid; place-items: center; border: 0; background: transparent; color: var(--muted); border-radius: 9px; cursor: pointer; font: inherit; font-size: 13px; transition: background-color 0.15s ease, color 0.15s ease; }
+.icon { width: 34px; height: 34px; display: grid; place-items: center; border: 0; background: transparent; color: var(--muted); border-radius: 9px; cursor: pointer; font: inherit; font-size: 13px; transition: background-color 0.15s ease, color 0.15s ease, transform 0.14s var(--ease-out); animation: at-pop 0.22s var(--ease-spring) backwards; }
 .icon:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+.icon:active:not(:disabled) { transform: scale(0.88); }
+.icon svg { transition: transform 0.2s var(--ease-spring); }
+.icon:hover:not(:disabled) svg { transform: scale(1.12) rotate(-6deg); }
 .icon:disabled { opacity: 0.4; cursor: default; }
 .iconOn { color: var(--danger); }
-.recording { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; color: var(--ink-2); padding: 0 6px; font-variant-numeric: tabular-nums; }
+.recording { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; color: var(--ink-2); padding: 0 6px; font-variant-numeric: tabular-nums; animation: at-slide 0.22s var(--ease-out) backwards; }
 .recDot { width: 9px; height: 9px; border-radius: 50%; background: var(--danger); animation: at-pulse 1.1s ease-in-out infinite; }
 @keyframes at-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
 
 .tray { max-width: 720px; margin: 0 auto 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.chip { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 5px 6px 5px 5px; border: 1px solid var(--line-strong); background: var(--card); border-radius: 11px; font-size: 14px; }
+.chip { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 5px 6px 5px 5px; border: 1px solid var(--line-strong); background: var(--card); border-radius: 11px; font-size: 14px; position: relative; overflow: hidden; animation: at-in 0.26s var(--ease-spring) backwards; transition: border-color 0.15s ease; }
+.chip:hover { border-color: var(--muted); }
+/* Taken off: it shrinks away before it goes, instead of blinking out. */
+.chipOut { animation: at-out 0.16s ease-in forwards; pointer-events: none; }
+/* While they are on their way up, a light crosses each one. */
+.trayBusy .chip::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, color-mix(in oklch, var(--sage) 22%, transparent) 50%, transparent 70%); background-size: 220% 100%; animation: at-sheen 1.1s linear infinite; pointer-events: none; }
+.trayBusy .chipRemove { opacity: 0; pointer-events: none; }
 .thumb { width: 34px; height: 34px; object-fit: cover; border-radius: 7px; display: block; }
 .kind { min-width: 34px; height: 34px; padding: 0 7px; display: grid; place-items: center; border-radius: 7px; background: var(--chip); color: var(--muted); font-size: 12px; }
 .chipName { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
 .chipSize { color: var(--faint); font-size: 12.5px; white-space: nowrap; }
-.chipRemove { width: 24px; height: 24px; border: 0; background: transparent; color: var(--muted); border-radius: 6px; cursor: pointer; font-size: 12px; }
+.chipRemove { width: 24px; height: 24px; border: 0; background: transparent; color: var(--muted); border-radius: 6px; cursor: pointer; font-size: 12px; display: grid; place-items: center; transition: background-color 0.12s ease, color 0.12s ease, transform 0.14s var(--ease-out), opacity 0.15s ease; }
+.chipRemove:active { transform: scale(0.82); }
 .chipRemove:hover { background: var(--hover); color: var(--ink); }
-.note { font-size: 13.5px; color: var(--muted); }
-.error { font-size: 13.5px; color: var(--danger); }
+.note { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; color: var(--muted); animation: at-slide 0.2s var(--ease-out) backwards; }
+.note i { width: 7px; height: 7px; border-radius: 50%; background: var(--sage); animation: at-pulse 1.1s ease-in-out infinite; }
+.error { font-size: 13.5px; color: var(--danger); animation: at-slide 0.22s var(--ease-out) backwards; }
 
-.files { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; max-width: 100%; }
-.picture { display: block; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); max-width: min(360px, 100%); line-height: 0; }
-.picture img { display: block; max-width: 100%; max-height: 320px; object-fit: contain; background: var(--chip); }
-.video { display: block; max-width: min(420px, 100%); max-height: 320px; border-radius: 12px; background: #000; }
-.audio { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); max-width: 100%; }
+.files { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; margin-top: 6px; max-width: 100%; }
+.picture { display: block; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); max-width: min(360px, 100%); line-height: 0; animation: at-show 0.32s var(--ease-out) backwards; transition: border-color 0.15s ease, box-shadow 0.2s ease, transform 0.2s var(--ease-out); }
+.picture:hover { border-color: var(--line-strong); box-shadow: 0 8px 22px oklch(0.2 0.01 70 / 0.14); transform: translateY(-2px); }
+.picture img { display: block; max-width: 100%; max-height: 320px; object-fit: contain; background: var(--chip); transition: transform 0.35s var(--ease-out); }
+.picture:hover img { transform: scale(1.025); }
+.video { display: block; max-width: min(420px, 100%); max-height: 320px; border-radius: 12px; background: #000; animation: at-show 0.32s var(--ease-out) backwards; }
+.audio { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); max-width: 100%; animation: at-show 0.3s var(--ease-out) backwards; }
 .audio audio { height: 34px; max-width: 100%; }
 .audioName { font-size: 13px; color: var(--muted); }
-.file { display: inline-flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--card); color: var(--ink); text-decoration: none; font-size: 14.5px; max-width: 100%; }
-.file:hover { background: var(--hover); color: var(--ink); }
+.file { display: inline-flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--card); color: var(--ink); text-decoration: none; font-size: 14.5px; max-width: 100%; animation: at-show 0.3s var(--ease-out) backwards; transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s var(--ease-out), box-shadow 0.15s ease; }
+.file:hover { background: var(--hover); color: var(--ink); transform: translateY(-1px); box-shadow: 0 4px 14px oklch(0.2 0.01 70 / 0.1); }
+.file:active { transform: scale(0.98); box-shadow: none; }
 .fileName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
 .fileSize { color: var(--faint); font-size: 12.5px; white-space: nowrap; }
-.loading { font-size: 13.5px; color: var(--faint); padding: 9px 12px; border: 1px dashed var(--line-strong); border-radius: 12px; }
+.loading { font-size: 13.5px; color: var(--faint); padding: 9px 12px; border: 1px dashed var(--line-strong); border-radius: 12px; background: linear-gradient(90deg, transparent, var(--chip), transparent); background-size: 220% 100%; animation: at-sheen 1.3s linear infinite; }
+@keyframes at-pop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }
+@keyframes at-in { from { opacity: 0; transform: translateY(8px) scale(0.92); } to { opacity: 1; transform: none; } }
+@keyframes at-out { to { opacity: 0; transform: scale(0.82); } }
+@keyframes at-slide { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+@keyframes at-show { from { opacity: 0; transform: translateY(6px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes at-sheen { from { background-position: 120% 0; } to { background-position: -120% 0; } }

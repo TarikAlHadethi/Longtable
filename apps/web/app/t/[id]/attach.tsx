@@ -163,28 +163,33 @@ export function AttachButtons({ a, disabled }: { a: Attach; disabled?: boolean }
 
 // What is waiting to go with the message.
 export function AttachTray({ a }: { a: Attach }) {
+  // One taken off is shown leaving first, and only then dropped from what is waiting.
+  const [leaving, setLeaving] = useState<string[]>([]);
   if (!a.pending.length && !a.error) return null;
   return (
-    <div className={s.tray} data-testid="attach-tray">
+    <div className={`${s.tray} ${a.busy ? s.trayBusy : ""}`} data-testid="attach-tray">
       {a.pending.map((p) => (
-        <div key={p.id} className={s.chip}>
+        <div key={p.id} className={`${s.chip} ${leaving.includes(p.id) ? s.chipOut : ""}`}
+          onAnimationEnd={(e) => { if (e.target === e.currentTarget && leaving.includes(p.id)) { setLeaving((l) => l.filter((id) => id !== p.id)); a.remove(p.id); } }}>
           {p.preview ? <img className={s.thumb} src={p.preview} alt="" /> : <span className={s.kind}>{p.kind === "audio" ? "Voice" : p.kind === "video" ? "Video" : "File"}</span>}
           <span className={s.chipName}>{p.file.name}</span>
           <span className={s.chipSize}>{bytes(p.file.size)}</span>
-          <button type="button" className={s.chipRemove} onClick={() => a.remove(p.id)} aria-label={`Remove ${p.file.name}`}><Cross /></button>
+          <button type="button" className={s.chipRemove} onClick={() => setLeaving((l) => [...l, p.id])} aria-label={`Remove ${p.file.name}`}><Cross /></button>
         </div>
       ))}
-      {a.busy && <span className={s.note}>Uploading…</span>}
+      {a.busy && <span className={s.note} role="status"><i />Uploading…</span>}
       {a.error && <span className={s.error} role="alert">{a.error}</span>}
     </div>
   );
 }
 
-// Drop and paste, for whatever box wraps the composer.
+// Drop and paste, for whatever box wraps the composer. While files are held over it the box is marked, so the
+// stylesheet can show where they will land; the mark is the element's own, not state, so nothing redraws.
 export function dropHandlers(a: Attach) {
   return {
-    onDragOver: (e: React.DragEvent) => { if (e.dataTransfer.types.includes("Files")) e.preventDefault(); },
-    onDrop: (e: React.DragEvent) => { if (e.dataTransfer.files.length) { e.preventDefault(); a.add(e.dataTransfer.files); } },
+    onDragOver: (e: React.DragEvent<HTMLElement>) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); e.currentTarget.dataset.drop = "1"; } },
+    onDragLeave: (e: React.DragEvent<HTMLElement>) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) delete e.currentTarget.dataset.drop; },
+    onDrop: (e: React.DragEvent<HTMLElement>) => { delete e.currentTarget.dataset.drop; if (e.dataTransfer.files.length) { e.preventDefault(); a.add(e.dataTransfer.files); } },
     onPaste: (e: React.ClipboardEvent) => { if (e.clipboardData.files.length) { e.preventDefault(); a.add(e.clipboardData.files); } },
   };
 }

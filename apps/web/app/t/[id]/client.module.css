@@ -5,8 +5,10 @@
 .openCopy { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; margin-right: 10px; white-space: nowrap; }
 
 /* A team member looking on. */
-.viewing { flex-shrink: 0; display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; padding: 8px 16px; font-size: 14px; color: var(--muted); border-bottom: 1px solid var(--line); background: var(--card); }
-.other { border: 1px solid var(--line); background: transparent; border-radius: 20px; padding: 3px 11px; font: inherit; font-size: 13.5px; color: var(--ink); cursor: pointer; }
+.viewing { flex-shrink: 0; display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; padding: 8px 16px; font-size: 14px; color: var(--muted); border-bottom: 1px solid var(--line); background: var(--card); animation: cl-down 0.3s var(--ease-out) backwards; }
+.other { border: 1px solid var(--line); background: transparent; border-radius: 20px; padding: 3px 11px; font: inherit; font-size: 13.5px; color: var(--ink); cursor: pointer; transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.12s var(--ease-out); }
+.other:hover { border-color: var(--line-strong); }
+.other:active { transform: scale(0.95); }
 .otherOn { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 .private { align-self: center; font-size: 13.5px; color: var(--faint); padding: 6px 0; text-align: center; }
 
@@ -20,23 +22,23 @@
 .foot textarea { flex-basis: 0; min-width: 0; }
 .footNote { font-size: 13.5px; color: var(--muted); padding: 0 4px; }
 
-.empty { margin: 18vh auto 0; max-width: 420px; text-align: center; font-size: 16.5px; line-height: 1.55; color: var(--muted); text-wrap: pretty; }
+.empty { margin: 18vh auto 0; max-width: 420px; text-align: center; font-size: 16.5px; line-height: 1.55; color: var(--muted); text-wrap: pretty; animation: lt-rise 0.5s var(--ease-out) backwards; animation-delay: 80ms; }
 
 /* One turn: what they said, and what came of it. */
 .turn { display: flex; flex-direction: column; gap: 10px; animation: lt-rise 0.26s var(--ease-out) backwards; }
 .mine { display: flex; justify-content: flex-end; }
 .mine > div { max-width: 86%; border-radius: 18px 18px 6px 18px; }
-.back { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; max-width: 92%; }
+.back { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; max-width: 92%; animation: lt-rise 0.3s var(--ease-out) backwards; animation-delay: 70ms; }
 .from { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
 .fromName { font-weight: 560; color: var(--ink); }
 .said { font-size: 16.5px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; text-wrap: pretty; display: flex; flex-direction: column; gap: 10px; }
 .answered { font-size: 14px; color: var(--muted); }
-.tryIt { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
-.verdict { font-size: 15px; font-weight: 560; color: light-dark(oklch(0.4 0.07 150), oklch(0.82 0.07 150)); }
+.tryIt { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; animation: cl-pop 0.34s var(--ease-spring) backwards; }
+.verdict { animation: lt-rise 0.3s var(--ease-out) backwards; font-size: 15px; font-weight: 560; color: light-dark(oklch(0.4 0.07 150), oklch(0.82 0.07 150)); }
 .verdictNo { color: var(--muted); font-weight: 500; }
-.writing { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+.writing { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); animation: lt-rise 0.25s var(--ease-out) backwards; }
 
-.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 560; padding: 3px 9px; border-radius: 20px; white-space: nowrap; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 560; padding: 3px 9px; border-radius: 20px; white-space: nowrap; animation: cl-pop 0.34s var(--ease-spring) backwards; }
 .pillWait { background: light-dark(oklch(0.94 0.04 80), oklch(0.31 0.048 80)); color: light-dark(oklch(0.42 0.07 70), oklch(0.8 0.07 70)); }
 .pillDone { background: light-dark(oklch(0.93 0.04 150), oklch(0.315 0.048 150)); color: light-dark(oklch(0.38 0.07 150), oklch(0.84 0.07 150)); }
 .pillPlan { background: var(--chip); color: var(--muted); }
@@ -44,12 +46,20 @@
 .pulse { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: cl-pulse 1.1s ease-in-out infinite; }
 
 .replies { display: flex; flex-wrap: wrap; gap: 6px; }
-.reply { border: 1px solid var(--line-strong); background: var(--card); border-radius: 20px; padding: 7px 14px; font: inherit; font-size: 15px; font-weight: 500; color: var(--ink); cursor: pointer; transition: background-color 0.12s ease, transform 0.12s var(--ease-out); }
-.reply:hover:not(:disabled) { background: var(--chip); }
+.replies > * { animation: lt-rise 0.28s var(--ease-out) backwards; }
+.replies > :nth-child(2) { animation-delay: 50ms; }
+.replies > :nth-child(3) { animation-delay: 100ms; }
+.replies > :nth-child(4) { animation-delay: 150ms; }
+.reply { border: 1px solid var(--line-strong); background: var(--card); border-radius: 20px; padding: 7px 14px; font: inherit; font-size: 15px; font-weight: 500; color: var(--ink); cursor: pointer; transition: background-color 0.12s ease, border-color 0.12s ease, transform 0.12s var(--ease-out), box-shadow 0.15s ease, opacity 0.2s ease; }
+.reply:hover:not(:disabled) { background: var(--chip); border-color: var(--muted); transform: translateY(-1px); box-shadow: 0 4px 12px oklch(0.2 0.01 70 / 0.08); }
 .reply:active:not(:disabled) { transform: scale(0.97); }
 .reply:disabled { cursor: default; opacity: 0.7; }
 
 @keyframes cl-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+@keyframes cl-pop { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: none; } }
+@keyframes cl-down { from { opacity: 0; transform: translateY(-100%); } to { opacity: 1; transform: none; } }
+@keyframes lt-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes lt-fade { from { opacity: 0; } to { opacity: 1; } }
 @media (max-width: 640px) {
   .scroll { padding: 18px 14px 14px; }
   .foot { padding: 0 14px 14px; }
@@ -57,7 +67,7 @@
 }
 
 /* What a request says while the team has not answered yet. */
-.waiting { font-size: 15px; line-height: 1.5; color: var(--muted); }
+.waiting { font-size: 15px; line-height: 1.5; color: var(--muted); animation: lt-fade 0.4s ease backwards; animation-delay: 150ms; }
 
 /* What they attached, under their own words, on their side. */
 .mineFiles { display: flex; justify-content: flex-end; }
