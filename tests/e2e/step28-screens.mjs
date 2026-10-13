@@ -53,6 +53,14 @@ try {
   check("after the table is renamed, the Connect window's message uses the new name", /Fernhill booking/.test(message) && !/Booking app/.test(message), message);
   await p.keyboard.press("Escape");
 
+  // ---- the GitHub instructions name every kind of event the table listens for
+  await p.goto(`${APP}/t/${table}/settings`);
+  await p.click("button:has-text('Connect a repo')");
+  await p.waitForSelector("[data-testid=github-url]");
+  const how = await p.evaluate(() => [...document.querySelectorAll(".note")].map((n) => n.textContent).find((t) => /Add webhook/.test(t)) || "");
+  check("the webhook instructions say to pick deployment statuses too, which is how a copy's address arrives", /Pushes/.test(how) && /Deployment statuses/i.test(how), how);
+  await p.goto(`${APP}/t/${table}?c=general`);
+
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {

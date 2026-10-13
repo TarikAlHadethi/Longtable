@@ -187,7 +187,7 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
           {!github?.connected && !hook && <div className={styles.actions}><button className="btn" onClick={connectGithub}>Connect a repo</button></div>}
           {hook && (
             <>
-              <div className="note">In the repo on GitHub: Settings, Webhooks, Add webhook. Paste these two, choose application/json, and pick Pushes, Pull requests and Workflow runs.</div>
+              <div className="note">In the repo on GitHub: Settings, Webhooks, Add webhook. Paste these two, choose application/json, and pick Pushes, Pull requests, Workflow runs and Deployment statuses.</div>
               <label className="label">Payload URL</label>
               <input className="field" readOnly value={hook.url} data-testid="github-url" onFocus={(e) => e.target.select()} />
               <label className="label">Secret (shown once)</label>
