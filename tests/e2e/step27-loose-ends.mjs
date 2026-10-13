@@ -61,6 +61,9 @@ try {
     && sql(`select count(*) from public.round_materials where table_id = '${table}'`) === "8", { kept, again: again.body });
   await fin("Maya", job, "Done.", {});
 
+  // ---- someone taken off the table is not chosen to write its answer
+  const seat = await rpc(tokens.Maya, "set_final_seat", { t: table, seat: id("Lee"), offline: "wait" });
+  check("someone taken off the table cannot be picked to write the table's answer", seat.status >= 400, seat);
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {
