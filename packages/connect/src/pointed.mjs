@@ -39,11 +39,15 @@ function tooWide(p) {
 export function pointedPaths(text) {
   const found = [];
   const seen = new Set();
-  const take = (raw) => {
+  const tidy = (raw) => {
     let p = String(raw || "").trim().replace(/^file:\/\/\/?/i, "");
     if (p.startsWith("~")) p = join(homedir(), p.slice(1));
     // Sentence punctuation that came along at the end.
     for (let i = 0; i < 4 && p && !existsSync(p) && /[.,;:!?)\]}'"`]$/.test(p); i++) p = p.slice(0, -1);
+    return p;
+  };
+  const take = (raw) => {
+    const p = tidy(raw);
     if (!p || !isAbsolute(p) || found.length >= 5) return;
     let real;
     try { real = realpathSync(p); } catch { return; }
@@ -58,7 +62,26 @@ export function pointedPaths(text) {
   };
   const t = String(text || "");
   for (const m of t.matchAll(/["'`]((?:[A-Za-z]:[\\/]|\\\\|\/|~[\\/])[^"'`\r\n]{1,400})["'`]/g)) take(m[1]);
-  for (const m of t.matchAll(/(?:^|[\s(=:])((?:[A-Za-z]:[\\/]|~[\\/]|\/(?=[A-Za-z0-9._-]))[^\s"'`<>|*?]{1,400})/g)) take(m[1]);
+  for (const m of t.matchAll(/(?:^|[\s(=:])((?:[A-Za-z]:[\\/]|~[\\/]|\/(?=[A-Za-z0-9._-]))[^\s"'`<>|*?]{1,400})/g)) {
+    // A path with a space in it and no quotes round it stops at the space here, and what comes before the space may
+    // be a real place of its own ("C:\work\Client" in "C:\work\Client A\brief.md"), which nobody pointed at. So the
+    // words that follow are tried too, and the longest place that is really there is the one meant. When none is, and
+    // the words that follow carry on like a path, nothing is opened and the AI is told why.
+    let grown = m[1];
+    let longest = "";
+    let carriesOn = false;
+    const tail = t.slice(m.index + m[0].length, m.index + m[0].length + 400);
+    const word = /[ \t]+([^\s"'`<>|*?]+)/y;
+    for (let i = 0, w; i < 6 && !/[,;!?)]$/.test(grown) && (w = word.exec(tail)); i++) {
+      if (/^(?:[A-Za-z]:[\\/]|~[\\/]|\/)/.test(w[1])) break;
+      grown += w[0];
+      if (/[\\/]/.test(w[1])) carriesOn = true;
+      if (existsSync(tidy(grown))) longest = grown;
+    }
+    if (longest) take(longest);
+    else if (carriesOn && existsSync(tidy(m[1])) && found.length < 5) found.push({ path: m[1], refused: "a path with a space in it needs quotes round it" });
+    else take(m[1]);
+  }
   return found;
 }
 

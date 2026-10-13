@@ -5,7 +5,7 @@
 
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { layPointed, pointedPaths, pointedSystem } from "../../packages/connect/src/pointed.mjs";
 
 let pass = 0, fail = 0;
@@ -37,6 +37,15 @@ check("the connection's own folder is refused", pointedPaths(`read ${join(homedi
 check("a whole home folder is refused", pointedPaths(`go through ${homedir()}`).every((p) => p.refused), pointedPaths(`go through ${homedir()}`));
 check("a whole drive is refused", pointedPaths(process.platform === "win32" ? "go through C:\ now" : "go through / now").every((p) => p.refused));
 check("a home folder written in other letter case is refused all the same", process.platform === "linux" || (pointedPaths(`go through ${homedir().toLowerCase()} now`).length === 1 && pointedPaths(`go through ${homedir().toLowerCase()} now`).every((p) => p.refused)), pointedPaths(`go through ${homedir().toLowerCase()} now`));
+mkdirSync(join(root, "Client"));
+mkdirSync(join(root, "Client A"));
+writeFileSync(join(root, "Client A", "brief.md"), "Brief.\n");
+const spaced = pointedPaths(`go through ${join(root, "Client A", "brief.md")} please`);
+check("a path with a space and no quotes is the file meant, never the folder before the space", spaced.length === 1 && spaced[0].kind === "file" && /brief\.md$/.test(spaced[0].real), spaced);
+const cut = pointedPaths(`go through ${join(root, "Client")} B${sep}nothing.md please`);
+check("when only the part before the space is there, it is not opened and the AI is told to ask for quotes", cut.length === 1 && /quotes/.test(cut[0].refused || ""), cut);
+check("a folder with ordinary words after it is still opened", JSON.stringify(kinds(`go through ${join(root, "Client")} and tell me what is there`)) === '["dir"]');
+check("two places in one sentence are both opened", JSON.stringify(kinds(`compare ${join(root, "Client")} with ${join(root, "note.txt")} for me`)) === '["dir","file"]');
 check("no more than five", pointedPaths(Array.from({ length: 9 }, (_, i) => { const f = join(docs, `f${i}.txt`); writeFileSync(f, "x"); return `"${f}"`; }).join(" ")).length === 5);
 
 const work = mkdtempSync(join(tmpdir(), "longtable-pointed-work-"));
