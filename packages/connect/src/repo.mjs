@@ -51,6 +51,9 @@ export function freshCopy(tableId, source) {
     mkdirSync(join(home, "copies"), { recursive: true });
     git(["clone", "--quiet", "--depth", "1", "--no-tags", "-c", "core.symlinks=false", source, dir]);
   } else {
+    // The address may have changed since the copy was made (connected again after fixing git's sign-in, or the
+    // repository moved): fetch from, and later push to, where the project is now.
+    git(["-C", dir, "remote", "set-url", "origin", source]);
     git(["-C", dir, "fetch", "--quiet", "--depth", "1", "--no-tags", "origin", "HEAD"]);
     git(["-C", dir, "reset", "--quiet", "--hard", "FETCH_HEAD"]);
     // The folder laid beside the code for an AI to read stays: a job that only reads may be in the middle of it

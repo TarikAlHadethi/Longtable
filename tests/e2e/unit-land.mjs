@@ -182,6 +182,11 @@ try {
   writeFileSync(join(copy, "stray.txt"), "stray" + NL);
   freshCopy("y1", d.url);
   check("refreshing the copy clears strays but leaves what a job that is reading was given", existsSync(join(copy, ".longtable-yours", "memory.md")) && !existsSync(join(copy, "stray.txt")));
+
+  // ---- the repository's address changed after the copy was made
+  const far = repo("far", { "f.txt": "moved" + NL });
+  const moved = freshCopy("y1", far.url);
+  check("when the project's address changes, the copy follows it", git(moved.dir, "remote", "get-url", "origin") === far.url && readFileSync(join(moved.dir, "f.txt"), "utf8").startsWith("moved"), git(moved.dir, "remote", "get-url", "origin"));
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {
