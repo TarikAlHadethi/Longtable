@@ -12,7 +12,7 @@ import { join } from "node:path";
 const scratch = mkdtempSync(join(tmpdir(), "longtable-land-"));
 process.env.LONGTABLE_HOME = join(scratch, "home");
 mkdirSync(process.env.LONGTABLE_HOME, { recursive: true });
-const { freshCopy, openWork, landWork, safeBranch, workBranch } = await import("../../packages/connect/src/repo.mjs");
+const { freshCopy, neverCommit, openWork, landWork, safeBranch, workBranch } = await import("../../packages/connect/src/repo.mjs");
 
 const results = {};
 const check = (name, ok, detail) => { results[name] = ok ? "pass" : `FAIL ${typeof detail === "string" ? detail : JSON.stringify(detail ?? "")}`.slice(0, 500); };
@@ -187,6 +187,19 @@ try {
   const far = repo("far", { "f.txt": "moved" + NL });
   const moved = freshCopy("y1", far.url);
   check("when the project's address changes, the copy follows it", git(moved.dir, "remote", "get-url", "origin") === far.url && readFileSync(join(moved.dir, "f.txt"), "utf8").startsWith("moved"), git(moved.dir, "remote", "get-url", "origin"));
+
+  // ---- what is the person's alone is never committed, even when git made the copy without its usual folders
+  const own = repo("own", { "f.txt": "x" + NL });
+  freshCopy("n1", own.url);
+  rmSync(join(process.env.LONGTABLE_HOME, "copies", "n1", ".git", "info"), { recursive: true, force: true });
+  neverCommit("n1", ".longtable-yours");
+  const N = "longtable/task-eeee5555";
+  const nw = openWork("n1", N);
+  mkdirSync(join(nw.dir, ".longtable-yours"), { recursive: true });
+  writeFileSync(join(nw.dir, ".longtable-yours", "memory.md"), "mine alone" + NL);
+  writeFileSync(join(nw.dir, "f.txt"), "changed" + NL);
+  const nl = landWork("n1", nw, N, "A change", "Maya");
+  check("the folder that is the person's alone is left out of the commit whatever git's own set-up", nl?.pushed && nl.files.join() === "f.txt" && show(own, `${N}:.longtable-yours/memory.md`) === null, nl);
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {

@@ -89,10 +89,11 @@ export const workBranch = (chatName) => "longtable/" + (String(chatName || "").t
 // A folder laid beside the code for the AI to read, and never to be committed: the repository's own exclude list says so.
 export function neverCommit(tableId, name) {
   const file = join(home, "copies", tableId, ".git", "info", "exclude");
-  try {
-    const now = existsSync(file) ? readFileSync(file, "utf8") : "";
-    if (!now.split(/\r?\n/).includes(`${name}/`)) writeFileSync(file, `${now}${now.endsWith(String.fromCharCode(10)) || !now ? "" : String.fromCharCode(10)}${name}/${String.fromCharCode(10)}`);
-  } catch {}
+  // Git does not always make the info folder (a person's own template may leave it out). If the list cannot be
+  // written this throws and the job stops: better no answer than their own notes pushed to the team's branch.
+  mkdirSync(join(home, "copies", tableId, ".git", "info"), { recursive: true });
+  const now = existsSync(file) ? readFileSync(file, "utf8") : "";
+  if (!now.split(/\r?\n/).includes(`${name}/`)) writeFileSync(file, `${now}${now.endsWith(String.fromCharCode(10)) || !now ? "" : String.fromCharCode(10)}${name}/${String.fromCharCode(10)}`);
 }
 
 // Lay out the files to work on: the chat's own branch when it already exists, so one request builds on the last,
