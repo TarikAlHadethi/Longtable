@@ -89,8 +89,9 @@ export function loadCommand(seat, question) {
     const f = front(readFileSync(hit.file, "utf8"));
     const args = m[2].trim();
     const parts = args.split(/\s+/).filter(Boolean);
-    // The places a command leaves for what was typed after its name.
-    let body = f.body.replace(/\$ARGUMENTS/g, args).replace(/\$(\d)/g, (_, n) => parts[Number(n) - 1] ?? "");
+    // The places a command leaves for what was typed after its name. Filled in one pass and through a function, so
+    // a dollar sign in what was typed ("$2 per seat") is put in as typed and never read as a place of its own.
+    let body = f.body.replace(/\$ARGUMENTS|\$(\d)/g, (_, n) => (n ? parts[Number(n) - 1] ?? "" : args));
     if (body.length > 40000) body = body.slice(0, 40000) + NL + "[cut short here]";
     return { name: hit.name, kind: hit.kind, args, body };
   } catch { return null; }
