@@ -1,11 +1,14 @@
 // Does a client's copy open for someone who is not signed in to the hosting? The owner asks; this looks, from the
 // server, and notes what it found. It only ever opens the address already kept for that copy.
 
+import { lookup } from "node:dns/promises";
 import { serverClient } from "@/lib/supabase/server";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 // Never a machine on a private network, whatever address was typed.
 const PRIVATE = /^(localhost|.*\.local|.*\.internal|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|0\.|\[)/i;
+// Nor a public name that leads to one: the name is looked up first, and every address it has must be a public one.
+const PRIVATE_ADDRESS = /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|0\.|::$|::1$|::ffff:|f[cd][0-9a-f]{2}:|fe[89ab][0-9a-f]:)/i;
 
 export async function POST(req: Request) {
   const { member } = (await req.json().catch(() => ({}))) as { member?: string };
@@ -26,6 +29,8 @@ export async function POST(req: Request) {
   try {
     const at = new URL(url);
     if (at.protocol !== "https:" || !at.hostname.includes(".") || PRIVATE.test(at.hostname)) throw new Error("not public");
+    const leads = await lookup(at.hostname, { all: true });
+    if (!leads.length || leads.some((a) => PRIVATE_ADDRESS.test(a.address))) throw new Error("not public");
     const res = await fetch(at, { redirect: "manual", signal: AbortSignal.timeout(9000), headers: { "user-agent": "Longtable copy check" } });
     const to = res.headers.get("location") ?? "";
     if (res.status === 401 || res.status === 403 || /\/(login|sso|signin|sign-in|auth)\b/i.test(to) || /vercel\.com|netlify\.com\/|cloudflareaccess\.com/i.test(to)) why = "sign-in";

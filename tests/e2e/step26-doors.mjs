@@ -56,6 +56,12 @@ try {
   check("a developer asking is refused at once, before the server goes anywhere", dev.status === 403 && dev.ms < 4000, dev);
   const client = await ask(elena);
   check("a client asking learns nothing", client.status >= 400 && client.ms < 4000, client);
+  // A public name that leads back to this computer. (Needs the internet to look the name up; with none, nothing
+  // can arrive either way.)
+  sql(`update public.sandboxes set url = 'https://localtest.me:${inside.address().port}/' where member_id = '${member}'`);
+  const loop = await ask(owner);
+  await sleep(500);
+  check("a public name that leads to a private machine is never opened", knocks === 0 && loop.body?.ok === false, { knocks, loop });
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {
