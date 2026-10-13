@@ -173,6 +173,15 @@ try {
   let stopped = false;
   try { openWork("r1", I); } catch (e) { stopped = /could not reach/.test(e.message); }
   check("a repository that cannot be reached stops the job instead of starting from the wrong code", stopped);
+
+  // ---- what one job was given to read is still there when the copy is refreshed for another
+  const d = repo("d", { "f.txt": "x" + NL });
+  const copy = freshCopy("y1", d.url).dir;
+  mkdirSync(join(copy, ".longtable-yours"), { recursive: true });
+  writeFileSync(join(copy, ".longtable-yours", "memory.md"), "mine" + NL);
+  writeFileSync(join(copy, "stray.txt"), "stray" + NL);
+  freshCopy("y1", d.url);
+  check("refreshing the copy clears strays but leaves what a job that is reading was given", existsSync(join(copy, ".longtable-yours", "memory.md")) && !existsSync(join(copy, "stray.txt")));
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {

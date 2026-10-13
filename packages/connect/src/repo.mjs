@@ -53,7 +53,9 @@ export function freshCopy(tableId, source) {
   } else {
     git(["-C", dir, "fetch", "--quiet", "--depth", "1", "--no-tags", "origin", "HEAD"]);
     git(["-C", dir, "reset", "--quiet", "--hard", "FETCH_HEAD"]);
-    git(["-C", dir, "clean", "-qfdx"]);
+    // The folder laid beside the code for an AI to read stays: a job that only reads may be in the middle of it
+    // while the copy is refreshed for long work in the other lane. Each job clears and lays it for itself.
+    git(["-C", dir, "clean", "-qfdx", "-e", ".longtable-yours"]);
   }
   const branch = git(["-C", dir, "rev-parse", "--abbrev-ref", "HEAD"]);
   const head = git(["-C", dir, "rev-parse", "--short", "HEAD"]);
