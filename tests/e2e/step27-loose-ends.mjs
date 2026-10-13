@@ -50,6 +50,17 @@ try {
   delete device.Lee;
   check("and when the person whose AI was answering is taken off the table", (await asked()).some((b) => /logo be a little larger/.test(b)) && told() === "2", { asked: await asked(), told: told() });
 
+  // ---- what one connection shares for a request stays a few files, however many times it calls
+  await pair("Maya");
+  await rpc(tokens.Maya, "ask_table", { c: chat, body: 'Summarise the notes in "C:\\Users\\maya\\notes"' });
+  const job = await take("Maya", "heavy") ?? await take("Maya", "light");
+  for (let call = 0; call < 5; call++) await anon("runner_share", { token: device.Maya, job: job.job_id, files: Array.from({ length: 4 }, (_, i) => ({ name: `C:\\Users\\maya\\notes\\${call}-${i}.md`, body: "A note." })) });
+  const kept = sql(`select count(*) from public.round_materials where table_id = '${table}'`);
+  const again = await anon("runner_share", { token: device.Maya, job: job.job_id, files: [{ name: "C:\\Users\\maya\\notes\\0-0.md", body: "A newer note." }] });
+  check("no more than eight shared files are kept for one request, and one already shared can still be replaced", kept === "8" && again.body === 1
+    && sql(`select count(*) from public.round_materials where table_id = '${table}'`) === "8", { kept, again: again.body });
+  await fin("Maya", job, "Done.", {});
+
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {
