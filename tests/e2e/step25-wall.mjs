@@ -60,6 +60,20 @@ try {
   await rpc(tokens.Maya, "remove_member", { m: id("Lee") });
   const late = await anon("pair_connection", { code, device_label: "late" });
   check("a connect code made before someone was taken off no longer connects anything", late.status >= 400 && !late.body?.token, { status: late.status, token: !!late.body?.token });
+  // Each of the three things that keep them out, on its own. Taking them off spends the codes they had not used.
+  const unspent = sql(`select count(*) from public.pairings where member_id = '${id("Lee")}' and used_at is null`);
+  check("taking someone off spends the connect codes they had not used", unspent === "0", unspent);
+  // A code that is still good on paper, put there after they were taken off, so only pairing itself can refuse it.
+  const fresh = `WALL${run.toUpperCase()}`;
+  sql(`insert into public.pairings (table_id, member_id, kind, code_hash) values ('${table}', '${id("Lee")}', 'claude', encode(extensions.digest('${fresh}', 'sha256'), 'hex'))`);
+  const paired = await anon("pair_connection", { code: fresh, device_label: "late" });
+  check("pairing refuses a good code whose person is no longer at the table", paired.status >= 400 && !paired.body?.token && /not valid any more/.test(JSON.stringify(paired.body)), { status: paired.status, body: paired.body });
+  // And a connection that is still live on paper, so only the look-up every connection call makes can refuse it.
+  const ghost = `ghost-${run}`;
+  sql(`insert into public.connections (table_id, member_id, kind, token_hash, label, last_seen) values ('${table}', '${id("Lee")}', 'claude', encode(extensions.digest('${ghost}', 'sha256'), 'hex'), 'ghost', now())`);
+  const hello = await anon("runner_hello", { token: ghost });
+  const claim = await anon("runner_claim", { token: ghost, lane: "light" });
+  check("a live connection whose person is gone is refused whatever it asks", hello.status >= 400 && claim.status >= 400 && /connection was removed/.test(JSON.stringify(hello.body)), { hello, claim });
 
   // ---- what a client said to an assistant of their own is not handed to the team's
   await pair("Elena");
