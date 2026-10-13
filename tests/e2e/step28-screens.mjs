@@ -38,6 +38,21 @@ try {
   const fromEnd = await p.evaluate(() => { const el = document.querySelector("[data-testid=messages]"); return el.scrollHeight - el.scrollTop - el.clientHeight; });
   check("a chat opened from the table's home is at its newest message, not its oldest", fromEnd < 80, fromEnd);
 
+  // ---- the Connect window names the table as it is called now
+  await p.click("[data-testid=me-menu]");
+  await p.click("a:has-text('Table settings')");
+  await p.waitForURL(/\/settings$/);
+  await p.fill("#s-name", "Fernhill booking");
+  await p.click("form[aria-label='The table'] button:has-text('Save')");
+  await p.waitForSelector("form[aria-label='The table'] [role=status]");
+  await p.click("[data-testid=me-menu]");
+  await p.click("button:has-text('Connect my AI')");
+  await p.click("[data-testid=pick-claude]");
+  await p.click("text=It is only on my computer");
+  const message = await p.locator("[data-testid=connect-message]").textContent();
+  check("after the table is renamed, the Connect window's message uses the new name", /Fernhill booking/.test(message) && !/Booking app/.test(message), message);
+  await p.keyboard.press("Escape");
+
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {

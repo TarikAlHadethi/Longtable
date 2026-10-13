@@ -944,7 +944,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         );
       })()}
       {connectOpen && (
-        <ConnectModal tableId={table.id} tableName={table.name} connected={myConnection?.kind ?? null} onClose={() => setConnectOpen(false)} />
+        <ConnectModal tableId={table.id} tableName={tableName} connected={myConnection?.kind ?? null} onClose={() => setConnectOpen(false)} />
       )}
       {asking && chat && (
         <NewDecision
