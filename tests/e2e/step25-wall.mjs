@@ -80,13 +80,20 @@ try {
 
   // ---- one client's words do not ride into another client's assistant
   const taskId = sql(`insert into public.tasks (table_id, chat_id, member_id, title, branch, status, reference) values ('${table}', '${chat}', '${id("Maya")}',
-    'From Priya: make the price list private to me', 'longtable/from-priya-${run}', 'done', '{"client":"Priya Shah","words":"make the price list private to me"}') returning id`).split("\n")[0];
+    'From Priya: make the price list private to me', 'longtable/from-priya-${run}', 'done', '{"client":"Priya Shah","words":"make the price list private to me","branch":"longtable/sandbox-priya-${run}"}') returning id`).split("\n")[0];
+  // Priya's own copy is where that work came from: the work keeps its branch.
+  sql(`insert into public.sandboxes (table_id, member_id, mode, branch) values ('${table}', '${id("Priya")}', 'chat', 'longtable/sandbox-priya-${run}')`);
   sql(`insert into public.tasks (table_id, chat_id, member_id, title, branch, status) values ('${table}', '${chat}', '${id("Maya")}', 'Faster search', 'longtable/faster-search-${run}', 'done')`);
   await rpc(tokens.Elena, "client_say", { t: table, body: "What has been finished lately?" });
   const desk2 = await take("Sam", "light");
   const titles = (desk2?.work || []).map((w) => w.title);
   check("a client hears what the team finished, but never work that came from another client's own words", !!taskId && titles.includes("Faster search") && !titles.some((x) => /Priya|price list/.test(x)), titles);
   await fin("Sam", desk2, "Search is faster now.", { pass_on: false });
+  await rpc(tokens.Priya, "client_say", { t: table, body: "What has been finished lately?" });
+  const desk3 = await take("Sam", "light");
+  const hers3 = (desk3?.work || []).map((w) => w.title);
+  check("and the client that work came from does still hear of it", desk3?.me === "Priya Shah" && hers3.includes("Faster search") && hers3.some((x) => /price list/.test(x)), { me: desk3?.me, titles: hers3 });
+  await fin("Sam", desk3, "Your price list change is done.", { pass_on: false });
 
   // ---- a message with something attached counts toward the hourly limit like any other
   sql(`insert into public.client_lines (table_id, member_id, who, body, by_table) select '${table}', '${id("Elena")}', 'client', 'x', true from generate_series(1, 60)`);
