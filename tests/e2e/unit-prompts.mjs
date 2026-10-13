@@ -124,6 +124,39 @@ try {
   writeFileSync(join(process.env.LONGTABLE_CLAUDE_HOME, "commands", "quote.md"), `Write a quote for: $ARGUMENTS${NL}Start with the word: $1${NL}End of the command.`);
   const quote = loadCommand({ kind: "claude" }, "/quote the client pays $2 per seat, $& all in, $' no more");
   check("a dollar sign in what was typed after a command stays as typed", !!quote && quote.body.includes("for: the client pays $2 per seat, $& all in, $' no more") && quote.body.includes("word: the" + NL), quote && quote.body);
+
+  // ---- "/" offers what the person wrote, what their plugins add, and the built-in ones
+  const { commandPrompt, scanCommands } = await import("../../packages/connect/src/extras.mjs");
+  const ch = process.env.LONGTABLE_CLAUDE_HOME;
+  const project = join(scratch, "project-with-plugins");
+  const pluginDir = (name) => join(ch, "plugins", "cache", name);
+  for (const name of ["helper", "elsewhere", "off"]) {
+    mkdirSync(join(pluginDir(name), "commands"), { recursive: true });
+    mkdirSync(join(pluginDir(name), "skills", "tidy"), { recursive: true });
+    writeFileSync(join(pluginDir(name), "commands", "plan.md"), `---${NL}description: Plan the work${NL}---${NL}Plan: $ARGUMENTS`);
+    writeFileSync(join(pluginDir(name), "skills", "tidy", "SKILL.md"), `---${NL}name: tidy${NL}description: Tidy up${NL}---${NL}Tidy.`);
+  }
+  mkdirSync(join(project, ".claude"), { recursive: true });
+  writeFileSync(join(ch, "plugins", "installed_plugins.json"), JSON.stringify({ version: 2, plugins: {
+    "helper@shop": [{ scope: "project", projectPath: project.toUpperCase(), installPath: pluginDir("helper") }],
+    "elsewhere@shop": [{ scope: "project", projectPath: join(scratch, "another-project"), installPath: pluginDir("elsewhere") }],
+    "off@shop": [{ scope: "user", installPath: pluginDir("off") }],
+  } }));
+  writeFileSync(join(project, ".claude", "settings.json"), JSON.stringify({ enabledPlugins: { "helper@shop": true, "elsewhere@shop": true, "off@shop": false } }));
+  writeFileSync(join(ch, "commands", "review.md"), `My own way to review: $ARGUMENTS`);
+  const offered = scanCommands({ kind: "claude", folder: project });
+  const names = offered.map((c) => c.name);
+  check("a plugin switched on for this project adds its commands and skills, under its own name", names.includes("helper:plan") && names.includes("helper:tidy"), names);
+  check("a plugin of another project, and one switched off, add nothing", !names.some((n) => /^(elsewhere|off):/.test(n)), names);
+  check("the built-in commands that mean something at a table are offered", ["code-review", "security-review", "simplify", "init", "debug", "verify"].every((n) => offered.some((c) => c.name === n && c.kind === "builtin" && c.about)), names);
+  check("none of the ones that only steer Claude's own window are offered", !names.some((n) => ["clear", "compact", "model", "config", "mcp", "usage"].includes(n)), names);
+  check("a person's own command wins over a built-in one of the same name", offered.find((c) => c.name === "review")?.kind === "command" && loadCommand({ kind: "claude", folder: project }, "/review the form").body === "My own way to review: the form");
+  const built = loadCommand({ kind: "claude", folder: project }, "/security-review the sign-in page, costs $5");
+  check("a built-in command carries what it means here and what was typed after it, as typed", !!built && built.kind === "builtin" && built.body.includes("What to review: the sign-in page, costs $5") && /cannot run commands/.test(built.body), built && built.body.slice(0, 200));
+  check("with nothing typed after it, a built-in command says so instead of leaving a hole", loadCommand({ kind: "claude", folder: project }, "/code-review").body.includes("(nothing more was typed)"));
+  check("a built-in command is not described to the AI as something its person wrote", /ran the command \/security-review/.test(commandPrompt("Maya", built)) && !/written on their own computer/.test(commandPrompt("Maya", built)));
+  check("a plugin's command is read like any other of theirs", loadCommand({ kind: "claude", folder: project }, "/helper:plan the launch")?.body === "Plan: the launch");
+  check("a ChatGPT seat is offered none of Claude's", scanCommands({ kind: "codex", folder: project }).every((c) => c.kind === "prompt"));
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {

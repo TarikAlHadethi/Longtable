@@ -501,7 +501,10 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   // Their own AI's commands and skills, offered while the box holds only "/" and the start of a name.
   const slashWord = draft.match(/^\/([A-Za-z0-9:_-]*)$/)?.[1];
   const slash = slashWord === undefined ? [] : (myConnection?.commands ?? []).filter((c) => c.name.toLowerCase().includes(slashWord.toLowerCase()))
-    .sort((x, y) => Number(y.name.toLowerCase().startsWith(slashWord.toLowerCase())) - Number(x.name.toLowerCase().startsWith(slashWord.toLowerCase())) || x.name.localeCompare(y.name)).slice(0, 8);
+    .sort((x, y) => Number(x.kind === "builtin") - Number(y.kind === "builtin")
+      || Number(y.name.toLowerCase().startsWith(slashWord.toLowerCase())) - Number(x.name.toLowerCase().startsWith(slashWord.toLowerCase())) || x.name.localeCompare(y.name));
+  // The ones every Claude has come after the person's own, under a line saying so, when there are both.
+  const slashBuiltAt = slash.findIndex((c) => c.kind === "builtin");
   const slashIndex = Math.min(slashAt, Math.max(0, slash.length - 1));
   function pickSlash(name: string) {
     setDraft(`/${name} `);
@@ -853,10 +856,14 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
             {slash.length > 0 && (
               <div className={styles.slash} role="listbox" aria-label={`Your ${aiWord(me.id)}'s own commands`} data-testid="slash-menu">
                 {slash.map((c, i) => (
-                  <button key={c.name} type="button" role="option" aria-selected={i === slashIndex} className={`${styles.slashItem} ${i === slashIndex ? styles.slashOn : ""}`} style={{ "--i": i } as React.CSSProperties}
-                    onMouseEnter={() => setSlashAt(i)} onMouseDown={(e) => { e.preventDefault(); pickSlash(c.name); }}>
-                    <b>/{c.name}</b><span>{c.about || (c.kind === "skill" ? "A skill of yours" : "A command of yours")}</span>
-                  </button>
+                  <Fragment key={c.name}>
+                    {i === slashBuiltAt && i > 0 && <div className={styles.slashHead} role="presentation">Built in</div>}
+                    <button type="button" role="option" aria-selected={i === slashIndex} className={`${styles.slashItem} ${i === slashIndex ? styles.slashOn : ""}`} style={{ "--i": i } as React.CSSProperties}
+                      ref={i === slashIndex ? (el) => { el?.scrollIntoView({ block: "nearest" }); } : undefined}
+                      onMouseMove={() => { if (i !== slashIndex) setSlashAt(i); }} onMouseDown={(e) => { e.preventDefault(); pickSlash(c.name); }}>
+                      <b>/{c.name}</b><span>{c.about || (c.kind === "builtin" ? "Built in" : c.kind === "skill" ? "A skill of yours" : "A command of yours")}</span>
+                    </button>
+                  </Fragment>
                 ))}
               </div>
             )}

@@ -55,7 +55,7 @@ export type Job = {
 
 export type Limits = { ai?: string | null; plan?: string | null; model?: string | null; status?: string | null; models?: string[]; windows?: { name: string; used: number; resets: string | null }[] };
 // A person's own command or skill on their computer: its name and a line on what it is for.
-export type Command = { name: string; about: string; kind: "command" | "skill" | "prompt" };
+export type Command = { name: string; about: string; kind: "command" | "skill" | "prompt" | "builtin" };
 export type Connection = { id: string; member_id: string; kind: "claude" | "codex"; last_seen: string | null; revoked_at: string | null; created_at: string; limits?: Limits | null; model_choice?: string | null;
   open_paths?: boolean; share_paths?: boolean; commands?: Command[] };
 // Something attached to a message.

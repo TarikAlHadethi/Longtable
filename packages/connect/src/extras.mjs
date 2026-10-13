@@ -37,8 +37,49 @@ function walk(dir, depth = 3) {
   return out;
 }
 
-// Every command and skill this person's AI has on this computer, for this project and for themselves. The project's
-// own win over the person's when two share a name.
+// The commands every Claude Code has built in that mean something at a table, in Longtable's own words. Claude
+// Code's own versions are not files, and run as they are they reach for a shell and for git, which no AI at the table
+// has: tried under the table's lock, one answered nothing and one never came back. These do the same jobs with what an
+// AI here does have, which is reading the code and, when it is doing work, changing files. The ones that only steer
+// Claude Code's own window (clear, compact, model, config and the like) have nothing to steer here and are left out.
+const HERE = "You cannot run commands, tests or git here, so read the code itself and say plainly what you could not confirm by running it.";
+const BUILTIN = {
+  "review": { about: "Read code for bugs and say what is wrong, most serious first", body: `Review code for bugs. What to review: $ARGUMENTS
+If nothing is named, review what the most recent work in this conversation changed. Read every file you report on; do not review from memory. Report only what is really wrong, most serious first, each with the file and line, what goes wrong, one concrete case that triggers it, and the fix. Do not change any file unless you were asked to fix what you find. ${HERE}` },
+  "code-review": { about: "Read code for bugs and say what is wrong, most serious first", same: "review" },
+  "security-review": { about: "Look for ways the code could be misused or leak something", body: `Review code for security problems. What to review: $ARGUMENTS
+If nothing is named, review what the most recent work in this conversation changed, and the code it touches. Look for: input trusted without a check, missing permission checks, secrets in code or logs, injection (SQL, shell, HTML), unsafe file paths, requests to addresses a person controls, and data one person can read of another's. Report only real, reachable problems, most serious first, each with the file and line, how it would be used against the product, and the fix. Do not change any file unless you were asked to fix what you find. ${HERE}` },
+  "simplify": { about: "Make code simpler without changing what it does", body: `Clean up code without changing what it does. What to clean up: $ARGUMENTS
+If nothing is named, clean up what the most recent work in this conversation changed. Look for code that repeats something the project already has, more steps or layers than the job needs, and needless work. When you can change files here, make the changes and say what you changed; when you cannot, list each change with its file and line. Leave behaviour, names other code relies on, and anything unrelated alone. ${HERE}` },
+  "init": { about: "Write or improve the project's CLAUDE.md", body: `Write a CLAUDE.md for this project, or improve the one it has, for the next AI that works here. $ARGUMENTS
+Cover how to build, run and test it (and how to run one test), and the parts of its design that take reading several files to understand. Leave out generic advice and anything obvious from one file. Take in what a README or other instruction files already say. When you can change files here, write the file; when you cannot, give its full text in your answer. ${HERE}` },
+  "debug": { about: "Find the cause of a problem by reading the code", body: `Find the cause of this problem: $ARGUMENTS
+If no problem is described, take the one being talked about in this conversation. Follow it through the code from where it shows to where it starts. Say the cause, the lines that prove it, and the fix. Keep what you know apart from what you suspect. Do not change any file unless you were asked to fix it. ${HERE}` },
+  "verify": { about: "Check that a change does what it claims", body: `Check that a change does what it is meant to. What to check: $ARGUMENTS
+If nothing is named, check the most recent work in this conversation. Read the change and what calls it, follow each path through it including the awkward ones (nothing given, too much given, the wrong person asking, the same thing twice), and say for each claim whether the code bears it out. ${HERE}` },
+};
+
+// The plugins this person has for this project or for themselves, switched on in their settings: each one's folder.
+function plugins(folder) {
+  const out = [];
+  const same = (a, b) => !!a && !!b && String(a).replace(/[\\/]+$/, "").toLowerCase().split("\\").join("/") === String(b).replace(/[\\/]+$/, "").toLowerCase().split("\\").join("/");
+  const on = new Set();
+  for (const file of [join(claudeHome(), "settings.json"), folder && join(folder, ".claude", "settings.json"), folder && join(folder, ".claude", "settings.local.json")].filter(Boolean)) {
+    try { for (const [key, value] of Object.entries(JSON.parse(readFileSync(file, "utf8")).enabledPlugins || {})) { if (value === true) on.add(key); else on.delete(key); } } catch {}
+  }
+  let installed = {};
+  try { installed = JSON.parse(readFileSync(join(claudeHome(), "plugins", "installed_plugins.json"), "utf8")).plugins || {}; } catch {}
+  for (const [key, entries] of Object.entries(installed)) {
+    if (!on.has(key)) continue;
+    const hit = (Array.isArray(entries) ? entries : []).find((e) => e && typeof e.installPath === "string" && (e.scope === "user" || same(e.projectPath, folder)));
+    if (hit) out.push({ name: key.split("@")[0], dir: hit.installPath });
+  }
+  return out;
+}
+
+// Every command and skill this person's AI has on this computer, for this project and for themselves, then the ones
+// their plugins add, then the built-in ones. The project's own win over the person's when two share a name, and
+// anything of theirs wins over a built-in one.
 export function scanCommands(seat) {
   const found = new Map();
   const add = (name, about, kind, file) => {
@@ -67,6 +108,26 @@ export function scanCommands(seat) {
         } catch {}
       }
     }
+    // A plugin's commands and skills carry its name in front, the way Claude Code itself shows them.
+    for (const plugin of plugins(folder)) {
+      const dir = join(plugin.dir, "commands");
+      for (const file of walk(dir)) {
+        try {
+          const f = front(readFileSync(file, "utf8"));
+          add(`${plugin.name}:${relative(dir, file).slice(0, -3).split(sep).join(":")}`, f.description || firstLine(f.body), "command", file);
+        } catch {}
+      }
+      let skills = [];
+      try { skills = readdirSync(join(plugin.dir, "skills"), { withFileTypes: true }).filter((e) => e.isDirectory()); } catch {}
+      for (const e of skills) {
+        const file = join(plugin.dir, "skills", e.name, "SKILL.md");
+        try {
+          const f = front(readFileSync(file, "utf8"));
+          add(`${plugin.name}:${f.name || e.name}`, f.description || firstLine(f.body), "skill", file);
+        } catch {}
+      }
+    }
+    for (const [name, b] of Object.entries(BUILTIN)) add(name, b.about, "builtin", null);
   } else {
     const dir = join(codexHome(), "prompts");
     for (const file of walk(dir, 0)) {
@@ -86,8 +147,13 @@ export function loadCommand(seat, question) {
   const hit = scanCommands(seat).find((c) => c.name.toLowerCase() === m[1].toLowerCase());
   if (!hit) return null;
   try {
-    const f = front(readFileSync(hit.file, "utf8"));
     const args = m[2].trim();
+    if (hit.kind === "builtin") {
+      const b = BUILTIN[hit.name.toLowerCase()];
+      const body = (BUILTIN[b.same] || b).body.replace(/\$ARGUMENTS/g, () => args || "(nothing more was typed)");
+      return { name: hit.name, kind: hit.kind, args, body };
+    }
+    const f = front(readFileSync(hit.file, "utf8"));
     const parts = args.split(/\s+/).filter(Boolean);
     // The places a command leaves for what was typed after its name. Filled in one pass and through a function, so
     // a dollar sign in what was typed ("$2 per seat") is put in as typed and never read as a place of its own.
@@ -101,7 +167,9 @@ export function loadCommand(seat, question) {
 export function commandPrompt(me, cmd) {
   const what = cmd.kind === "skill" ? "skill" : "command";
   return [
-    `${me} ran their own ${what} /${cmd.name}${cmd.args ? ` with: ${cmd.args}` : ""}. It is theirs, written on their own computer for you, and its instructions are between <<<COMMAND and COMMAND>>>. Do what it says for this request, within what you may do at this table: where it tells you to run something, use a tool you do not have here, or leave the project, say plainly that this part cannot be done from the table and do the rest.`,
+    cmd.kind === "builtin"
+      ? `${me} ran the command /${cmd.name}${cmd.args ? ` with: ${cmd.args}` : ""}. What it means at this table is between <<<COMMAND and COMMAND>>>. Do that for this request.`
+      : `${me} ran their own ${what} /${cmd.name}${cmd.args ? ` with: ${cmd.args}` : ""}. It is theirs, written on their own computer for you, and its instructions are between <<<COMMAND and COMMAND>>>. Do what it says for this request, within what you may do at this table: where it tells you to run something, use a tool you do not have here, or leave the project, say plainly that this part cannot be done from the table and do the rest.`,
     "<<<COMMAND",
     cmd.body.replace(/<<<COMMAND|COMMAND>>>/g, "[marker]"),
     "COMMAND>>>",

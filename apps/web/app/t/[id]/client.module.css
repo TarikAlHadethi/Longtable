@@ -16,7 +16,7 @@
 .scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 28px 20px 20px; }
 .col { width: 100%; max-width: 680px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
 .foot { flex-shrink: 0; padding: 0 20px 18px; }
-.foot .col { gap: 6px; }
+.foot .col { gap: 6px; max-width: 780px; }
 /* The same box as the team writes in, the full width of the conversation, with Send beside the words on any screen. */
 .foot form { width: 100%; max-width: none; margin: 0; flex-wrap: nowrap; }
 .foot textarea { flex-basis: 0; min-width: 0; }

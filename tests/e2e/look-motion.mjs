@@ -69,6 +69,13 @@ try {
     { name: "release-notes", about: "Write what changed for the people who use it", kind: "command" },
     { name: "house-style", about: "How this team writes", kind: "skill" },
     { name: "standup", about: "What moved since yesterday, in three lines", kind: "command" },
+    { name: "helper:plan", about: "Plan the work before starting it", kind: "command" },
+    { name: "code-review", about: "Read code for bugs and say what is wrong, most serious first", kind: "builtin" },
+    { name: "security-review", about: "Look for ways the code could be misused or leak something", kind: "builtin" },
+    { name: "simplify", about: "Make code simpler without changing what it does", kind: "builtin" },
+    { name: "init", about: "Write or improve the project's CLAUDE.md", kind: "builtin" },
+    { name: "debug", about: "Find the cause of a problem by reading the code", kind: "builtin" },
+    { name: "verify", about: "Check that a change does what it claims", kind: "builtin" },
   ] });
   const pulse = setInterval(() => anon("runner_hello", { token: device }), 8000);
   const chat = (await rest(token, `chats?select=id&table_id=eq.${table}`)).body[0].id;
@@ -113,6 +120,8 @@ try {
   await p.waitForSelector("[data-testid=slash-menu]");
   const list = await moving(p, "[data-testid=slash-menu]");
   check("the list of her own commands opens with each line arriving in turn", list?.some((n) => /lt-slash/.test(n)) && list.filter((n) => /lt-rise/.test(n)).length >= 4, list);
+  const offered = await p.locator("[data-testid=slash-menu] [role=option]").allTextContents();
+  check("every command is offered, her own first and the built-in ones after them under their own line", offered.length === 11 && /helper:plan/.test(offered[0]) && /standup/.test(offered[4]) && /code-review/.test(offered[5]) && /Built in/.test(await p.textContent("[data-testid=slash-menu]")), offered.map((t) => t.slice(0, 18)));
   await sleep(90);
   await p.screenshot({ path: `${out}/motion-slash-opening.png` });
   await sleep(500);
@@ -120,6 +129,12 @@ try {
   await p.keyboard.press("ArrowDown");
   await sleep(250);
   await p.screenshot({ path: `${out}/motion-slash.png` });
+  for (let i = 0; i < 9; i++) await p.keyboard.press("ArrowDown");
+  await sleep(300);
+  check("the arrows reach the last one and keep it in sight", await p.evaluate(() => { const list = document.querySelector("[data-testid=slash-menu]"); const on = list.querySelector("[aria-selected=true]"); const a = list.getBoundingClientRect(), b = on.getBoundingClientRect(); return /verify/.test(on.textContent) && b.top >= a.top - 1 && b.bottom <= a.bottom + 1; }));
+  await p.screenshot({ path: `${out}/motion-slash-end.png` });
+  const box = await p.evaluate(() => { const f = document.querySelector("textarea").closest("form").getBoundingClientRect(); const t = document.querySelector("textarea").getBoundingClientRect(); return { left: Math.round(t.left - f.left), top: Math.round(t.top - f.top), width: Math.round(f.width) }; });
+  check("the words in the box keep well clear of its edge, and the box is wider than the messages", box.left >= 22 && box.top >= 9 && box.width > 730, box);
   await p.keyboard.type("re");
   await sleep(200);
   check("typing more of a name starts again from the best match", (await p.getAttribute("[data-testid=slash-menu] button:first-child", "aria-selected")) === "true" && /release-notes/.test(await p.textContent("[data-testid=slash-menu] button:first-child")));
