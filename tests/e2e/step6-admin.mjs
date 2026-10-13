@@ -11,7 +11,7 @@ const run = Date.now().toString(36);
 const results = { checks: {} };
 const check = (name, ok, detail) => { results.checks[name] = ok ? "pass" : `FAIL ${detail ?? ""}`.trim(); };
 const opEmail = `operator-${run}@example.test`;
-const sql = (q) => execFileSync("docker", ["exec", "supabase_db_longtable", "psql", "-U", "postgres", "-d", "postgres", "-At", "-c", q], { encoding: "utf8" });
+const sql = (q) => execFileSync("docker", ["exec", process.env.DB_CONTAINER || "supabase_db_longtable", "psql", "-U", "postgres", "-d", "postgres", "-At", "-c", q], { encoding: "utf8" });
 
 const browser = await launch();
 try {

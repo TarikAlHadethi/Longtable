@@ -14,7 +14,7 @@ const check = (name, ok, detail) => {
   results.checks[name] = ok ? "pass" : `FAIL ${typeof detail === "string" ? detail : JSON.stringify(detail ?? "")}`.trim().slice(0, 700);
   if (!ok) console.error("FAIL", name, typeof detail === "string" ? detail.slice(0, 300) : JSON.stringify(detail ?? "").slice(0, 300));
 };
-const sql = (q) => execFileSync("docker", ["exec", "-i", "supabase_db_longtable", "psql", "-U", "postgres", "-d", "postgres", "-At", "-c", q], { encoding: "utf8" }).trim();
+const sql = (q) => execFileSync("docker", ["exec", "-i", process.env.DB_CONTAINER || "supabase_db_longtable", "psql", "-U", "postgres", "-d", "postgres", "-At", "-c", q], { encoding: "utf8" }).trim();
 
 // A connection's calls: the publishable key and its device token, nothing else.
 async function anon(fn, args) {

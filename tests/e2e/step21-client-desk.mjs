@@ -93,7 +93,7 @@ try {
   check("a clear change reaches the team as a request", reqs.length >= 2 && reqs.some((r) => /bigger|blue|title/i.test(r.title + r.body)), reqs);
 
   // She may hear what is finished and what is under way: titles only, and never what was stopped.
-  const sql = (q) => execFileSync("docker", ["exec", "-i", "supabase_db_longtable", "psql", "-U", "postgres", "-d", "postgres", "-At", "-c", q], { encoding: "utf8" }).trim();
+  const sql = (q) => execFileSync("docker", ["exec", "-i", process.env.DB_CONTAINER || "supabase_db_longtable", "psql", "-U", "postgres", "-d", "postgres", "-At", "-c", q], { encoding: "utf8" }).trim();
   const chatId = sql(`select id from public.chats where table_id = '${owner.tableId}' and is_general`);
   const task = (title, status) => sql(`insert into public.tasks (table_id, chat_id, title, branch, status) values ('${owner.tableId}', '${chatId}', '${title}', 'longtable/t-${run}-' || substr(md5(random()::text), 1, 8), '${status}')`);
   task("Bigger photos on the kit page", "done");
