@@ -82,6 +82,16 @@ try {
   check("a client hears what the team finished, but never work that came from another client's own words", !!taskId && titles.includes("Faster search") && !titles.some((x) => /Priya|price list/.test(x)), titles);
   await fin("Sam", desk2, "Search is faster now.", { pass_on: false });
 
+  // ---- a message with something attached counts toward the hourly limit like any other
+  sql(`insert into public.client_lines (table_id, member_id, who, body, by_table) select '${table}', '${id("Elena")}', 'client', 'x', true from generate_series(1, 60)`);
+  const path = `${table}/${id("Elena")}/${crypto.randomUUID()}-note.txt`;
+  const headers = { apikey: KEY, Authorization: `Bearer ${tokens.Elena}` };
+  const up = await fetch(`${API}/storage/v1/object/attachments/${path}`, { method: "POST", headers: { ...headers, "Content-Type": "text/plain" }, body: "a note" });
+  const signed = await (await fetch(`${API}/storage/v1/object/sign/attachments/${path}`, { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify({ expiresIn: 3600 }) })).json();
+  const words = await rpc(tokens.Elena, "client_say", { t: table, body: "one more" });
+  const withFile = await rpc(tokens.Elena, "client_say", { t: table, body: "", files: [{ path, name: "note.txt", mime: "text/plain", url: `${API}/storage/v1${signed.signedURL}` }] });
+  check("past the hourly limit a message with an attachment is refused like one without", up.ok && !!signed.signedURL && words.status >= 400 && withFile.status >= 400 && /a lot of requests/.test(JSON.stringify(withFile.body)), { up: up.status, words: words.status, withFile: withFile.status, body: withFile.body });
+
   clearInterval(pulse);
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
