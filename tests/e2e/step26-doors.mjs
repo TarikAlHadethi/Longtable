@@ -62,6 +62,8 @@ try {
   const loop = await ask(owner);
   await sleep(500);
   check("a public name that leads to a private machine is never opened", knocks === 0 && loop.body?.ok === false, { knocks, loop });
+  const empty = await ask(owner, null);
+  check("a body with nothing in it is a bad request, not a crash", empty.status === 400, empty);
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {

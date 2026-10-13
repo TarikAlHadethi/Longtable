@@ -11,7 +11,7 @@ const PRIVATE = /^(localhost|.*\.local|.*\.internal|127\.|10\.|192\.168\.|169\.2
 const PRIVATE_ADDRESS = /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|0\.|::$|::1$|::ffff:|f[cd][0-9a-f]{2}:|fe[89ab][0-9a-f]:)/i;
 
 export async function POST(req: Request) {
-  const { member } = (await req.json().catch(() => ({}))) as { member?: string };
+  const { member } = ((await req.json().catch(() => null)) ?? {}) as { member?: string };
   if (!member || !UUID.test(member)) return Response.json({ ok: false, why: "bad" }, { status: 400 });
   const supabase = await serverClient();
   const { data: { user } } = await supabase.auth.getUser();
