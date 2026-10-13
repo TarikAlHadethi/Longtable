@@ -36,6 +36,7 @@ check("a .env is refused", JSON.stringify(kinds(`read "${join(docs, ".env")}"`))
 check("the connection's own folder is refused", pointedPaths(`read ${join(homedir(), ".longtable")}`).every((p) => p.refused));
 check("a whole home folder is refused", pointedPaths(`go through ${homedir()}`).every((p) => p.refused), pointedPaths(`go through ${homedir()}`));
 check("a whole drive is refused", pointedPaths(process.platform === "win32" ? "go through C:\ now" : "go through / now").every((p) => p.refused));
+check("a home folder written in other letter case is refused all the same", process.platform === "linux" || (pointedPaths(`go through ${homedir().toLowerCase()} now`).length === 1 && pointedPaths(`go through ${homedir().toLowerCase()} now`).every((p) => p.refused)), pointedPaths(`go through ${homedir().toLowerCase()} now`));
 check("no more than five", pointedPaths(Array.from({ length: 9 }, (_, i) => { const f = join(docs, `f${i}.txt`); writeFileSync(f, "x"); return `"${f}"`; }).join(" ")).length === 5);
 
 const work = mkdtempSync(join(tmpdir(), "longtable-pointed-work-"));

@@ -27,7 +27,9 @@ function tooWide(p) {
   const { root } = parse(p);
   const rest = p.slice(root.length).split(/[\\/]+/).filter(Boolean);
   if (rest.length === 0) return true;
-  if (resolve(p) === resolve(homedir())) return true;
+  // Windows and macOS disks do not tell upper case from lower, so c:\users\me is the home folder too.
+  const fold = (s) => process.platform === "linux" ? s : s.toLowerCase();
+  if (fold(resolve(p)) === fold(resolve(homedir()))) return true;
   if (rest.length === 1 && /^(users|home|windows|program files( \(x86\))?|programdata|system32|usr|var|bin|etc|lib|opt)$/i.test(rest[0])) return true;
   if (/^(windows|program files( \(x86\))?|programdata)$/i.test(rest[0])) return true;
   return false;
