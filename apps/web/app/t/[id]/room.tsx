@@ -367,11 +367,12 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     return map;
   }, [messages]);
 
-  // Stay at the bottom while new things arrive, unless someone scrolled up to read.
+  // Stay at the bottom while new things arrive, unless someone scrolled up to read. And when the chat comes into
+  // view: while another page of the room is showing, the chat is not laid out, so there was no bottom to go to.
   useEffect(() => {
     const el = scrollRef.current;
     if (el && atBottom.current) el.scrollTop = el.scrollHeight;
-  }, [items]);
+  }, [items, view]);
 
   // The room's pages are views of this one page. Going to one changes the address and what is in the middle, and
   // nothing else: no request, so it is there at once.

@@ -28,6 +28,16 @@ try {
   const numbers = await p.evaluate(() => [...document.querySelectorAll("[data-testid=messages] ol")].flatMap((ol) => [...ol.children].map((_, i) => ol.start + i)));
   check("a numbered list in an answer counts 1, 2, 3 across a blank line and a bullet under an item", JSON.stringify(numbers) === "[1,2,3]", numbers);
 
+  // ---- a chat opened from the table's home starts at its newest message
+  sql(`insert into public.messages (table_id, member_id, chat_id, body) select '${table}', '${me}', '${chat}', 'Line ' || n from generate_series(1, 90) n`);
+  await p.goto(`${APP}/t/${table}`);
+  await p.waitForSelector("[data-testid=table-home]");
+  await sleep(1500);
+  await p.click("[data-testid=table-home] button:has-text('Open General')");
+  await sleep(1200);
+  const fromEnd = await p.evaluate(() => { const el = document.querySelector("[data-testid=messages]"); return el.scrollHeight - el.scrollTop - el.clientHeight; });
+  check("a chat opened from the table's home is at its newest message, not its oldest", fromEnd < 80, fromEnd);
+
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {
