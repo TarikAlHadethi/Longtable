@@ -97,7 +97,7 @@ try {
   // A name with no Latin letters in it still gives a plain branch name of its own.
   const e3 = openWork("p2", E);
   writeFileSync(join(e3.dir, "one.txt"), lines(20).replace("line 5", "Third five"));
-  const el3 = landWork("p2", { ...e3, base: e2.base }, E, "A third", "طارق");
+  const el3 = landWork("p2", { ...e3, base: e2.base }, E, "A third", "Ελένη");
   let plainName = false;
   try { plainName = safeBranch(el3.branch) === el3.branch; } catch {}
   check("a part set beside the branch for someone whose name has no Latin letters still gets a plain branch name", el3.pushed && el3.apart && plainName && !el3.branch.endsWith("-"), el3);
