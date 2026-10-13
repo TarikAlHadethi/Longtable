@@ -3,8 +3,9 @@
 //
 //   node tests/e2e/unit-pointed.mjs
 
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { execFileSync } from "node:child_process";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir, userInfo } from "node:os";
 import { join, sep } from "node:path";
 import { layPointed, pointedPaths, pointedSystem } from "../../packages/connect/src/pointed.mjs";
 
@@ -74,6 +75,39 @@ for (let i = 0; i < 405; i++) writeFileSync(join(bigDir, `f${i}.txt`), "x");
 writeFileSync(join(bigDir, "deep", "server.pem"), "x\n");
 const tooBig = layPointed(work, pointedPaths(`"${bigDir}"`), { reading: true });
 check("reading: a big folder with a key somewhere inside is not opened at all, and the AI is told why", tooBig.dirs.length === 0 && tooBig.copied.length === 0 && tooBig.skipped.length === 1 && /key/.test(tooBig.skipped[0].why), tooBig);
+// The example a project keeps to show which settings it wants is not a secret; every real kind of .env still is.
+const shown = join(root, "shown");
+mkdirSync(join(shown, "src"), { recursive: true });
+writeFileSync(join(shown, "src", "a.ts"), "x\n");
+for (const f of [".env.example", ".env.sample", ".env.template"]) writeFileSync(join(shown, f), "KEY=\n");
+const examples = [".env.example", ".env.sample", ".env.template"].filter((f) => JSON.stringify(kinds(`read "${join(shown, f)}"`)) !== '["file"]');
+check("a project's example of its settings is opened like any file", examples.length === 0, examples);
+const withExamples = layPointed(work, pointedPaths(`"${shown}"`), { reading: true });
+check("reading: a folder whose only .env files are examples is read where it is", withExamples.dirs.length === 1 && withExamples.copied.length === 0 && withExamples.skipped.length === 0, withExamples);
+for (const f of [".env.local", ".env.example.local"]) writeFileSync(join(shown, f), "KEY=1\n");
+const realOnes = [".env.local", ".env.example.local"].filter((f) => JSON.stringify(kinds(`read "${join(shown, f)}"`)) !== '["refused"]');
+check("a real .env of any kind is still refused, one named after an example too", realOnes.length === 0, realOnes);
+// A folder too big to look through is refused for that, and is not said to have a key in it.
+const wide = join(root, "wide");
+mkdirSync(wide);
+for (let i = 0; i < 20001; i++) writeFileSync(join(wide, `f${i}.txt`), "");
+const tooWide = layPointed(work, pointedPaths(`"${wide}"`), { reading: true });
+check("reading: a big folder with nothing secret in it is left for being too big, and is not said to hold a key", tooWide.dirs.length === 0 && tooWide.copied.length === 0 && tooWide.skipped.length === 1
+  && /too big to look through/.test(tooWide.skipped[0].why) && !/has a key/.test(tooWide.skipped[0].why), tooWide.skipped);
+// A part of a folder that cannot be looked into is not a part with nothing in it.
+const shut = join(root, "shut");
+const inner = join(shut, "inner");
+mkdirSync(inner, { recursive: true });
+writeFileSync(join(shut, "a.md"), "A.\n");
+writeFileSync(join(inner, "b.md"), "B.\n");
+const lock = (on) => process.platform === "win32"
+  ? execFileSync("icacls", [inner, on ? "/deny" : "/remove:d", on ? `${userInfo().username}:(RD)` : userInfo().username], { stdio: "ignore" })
+  : chmodSync(inner, on ? 0o000 : 0o755);
+let locked = false;
+try { lock(true); try { readdirSync(inner); } catch { locked = true; } } catch {}
+const halfSeen = layPointed(work, pointedPaths(`"${shut}"`), { reading: true });
+try { lock(false); } catch {}
+check("reading: a folder with a part that cannot be looked into is never read where it is", locked && halfSeen.dirs.length === 0, locked ? halfSeen : "NOT RUN: this computer would not make a folder unreadable, so nothing was proved");
 const changing = layPointed(work, pointedPaths(`"${docs}"`), { reading: false });
 check("changing files: a small folder is copied, never opened in place", changing.dirs.length === 0 && changing.copied.length === 1 && existsSync(join(changing.copied[0].at, "sub", "more.txt")), changing);
 check("and a copied folder leaves its .env behind", !existsSync(join(changing.copied[0].at, ".env")));

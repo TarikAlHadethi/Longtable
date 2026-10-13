@@ -12,7 +12,10 @@ const NEVER = [
   /(^|[\\/])\.longtable([\\/]|$)/i,
   /(^|[\\/])\.claude[\\/]\.credentials/i,
   /(^|[\\/])\.codex[\\/]auth/i,
-  /(^|[\\/])\.env(\.[\w.-]+)?$/i,
+  // A .env and every kind of it (.env.local, .env.production), but not the example a project keeps to show which
+  // settings it wants: .env.example, .env.sample and .env.template hold names, not values, and nearly every project
+  // has one.
+  /(^|[\\/])\.env(\.(?!(example|sample|template)$)[\w.-]+)?$/i,
   /\.env$/i,
   /(^|[\\/])\.envrc$/i,
   /\.(tfvars|tfstate)$/i,
@@ -113,24 +116,32 @@ function weigh(dir) {
   return { files, bytes };
 }
 
-// Whether anything inside a folder is one of the places that are never opened. Reading a folder where it is hands
-// the AI everything in it, so the check on the folder's own path is not enough: a project folder has its .env inside.
-// A folder too large to look through counts as holding one.
-function holdsNever(dir) {
+// Why a folder cannot be read where it is, or "" when it can. Reading a folder where it is hands the AI everything
+// in it, so the check on the folder's own path is not enough: a project folder has its .env inside. "secret" is one
+// of the places that are never opened; "many" is a folder too large to look through; "unreadable" is a part of it
+// that could not be looked into, which is not the same as a part with nothing in it. Each is told as what it is.
+function whyNotInPlace(dir) {
   let looked = 0;
   const walk = (d) => {
     let entries;
-    try { entries = readdirSync(d, { withFileTypes: true }); } catch { return false; }
+    try { entries = readdirSync(d, { withFileTypes: true }); } catch { return "unreadable"; }
     for (const e of entries) {
       if (e.name === "node_modules" || e.name === ".git") continue;
       const p = join(d, e.name);
-      if (refused(p) || ++looked > 20000) return true;
-      if (e.isDirectory() && walk(p)) return true;
+      if (refused(p)) return "secret";
+      if (++looked > 20000) return "many";
+      const why = e.isDirectory() ? walk(p) : "";
+      if (why) return why;
     }
-    return false;
+    return "";
   };
   return walk(dir);
 }
+const NOT_IN_PLACE = {
+  secret: "the folder has a key or a sign-in file inside it and is too big to bring along without them; point at a folder or a file inside it",
+  many: "the folder is too big to look through for keys and sign-in files before opening it; point at a folder or a file inside it",
+  unreadable: "part of the folder could not be looked through for keys and sign-in files, and it is too big to bring along as a copy; point at a folder or a file inside it",
+};
 
 // Puts what was pointed at where the AI can read it. A file is copied beside the work, into a folder that is never
 // committed. A folder is read where it is when the job only reads and nothing inside it is a key or a sign-in; when
@@ -148,14 +159,15 @@ export function layPointed(into, paths, { reading }) {
       const at = join(dest, `${++n}-${basename(p.real)}`);
       try { mkdirSync(dest, { recursive: true }); cpSync(p.real, at); out.files.push({ path: p.path, at }); }
       catch { out.skipped.push({ path: p.path, why: "it could not be read" }); }
-    } else if (reading && !holdsNever(p.real)) {
+      continue;
+    }
+    const why = reading ? whyNotInPlace(p.real) : "";
+    if (reading && !why) {
       out.dirs.push(p.real);
     } else {
       const w = weigh(p.real);
       if (w.files > DIR_FILES || w.bytes > DIR_BYTES) {
-        out.skipped.push({ path: p.path, why: reading
-          ? "the folder has a key or a sign-in file inside it and is too big to bring along without them; point at a folder or a file inside it"
-          : "the folder is too big to bring into a job that changes files; ask about it as a question first" });
+        out.skipped.push({ path: p.path, why: reading ? NOT_IN_PLACE[why] : "the folder is too big to bring into a job that changes files; ask about it as a question first" });
         continue;
       }
       const at = join(dest, `${++n}-${basename(p.real)}`);
