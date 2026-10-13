@@ -43,7 +43,7 @@ export async function RoomPage({ id, wanted, view, side, sandbox }: { id: string
       supabase.from("requests").select(REQUEST_COLUMNS).eq("table_id", id).eq("member_id", mine.id),
       supabase.from("request_events").select(EVENT_COLUMNS).eq("table_id", id),
       supabase.from("client_updates").select(UPDATE_COLUMNS).eq("table_id", id).order("created_at"),
-      supabase.from("client_lines").select(LINE_COLUMNS).eq("table_id", id).eq("member_id", mine.id).order("created_at").limit(200),
+      supabase.from("client_lines").select(LINE_COLUMNS).eq("table_id", id).eq("member_id", mine.id).order("created_at", { ascending: false }).limit(200),
       supabase.from("connections").select(CONNECTION_COLUMNS).eq("table_id", id).eq("member_id", mine.id).is("revoked_at", null),
       supabase.from("jobs").select(JOB_COLUMNS).eq("table_id", id).eq("member_id", mine.id).in("status", ["queued", "running"]),
     ]);

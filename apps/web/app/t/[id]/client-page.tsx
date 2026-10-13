@@ -109,7 +109,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
     const [{ data: r }, { data: up }, { data: ln }, { data: cn }, { data: jb }] = await Promise.all([
       supabase.from("requests").select(REQUEST_COLUMNS).eq("table_id", table.id).eq("member_id", me.id),
       supabase.from("client_updates").select(UPDATE_COLUMNS).eq("table_id", table.id),
-      supabase.from("client_lines").select(LINE_COLUMNS).eq("table_id", table.id).eq("member_id", me.id).order("created_at").limit(200),
+      supabase.from("client_lines").select(LINE_COLUMNS).eq("table_id", table.id).eq("member_id", me.id).order("created_at", { ascending: false }).limit(200),
       // Ones that were disconnected too: what their assistant said before still shows as that assistant.
       supabase.from("connections").select(CONNECTION_COLUMNS).eq("table_id", table.id).eq("member_id", me.id).order("created_at", { ascending: false }).limit(10),
       supabase.from("jobs").select(JOB_COLUMNS).eq("table_id", table.id).eq("member_id", me.id).in("status", ["queued", "running"]),

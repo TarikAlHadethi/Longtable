@@ -72,6 +72,15 @@ try {
   await sam.page.goto(link);
   check("the person who used it is not told off for opening it again", !/isn't valid|expired/i.test(await sam.page.textContent("main")), await sam.page.textContent("main"));
 
+  // ---- a client's long chat with an assistant shows its newest lines
+  const elena = await joinTable(browser, await inviteLink(p, "client"), `elena-${run}@example.test`, "Elena Ruiz");
+  const client = sql(`select id from public.members where table_id = '${table}' and role = 'client'`);
+  sql(`insert into public.client_lines (table_id, member_id, who, body, by_table, created_at) select '${table}', '${client}', case when n % 2 = 1 then 'client' else 'assistant' end, 'Exchange ' || n, true, now() - interval '1 day' + n * interval '1 minute' from generate_series(1, 230) n`);
+  await elena.page.goto(`${APP}/t/${table}`);
+  await elena.page.waitForSelector("[data-testid=client-chat]");
+  await sleep(1500);
+  const feed = await elena.page.textContent("[data-testid=client-chat]");
+  check("a client with a long chat sees its newest lines when the page opens", /Exchange 230(?!\d)/.test(feed) && /Exchange 229(?!\d)/.test(feed), feed.slice(-300));
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {
