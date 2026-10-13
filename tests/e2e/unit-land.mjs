@@ -189,6 +189,9 @@ try {
   writeFileSync(join(copy, "stray.txt"), "stray" + NL);
   freshCopy("y1", d.url);
   check("refreshing the copy clears strays but leaves what a job that is reading was given", existsSync(join(copy, ".longtable-yours", "memory.md")) && !existsSync(join(copy, "stray.txt")));
+  const { packCode } = await import("../../packages/connect/src/pack.mjs");
+  const packed = packCode(copy, "memory mine");
+  check("and what was left there is never in the pack a ChatGPT seat is handed", packed.files.includes("f.txt") && !packed.text.includes("longtable-yours") && !packed.text.includes("mine"), packed);
 
   // ---- the repository's address changed after the copy was made
   const far = repo("far", { "f.txt": "moved" + NL });

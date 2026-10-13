@@ -7,7 +7,9 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 
-const SKIP_DIRS = new Set([".git", "node_modules", "dist", "build", "out", "target", ".next", ".turbo", "vendor", "coverage", "__pycache__", ".venv", "venv"]);
+// The folder laid beside the code for a person's own Claude holds what is theirs alone (their instructions, memory
+// and recent conversation). It stays in the copy between jobs, so it is never part of a pack.
+const SKIP_DIRS = new Set([".git", ".longtable-yours", "node_modules", "dist", "build", "out", "target", ".next", ".turbo", "vendor", "coverage", "__pycache__", ".venv", "venv"]);
 const SKIP_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".svg", ".pdf", ".zip", ".gz", ".tar", ".woff", ".woff2", ".ttf", ".otf",
   ".mp3", ".mp4", ".mov", ".wav", ".exe", ".dll", ".so", ".dylib", ".bin", ".lock", ".map", ".onnx", ".wasm", ".jar", ".class", ".pyc"]);
 const SKIP_NAMES = new Set(["package-lock.json", "yarn.lock", "pnpm-lock.yaml", "Cargo.lock", "poetry.lock"]);
