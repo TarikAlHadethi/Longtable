@@ -42,12 +42,18 @@ try {
   const request = asked.body?.request;
   const decision = (await rpc(tokens.Maya, "create_decision", { c: chat, title: "A bigger title", context: "", origin: "test", affects_client: true, request,
     options: [{ label: "Yes", client_words: "We will make the title bigger.", recommended: true }, { label: "No", client_words: "The title stays as it is." }] })).body;
+  // A second decision about the same request, already made and told, as the scheduler would have left it.
+  const told = (await rpc(tokens.Maya, "create_decision", { c: chat, title: "A bigger title, sooner", context: "", origin: "test", affects_client: true, request,
+    options: [{ label: "This week", client_words: "It will be bigger this week.", recommended: true }, { label: "Later", client_words: "It will be bigger later." }] })).body;
+  sql(`update public.decisions set status = 'decided', chosen = 1, decided_at = now(), deliver_after = now(), delivered_at = now() where id = '${told}'`);
   const before = (await rest(tokens.Elena, `client_updates?select=body&table_id=eq.${table}`)).body;
   await rpc(tokens.Maya, "remove_test_client", { t: table });
   const after = (await rest(tokens.Elena, `client_updates?select=body&table_id=eq.${table}`)).body;
   check("a real client reads nothing that was said to the test client, before it is taken off or after", !!request && !!decision && before.length === 0 && after.length === 0, { asked: asked.body, decision, before, after });
   const open = sql(`select count(*) from public.decisions where table_id = '${table}' and affects_client and status = 'open'`);
   check("and no decision about the test client's request is left waiting to be told to every client", open === "0", open);
+  const kept = sql(`select affects_client from public.decisions where id = '${told}'`);
+  check("a decision the test client was already told still reads as told on the team's card", kept === "t", { told, kept });
 
   // ---- a person taken off the table can do nothing more
   const code = (await rpc(tokens.Lee, "start_pairing", { t: table, ai_kind: "claude" })).body;
