@@ -1,5 +1,6 @@
-# On every push: the web app's types. The end-to-end tests need a local Supabase and Chrome, so they run on a
-# developer's computer for now (npm run test:e2e).
+# On every push: the web app's types, the checks that need no database and no AI, the repo's standing rules, and
+# a build. The end-to-end tests need a local Supabase and Chrome: the free ones run weekly in database.yml, the
+# rest on a developer's computer (npm run test:e2e). No secrets are used here and nothing is deployed.
 name: checks
 
 on:
@@ -20,3 +21,38 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npm run typecheck
+
+  # The connection promises Node 20 and later, so its checks run on both.
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci
+      - run: node tools/house-rules.mjs
+      - run: node tests/e2e/unit-scan.mjs
+      - run: node tests/e2e/unit-prompts.mjs
+      - run: node tests/e2e/unit-pointed.mjs
+      - run: node tests/e2e/unit-land.mjs
+
+  # The address and key below are stand-ins: a build only needs them to be there.
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder
