@@ -33,6 +33,15 @@ check("words that only look like a path are nothing", kinds("use and/or either/o
 check("a key file is refused", JSON.stringify(kinds(`read ${join(root, "cert.pem")}`)) === '["refused"]');
 check("an .ssh folder is refused", JSON.stringify(kinds(`read ${join(root, ".ssh", "id_rsa")}`)) === '["refused"]');
 check("a .env is refused", JSON.stringify(kinds(`read "${join(docs, ".env")}"`)) === '["refused"]');
+const keys = join(root, "keys");
+mkdirSync(join(keys, ".config", "gcloud"), { recursive: true });
+mkdirSync(join(keys, ".config", "gh"), { recursive: true });
+mkdirSync(join(keys, ".mozilla"), { recursive: true });
+for (const f of ["prod.env", ".envrc", "live.tfvars", "terraform.tfstate", join(".config", "gcloud", "credentials.db"), join(".config", "gh", "hosts.yml"), join(".mozilla", "profile.txt")]) writeFileSync(join(keys, f), "x\n");
+const more = ["prod.env", ".envrc", "live.tfvars", "terraform.tfstate", join(".config", "gcloud", "credentials.db"), join(".config", "gh", "hosts.yml"), join(".mozilla", "profile.txt")].filter((f) => JSON.stringify(kinds(`read "${join(keys, f)}"`)) !== '["refused"]');
+check("other common homes of keys and sign-ins are refused too", more.length === 0, more);
+writeFileSync(join(root, "environment.md"), "x\n");
+check("a file that only has env in its name is still opened", JSON.stringify(kinds(`read "${join(root, "environment.md")}"`)) === '["file"]');
 check("the connection's own folder is refused", pointedPaths(`read ${join(homedir(), ".longtable")}`).every((p) => p.refused));
 check("a whole home folder is refused", pointedPaths(`go through ${homedir()}`).every((p) => p.refused), pointedPaths(`go through ${homedir()}`));
 check("a whole drive is refused", pointedPaths(process.platform === "win32" ? "go through C:\ now" : "go through / now").every((p) => p.refused));
