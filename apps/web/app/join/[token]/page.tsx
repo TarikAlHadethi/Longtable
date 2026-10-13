@@ -19,6 +19,10 @@ export default async function Join({ params }: { params: Promise<{ token: string
     body = <p className="note" style={{ margin: 0 }}>This invite link isn't valid. Ask for a new one.</p>;
   } else if (preview.expired) {
     body = <p className="note" style={{ margin: 0 }}>This invite link has expired. Ask for a new one.</p>;
+  } else if (preview.used && !user) {
+    // Said before anyone signs in for nothing. Someone signed in is let through: the person who used the link may
+    // open it again, and joining says so to anyone else.
+    body = <p className="note" style={{ margin: 0 }}>This invite link was already used. Ask for a new one.</p>;
   } else if (!user) {
     body = (
       <>

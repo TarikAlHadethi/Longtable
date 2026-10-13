@@ -61,6 +61,17 @@ try {
   check("the webhook instructions say to pick deployment statuses too, which is how a copy's address arrives", /Pushes/.test(how) && /Deployment statuses/i.test(how), how);
   await p.goto(`${APP}/t/${table}?c=general`);
 
+  // ---- an invite link that was already used says so
+  const link = await inviteLink(p, "developer");
+  const sam = await joinTable(browser, link, `sam-${run}@example.test`, "Sam");
+  const stranger = await browser.newContext();
+  const q = await stranger.newPage();
+  await q.goto(link);
+  const says = await q.textContent("main");
+  check("a used invite link says it was used, and does not ask a new person to sign in for nothing", /already (been )?used/i.test(says) && (await q.locator("text=Sign in to join").count()) === 0, says);
+  await sam.page.goto(link);
+  check("the person who used it is not told off for opening it again", !/isn't valid|expired/i.test(await sam.page.textContent("main")), await sam.page.textContent("main"));
+
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {
