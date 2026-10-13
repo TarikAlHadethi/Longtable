@@ -94,6 +94,13 @@ try {
   landWork("p1", e1, E, "Maya's", "Maya");
   const el = landWork("p2", e2, E, "Sam's", "Sam");
   check("two parts on the same lines: the second goes to a branch beside it", el.pushed && el.apart && el.branch === `${E}-sam` && show(a, `${E}:one.txt`).includes("Maya's five") && show(a, `${E}-sam:one.txt`).includes("Sam's five"), el);
+  // A name with no Latin letters in it still gives a plain branch name of its own.
+  const e3 = openWork("p2", E);
+  writeFileSync(join(e3.dir, "one.txt"), lines(20).replace("line 5", "Third five"));
+  const el3 = landWork("p2", { ...e3, base: e2.base }, E, "A third", "طارق");
+  let plainName = false;
+  try { plainName = safeBranch(el3.branch) === el3.branch; } catch {}
+  check("a part set beside the branch for someone whose name has no Latin letters still gets a plain branch name", el3.pushed && el3.apart && plainName && !el3.branch.endsWith("-"), el3);
 
   // ---- the default branch moved between the two starts: never a quiet undo
   const b = repo("b", { "app.txt": lines(20), "hot.txt": "old" + NL });

@@ -244,7 +244,8 @@ export function landWork(tableId, work, branch, message, who) {
     } catch { break; }
     if (push(merged, branch)) return { files, commit: merged.slice(0, 7), sha: merged, pushed: true, branch };
   }
-  const side = `${branch}-${String(who || "part").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 20)}`;
+  // A name with no Latin letters in it leaves nothing to name the branch by, so it is just "part".
+  const side = `${branch}-${String(who || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 20).replace(/^-+|-+$/g, "") || "part"}`;
   if (push(commit, side)) return { files, commit: commit.slice(0, 7), sha: commit, pushed: true, branch: side, apart: true };
   // Nothing could be pushed. Keep the commit findable on this computer, so the work is not lost with the folder.
   try { git(["--git-dir", p.G, "update-ref", `refs/longtable/${branch.slice(10)}`, commit]); } catch {}
