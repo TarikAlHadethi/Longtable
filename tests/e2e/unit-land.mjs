@@ -12,7 +12,7 @@ import { join } from "node:path";
 const scratch = mkdtempSync(join(tmpdir(), "longtable-land-"));
 process.env.LONGTABLE_HOME = join(scratch, "home");
 mkdirSync(process.env.LONGTABLE_HOME, { recursive: true });
-const { freshCopy, neverCommit, openWork, landWork, safeBranch, workBranch } = await import("../../packages/connect/src/repo.mjs");
+const { changedSoFar, freshCopy, neverCommit, openWork, landWork, safeBranch, workBranch } = await import("../../packages/connect/src/repo.mjs");
 
 const results = {};
 const check = (name, ok, detail) => { results[name] = ok ? "pass" : `FAIL ${typeof detail === "string" ? detail : JSON.stringify(detail ?? "")}`.slice(0, 500); };
@@ -207,6 +207,16 @@ try {
   writeFileSync(join(nw.dir, "f.txt"), "changed" + NL);
   const nl = landWork("n1", nw, N, "A change", "Maya");
   check("the folder that is the person's alone is left out of the commit whatever git's own set-up", nl?.pushed && nl.files.join() === "f.txt" && show(own, `${N}:.longtable-yours/memory.md`) === null, nl);
+
+  // ---- file names with letters outside plain English are read as they are, not as git writes them when it quotes
+  const acc = repo("acc", { "café/next.config.js": "module.exports = {};" + NL, "café/page.tsx": "old" + NL });
+  freshCopy("q1", acc.url);
+  const Q = "longtable/task-ffff6666";
+  const qw = openWork("q1", Q);
+  rmSync(join(qw.dir, "café", "next.config.js"));
+  writeFileSync(join(qw.dir, "café", "page.tsx"), "new" + NL);
+  const seen = changedSoFar("q1", qw);
+  check("a changed file with an accented name is read, and a deleted one is named as it is", !seen.unread && seen.text.includes("new") && seen.files.includes("café/page.tsx") && seen.gone.includes("café/next.config.js"), seen);
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {

@@ -74,7 +74,9 @@ export function copyIsClean(tableId) {
 // Work the team asked for happens in a second folder that holds the files and nothing else: no .git inside it, so
 // nothing the AI writes there can change what git itself runs. Git reaches it from outside, with its own index.
 const places = (tableId, name = "work") => ({ G: join(home, "copies", tableId, ".git"), W: join(home, name, tableId), I: join(home, name, `${tableId}.index`) });
-const wgit = (p, args, env = {}) => execFileSync("git", ["--git-dir", p.G, "--work-tree", p.W, ...args],
+// File names come back as they are. Left to itself git writes a name with letters outside plain English in quotes
+// with numbers for the letters, and then the name is neither a file that can be read nor one a rule can match.
+const wgit = (p, args, env = {}) => execFileSync("git", ["-c", "core.quotePath=false", "--git-dir", p.G, "--work-tree", p.W, ...args],
   { cwd: p.W, env: { ...quiet, GIT_INDEX_FILE: p.I, ...env }, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], timeout: 120000 }).toString().trim();
 
 // Whatever the table names, the connection only ever writes to a plain branch under longtable/. Never the default
