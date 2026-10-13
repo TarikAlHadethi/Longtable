@@ -81,9 +81,29 @@ function weigh(dir) {
   return { files, bytes };
 }
 
+// Whether anything inside a folder is one of the places that are never opened. Reading a folder where it is hands
+// the AI everything in it, so the check on the folder's own path is not enough: a project folder has its .env inside.
+// A folder too large to look through counts as holding one.
+function holdsNever(dir) {
+  let looked = 0;
+  const walk = (d) => {
+    let entries;
+    try { entries = readdirSync(d, { withFileTypes: true }); } catch { return false; }
+    for (const e of entries) {
+      if (e.name === "node_modules" || e.name === ".git") continue;
+      const p = join(d, e.name);
+      if (refused(p) || ++looked > 20000) return true;
+      if (e.isDirectory() && walk(p)) return true;
+    }
+    return false;
+  };
+  return walk(dir);
+}
+
 // Puts what was pointed at where the AI can read it. A file is copied beside the work, into a folder that is never
-// committed. A folder is read where it is when the job only reads; when the job may change files it is copied
-// instead, if it is small, so nothing on the person's own disk can be changed from the table.
+// committed. A folder is read where it is when the job only reads and nothing inside it is a key or a sign-in; when
+// the job may change files, or something inside must stay out, it is copied instead without those, if it is small,
+// so nothing on the person's own disk can be changed from the table and no key comes along.
 export function layPointed(into, paths, { reading }) {
   const dest = join(into, "pointed");
   try { rmSync(dest, { recursive: true, force: true }); } catch {}
@@ -96,11 +116,16 @@ export function layPointed(into, paths, { reading }) {
       const at = join(dest, `${++n}-${basename(p.real)}`);
       try { mkdirSync(dest, { recursive: true }); cpSync(p.real, at); out.files.push({ path: p.path, at }); }
       catch { out.skipped.push({ path: p.path, why: "it could not be read" }); }
-    } else if (reading) {
+    } else if (reading && !holdsNever(p.real)) {
       out.dirs.push(p.real);
     } else {
       const w = weigh(p.real);
-      if (w.files > DIR_FILES || w.bytes > DIR_BYTES) { out.skipped.push({ path: p.path, why: "the folder is too big to bring into a job that changes files; ask about it as a question first" }); continue; }
+      if (w.files > DIR_FILES || w.bytes > DIR_BYTES) {
+        out.skipped.push({ path: p.path, why: reading
+          ? "the folder has a key or a sign-in file inside it and is too big to bring along without them; point at a folder or a file inside it"
+          : "the folder is too big to bring into a job that changes files; ask about it as a question first" });
+        continue;
+      }
       const at = join(dest, `${++n}-${basename(p.real)}`);
       try {
         mkdirSync(dest, { recursive: true });

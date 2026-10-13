@@ -40,8 +40,19 @@ check("no more than five", pointedPaths(Array.from({ length: 9 }, (_, i) => { co
 
 const work = mkdtempSync(join(tmpdir(), "longtable-pointed-work-"));
 const reading = layPointed(work, pointedPaths(`"${plan}" "${docs}" ${join(root, "cert.pem")}`), { reading: true });
-check("reading: the file is copied, the folder is read where it is, the key is left", reading.files.length === 1 && existsSync(reading.files[0].at) && readFileSync(reading.files[0].at, "utf8") === "The plan.\n"
-  && reading.dirs.length === 1 && reading.copied.length === 0 && reading.skipped.length === 1, reading);
+check("reading: the file is copied, a folder with a .env in it comes as a copy without it, the key is left", reading.files.length === 1 && existsSync(reading.files[0].at) && readFileSync(reading.files[0].at, "utf8") === "The plan.\n"
+  && reading.dirs.length === 0 && reading.copied.length === 1 && existsSync(join(reading.copied[0].at, "sub", "more.txt")) && !existsSync(join(reading.copied[0].at, ".env")) && reading.skipped.length === 1, reading);
+const plainDir = join(root, "plain");
+mkdirSync(join(plainDir, "deep"), { recursive: true });
+writeFileSync(join(plainDir, "deep", "a.md"), "A.\n");
+const inPlace = layPointed(work, pointedPaths(`"${plainDir}"`), { reading: true });
+check("reading: a folder with nothing secret in it is read where it is", inPlace.dirs.length === 1 && inPlace.copied.length === 0 && inPlace.skipped.length === 0, inPlace);
+const bigDir = join(root, "big");
+mkdirSync(join(bigDir, "deep"), { recursive: true });
+for (let i = 0; i < 405; i++) writeFileSync(join(bigDir, `f${i}.txt`), "x");
+writeFileSync(join(bigDir, "deep", "server.pem"), "x\n");
+const tooBig = layPointed(work, pointedPaths(`"${bigDir}"`), { reading: true });
+check("reading: a big folder with a key somewhere inside is not opened at all, and the AI is told why", tooBig.dirs.length === 0 && tooBig.copied.length === 0 && tooBig.skipped.length === 1 && /key/.test(tooBig.skipped[0].why), tooBig);
 const changing = layPointed(work, pointedPaths(`"${docs}"`), { reading: false });
 check("changing files: a small folder is copied, never opened in place", changing.dirs.length === 0 && changing.copied.length === 1 && existsSync(join(changing.copied[0].at, "sub", "more.txt")), changing);
 check("and a copied folder leaves its .env behind", !existsSync(join(changing.copied[0].at, ".env")));
