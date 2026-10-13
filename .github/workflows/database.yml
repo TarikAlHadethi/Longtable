@@ -1,0 +1,78 @@
+# The free end-to-end suites: the ones that need a database, the app and Chrome but never a real AI. Everything
+# runs inside this job against a local Supabase started here from the migrations, with the keys that every local
+# Supabase has. No secrets are used, the real project is never reached, and nothing is deployed.
+# Runs by hand and once a week, not on every push: it starts a whole stack each time.
+name: database
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 4 * * 2"
+
+permissions:
+  contents: read
+
+jobs:
+  suites:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      APP_URL: http://localhost:3000
+      CHROME_PATH: /usr/bin/google-chrome
+      DB_CONTAINER: supabase_db_longtable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+
+      - name: Start the local database
+        run: npx supabase start -x imgproxy,edge-runtime,logflare,vector,supavisor,studio,postgres-meta
+
+      # The tests read the app's own .env.local, so it is written here from what the local stack reports.
+      - name: Point the app at it
+        run: |
+          npx supabase status -o env > "$RUNNER_TEMP/stack.env"
+          key=$(grep '^PUBLISHABLE_KEY=' "$RUNNER_TEMP/stack.env" | cut -d= -f2- | tr -d '"')
+          if [ -z "$key" ]; then echo "The local stack reported no publishable key."; exit 1; fi
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321"
+            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$key"
+            echo "NEXT_PUBLIC_CONNECT_COMMAND=node $GITHUB_WORKSPACE/packages/connect/bin/longtable.mjs"
+          } > apps/web/.env.local
+
+      # Ubuntu keeps unprivileged programs from making their own sandboxes, which headless Chrome needs.
+      - name: Let Chrome start
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          "$CHROME_PATH" --version
+
+      - name: Start the app
+        run: |
+          nohup npm run dev > "$RUNNER_TEMP/dev.log" 2>&1 &
+          for i in $(seq 1 90); do
+            if curl -sf -o /dev/null http://localhost:3000/; then break; fi
+            sleep 2
+          done
+          curl -sf -o /dev/null http://localhost:3000/
+          # The first visit to a page builds it; doing that here keeps it out of the tests' own waits.
+          for path in /start /sign-in /privacy; do curl -s -o /dev/null "http://localhost:3000$path" || true; done
+
+      # Every suite runs even when an earlier one fails, and the job fails at the end if any did.
+      - name: Run the suites
+        run: |
+          failed=""
+          for suite in step1 step2 step5 step6-settings step6-phone step6-admin step6-github step10-chats \
+                       step11-room-pages step19-test-client step20-start step24-share step25-wall step26-doors \
+                       step27-loose-ends step28-screens sim-rounds; do
+            echo "::group::$suite"
+            if node --experimental-websocket "tests/e2e/$suite.mjs"; then echo "$suite passed"; else failed="$failed $suite"; fi
+            echo "::endgroup::"
+          done
+          if [ -n "$failed" ]; then echo "Failed:$failed"; exit 1; fi
+          echo "Every suite passed."
+
+      - name: What the app said, when something failed
+        if: failure()
+        run: tail -n 200 "$RUNNER_TEMP/dev.log" || true
