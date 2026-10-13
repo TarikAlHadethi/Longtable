@@ -55,6 +55,23 @@ try {
   const late = await anon("pair_connection", { code, device_label: "late" });
   check("a connect code made before someone was taken off no longer connects anything", late.status >= 400 && !late.body?.token, { status: late.status, token: !!late.body?.token });
 
+  // ---- what a client said to an assistant of their own is not handed to the team's
+  await pair("Elena");
+  await anon("runner_hello", { token: device.Elena });
+  const own = await rpc(tokens.Elena, "client_say", { t: table, body: "Between us: the budget is the thing I worry about." });
+  const hers = await take("Elena", "light");
+  await fin("Elena", hers, "Understood, that stays with me.", { pass_on: false });
+  const conn = sql(`select id from public.connections where member_id = '${id("Elena")}' and revoked_at is null`);
+  await rpc(tokens.Elena, "disconnect", { conn });
+  delete device.Elena;
+  await pair("Sam");
+  await anon("runner_hello", { token: device.Sam });
+  await rpc(tokens.Elena, "client_say", { t: table, body: "Where are we on the booking page?" });
+  const desk = await take("Sam", "light");
+  check("the team's assistant is not handed what a client said to an assistant of their own", !!own.body?.line && !!hers && desk?.kind === "client" && desk.for_team === true
+    && !JSON.stringify(desk.history).includes("budget"), desk && { kind: desk.kind, history: desk.history });
+  await fin("Sam", desk, "The team is on it.", { pass_on: false });
+
   clearInterval(pulse);
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
