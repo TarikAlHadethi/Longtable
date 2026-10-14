@@ -73,13 +73,21 @@ jobs:
           if [ -n "$failed" ]; then echo "Failed:$failed"; exit 1; fi
           echo "Every suite passed."
 
-      # Last, because it wipes every table on this job's own database and pauses its clocks while it runs.
+      # The chaos run deletes every table on the database it is given and pauses its clocks, and only ever runs against a
+      # project named for it: the suites' stack is stopped and a fresh one started under the name longtable-chaos.
+      - name: A database for the chaos run
+        if: always()
+        run: |
+          npx supabase stop --no-backup
+          sed -i 's/^project_id = "longtable"$/project_id = "longtable-chaos"/' supabase/config.toml
+          npx supabase start -x imgproxy,edge-runtime,logflare,vector,supavisor,studio,postgres-meta
+
       - name: Database chaos
         if: always()
         run: node tests/e2e/chaos-db.mjs
         env:
           CHAOS_FULL: "1"
-          CHAOS_DB_CONTAINER: supabase_db_longtable
+          CHAOS_DB_CONTAINER: supabase_db_longtable-chaos
 
       - name: What the app said, when something failed
         if: failure()

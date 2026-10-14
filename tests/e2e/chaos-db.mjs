@@ -3,8 +3,14 @@
 // (tests/e2e/chaos-rules.sql is the checker). No browser, no app, no AI: the real SQL functions, called as each person
 // the way the API calls them. A failure prints its seed and the shortest list of steps that still breaks the rule.
 //
-// It wipes what it makes and turns the database's own clocks off while it runs, so it is only ever pointed at a
-// test database, by name:
+// What it does to the database it is pointed at, every time it starts:
+// - deletes EVERY table there (and with them every member, chat, message, job and everything else of a table), and
+//   every sign-in account whose email ends in @example.test;
+// - pauses the database's own scheduled clocks (the pg_cron jobs named longtable-...) while it runs, and turns them
+//   all on again at the end, whatever they were before;
+// - adds a schema of its own, "chaos", for the rule checker, and drops it again at the end.
+// So it only ever runs against a database made for it, in a Supabase project whose name has "chaos" in it (its
+// database container is then supabase_db_<project>), and refuses any other:
 //
 //   CHAOS_DB_CONTAINER=supabase_db_longtable-chaos node tests/e2e/chaos-db.mjs                 the fast set
 //   CHAOS_FULL=1 CHAOS_DB_CONTAINER=... node tests/e2e/chaos-db.mjs                            the full set
@@ -15,9 +21,8 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 const CONTAINER = process.env.CHAOS_DB_CONTAINER;
-// The main local stack is never wiped from a person's own computer; only CI, where the stack is the job's own.
-if (!CONTAINER || (CONTAINER === "supabase_db_longtable" && !process.env.CI)) {
-  console.log("Set CHAOS_DB_CONTAINER to a TEST database's container: this run wipes what it makes and pauses the database's clocks.");
+if (!CONTAINER || !CONTAINER.includes("chaos")) {
+  console.log("Set CHAOS_DB_CONTAINER to the database container of a Supabase project made for this, whose name has \"chaos\" in it: this run deletes every table there and pauses its clocks.");
   process.exit(1);
 }
 const FULL = !!process.env.CHAOS_FULL;
@@ -584,6 +589,7 @@ try {
   exit = 2;
 } finally {
   await db.q("update cron.job set active = true where jobname like 'longtable-%'");
+  await db.q("drop schema if exists chaos cascade");
   db.close();
   db2.close();
 }
