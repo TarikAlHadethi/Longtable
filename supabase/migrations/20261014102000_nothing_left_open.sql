@@ -2,7 +2,9 @@
 -- (its lead taken off, then the answer's computer gone) was never closed, because the round's clock stops looking
 -- once a round has an answer; that view also kept the round's task "working" for ever. And an introduction queued
 -- for, or taken by, a computer that then went away had nothing to time it out. Both are now closed by the clock that
--- already closes stuck answers. Found by the chaos run (rules E1 and E2: nothing stays open once its computer is gone).
+-- already closes stuck answers, and by its rule: a lease run out ten minutes ago, or never taken in ten minutes while
+-- its computer is gone. A slow job whose AI is still working is never cut. Found by the chaos run (rules E1 and E2:
+-- nothing stays open once its computer is gone).
 
 CREATE OR REPLACE FUNCTION public.close_failed_tasks()
  RETURNS void
@@ -18,10 +20,16 @@ begin
            and not exists (select 1 from public.connections cn where cn.member_id = jobs.member_id
                             and cn.revoked_at is null and cn.last_seen > now() - interval '60 seconds')));
   -- A round whose table's answer is finished, given up on or failed has nothing left to wait for: what it still has
-  -- open (a view nobody took) is closed with it, or it stayed queued for ever and kept its task "working".
+  -- open (a view nobody took) is closed with it, or it stayed queued for ever and kept its task "working". Only by
+  -- the same rule as above, though: its lease long run out, or never taken while its computer is gone. A slow view
+  -- whose AI is still at it is left to finish.
   update public.jobs j set status = 'skipped', lease_until = null, error = 'the round was already over'
    where j.round is not null and j.status in ('queued', 'running', 'waiting') and j.kind <> 'combine'
-     and exists (select 1 from public.jobs c where c.round = j.round and c.kind = 'combine' and c.status in ('done', 'failed', 'skipped'));
+     and exists (select 1 from public.jobs c where c.round = j.round and c.kind = 'combine' and c.status in ('done', 'failed', 'skipped'))
+     and ((j.status = 'running' and j.lease_until < now() - interval '10 minutes')
+       or (j.status in ('queued', 'waiting') and j.created_at < now() - interval '10 minutes'
+           and not exists (select 1 from public.connections cn where cn.member_id = j.member_id
+                            and cn.revoked_at is null and cn.last_seen > now() - interval '60 seconds')));
   -- An introduction whose computer never took it, or stopped answering, is given up on the same way.
   update public.jobs set status = 'skipped', lease_until = null, error = 'its computer never picked it up'
    where kind = 'intro'
