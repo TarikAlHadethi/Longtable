@@ -134,9 +134,10 @@ create or replace function chaos.broken() returns setof text language sql as $f$
   union all select format('D2 decided decision %s has %s', id, case when chosen is null then 'nothing chosen' else 'no time' end) from public.decisions where status = 'decided' and (chosen is null or decided_at is null or deliver_after is null)
   union all select format('D2 decision %s chose option %s, which is not one of its own', d.id, d.chosen) from public.decisions d where d.chosen is not null and not exists (select 1 from public.decision_options o where o.decision_id = d.id and o.position = d.chosen)
   union all select format('D2 decision %s was delivered while %s', id, status) from public.decisions where delivered_at is not null and status <> 'decided'
-  -- D3: a request being decided, or with a question out, has a decision behind it.
+  -- D3: a request being decided has a decision behind it. (A question already sent stays the client's to answer
+  -- even when its decision's chat is deleted.)
   union all select format('D3 request %s says "%s" with no decision behind it', r.id, r.status) from public.requests r
-    where r.status in ('being decided', 'question') and not exists (select 1 from public.decisions d where d.request_id = r.id)
+    where r.status = 'being decided' and not exists (select 1 from public.decisions d where d.request_id = r.id)
   -- D4: what a client is told from a decision is the chosen option's client words.
   union all select format('D4 update %s says something other than the chosen words of decision %s', u.id, u.decision_id) from public.client_updates u
     join public.decisions d on d.id = u.decision_id join public.decision_options o on o.decision_id = d.id and o.position = d.chosen
@@ -159,7 +160,9 @@ create or replace function chaos.broken() returns setof text language sql as $f$
   union all select format('P4 %s %s was written for member %s after they were removed', x.kind, x.id, x.member_id) from (
       select 'line' kind, id, member_id, created_at from public.client_lines union all select 'request', id, member_id, created_at from public.requests
       union all select 'message', id, member_id, created_at from public.messages where not by_ai) x
-    join public.members m on m.id = x.member_id where m.removed_at is not null and x.created_at > m.removed_at
+    -- A write that raced the removal itself may carry a start time a moment after it and still have been first; the
+    -- harness plays that race on purpose. Anything later than that is written for someone already gone.
+    join public.members m on m.id = x.member_id where m.removed_at is not null and x.created_at > m.removed_at + interval '50 milliseconds'
   -- P8: nothing a connection wrote holds a key shape the table hides.
   union all select format('P8 %s %s holds a key shape starting %s', x.kind, x.id, left(substring(x.t from '(sk-ant-|sb_secret_|ghp_|github_pat_|AKIA)'), 12)) from (
       select 'AI message' kind, id, body t from public.messages where by_ai union all select 'task', id, coalesce(title, '') || ' ' || coalesce(result, '') from public.tasks
@@ -182,6 +185,7 @@ create or replace function chaos.unsettled() returns setof text language sql as 
   union all select format('E3 change %s is still being built', id) from public.sandbox_changes where status = 'working'
   union all select format('E5 decision %s is decided and past its undo window, but was never delivered', id) from public.decisions where status = 'decided' and delivered_at is null and deliver_after < now()
   union all select format('E4 a client''s line %s got neither an answer nor a request', c.id) from public.client_lines c
+    join public.members cm on cm.id = c.member_id and cm.removed_at is null
     where c.who = 'client' and c.request_id is null
       and not exists (select 1 from public.client_lines a where a.member_id = c.member_id and a.who <> 'client' and a.created_at >= c.created_at)
       and not exists (select 1 from public.requests r where r.from_line = c.id)

@@ -31,6 +31,7 @@ const same = (b, saved) => b.rule === saved.rule && b.detail.replace(/[0-9a-f-]{
 const knownOf = (b) => SAVED.find((k) => k.known && same(b, k))?.known
   // A direct write of a message over 8,000 characters is turned down by the table's own limit: the message box
   // stops at 8,000, and a direct write has no function to say it in words.
+  ?? (b.rule === "O1b" ? "the same known one-owner item as O1" : null)
   ?? (b.rule === "Q2" && /^say refused .*messages_body_check/.test(b.detail) ? "a direct write over the limit is refused by the limit itself" : null);
 
 // ---- a lasting psql session: one statement in, one line out
@@ -156,7 +157,7 @@ async function sequence(seed, steps, db, db2, log = null) {
     ["clientAsk", 3], ["clientSay", 5], ["invite", 2], ["acceptAgain", 1], ["remove", 2], ["handOver", 1], ["testClient", 2], ["profile", 1],
     ["settings", 1], ["finalSeat", 1], ["pairing", 3], ["pair", 4], ["disconnect", 1], ["hello", 3], ["claim", 8], ["beat", 2], ["finish", 8],
     ["fail", 2], ["leave", 1], ["share", 1], ["stop", 2], ["clearTasks", 1], ["prepareCopy", 1], ["copyLinks", 1], ["giveCopy", 1],
-    ["teamChange", 1], ["judge", 2], ["time", 7], ["offline", 2], ["twice", 4], ["questionFlow", 2], ["copyFlow", 2],
+    ["teamChange", 1], ["judge", 2], ["time", 7], ["offline", 2], ["twice", 4], ["questionFlow", 2], ["copyFlow", 2], ["race", 3],
   ];
   const bag = STEP_KINDS.flatMap(([k, w]) => Array(w).fill(k));
   const plan = log || Array.from({ length: steps }, () => ({ k: r.pick(bag), n: Array.from({ length: 6 }, () => r.int(1000)), s: r.int(1e9) }));
@@ -308,6 +309,15 @@ async function sequence(seed, steps, db, db2, log = null) {
         if (ch) out.push(await act(x.chance(0.85) ? owner.u : of(here, d).u, `select to_jsonb(public.judge_change('${ch}'::uuid, ${lit(x.pick(["take", "differently", "no"]))}, ${lit(words(x))}))`, session));
         return { twice: out };
       }
+      case "race": {
+        // Two different things at the same moment, from two sessions, about the same people: a hand-over and a
+        // removal, a decision and its undo, a finish and a stop.
+        const pairs = [["handOver", "remove"], ["handOver", "handOver"], ["decide", "undo"], ["finish", "stop"], ["finish", "fail"], ["remove", "clientSay"],
+          ["remove", "finish"], ["disconnect", "claim"], ["judge", "giveCopy"], ["testClient", "clientSay"], ["deleteChat", "decision"], ["pair", "remove"]];
+        const [k1, k2] = x.pick(pairs);
+        const [r1, r2] = await Promise.all([step({ ...st, k: k1 }, db), step({ ...st, k: k2, n: [a, b, x.int(1000), d, st.n[4], st.n[5]] }, db2)]);
+        return { twice: [r1, r2].filter(Boolean) };
+      }
       case "twice": {
         // The same thing twice at the same moment, from two sessions.
         const k = x.pick(["decide", "reply", "acceptAgain", "pair", "finish", "fail", "remove", "handOver", "clientSay", "judge", "stop", "undo", "testClient", "giveCopy"]);
@@ -420,6 +430,31 @@ async function comingBack(db) {
   return why;
 }
 
+// A client taken off while a message of theirs waits for their row is turned down (P4): the removal holds the row
+// in one session while the message waits in the other, so the bad order happens every time.
+async function sayWhileRemoved(db, db2) {
+  const run = "race-" + Date.now().toString(36);
+  const [o, cl] = [randomUUID(), randomUUID()];
+  await db.q(`insert into auth.users (id, email) values ('${o}', 'chaos-${run}-o@example.test'), ('${cl}', 'chaos-${run}-c@example.test')`);
+  const act = async (who, q, session = db) => session.json(`select chaos.act('${who}'::uuid, $chaosq$${q}$chaosq$)`);
+  const t = (await act(o, "select to_jsonb(public.start_table('Race', 'Owner'))")).ok;
+  const tok = (await act(o, `select to_jsonb(public.create_invite('${t}'::uuid, 'client', '', ''))`)).ok;
+  await act(cl, `select to_jsonb(public.accept_invite('${tok}', 'Elena'))`);
+  const seat = await db.one(`select id from public.members where table_id = '${t}' and user_id = '${cl}'`);
+  await db2.q("begin");
+  await act(o, `select to_jsonb(public.remove_member('${seat}'::uuid))`, db2);
+  const said = act(cl, `select public.client_say('${t}'::uuid, 'one more thing', '[]'::jsonb)`, db);
+  await new Promise((r) => setTimeout(r, 300));
+  await db2.q("commit");
+  const res = await said;
+  const n = await db.one(`select count(*) from public.requests where member_id = '${seat}'`);
+  await db.q("select set_config('longtable.deleting_table', 'on', false)");
+  await db.q(`delete from public.tables where id = '${t}'`);
+  await db.q("select set_config('longtable.deleting_table', '', false)");
+  await db.q(`delete from auth.users where email like 'chaos-${run}-%@example.test'`);
+  return res.error ? "" : `a client taken off while their message waited still got it through (${n} request)`;
+}
+
 const db = new Session();
 const db2 = new Session();
 const started = Date.now();
@@ -439,6 +474,8 @@ try {
   await db.q("update cron.job set active = false where jobname like 'longtable-%'");
   const back = await comingBack(db);
   if (back) { found.set("Q4 coming back", back); console.log(`BROKEN Q4 a person taken off can come back: ${back}`); }
+  const raced = await sayWhileRemoved(db, db2);
+  if (raced) { found.set("P4 raced", raced); console.log(`BROKEN P4 ${raced}`); }
   for (const saved of SAVED) {
     const { broken } = await sequence(saved.seed, saved.steps.length, db, db2, saved.steps);
     const again = broken.find((b) => same(b, saved));
