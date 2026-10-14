@@ -351,6 +351,13 @@ prop("P12", "a source is never a file of the person's own", 200, (r) => r.list(6
   return bad ? `kept ${bad}` : "";
 });
 
+// ---- saved: the smallest inputs that once broke a rule, run every time so the bug cannot come back
+const saved = (rule, name, why) => { results.checked++; if (why) results.broken.push({ rule, name: `saved: ${name}`, seed: "-", step: 0, why, input: "" }); };
+saved("X2", "a sign-in whose name and password hold an @", (() => {
+  const p = run.plain(new Error("fatal: unable to access 'https://a@b:p@ss@github.com/o/r.git/'"));
+  return p.includes("//github.com/o/r.git") && !/a@b|p@ss|ss@/.test(p) ? "" : p;
+})());
+
 rmSync(scratch, { recursive: true, force: true });
 for (const b of results.broken) console.log(`BROKEN ${b.rule} "${b.name}" seed ${b.seed} step ${b.step}: ${b.why}${NL}  smallest input: ${b.input}${NL}  again: CHAOS_SEED=${b.seed} node tests/e2e/chaos-connect.mjs`);
 console.log(`${results.checked} inputs checked, ${results.broken.length} rules broken`);

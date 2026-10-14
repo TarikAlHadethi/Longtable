@@ -620,7 +620,8 @@ function planText(job, s) {
 
 // Why a job failed, as the table may see it: the last line of the error, with no sign-in from a repository address
 // and nothing shaped like a key.
-export const plain = (e) => hideSecrets(String(e?.message || e).split(/\r?\n/).filter(Boolean).pop() || "it failed").replace(/\/\/[^/@\s]+@/g, "//").slice(0, 300);
+// The sign-in runs to the LAST @ before the host: a name or a password may hold an @ of its own ("a@b:p@ss@host").
+export const plain = (e) => hideSecrets(String(e?.message || e).split(/\r?\n/).filter(Boolean).pop() || "it failed").replace(/\/\/[^/\s]*@/g, "//").slice(0, 300);
 
 // The listener's one small request. Its only output is what to do next; the table does the rest.
 async function workListen(rpc, seat, engines, job) {
