@@ -107,8 +107,9 @@ export const KINDS = {
 };
 
 const NL = String.fromCharCode(10);
-// Text from the table, a file or another AI is fenced so it reads as information. Nothing inside may close a fence.
-const inert = (t) => String(t ?? "").replace(/<<<(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT)\b|\b(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT)>>>/g, "[marker]");
+// Text from the table, a file or another AI is fenced so it reads as information. Nothing inside may close a fence,
+// and a marker glued to a letter ("xTABLE>>>") is still a marker to whoever reads it, so no word edge is asked for.
+const inert = (t) => String(t ?? "").replace(/<<<(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT)|(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT)>>>/g, "[marker]");
 // The conversation as it is, newest kept: every message whole, back to wherever a generous size runs out. There is
 // no count of messages: a long talk between people is all there.
 function recent(history, room) {

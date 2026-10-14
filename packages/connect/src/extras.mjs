@@ -11,7 +11,7 @@ const codexHome = () => process.env.LONGTABLE_CODEX_HOME || process.env.CODEX_HO
 const folderOf = (seat) => seat.folder || (String(seat.source || "").startsWith("file:///") ? seat.source.slice(8) : null);
 // A file's name and a person's name come from the table like any other words (a client names their own attachment),
 // so neither may close a fence, and a name stays on its own one line. The same markers as inert() in run.mjs.
-const inert = (t) => String(t ?? "").replace(/<<<(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT)\b|\b(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT)>>>/g, "[marker]");
+const inert = (t) => String(t ?? "").replace(/<<<(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT)|(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT)>>>/g, "[marker]");
 const named = (t) => inert(t).replace(/\s+/g, " ").replace(/"/g, "'").trim().slice(0, 200);
 
 // The top of a command or skill file: "---", lines of "key: value", "---".
