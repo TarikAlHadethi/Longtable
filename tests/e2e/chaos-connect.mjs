@@ -361,6 +361,10 @@ saved("P12", "the person's own folder named in other letter case", (() => {
   const dir = join(scratch, "copy");
   return run.cleanSources(dir, ["./.Longtable-Yours/a", ".LONGTABLE-YOURS/x.md"]).length === 0 ? "" : "kept as a source";
 })());
+saved("P13", "a key in a command's description", (() => {
+  const told = run.toldCommands([{ name: "c", about: "Use sk-ant-" + "a".repeat(20) + " and " + "f".repeat(64), kind: "command", file: "/x/c.md" }]);
+  return /sk-ant-a|f{64}/.test(told[0].about) || "file" in told[0] ? JSON.stringify(told) : "";
+})());
 saved("B5", "an attachment address with a broken %-sequence", (() => {
   try { return attachmentAddress(BASE, TABLE, new URL(`${BASE}/storage/v1/object/sign/attachments/${TABLE}/%E0%A4%A`)) === false ? "" : "let through"; } catch (e) { return `threw: ${e.message}`; }
 })());

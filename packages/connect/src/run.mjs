@@ -829,8 +829,9 @@ export function runningConnection() {
 }
 
 // The names of this person's own commands and skills, and a line on each, so "/" at the table can offer them. Never
-// what is in them: that stays on this computer and is read only when they run one.
-export const toldCommands = (list) => list.map(({ name, about, kind }) => ({ name, about, kind }));
+// what is in them: that stays on this computer and is read only when they run one. A line is the first line of a
+// file the person wrote, which can hold a key, so it is cleaned before it leaves.
+export const toldCommands = (list) => list.map(({ name, about, kind }) => ({ name, about: hideSecrets(about), kind }));
 async function tellCommands(rpc, seat) {
   try {
     const list = toldCommands(scanCommands(seat));
