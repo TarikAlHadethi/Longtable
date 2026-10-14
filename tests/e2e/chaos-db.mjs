@@ -16,13 +16,19 @@
 //   CHAOS_FULL=1 CHAOS_DB_CONTAINER=... node tests/e2e/chaos-db.mjs                            the full set
 //   CHAOS_SEED=7 CHAOS_DB_CONTAINER=... node tests/e2e/chaos-db.mjs                            one seed again
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 const CONTAINER = process.env.CHAOS_DB_CONTAINER;
 if (!CONTAINER || !CONTAINER.includes("chaos")) {
   console.log("Set CHAOS_DB_CONTAINER to the database container of a Supabase project made for this, whose name has \"chaos\" in it: this run deletes every table there and pauses its clocks.");
+  process.exit(1);
+}
+// The container must be there and running, or every statement would wait for an answer that never comes.
+const running = spawnSync("docker", ["inspect", "-f", "{{.State.Running}}", CONTAINER], { encoding: "utf8", windowsHide: true });
+if (running.status !== 0 || running.stdout.trim() !== "true") {
+  console.log(`The container ${CONTAINER} ${running.status !== 0 ? "does not exist" : "is not running"}: start the chaos Supabase stack first (npx supabase start --workdir <its folder>), then run this again.`);
   process.exit(1);
 }
 const FULL = !!process.env.CHAOS_FULL;
