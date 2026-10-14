@@ -307,6 +307,8 @@ export function recentSession(folder, room = 90000) {
     for (let i = lines.length - 1; i >= 0 && used < room; i--) {
       let e;
       try { e = JSON.parse(lines[i]); } catch { continue; }
+      // A line that is valid JSON but not a turn ("null", left by a crash) is skipped, not allowed to stop the rest.
+      if (!e || typeof e !== "object") continue;
       if (e.isSidechain || (e.type !== "user" && e.type !== "assistant")) continue;
       const words = said(e.message?.content).trim();
       // Reminders the app adds to a message are not something either of them said.

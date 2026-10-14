@@ -3,14 +3,16 @@
 //
 //   node tests/e2e/unit-prompts.mjs
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 const scratch = mkdtempSync(join(tmpdir(), "longtable-prompts-"));
 process.env.LONGTABLE_HOME = join(scratch, "home");
 mkdirSync(process.env.LONGTABLE_HOME, { recursive: true });
-const { buildPrompt, systemFor, listenPrompt, listenSystem, knows, mind, remember, cleanSources, sandboxRefusal, sandboxPrompt, sandboxSystem, KINDS } = await import("../../packages/connect/src/run.mjs");
+// What a person's Claude keeps is read from here, never from the real ~/.claude of whoever runs this.
+process.env.LONGTABLE_CLAUDE_HOME = join(scratch, "claude");
+const { buildPrompt, systemFor, listenPrompt, listenSystem, knows, layYours, mind, remember, cleanSources, sandboxRefusal, sandboxPrompt, sandboxSystem, KINDS } = await import("../../packages/connect/src/run.mjs");
 
 const results = {};
 const check = (name, ok, detail) => { results[name] = ok ? "pass" : `FAIL ${typeof detail === "string" ? detail : JSON.stringify(detail ?? "")}`.slice(0, 500); };
@@ -67,6 +69,19 @@ try {
   check("what a person's Claude knows is read from their folder, cut to size, with keys hidden", k.includes("PROJECT-RULES") && k.length <= 36000 && !k.includes("sk-ant-A"), k.length);
   check("a ChatGPT seat is handed none of it", knows({ kind: "codex", folder }) === "");
   check("a folder that is not there is not an error", typeof knows({ kind: "claude", folder: join(scratch, "nope") }) === "string");
+  // Their own conversation: one odd line in a session file ("null", as a crash can leave) must not lose the rest.
+  const slug = resolve(folder).replace(/[^a-zA-Z0-9]/g, "-");
+  const sessions = join(process.env.LONGTABLE_CLAUDE_HOME, "projects", slug);
+  mkdirSync(join(sessions, "memory"), { recursive: true });
+  const turn = (type, text) => JSON.stringify({ type, message: { content: text } });
+  writeFileSync(join(sessions, "a.jsonl"), [turn("user", "SESSION-START what are we doing"), "null", "5", "\"text\"", turn("assistant", "SESSION-END the login page")].join(NL) + NL);
+  const withOdd = knows({ kind: "claude", folder });
+  check("an odd line in their conversation does not lose the rest of it", withOdd.includes("SESSION-START") && withOdd.includes("SESSION-END"), withOdd.slice(0, 300));
+  const laidAt = join(scratch, "laid");
+  mkdirSync(laidAt, { recursive: true });
+  check("and the folder of what they know is laid whole", layYours({ kind: "claude", folder }, laidAt) === true && readFileSync(join(laidAt, ".longtable-yours", "recent-conversation.md"), "utf8").includes("SESSION-END"));
+  rmSync(sessions, { recursive: true, force: true });
+  rmSync(join(process.env.LONGTABLE_CLAUDE_HOME, "CLAUDE.md"), { force: true });
   const sys = systemFor({ ...base, kind: "work", doing: true, knows: k, mind: "- a note" });
   check("none of it rides on the command line: the system text stays small whatever they keep", sys.length < 3000 && !sys.includes("PROJECT-RULES"), sys.length);
   check("the listener's and every kind's system text is far under a command line's limit",
