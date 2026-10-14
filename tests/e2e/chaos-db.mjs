@@ -541,6 +541,17 @@ async function deleteDuringDecision(db, db2) {
   return status === "being decided" && left === "0" ? "a request was left being decided after its decision's chat was deleted at the same moment" : "";
 }
 
+// Asking the table takes exactly 8,000 characters, and one more is refused in the words of that limit (Q2, B4).
+async function askAtLimit(db) {
+  const { t, ids, act, done } = await smallTable(db, ["owner"]);
+  const general = await db.one(`select id from public.chats where table_id = '${t}' and is_general`);
+  const at = await act(ids[0], `select public.ask_table('${general}'::uuid, repeat('x', 8000), '[]'::jsonb)`);
+  const over = await act(ids[0], `select public.ask_table('${general}'::uuid, repeat('x', 8001), '[]'::jsonb)`);
+  await done();
+  if (at.error) return `8,000 characters were refused: ${at.error}`;
+  return over.state === "P0001" && /8,000 characters or fewer/.test(over.error || "") ? "" : `8,001 characters: ${over.error ?? "went through"}`;
+}
+
 const db = new Session();
 const db2 = new Session();
 const started = Date.now();
@@ -566,6 +577,8 @@ try {
   if (slow) { found.set("E1 slow view", slow); console.log(`BROKEN E1 ${slow}`); }
   const stuck = await deleteDuringDecision(db, db2);
   if (stuck) { found.set("D3 delete during decision", stuck); console.log(`BROKEN D3 ${stuck}`); }
+  const limit = await askAtLimit(db);
+  if (limit) { found.set("Q2 ask at its limit", limit); console.log(`BROKEN Q2 ${limit}`); }
   for (const saved of SAVED) {
     const { broken } = await sequence(saved.seed, saved.steps.length, db, db2, saved.steps);
     const again = broken.find((b) => same(b, saved));

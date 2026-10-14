@@ -165,7 +165,7 @@ begin
     raise exception 'ask something';
   end if;
   if char_length(words) > 8000 then
-    raise exception 'that is a lot for one message; keep it under 8,000 characters';
+    raise exception 'that is a lot for one message; keep it to 8,000 characters or fewer';
   end if;
   -- A message that is only attachments still needs words to be found by: their names.
   if char_length(words) = 0 then

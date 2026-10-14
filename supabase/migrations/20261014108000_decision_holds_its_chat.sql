@@ -79,4 +79,4 @@ begin
   perform public.log_activity(t, me, 'decision.created', d, jsonb_build_object('title', btrim(title)));
   return d;
 end;
-$function$;;
+$function$;
