@@ -378,7 +378,8 @@ export function cleanSources(dir, sources) {
     let p = s.trim().replace(/^\.\//, "");
     if (isAbsolute(p)) p = relative(dir, p);
     p = normalize(p).replace(/\\/g, "/");
-    if (p.startsWith("..") || isAbsolute(p) || p.startsWith(YOURS)) continue;
+    // On Windows and macOS ".LONGTABLE-YOURS" is the same folder, so the person's own is matched in any letter case.
+    if (p.startsWith("..") || isAbsolute(p) || p.toLowerCase().startsWith(YOURS)) continue;
     if (existsSync(join(dir, p)) && !out.includes(p)) out.push(p);
   }
   return out.slice(0, 6);

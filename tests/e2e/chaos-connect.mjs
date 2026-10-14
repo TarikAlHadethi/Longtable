@@ -357,6 +357,10 @@ saved("X2", "a sign-in whose name and password hold an @", (() => {
   const p = run.plain(new Error("fatal: unable to access 'https://a@b:p@ss@github.com/o/r.git/'"));
   return p.includes("//github.com/o/r.git") && !/a@b|p@ss|ss@/.test(p) ? "" : p;
 })());
+saved("P12", "the person's own folder named in other letter case", (() => {
+  const dir = join(scratch, "copy");
+  return run.cleanSources(dir, ["./.Longtable-Yours/a", ".LONGTABLE-YOURS/x.md"]).length === 0 ? "" : "kept as a source";
+})());
 saved("B5", "an attachment address with a broken %-sequence", (() => {
   try { return attachmentAddress(BASE, TABLE, new URL(`${BASE}/storage/v1/object/sign/attachments/${TABLE}/%E0%A4%A`)) === false ? "" : "let through"; } catch (e) { return `threw: ${e.message}`; }
 })());
