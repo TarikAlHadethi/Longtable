@@ -12,7 +12,7 @@ import { client } from "./api.mjs";
 import { ask, findClaude } from "./claude.mjs";
 import { askCodex, codexLimits, findCodex } from "./codex.mjs";
 import { packCode } from "./pack.mjs";
-import { changedSoFar, freshCopy, landWork, neverCommit, openBranch, openWork, patchOf, workBranch } from "./repo.mjs";
+import { changedSoFar, freshCopy, landWork, neverCommit, openBranch, openWork, patchOf, safeTable, workBranch } from "./repo.mjs";
 import { hideSecrets, home, loadSecret, log, readConfig } from "./store.mjs";
 
 const SOURCES = {
@@ -358,7 +358,7 @@ export function layYours(seat, dir) {
 
 // Each person's AI keeps its own short notes on that person's computer. They are what makes one person's AI differ
 // from another's on the same model: what it has learned here, in its own words. They never leave this computer.
-const mindFile = (tableId) => join(home, "minds", `${tableId}.md`);
+const mindFile = (tableId) => join(home, "minds", `${safeTable(tableId)}.md`);
 export function mind(tableId) {
   try { return readFileSync(mindFile(tableId), "utf8").trim(); } catch { return ""; }
 }

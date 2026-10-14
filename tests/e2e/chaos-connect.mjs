@@ -226,6 +226,22 @@ prop("B3", "an AI's own notes stay at 40 short lines", 20, (r) => r.list(80, () 
   return kept.length > 40 || kept.some((l) => l.length > 320) ? `${kept.length} lines` : "";
 });
 
+// B3, P4-like: a table's id from the server never makes the connection write outside its own folders.
+const { freshCopy } = await import("../../packages/connect/src/repo.mjs");
+prop("B3", "a table id never leads outside the connection's own folders", 60, (r) => r.list(5, () => r.pick(["..", "/", "\\", "x", "minds", "copies", "11111111-2222-3333-4444-555555555555", "C:", "~", "%2e%2e", ""])), (parts) => {
+  const id = parts.join("");
+  // Everything the two may make is one file in minds/ or one folder in copies/; anything else anywhere is outside.
+  const all = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? [join(d, e.name), ...all(join(d, e.name))] : [join(d, e.name)]));
+  const top = join(scratch, "..");
+  const before = new Set([...all(process.env.LONGTABLE_HOME), ...readdirSync(top).map((f) => join(top, f))]);
+  try { run.remember(id, "a note long enough to be kept"); } catch {}
+  try { freshCopy(id, null); } catch {}
+  const made = [...all(process.env.LONGTABLE_HOME), ...readdirSync(top).map((f) => join(top, f))].filter((f) => !before.has(f));
+  const bad = made.filter((f) => !/[\\/]minds[\\/][A-Za-z0-9_-]+\.md$|[\\/]minds$|[\\/]copies[\\/][A-Za-z0-9_-]+$|[\\/]copies$/.test(f));
+  for (const f of made) rmSync(f, { recursive: true, force: true });
+  return bad.length ? `made ${bad.map((f) => f.slice(scratch.length)).join(", ")}` : "";
+});
+
 // P8 (the connection's side): no key shape it knows leaves in what it tells the table about a person's commands.
 prop("P13", "a command's line never carries a key", 40, (r) => r.list(5, () => ({ name: `c${r.int(1000)}`, line: text(r, 5).join("").replace(/[\r\n]/g, " ") })), (cmds) => {
   rmSync(join(process.env.LONGTABLE_CLAUDE_HOME, "commands"), { recursive: true, force: true });

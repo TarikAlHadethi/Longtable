@@ -42,7 +42,7 @@ export function resolveSource(repo) {
 // Bring the copy up to the latest default branch. Symlinks are checked out as plain files, so a link in the
 // repository can never point the AI at a file outside the copy.
 export function freshCopy(tableId, source) {
-  const dir = join(home, "copies", tableId);
+  const dir = join(home, "copies", safeTable(tableId));
   if (!source) {
     mkdirSync(dir, { recursive: true });
     return { dir, read: "no code connected" };
@@ -66,14 +66,14 @@ export function freshCopy(tableId, source) {
 }
 
 export function copyIsClean(tableId) {
-  const dir = join(home, "copies", tableId);
+  const dir = join(home, "copies", safeTable(tableId));
   if (!existsSync(join(dir, ".git"))) return true;
   return git(["-C", dir, "status", "--porcelain"]) === "";
 }
 
 // Work the team asked for happens in a second folder that holds the files and nothing else: no .git inside it, so
 // nothing the AI writes there can change what git itself runs. Git reaches it from outside, with its own index.
-const places = (tableId, name = "work") => ({ G: join(home, "copies", tableId, ".git"), W: join(home, name, tableId), I: join(home, name, `${tableId}.index`) });
+const places = (tableId, name = "work") => ({ G: join(home, "copies", safeTable(tableId), ".git"), W: join(home, name, safeTable(tableId)), I: join(home, name, `${safeTable(tableId)}.index`) });
 // File names come back as they are. Left to itself git writes a name with letters outside plain English in quotes
 // with numbers for the letters, and then the name is neither a file that can be read nor one a rule can match.
 const wgit = (p, args, env = {}) => execFileSync("git", ["-c", "core.quotePath=false", "--git-dir", p.G, "--work-tree", p.W, ...args],
@@ -86,15 +86,22 @@ export function safeBranch(b) {
   return b;
 }
 
+// A table's id becomes a folder name on this computer, so it must be one: a server that is not the real one could
+// otherwise name "../../somewhere" and have that folder written to or wiped.
+export function safeTable(t) {
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(String(t))) throw new Error("the table named itself in a way this connection will not use as a folder");
+  return t;
+}
+
 export const workBranch = (chatName) => "longtable/" + (String(chatName || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "work");
 
 // A folder laid beside the code for the AI to read, and never to be committed: the repository's own exclude list says so.
 export function neverCommit(tableId, name) {
-  const file = join(home, "copies", tableId, ".git", "info", "exclude");
+  const file = join(home, "copies", safeTable(tableId), ".git", "info", "exclude");
   // Git does not always make the info folder (a person's own template may leave it out). If the list cannot be
   // written this throws and the job stops: better no answer than their own notes pushed to the team's branch.
   try {
-    mkdirSync(join(home, "copies", tableId, ".git", "info"), { recursive: true });
+    mkdirSync(join(home, "copies", safeTable(tableId), ".git", "info"), { recursive: true });
     const now = existsSync(file) ? readFileSync(file, "utf8") : "";
     if (!now.split(/\r?\n/).includes(`${name}/`)) writeFileSync(file, `${now}${now.endsWith(String.fromCharCode(10)) || !now ? "" : String.fromCharCode(10)}${name}/${String.fromCharCode(10)}`);
   } catch (e) {
@@ -179,7 +186,7 @@ export function changedSoFar(tableId, work) {
 // default branch's files, so whatever was tried in it before is gone from what the hosting puts up.
 export function openBranch(tableId, branch, fresh = false) {
   safeBranch(branch);
-  const G = join(home, "copies", tableId, ".git");
+  const G = join(home, "copies", safeTable(tableId), ".git");
   try {
     git(["--git-dir", G, "ls-remote", "--exit-code", "origin", `refs/heads/${branch}`]);
     git(["--git-dir", G, "fetch", "--quiet", "--depth", "1", "--no-tags", "origin", `refs/heads/${branch}`]);
@@ -206,7 +213,7 @@ export function openBranch(tableId, branch, fresh = false) {
 export function patchOf(tableId, branch, commit) {
   safeBranch(branch);
   if (!/^[0-9a-f]{7,40}$/.test(String(commit || ""))) return "";
-  const G = join(home, "copies", tableId, ".git");
+  const G = join(home, "copies", safeTable(tableId), ".git");
   try {
     // The commit itself, by its full name; a host that will not serve one commit gets the branch asked for instead.
     try { git(["--git-dir", G, "fetch", "--quiet", "--no-tags", "--depth", "2", "origin", commit]); }
