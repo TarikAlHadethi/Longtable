@@ -15,7 +15,11 @@ import { isAbsolute, join, resolve, sep } from "node:path";
 // real ~/.longtable and ~/.claude of whoever runs this are never touched.
 const scratch = mkdtempSync(join(tmpdir(), "longtable-chaos-"));
 for (const k of ["USERPROFILE", "HOME"]) process.env[k] = join(scratch, "user");
-process.env.LONGTABLE_HOME = join(scratch, "home");
+// Temporary files too: anything the connection makes "in temp" lands inside the scratch folder.
+for (const k of ["TEMP", "TMP", "TMPDIR"]) process.env[k] = join(scratch, "tmp");
+mkdirSync(join(scratch, "tmp"));
+// Deep inside the scratch folder, so a table id that tries to climb out (B3 below) can only ever land inside it.
+process.env.LONGTABLE_HOME = join(scratch, "deep", "a", "b", "c", "d", "e", "home");
 process.env.LONGTABLE_CLAUDE_HOME = join(scratch, "claude");
 mkdirSync(process.env.LONGTABLE_HOME, { recursive: true });
 mkdirSync(join(scratch, "user"), { recursive: true });
@@ -230,15 +234,18 @@ prop("B3", "an AI's own notes stay at 40 short lines", 20, (r) => r.list(80, () 
 const { freshCopy } = await import("../../packages/connect/src/repo.mjs");
 prop("B3", "a table id never leads outside the connection's own folders", 60, (r) => r.list(5, () => r.pick(["..", "/", "\\", "x", "minds", "copies", "11111111-2222-3333-4444-555555555555", "C:", "~", "%2e%2e", ""])), (parts) => {
   const id = parts.join("");
-  // Everything the two may make is one file in minds/ or one folder in copies/; anything else anywhere is outside.
+  // Everything the two may make is one file in minds/ or one folder in copies/ of the connection's own folder;
+  // anything else is outside it. The connection's folder sits six levels deep in the scratch folder and an id here
+  // climbs at most three, so whatever is made is inside the scratch folder: the whole of it is read before and after,
+  // and only what this one call made in it is taken away again. Nothing outside it is ever deleted.
   const all = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? [join(d, e.name), ...all(join(d, e.name))] : [join(d, e.name)]));
-  const top = join(scratch, "..");
-  const before = new Set([...all(process.env.LONGTABLE_HOME), ...readdirSync(top).map((f) => join(top, f))]);
+  const before = new Set(all(scratch));
   try { run.remember(id, "a note long enough to be kept"); } catch {}
   try { freshCopy(id, null); } catch {}
-  const made = [...all(process.env.LONGTABLE_HOME), ...readdirSync(top).map((f) => join(top, f))].filter((f) => !before.has(f));
-  const bad = made.filter((f) => !/[\\/]minds[\\/][A-Za-z0-9_-]+\.md$|[\\/]minds$|[\\/]copies[\\/][A-Za-z0-9_-]+$|[\\/]copies$/.test(f));
-  for (const f of made) rmSync(f, { recursive: true, force: true });
+  const made = all(scratch).filter((f) => !before.has(f));
+  const home = process.env.LONGTABLE_HOME;
+  const bad = made.filter((f) => !(f.startsWith(home) && /[\\/]minds[\\/][A-Za-z0-9_-]+\.md$|[\\/]minds$|[\\/]copies[\\/][A-Za-z0-9_-]+$|[\\/]copies$/.test(f.slice(home.length - 5))));
+  for (const f of made) if (f.startsWith(scratch)) rmSync(f, { recursive: true, force: true });
   return bad.length ? `made ${bad.map((f) => f.slice(scratch.length)).join(", ")}` : "";
 });
 
