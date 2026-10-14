@@ -109,10 +109,10 @@ export const KINDS = {
 const NL = String.fromCharCode(10);
 // Text from the table, a file or another AI is fenced so it reads as information. Nothing inside may close a fence,
 // and a marker glued to a letter ("xTABLE>>>") is still a marker to whoever reads it, so no word edge is asked for.
-const inert = (t) => String(t ?? "").replace(/<<<(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT)|(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT)>>>/g, "[marker]");
+export const inert = (t) => String(t ?? "").replace(/<<<(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT)|(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT)>>>/g, "[marker]");
 // The conversation as it is, newest kept: every message whole, back to wherever a generous size runs out. There is
 // no count of messages: a long talk between people is all there.
-function recent(history, room) {
+export function recent(history, room) {
   const out = [];
   let used = 0;
   for (const m of [...(history || [])].reverse()) {
@@ -620,7 +620,7 @@ function planText(job, s) {
 
 // Why a job failed, as the table may see it: the last line of the error, with no sign-in from a repository address
 // and nothing shaped like a key.
-const plain = (e) => hideSecrets(String(e?.message || e).split(/\r?\n/).filter(Boolean).pop() || "it failed").replace(/\/\/[^/@\s]+@/g, "//").slice(0, 300);
+export const plain = (e) => hideSecrets(String(e?.message || e).split(/\r?\n/).filter(Boolean).pop() || "it failed").replace(/\/\/[^/@\s]+@/g, "//").slice(0, 300);
 
 // The listener's one small request. Its only output is what to do next; the table does the rest.
 async function workListen(rpc, seat, engines, job) {

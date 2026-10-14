@@ -91,9 +91,8 @@ export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,
   return new Promise((resolve, reject) => {
     const started = Date.now();
     const child = spawn(claude, args, { cwd, env: childEnv(token, apiKey), windowsHide: true });
-    // Output arrives a line at a time, each line one event. Only the result and the plan's limits are kept: work
-    // with no time limit would otherwise hold every file it ever read in memory.
-    let rest = "";
+    // Only the result and the plan's limits are kept: work with no time limit would otherwise hold every file it ever
+    // read in memory.
     let err = "";
     let ended = "";
     let result = null;
@@ -102,10 +101,7 @@ export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,
     child.stderr.setEncoding("utf8");
     const timer = timeoutMs ? setTimeout(() => { ended = "ran out of time"; child.kill(); }, timeoutMs) : null;
     if (control) control.kill = () => { ended = "stopped"; child.kill(); };
-    const take = (line) => {
-      if (!line.trim()) return;
-      let e;
-      try { e = JSON.parse(line); } catch { return; }
+    const lines = lineReader((e) => {
       if (e.type === "result") result = e;
       else if (e.type === "rate_limit_event") rate = e.rate_limit_info;
       else if (onNote && e.type === "assistant") {
@@ -116,21 +112,13 @@ export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,
           onNote(part.name === "Edit" || part.name === "Write" ? `editing ${file}` : part.name === "Read" ? `reading ${file}` : "searching the code");
         }
       }
-    };
-    child.stdout.on("data", (d) => {
-      rest += d;
-      let at;
-      while ((at = rest.indexOf(String.fromCharCode(10))) !== -1) {
-        const line = rest.slice(0, at);
-        rest = rest.slice(at + 1);
-        try { take(line); } catch {}
-      }
     });
+    child.stdout.on("data", (d) => lines.push(d));
     child.stderr.on("data", (d) => { if (err.length < 4000) err += d; });
     child.on("error", (e) => { clearTimeout(timer); reject(e); });
     child.on("close", (code) => {
       clearTimeout(timer);
-      try { take(rest); } catch {}
+      lines.end();
       if (ended) return reject(new Error(ended));
       if (!result) {
         log(`claude exited ${code} without a result: ${err.slice(0, 300)}`);
@@ -142,6 +130,30 @@ export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,
     child.stdin.on("error", () => {});
     child.stdin.end(prompt);
   });
+}
+
+// Output arrives a line at a time, each line one event: every whole line that is JSON goes to onEvent, blank and
+// other lines are passed over, and a last line with no end is read when the output ends.
+export function lineReader(onEvent) {
+  let rest = "";
+  const take = (line) => {
+    if (!line.trim()) return;
+    let e;
+    try { e = JSON.parse(line); } catch { return; }
+    onEvent(e);
+  };
+  return {
+    push(d) {
+      rest += d;
+      let at;
+      while ((at = rest.indexOf(String.fromCharCode(10))) !== -1) {
+        const line = rest.slice(0, at);
+        rest = rest.slice(at + 1);
+        try { take(line); } catch {}
+      }
+    },
+    end() { try { take(rest); } catch {} rest = ""; },
+  };
 }
 
 // The plan's limits as Longtable shows them: each window's use in percent and when it resets.

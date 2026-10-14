@@ -206,6 +206,10 @@ export function shareable(laid) {
 }
 
 const AI_CAP = 15 * 1024 * 1024;
+// Whether an address is in this table's own folder in Longtable's own storage.
+export function attachmentAddress(base, tableId, url) {
+  return url.origin === new URL(base).origin && decodeURIComponent(url.pathname).includes(`/storage/v1/object/sign/attachments/${tableId}/`);
+}
 // Brings what was attached in the chat to where the AI can read it. Only ever from this table's own folder in
 // Longtable's storage: an address pointing anywhere else is left alone.
 export async function fetchAttachments(base, tableId, list, into) {
@@ -219,7 +223,7 @@ export async function fetchAttachments(base, tableId, list, into) {
     if (Number(a.size) > AI_CAP) { out.not.push({ ...label, why: "it is larger than 15 MB" }); continue; }
     let url;
     try { url = new URL(a.url, base); } catch { out.not.push({ ...label, why: "its address is not readable" }); continue; }
-    if (url.origin !== new URL(base).origin || !decodeURIComponent(url.pathname).includes(`/storage/v1/object/sign/attachments/${tableId}/`)) { out.not.push({ ...label, why: "its address is not this table's" }); continue; }
+    if (!attachmentAddress(base, tableId, url)) { out.not.push({ ...label, why: "its address is not this table's" }); continue; }
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(60000) });
       if (!res.ok) { out.not.push({ ...label, why: res.status === 400 || res.status === 403 ? "its link has run out" : "it could not be fetched" }); continue; }
