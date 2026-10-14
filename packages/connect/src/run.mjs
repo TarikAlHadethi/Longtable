@@ -270,8 +270,9 @@ export function knows(seat) {
   // The end of their own conversation about this project comes first: it is what the two of them were just doing.
   let talk = "";
   if (folder) { try { talk = recentSession(folder, 16000); } catch {} }
-  const rest = parts.join(NL + NL).slice(0, 34000);
-  return (talk ? `## The latest of your own conversation with them about this project (newest last)${NL}${talk}${NL}${NL}` : "") + rest;
+  // The rest has what room the conversation leaves, so the whole stays within 36,000 characters.
+  const head = talk ? `## The latest of your own conversation with them about this project (newest last)${NL}${talk}${NL}${NL}` : "";
+  return head + parts.join(NL + NL).slice(0, Math.max(0, 36000 - head.length));
 }
 
 // Everything this person's Claude knows on their own computer, whole, laid in a folder beside the code for it to

@@ -80,6 +80,13 @@ try {
   const laidAt = join(scratch, "laid");
   mkdirSync(laidAt, { recursive: true });
   check("and the folder of what they know is laid whole", layYours({ kind: "claude", folder }, laidAt) === true && readFileSync(join(laidAt, ".longtable-yours", "recent-conversation.md"), "utf8").includes("SESSION-END"));
+  // Everything at its biggest at once: a long conversation, long instructions and many memory files.
+  writeFileSync(join(sessions, "b.jsonl"), Array.from({ length: 60 }, (_, i) => turn(i % 2 ? "assistant" : "user", `turn ${i} ` + "w".repeat(3900))).join(NL) + NL);
+  writeFileSync(join(sessions, "memory", "MEMORY.md"), "m".repeat(9000));
+  for (let i = 0; i < 14; i++) writeFileSync(join(sessions, "memory", `note${i}.md`), "n".repeat(2000));
+  writeFileSync(join(process.env.LONGTABLE_CLAUDE_HOME, "CLAUDE.md"), "h".repeat(9000));
+  const full = knows({ kind: "claude", folder });
+  check("what a person's Claude knows stays within 36,000 characters with everything at its biggest", full.length <= 36000 && full.includes("PROJECT-RULES") && full.includes("turn 59"), full.length);
   rmSync(sessions, { recursive: true, force: true });
   rmSync(join(process.env.LONGTABLE_CLAUDE_HOME, "CLAUDE.md"), { force: true });
   const sys = systemFor({ ...base, kind: "work", doing: true, knows: k, mind: "- a note" });
