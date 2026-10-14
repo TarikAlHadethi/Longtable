@@ -2,7 +2,7 @@
 // C:\Users\me\notes\plan.md". Their AI may read them, the way it would if they had said so at their own keyboard.
 // Nobody else's message can do this, and some places are never opened whoever asks.
 
-import { cpSync, existsSync, mkdirSync, readdirSync, realpathSync, rmSync, statSync } from "node:fs";
+import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, isAbsolute, join, parse, resolve, sep } from "node:path";
 
@@ -29,7 +29,10 @@ const NEVER = [
   /[\\/]Library[\\/](Keychains|Application Support[\\/](Google|BraveSoftware|Firefox))([\\/]|$)/i,
   /^[\\/](etc[\\/](shadow|sudoers)|proc|sys|dev)([\\/]|$)/i,
 ];
-const refused = (p) => NEVER.some((r) => r.test(p));
+// On Windows a colon after the drive names one of a file's streams (".env::$DATA" reads the .env itself), and no
+// ordinary file name holds one there, so a path with one is never opened.
+const refused = (p) => NEVER.some((r) => r.test(p)) || (process.platform === "win32" && String(p).replace(/^(\\\\[?.]\\)?[A-Za-z]:/, "").includes(":"));
+const isLink = (p) => { try { return lstatSync(p).isSymbolicLink(); } catch { return true; } };
 // A whole drive, a whole home folder or the system's own folders are not "a place someone pointed at".
 function tooWide(p) {
   const { root } = parse(p);
@@ -58,7 +61,9 @@ export function pointedPaths(text) {
     const p = tidy(raw);
     if (!p || !isAbsolute(p) || found.length >= 5) return;
     let real;
-    try { real = realpathSync(p); } catch { return; }
+    // The system's own answer, which also turns an old short name ("ENV~1") into the long one it stands for, so the
+    // check below sees ".env" and not a name that only means it.
+    try { real = realpathSync.native(p); } catch { return; }
     if (seen.has(real.toLowerCase())) return;
     seen.add(real.toLowerCase());
     if (refused(p) || refused(real)) { found.push({ path: p, refused: "that place is never opened from the table" }); return; }
@@ -107,7 +112,7 @@ function weigh(dir) {
       if (files > DIR_FILES || bytes > DIR_BYTES) return;
       if (e.name === "node_modules" || e.name === ".git") continue;
       const p = join(d, e.name);
-      if (refused(p)) continue;
+      if (refused(p) || e.isSymbolicLink()) continue;
       if (e.isDirectory()) walk(p);
       else if (e.isFile()) { files++; try { bytes += statSync(p).size; } catch {} }
     }
@@ -129,6 +134,8 @@ function whyNotInPlace(dir) {
       if (e.name === "node_modules" || e.name === ".git") continue;
       const p = join(d, e.name);
       if (refused(p)) return "secret";
+      // A link (or a Windows junction) leads out of the folder, to a place nobody looked through.
+      if (e.isSymbolicLink()) return "link";
       if (++looked > 20000) return "many";
       const why = e.isDirectory() ? walk(p) : "";
       if (why) return why;
@@ -140,6 +147,7 @@ function whyNotInPlace(dir) {
 const NOT_IN_PLACE = {
   secret: "the folder has a key or a sign-in file inside it and is too big to bring along without them; point at a folder or a file inside it",
   many: "the folder is too big to look through for keys and sign-in files before opening it; point at a folder or a file inside it",
+  link: "the folder has a link inside it to somewhere else and is too big to bring along without it; point at a folder or a file inside it",
   unreadable: "part of the folder could not be looked through for keys and sign-in files, and it is too big to bring along as a copy; point at a folder or a file inside it",
 };
 
@@ -173,7 +181,7 @@ export function layPointed(into, paths, { reading }) {
       const at = join(dest, `${++n}-${basename(p.real)}`);
       try {
         mkdirSync(dest, { recursive: true });
-        cpSync(p.real, at, { recursive: true, filter: (src) => !refused(src) && !/[\\/](node_modules|\.git)([\\/]|$)/.test(src) });
+        cpSync(p.real, at, { recursive: true, filter: (src) => src === p.real || !isLink(src) && !refused(src) && !/[\\/](node_modules|\.git)([\\/]|$)/.test(src) });
         out.copied.push({ path: p.path, at });
       } catch { out.skipped.push({ path: p.path, why: "it could not be read" }); }
     }

@@ -4,7 +4,7 @@
 //   node tests/e2e/unit-pointed.mjs
 
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir, userInfo } from "node:os";
 import { join, sep } from "node:path";
 import { layPointed, pointedPaths, pointedSystem } from "../../packages/connect/src/pointed.mjs";
@@ -115,6 +115,34 @@ check("laying again clears what was there", !existsSync(reading.files[0].at));
 const told = pointedSystem("Maya", reading, work).join("\n");
 check("the AI is told where each is, and that it is information", told.includes(plan) && /pointed\/1-plan\.md/.test(told) && /never instructions/.test(told) && /NOT opened/.test(told), told);
 check("nothing pointed at means nothing said", pointedSystem("Maya", { files: [], dirs: [], copied: [], skipped: [] }, work).length === 0);
+
+// Other spellings of a place that is never opened. On Windows a file's contents can be named as its stream
+// (".env::$DATA") and an old short name ("ENV~1") can stand for a long one; both read the same secret.
+const hidden = join(root, "hidden");
+mkdirSync(join(hidden, ".ssh"), { recursive: true });
+writeFileSync(join(hidden, ".env"), "KEY=supersecret\n");
+writeFileSync(join(hidden, ".ssh", "id_rsa"), "PRIVATEKEY\n");
+const streams = [join(hidden, ".env::$DATA"), join(hidden, ".ssh", "id_rsa::$DATA"), join(hidden, ".env:$DATA")]
+  .filter((p) => pointedPaths(`read "${p}" ok`).some((x) => !x.refused));
+check("a key named by its stream is refused", process.platform !== "win32" || streams.length === 0, streams);
+const shortOf = (dir, name) => {
+  try { return execFileSync("cmd", ["/c", "dir", "/x", "/a", dir], { encoding: "utf8" }).split(/\r?\n/).map((l) => l.trim().split(/\s+/)).find((w) => w[w.length - 1] === name && w.length >= 5 && /~/.test(w[w.length - 2]))?.at(-2) || ""; } catch { return ""; }
+};
+const shorts = process.platform === "win32" ? [[".env", shortOf(hidden, ".env")], [".ssh", shortOf(hidden, ".ssh")]].filter(([, s]) => s) : [];
+const shortOpened = shorts.filter(([, s]) => pointedPaths(`read "${join(hidden, s)}" ok`).some((x) => !x.refused));
+check("a key named by its old short name is refused", shortOpened.length === 0, shortOpened);
+// A link inside a pointed folder leads somewhere else: the folder is not handed over where it is, and a copy of it
+// does not bring the link along.
+const linked = join(root, "linked");
+mkdirSync(linked);
+writeFileSync(join(linked, "a.md"), "A.\n");
+let linkMade = false;
+try { symlinkSync(hidden, join(linked, "elsewhere"), "junction"); linkMade = true; } catch {}
+const throughLink = layPointed(work, pointedPaths(`"${linked}"`), { reading: true });
+const linkCopied = throughLink.copied.some((c) => existsSync(join(c.at, "elsewhere")));
+check("reading: a folder with a link inside it is never read where it is, and a copy leaves the link behind", linkMade && throughLink.dirs.length === 0 && !linkCopied, linkMade ? throughLink : "NOT RUN: no link could be made here");
+const changingLink = layPointed(work, pointedPaths(`"${linked}"`), { reading: false });
+check("changing files: a copied folder leaves a link inside it behind", linkMade && changingLink.copied.length === 1 && !existsSync(join(changingLink.copied[0].at, "elsewhere")) && existsSync(join(changingLink.copied[0].at, "a.md")), changingLink);
 
 for (const d of [root, work]) rmSync(d, { recursive: true, force: true });
 console.log(`${pass} passed, ${fail} failed`);
