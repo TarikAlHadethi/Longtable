@@ -41,6 +41,21 @@ jobs:
       - run: node tests/e2e/unit-prompts.mjs
       - run: node tests/e2e/unit-pointed.mjs
       - run: node tests/e2e/unit-land.mjs
+      - run: node tests/e2e/chaos-connect.mjs
+
+  # The connection's chaos checks over many more seeded random inputs (a few minutes). No AI, no network.
+  chaos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: node tests/e2e/chaos-connect.mjs
+        env:
+          CHAOS_FULL: "1"
 
   # The address and key below are stand-ins: a build only needs them to be there.
   build:

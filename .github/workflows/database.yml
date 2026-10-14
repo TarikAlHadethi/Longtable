@@ -73,6 +73,14 @@ jobs:
           if [ -n "$failed" ]; then echo "Failed:$failed"; exit 1; fi
           echo "Every suite passed."
 
+      # Last, because it wipes every table on this job's own database and pauses its clocks while it runs.
+      - name: Database chaos
+        if: always()
+        run: node tests/e2e/chaos-db.mjs
+        env:
+          CHAOS_FULL: "1"
+          CHAOS_DB_CONTAINER: supabase_db_longtable
+
       - name: What the app said, when something failed
         if: failure()
         run: tail -n 200 "$RUNNER_TEMP/dev.log" || true
