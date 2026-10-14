@@ -463,6 +463,79 @@ async function sayWhileRemoved(db, db2) {
   return res.error ? "" : `a client taken off while their message waited still got it through (${n} request)`;
 }
 
+// Two people at a table of their own, for the directed checks below. Returns how to act as them and how to clean up.
+async function smallTable(db, roles) {
+  const run = "dir-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const ids = roles.map(() => randomUUID());
+  await db.q(`insert into auth.users (id, email) values ${ids.map((id, i) => `('${id}', 'chaos-${run}-${i}@example.test')`).join(", ")}`);
+  const act = async (who, q, session = db) => session.json(`select chaos.act('${who}'::uuid, $chaosq$${q}$chaosq$)`);
+  const t = (await act(ids[0], "select to_jsonb(public.start_table('Directed', 'Maya'))")).ok;
+  for (let i = 1; i < roles.length; i++) {
+    const tok = (await act(ids[0], `select to_jsonb(public.create_invite('${t}'::uuid, '${roles[i]}', '', ''))`)).ok;
+    await act(ids[i], `select to_jsonb(public.accept_invite('${tok}', 'P${i}'))`);
+  }
+  const seat = async (i) => db.one(`select id from public.members where table_id = '${t}' and user_id = '${ids[i]}'`);
+  const done = async () => {
+    await db.q("select set_config('longtable.deleting_table', 'on', false)");
+    await db.q(`delete from public.tables where id = '${t}'`);
+    await db.q("select set_config('longtable.deleting_table', '', false)");
+    await db.q(`delete from auth.users where email like 'chaos-${run}-%@example.test'`);
+  };
+  return { t, ids, act, seat, done };
+}
+
+// A round's leftovers are closed once its answer is over, but only the stale ones (E1): a view whose AI is still at
+// it, with its lease running and its computer on, is never cut; the same view long past its lease is.
+async function slowView(db) {
+  const { t, ids, act, done } = await smallTable(db, ["owner", "developer"]);
+  const tokens = [];
+  for (const id of ids) {
+    const code = (await act(id, `select to_jsonb(public.start_pairing('${t}'::uuid, 'claude'))`)).ok;
+    const paired = await db.json(`select chaos.act(null::uuid, $chaosq$select public.pair_connection('${code}', 'chaos')$chaosq$)`);
+    tokens.push(paired.ok.token);
+  }
+  await db.q(`update public.jobs set status = 'skipped', error = 'not this check' where table_id = '${t}' and kind = 'intro'`);
+  const general = await db.one(`select id from public.chats where table_id = '${t}' and is_general`);
+  await act(ids[0], `select public.ask_table('${general}'::uuid, 'what does the login page do?', '[]'::jsonb)`);
+  const claim = await db.json(`select chaos.act(null::uuid, $chaosq$select public.runner_claim('${tokens[1]}', 'light')$chaosq$)`);
+  const view = claim.ok?.job_id;
+  let why = "";
+  if (!view || claim.ok.kind !== "view") why = `the check could not set itself up (${JSON.stringify(claim).slice(0, 120)})`;
+  else {
+    await db.q(`insert into public.jobs (table_id, chat_id, member_id, question_id, kind, status, round, task_id, error)
+      select table_id, chat_id, member_id, question_id, 'combine', 'skipped', round, task_id, 'given up on' from public.jobs where id = '${view}'`);
+    await db.q("select public.close_failed_tasks()");
+    const working = await db.one(`select status from public.jobs where id = '${view}'`);
+    await db.q(`update public.jobs set lease_until = now() - interval '11 minutes' where id = '${view}'`);
+    await db.q("select public.close_failed_tasks()");
+    const stale = await db.one(`select status from public.jobs where id = '${view}'`);
+    why = working !== "running" ? `a view still being worked on was cut (${working})` : stale !== "skipped" ? `a view long past its lease was left ${stale}` : "";
+  }
+  await done();
+  return why;
+}
+
+// Deleting a chat while a decision about a client's request is being made in it (D3): the deletion waits for the
+// decision, then sends the request back to the team. It must never be left "being decided" with nothing deciding it.
+async function deleteDuringDecision(db, db2) {
+  const { t, ids, act, done } = await smallTable(db, ["owner", "client"]);
+  const req = (await act(ids[1], `select to_jsonb(public.client_ask('${t}'::uuid, 'a dark mode please'))`)).ok;
+  const chat = (await act(ids[0], `select to_jsonb(public.create_chat('${t}'::uuid, 'Side', ''))`)).ok;
+  const options = [{ label: "Yes", recommended: true, client_words: "We will.", asks_client: false, replies: [] }, { label: "No", recommended: false, client_words: "Not now.", asks_client: false, replies: [] }];
+  await db2.q("begin");
+  const made = await act(ids[0], `select to_jsonb(public.create_decision('${chat}'::uuid, 'Dark mode', '', 'team', true, (${"'" + JSON.stringify(options) + "'"})::jsonb, '${req}'::uuid))`, db2);
+  const deleting = act(ids[0], `select to_jsonb(public.delete_chat('${chat}'::uuid))`, db);
+  await new Promise((r) => setTimeout(r, 300));
+  await db2.q("commit");
+  const deleted = await deleting;
+  const status = await db.one(`select status from public.requests where id = '${req}'`);
+  const left = await db.one(`select count(*) from public.decisions where request_id = '${req}'`);
+  await done();
+  if (!made.ok) return `the check could not set itself up: ${made.error}`;
+  if (deleted.error) return `the chat could not be deleted: ${deleted.error}`;
+  return status === "being decided" && left === "0" ? "a request was left being decided after its decision's chat was deleted at the same moment" : "";
+}
+
 const db = new Session();
 const db2 = new Session();
 const started = Date.now();
@@ -484,6 +557,10 @@ try {
   if (back) { found.set("Q4 coming back", back); console.log(`BROKEN Q4 a person taken off can come back: ${back}`); }
   const raced = await sayWhileRemoved(db, db2);
   if (raced) { found.set("P4 raced", raced); console.log(`BROKEN P4 ${raced}`); }
+  const slow = await slowView(db);
+  if (slow) { found.set("E1 slow view", slow); console.log(`BROKEN E1 ${slow}`); }
+  const stuck = await deleteDuringDecision(db, db2);
+  if (stuck) { found.set("D3 delete during decision", stuck); console.log(`BROKEN D3 ${stuck}`); }
   for (const saved of SAVED) {
     const { broken } = await sequence(saved.seed, saved.steps.length, db, db2, saved.steps);
     const again = broken.find((b) => same(b, saved));

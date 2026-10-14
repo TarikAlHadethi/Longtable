@@ -1,6 +1,7 @@
 -- Deleting a chat deleted the decisions in it, and a client's request that one of them was deciding stayed "being
 -- decided" for ever, with nothing deciding it. It goes back to waiting for the team now. A question already sent to
--- the client stays theirs to answer, as before. Found by the chaos run (rule D3).
+-- the client stays theirs to answer, as before. The chat is held for the whole deletion, so a decision made in it at
+-- the same moment cannot slip past and leave its request stuck the same way. Found by the chaos run (rule D3).
 
 CREATE OR REPLACE FUNCTION public.delete_chat(c uuid)
  RETURNS void
@@ -12,7 +13,9 @@ declare
   ch public.chats;
   me uuid;
 begin
-  select * into ch from public.chats where id = c;
+  -- The chat is held first, so a decision being made in it at this moment (which holds it too) finishes before the
+  -- requests below are read, and its request is seen and sent back like any other.
+  select * into ch from public.chats where id = c for update;
   if not found or not public.is_team(ch.table_id) then
     raise exception 'only the team can delete a chat';
   end if;
