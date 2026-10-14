@@ -262,6 +262,9 @@ export function landWork(tableId, work, branch, message, who) {
   }
   // A name with no Latin letters in it leaves nothing to name the branch by, so it is just "part".
   const side = `${branch}-${String(who || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 20).replace(/^-+|-+$/g, "") || "part"}`;
+  // A tripwire, written to this computer's log and nothing more: a side branch from a long branch name can be longer
+  // than the connection's own rule for branches, and a later job handed it could not write to it.
+  try { safeBranch(side); } catch { try { log("tripwire: a side branch came out longer than the connection's own branch rule"); } catch {} }
   if (push(commit, side)) return { files, commit: commit.slice(0, 7), sha: commit, pushed: true, branch: side, apart: true };
   // Nothing could be pushed. Keep the commit findable on this computer, so the work is not lost with the folder.
   try { git(["--git-dir", p.G, "update-ref", `refs/longtable/${branch.slice(10)}`, commit]); } catch {}

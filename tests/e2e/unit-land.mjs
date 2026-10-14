@@ -101,6 +101,19 @@ try {
   let plainName = false;
   try { plainName = safeBranch(el3.branch) === el3.branch; } catch {}
   check("a part set beside the branch for someone whose name has no Latin letters still gets a plain branch name", el3.pushed && el3.apart && plainName && !el3.branch.endsWith("-"), el3);
+  // A side branch from a branch name at its longest comes out longer than the connection's own rule: the tripwire
+  // says so in the log, and the part still lands where it did before.
+  const L = "longtable/" + "l".repeat(80);
+  const l1w = openWork("p1", L);
+  const l2w = openWork("p2", L);
+  writeFileSync(join(l1w.dir, "one.txt"), lines(20).replace("line 5", "Long one"));
+  writeFileSync(join(l2w.dir, "one.txt"), lines(20).replace("line 5", "Long two"));
+  landWork("p1", l1w, L, "First", "Maya");
+  const runnerLog = join(process.env.LONGTABLE_HOME, "runner.log");
+  const tripsBefore = existsSync(runnerLog) ? readFileSync(runnerLog, "utf8").split("tripwire:").length : 1;
+  const ll = landWork("p2", l2w, L, "Second", "Sam");
+  const tripsAfter = existsSync(runnerLog) ? readFileSync(runnerLog, "utf8").split("tripwire:").length : 1;
+  check("a side branch longer than the connection's rule trips the wire and the part still lands", ll.pushed && ll.apart && tripsAfter === tripsBefore + 1, { ll, tripsBefore, tripsAfter });
 
   // ---- the default branch moved between the two starts: never a quiet undo
   const b = repo("b", { "app.txt": lines(20), "hot.txt": "old" + NL });

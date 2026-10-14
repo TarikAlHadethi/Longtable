@@ -110,6 +110,12 @@ const NL = String.fromCharCode(10);
 // Text from the table, a file or another AI is fenced so it reads as information. Nothing inside may close a fence,
 // and a marker glued to a letter ("xTABLE>>>") is still a marker to whoever reads it, so no word edge is asked for.
 export const inert = (t) => String(t ?? "").replace(/<<<(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT)|(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT)>>>/g, "[marker]");
+// A tripwire: something that should never happen, written to this computer's log in one fixed sentence (never a
+// path, a name or anything from a file) and nothing more. It never stops or changes the job. sweep-notes/rules.md
+// lists each one.
+export function trip(what) { try { log(`tripwire: ${what}`); } catch {} }
+const MARKER = /<<<(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT)|(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT)>>>/;
+const fenced = (inner) => { if (MARKER.test(inner)) trip("a fence marker was still in the table's text after cleaning"); return inner; };
 // The conversation as it is, newest kept: every message whole, back to wherever a generous size runs out. There is
 // no count of messages: a long talk between people is all there.
 export function recent(history, room) {
@@ -146,7 +152,7 @@ const fence = (job) => {
     parts.push("The back room so far, oldest first:" + NL + (job.views?.length ? job.views.map((v) => `${v.name}'s AI (${label(v)}): ${v.view}`).join(NL) : "Nothing yet."));
   } else if (job.kind === "combine") parts.push("Back-room views:\n" + (job.views?.length ? job.views.map((v) => `${v.name}'s AI (${v.meta?.confidence ?? "unsure"}): ${v.view}`).join("\n") : "None came in."));
   if (job.question) parts.push(`Question from ${job.asker}:\n${job.question}`);
-  return ["<<<TABLE", inert(parts.join("\n\n")), "TABLE>>>"].join("\n");
+  return ["<<<TABLE", fenced(inert(parts.join("\n\n"))), "TABLE>>>"].join("\n");
 };
 
 // What a client's AI sees: only that client's own requests, what they were told, and their chat with it.
@@ -160,7 +166,7 @@ const fenceClient = (job) => {
     + job.work.map((w) => `- "${w.title}": ${w.status === "done" ? "finished" : "under way"}`).join("\n"));
   if (job.history?.length) parts.push("Your chat with them so far:\n" + job.history.map((l) => `${l.who === "client" ? job.me : "You"}: ${l.body}`).join("\n"));
   parts.push(`Their latest message:\n${job.question}`);
-  return ["<<<TABLE", inert(parts.join("\n\n")), "TABLE>>>"].join("\n");
+  return ["<<<TABLE", fenced(inert(parts.join("\n\n"))), "TABLE>>>"].join("\n");
 };
 
 // What the table's answer is told when it may also do the work.
@@ -223,8 +229,8 @@ export function listenPrompt(job) {
   // The conversation as far back as a generous size reaches, never a fixed number of messages.
   const before = recent(job.history, 48000).map((m) => `${who(m)}: ${short(m.body, 3000)}`).join(NL);
   const tasks = (job.tasks || []).map((t, i) => `T${i + 1}: "${t.title}" (${t.status === "working" ? "being worked on now" : t.status}, asked by ${t.asked_by || "someone"}, in ${t.chat})`).join(NL);
-  return ["<<<TABLE", inert([facts(job), "", `Work the AIs have taken on lately:${NL}${tasks || "(none)"}`, "", before || "(nothing earlier)", `${job.asker}: ${short(job.question, 6000)}`,
-    ...(job.command ? ["", `That message runs ${job.asker}'s own AI command /${job.command.name}${job.command.about ? `, which is for: ${job.command.about}` : ""}. Running a command is asking for it to be done: choose look, or work when the command is about changing the project. Never silent, never reply.`] : [])].join(NL)), "TABLE>>>"].join(NL);
+  return ["<<<TABLE", fenced(inert([facts(job), "", `Work the AIs have taken on lately:${NL}${tasks || "(none)"}`, "", before || "(nothing earlier)", `${job.asker}: ${short(job.question, 6000)}`,
+    ...(job.command ? ["", `That message runs ${job.asker}'s own AI command /${job.command.name}${job.command.about ? `, which is for: ${job.command.about}` : ""}. Running a command is asking for it to be done: choose look, or work when the command is about changing the project. Never silent, never reply.`] : [])].join(NL))), "TABLE>>>"].join(NL);
 }
 export function listenSystem(job) {
   return [
@@ -272,7 +278,9 @@ export function knows(seat) {
   if (folder) { try { talk = recentSession(folder, 16000); } catch {} }
   // The rest has what room the conversation leaves, so the whole stays within 36,000 characters.
   const head = talk ? `## The latest of your own conversation with them about this project (newest last)${NL}${talk}${NL}${NL}` : "";
-  return head + parts.join(NL + NL).slice(0, Math.max(0, 36000 - head.length));
+  const out = head + parts.join(NL + NL).slice(0, Math.max(0, 36000 - head.length));
+  if (out.length > 36000) trip("what a person's Claude knows came out over its 36,000 characters");
+  return out;
 }
 
 // Everything this person's Claude knows on their own computer, whole, laid in a folder beside the code for it to

@@ -385,6 +385,17 @@ saved("B5", "an attachment address with a broken %-sequence", (() => {
   try { return attachmentAddress(BASE, TABLE, new URL(`${BASE}/storage/v1/object/sign/attachments/${TABLE}/%E0%A4%A`)) === false ? "" : "let through"; } catch (e) { return `threw: ${e.message}`; }
 })());
 
+// ---- tripwires: silent through everything above, one fixed line when they do fire, and never a throw
+const logFile = join(process.env.LONGTABLE_HOME, "runner.log");
+const tripped = () => (existsSync(logFile) ? readFileSync(logFile, "utf8").split(NL).filter((l) => l.includes("tripwire:")) : []);
+saved("X1", "no tripwire fired on any of the random inputs", tripped().length ? tripped().slice(0, 3).join(" | ") : "");
+run.trip("a test of the tripwire");
+saved("X1", "a tripwire writes one fixed line", tripped().length === 1 && /tripwire: a test of the tripwire$/.test(tripped()[0]) ? "" : JSON.stringify(tripped()));
+rmSync(logFile, { force: true });
+mkdirSync(logFile);
+saved("X1", "a tripwire never throws, even when the log cannot be written", (() => { try { run.trip("cannot be written"); return ""; } catch (e) { return `threw: ${e.message}`; } })());
+rmSync(logFile, { recursive: true, force: true });
+
 rmSync(scratch, { recursive: true, force: true });
 for (const b of results.broken) console.log(`BROKEN ${b.rule} "${b.name}" seed ${b.seed} step ${b.step}: ${b.why}${NL}  smallest input: ${b.input}${NL}  again: CHAOS_SEED=${b.seed} node tests/e2e/chaos-connect.mjs`);
 console.log(`${results.checked} inputs checked, ${results.broken.length} rules broken`);
