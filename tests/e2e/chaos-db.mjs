@@ -552,6 +552,34 @@ async function askAtLimit(db) {
   return over.state === "P0001" && /8,000 characters or fewer/.test(over.error || "") ? "" : `8,001 characters: ${over.error ?? "went through"}`;
 }
 
+// Deleting a chat while the clock delivers a decision in it (Q2, no deadlock). The clock locks the decision, then
+// updates its request. Here one session takes those same two locks in that order by hand, with the deletion started
+// in between from the other session: that is the one order in which the two can wait on each other for ever.
+async function deleteDuringDelivery(db, db2) {
+  const { t, ids, act, done } = await smallTable(db, ["owner", "client"]);
+  const req = (await act(ids[1], `select to_jsonb(public.client_ask('${t}'::uuid, 'a dark mode please'))`)).ok;
+  const chat = (await act(ids[0], `select to_jsonb(public.create_chat('${t}'::uuid, 'Side', ''))`)).ok;
+  const options = [{ label: "Yes", recommended: true, client_words: "We will.", asks_client: false, replies: [] }, { label: "No", recommended: false, client_words: "Not now.", asks_client: false, replies: [] }];
+  const d = (await act(ids[0], `select to_jsonb(public.create_decision('${chat}'::uuid, 'Dark mode', '', 'team', true, (${"'" + JSON.stringify(options) + "'"})::jsonb, '${req}'::uuid))`)).ok;
+  await act(ids[0], `select to_jsonb(public.decide('${d}'::uuid, 1::smallint))`);
+  const errBefore = db2.err.length;
+  await db2.q("begin");
+  await db2.q(`select id from public.decisions where id = '${d}' for update`);
+  const deleting = act(ids[0], `select to_jsonb(public.delete_chat('${chat}'::uuid))`, db);
+  await new Promise((r) => setTimeout(r, 300));
+  const delivering = db2.q(`update public.requests set status = 'decided', updated_at = now() where id = '${req}'`);
+  // A deadlock is found by the database within a second or so; give it a little more, then let the clock's side go.
+  await Promise.race([delivering, new Promise((r) => setTimeout(r, 3000))]);
+  await db2.q("commit");
+  const deleted = await deleting;
+  await delivering;
+  const clockSide = db2.err.slice(errBefore);
+  await done();
+  if (deleted.state === "40P01" || /deadlock detected/.test(clockSide)) return "deleting a chat while its decision was being delivered ended in a deadlock";
+  if (deleted.error) return `the chat could not be deleted: ${deleted.error}`;
+  return "";
+}
+
 const db = new Session();
 const db2 = new Session();
 const started = Date.now();
@@ -577,6 +605,8 @@ try {
   if (slow) { found.set("E1 slow view", slow); console.log(`BROKEN E1 ${slow}`); }
   const stuck = await deleteDuringDecision(db, db2);
   if (stuck) { found.set("D3 delete during decision", stuck); console.log(`BROKEN D3 ${stuck}`); }
+  const locked = await deleteDuringDelivery(db, db2);
+  if (locked) { found.set("Q2 delete during delivery", locked); console.log(`BROKEN Q2 ${locked}`); }
   const limit = await askAtLimit(db);
   if (limit) { found.set("Q2 ask at its limit", limit); console.log(`BROKEN Q2 ${limit}`); }
   for (const saved of SAVED) {

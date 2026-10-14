@@ -1,7 +1,9 @@
 -- Deleting a chat deleted the decisions in it, and a client's request that one of them was deciding stayed "being
 -- decided" for ever, with nothing deciding it. It goes back to waiting for the team now. A question already sent to
 -- the client stays theirs to answer, as before. The chat is held for the whole deletion, so a decision made in it at
--- the same moment cannot slip past and leave its request stuck the same way. Found by the chaos run (rule D3).
+-- the same moment cannot slip past and leave its request stuck the same way, and its decisions are held before any
+-- request, in the same order as the clock that delivers them, so a deletion and a delivery never deadlock. Found by
+-- the chaos run (rule D3).
 
 CREATE OR REPLACE FUNCTION public.delete_chat(c uuid)
  RETURNS void
@@ -26,6 +28,9 @@ begin
   if not (public.is_owner(ch.table_id) or ch.created_by = me) then
     raise exception 'only the owner or the person who made this chat can delete it';
   end if;
+  -- The chat's decisions are held next, before any request: the clock that delivers a decision holds the decision
+  -- and then its request, and taking the two the other way round let a delivery and a deletion wait on each other.
+  perform 1 from public.decisions where chat_id = c for update;
   -- A request the team was deciding only in this chat goes back to waiting for them: its decision goes with the chat.
   update public.requests r set status = 'asked', updated_at = now()
    where r.status = 'being decided'
