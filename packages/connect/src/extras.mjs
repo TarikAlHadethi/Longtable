@@ -206,9 +206,12 @@ export function shareable(laid) {
 }
 
 const AI_CAP = 15 * 1024 * 1024;
-// Whether an address is in this table's own folder in Longtable's own storage.
+// Whether an address is in this table's own folder in Longtable's own storage. An address that cannot even be read
+// (a broken "%E0%A4%A") is simply not one, and must not throw: that took the whole job down with it.
 export function attachmentAddress(base, tableId, url) {
-  return url.origin === new URL(base).origin && decodeURIComponent(url.pathname).includes(`/storage/v1/object/sign/attachments/${tableId}/`);
+  let path;
+  try { path = decodeURIComponent(url.pathname); } catch { return false; }
+  return url.origin === new URL(base).origin && path.includes(`/storage/v1/object/sign/attachments/${tableId}/`);
 }
 // Brings what was attached in the chat to where the AI can read it. Only ever from this table's own folder in
 // Longtable's storage: an address pointing anywhere else is left alone.

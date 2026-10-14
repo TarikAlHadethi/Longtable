@@ -357,6 +357,9 @@ saved("X2", "a sign-in whose name and password hold an @", (() => {
   const p = run.plain(new Error("fatal: unable to access 'https://a@b:p@ss@github.com/o/r.git/'"));
   return p.includes("//github.com/o/r.git") && !/a@b|p@ss|ss@/.test(p) ? "" : p;
 })());
+saved("B5", "an attachment address with a broken %-sequence", (() => {
+  try { return attachmentAddress(BASE, TABLE, new URL(`${BASE}/storage/v1/object/sign/attachments/${TABLE}/%E0%A4%A`)) === false ? "" : "let through"; } catch (e) { return `threw: ${e.message}`; }
+})());
 
 rmSync(scratch, { recursive: true, force: true });
 for (const b of results.broken) console.log(`BROKEN ${b.rule} "${b.name}" seed ${b.seed} step ${b.step}: ${b.why}${NL}  smallest input: ${b.input}${NL}  again: CHAOS_SEED=${b.seed} node tests/e2e/chaos-connect.mjs`);
