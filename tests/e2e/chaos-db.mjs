@@ -28,11 +28,19 @@ const NL = String.fromCharCode(10);
 // "known" is a break already listed in sweep-notes/bug-sweep-report.md as a design item: it is reported, not failed.
 const SAVED = JSON.parse(readFileSync(new URL("./chaos-db-saved.json", import.meta.url), "utf8"));
 const same = (b, saved) => b.rule === saved.rule && b.detail.replace(/[0-9a-f-]{36}/g, "#").includes(saved.what.slice(0, 60));
-const knownOf = (b) => SAVED.find((k) => k.known && same(b, k))?.known
+const KNOWN = [
+  // One owner per table is kept by the functions alone (D11 in the bug-sweep report): two hand-overs at once leave
+  // two owners, after which a person's message finds two and fails; a hand-over racing a removal leaves none.
+  [/^O1b? /, "known: one owner per table has no index (D11), by decision this round"],
+  [/^Q2 \S+ refused with a raw 21000: more than one row/, "known: what follows two owners (D11)"],
+  // The seat pickers do not check removed_at (bug-sweep report, design-level): a round whose lead was taken off
+  // hands the lead's own work, plan or answer back to them (D10 is the same round stalling).
+  [/^P4 removed member \S+ still has queued job (work|combine|plan)$/, "known: seat pickers do not check removed_at (D10)"],
   // A direct write of a message over 8,000 characters is turned down by the table's own limit: the message box
   // stops at 8,000, and a direct write has no function to say it in words.
-  ?? (b.rule === "O1b" ? "the same known one-owner item as O1" : null)
-  ?? (b.rule === "Q2" && /^say refused .*messages_body_check/.test(b.detail) ? "a direct write over the limit is refused by the limit itself" : null);
+  [/^Q2 say refused .*messages_body_check/, "a direct write over the limit is refused by the limit itself"],
+];
+const knownOf = (b) => SAVED.find((k) => k.known && same(b, k))?.known ?? KNOWN.find(([re]) => re.test(b.detail.startsWith(`${b.rule} `) ? b.detail : `${b.rule} ${b.detail}`))?.[1] ?? null;
 
 // ---- a lasting psql session: one statement in, one line out
 class Session {
