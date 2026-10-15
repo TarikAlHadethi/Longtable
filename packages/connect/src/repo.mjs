@@ -114,6 +114,30 @@ export function neverCommit(tableId, name) {
 
 // Lay out the files to work on: the chat's own branch when it already exists, so one request builds on the last,
 // else the latest default branch.
+// Whether this computer's git can put two parts of work together on one branch (merge-tree --write-tree, git 2.38
+// and later). An older git still works: a part goes on its own branch beside the other, as when two parts touch the
+// same lines. "version" is what git says of itself, for the person to be told.
+export function gitCanJoin(said) {
+  let version = said;
+  try { version ??= execFileSync("git", ["--version"], { encoding: "utf8", windowsHide: true }).trim(); } catch { return { ok: false, version: "no git found" }; }
+  const m = String(version).match(/(\d+)\.(\d+)/);
+  const ok = !!m && (Number(m[1]) > 2 || (Number(m[1]) === 2 && Number(m[2]) >= 38));
+  return { ok, version };
+}
+
+// Everything the connection keeps of these tables' code on this computer: the clean copies, the work and reading
+// folders, and the kept copies of folders a person pointed at. Done after the connection has stopped; a file still
+// held for a moment is tried again.
+export function forgetCopies(tableIds) {
+  const gone = (p) => { try { rmSync(p, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch (e) { log(`could not remove ${p}: ${e.message}`); } };
+  for (const t of tableIds) {
+    let safe;
+    try { safe = safeTable(t); } catch { continue; }
+    for (const place of ["copies", "work", "look"]) gone(join(home, place, safe));
+  }
+  gone(join(home, "pointed"));
+}
+
 export function openWork(tableId, branch, name = "work", { refresh = false } = {}) {
   safeBranch(branch);
   const p = places(tableId, name);

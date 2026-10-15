@@ -38,7 +38,9 @@ export async function POST(req: Request) {
     if (!leads.length || leads.some((a) => PRIVATE_ADDRESS.test(a.address))) throw new Error("not public");
     const res = await fetch(at, { redirect: "manual", signal: AbortSignal.timeout(9000), headers: { "user-agent": "Longtable copy check" } });
     const to = res.headers.get("location") ?? "";
-    if (res.status === 401 || res.status === 403 || /\/(login|sso|signin|sign-in|auth)\b/i.test(to) || /vercel\.com|netlify\.com\/|cloudflareaccess\.com/i.test(to)) why = "sign-in";
+    let elsewhere = false;
+    try { elsewhere = !!to && new URL(to, at).host !== at.host; } catch {}
+    if (res.status === 401 || res.status === 403 || (elsewhere && /\/(login|sso|signin|sign-in|auth)\b/i.test(to)) || /vercel\.com|netlify\.com\/|cloudflareaccess\.com/i.test(to)) why = "sign-in";
     else if (res.status >= 500) why = "broken";
     else if (res.status === 404) why = "not-up";
     else { ok = true; why = "open"; }

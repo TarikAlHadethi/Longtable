@@ -33,7 +33,14 @@ export function Prose({ text }: { text: string }) {
     blocks.push(list.ordered ? <ol key={key++} start={list.start}>{items}</ol> : <ul key={key++}>{items}</ul>);
     list = null;
   };
+  let code: string[] | null = null;
   for (const line of lines) {
+    if (/^\s*```/.test(line)) {
+      if (code) { blocks.push(<pre key={key++} className="code-block"><code>{code.join("\n")}</code></pre>); code = null; }
+      else { endPara(); endList(); code = []; }
+      continue;
+    }
+    if (code) { code.push(line); continue; }
     const bullet = line.match(/^\s*[-*•]\s+(.*)$/);
     const number = line.match(/^\s*(\d{1,3})[.)]\s+(.*)$/);
     const head = line.match(/^#{1,4}\s+(.*)$/);
@@ -57,6 +64,8 @@ export function Prose({ text }: { text: string }) {
       para.push(line);
     }
   }
+  // A block left open at the end is still shown as code.
+  if (code) blocks.push(<pre key={key++} className="code-block"><code>{(code as string[]).join("\n")}</code></pre>);
   endPara(); endList();
   return <>{blocks}</>;
 }

@@ -4,24 +4,40 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join, relative, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+import { cut } from "./store.mjs";
 
 const NL = String.fromCharCode(10);
 const claudeHome = () => process.env.LONGTABLE_CLAUDE_HOME || join(homedir(), ".claude");
 const codexHome = () => process.env.LONGTABLE_CODEX_HOME || process.env.CODEX_HOME || join(homedir(), ".codex");
-const folderOf = (seat) => seat.folder || (String(seat.source || "").startsWith("file:///") ? seat.source.slice(8) : null);
+const folderOf = (seat) => {
+  if (seat.folder) return seat.folder;
+  try { return String(seat.source || "").startsWith("file:") ? fileURLToPath(seat.source) : null; } catch { return null; }
+};
 // A file's name and a person's name come from the table like any other words (a client names their own attachment),
 // so neither may close a fence, and a name stays on its own one line. The same markers as inert() in run.mjs.
 const inert = (t) => String(t ?? "").replace(/<<<(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT)|(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT)>>>/g, "[marker]");
-const named = (t) => inert(t).replace(/\s+/g, " ").replace(/"/g, "'").trim().slice(0, 200);
+const named = (t) => cut(inert(t).replace(/\s+/g, " ").replace(/"/g, "'").trim(), 200);
 
 // The top of a command or skill file: "---", lines of "key: value", "---".
 function front(text) {
-  const m = String(text).match(/^﻿?---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
-  const out = { body: m ? text.slice(m[0].length) : text };
-  if (m) for (const line of m[1].split(/\r?\n/)) {
-    const kv = line.match(/^([A-Za-z_-]+):\s*(.*)$/);
-    if (kv) out[kv[1].toLowerCase()] = kv[2].trim().replace(/^["']|["']$/g, "");
+  const m = String(text).match(/^\uFEFF?---\r?\n(?:([\s\S]*?)\r?\n)?---(?:\r?\n|$)/);
+  const out = {};
+  const lines = m && m[1] ? m[1].split(/\r?\n/) : [];
+  for (let i = 0; i < lines.length; i++) {
+    const kv = lines[i].match(/^([A-Za-z_-]+):\s*(.*)$/);
+    if (!kv) continue;
+    let value = kv[2].trim();
+    // A value folded or kept over the next lines: every more-indented line after it, joined.
+    if (/^[>|][+-]?$/.test(value)) {
+      const more = [];
+      while (i + 1 < lines.length && /^\s+\S/.test(lines[i + 1])) more.push(lines[++i].trim());
+      value = more.join(value.startsWith(">") ? " " : "\n");
+    }
+    out[kv[1].toLowerCase()] = value.replace(/^["']|["']$/g, "");
   }
+  // The command itself is what follows the front matter, whatever the front matter says.
+  out.body = m ? text.slice(m[0].length) : text;
   return out;
 }
 const firstLine = (body) => (String(body).split(/\r?\n/).map((l) => l.replace(/^#+\s*/, "").trim()).find(Boolean) || "").slice(0, 200);
@@ -137,7 +153,9 @@ export function scanCommands(seat) {
       } catch {}
     }
   }
-  return [...found.values()].slice(0, 150);
+  const all = [...found.values()];
+  const builtin = all.filter((c) => c.kind === "builtin");
+  return [...all.filter((c) => c.kind !== "builtin").slice(0, 150 - builtin.length), ...builtin];
 }
 
 // The command a message starts with, read fresh from this computer. Null when it is not one of theirs.
@@ -157,7 +175,7 @@ export function loadCommand(seat, question) {
     const parts = args.split(/\s+/).filter(Boolean);
     // The places a command leaves for what was typed after its name. Filled in one pass and through a function, so
     // a dollar sign in what was typed ("$2 per seat") is put in as typed and never read as a place of its own.
-    let body = f.body.replace(/\$ARGUMENTS|\$(\d)/g, (_, n) => (n ? parts[Number(n) - 1] ?? "" : args));
+    let body = f.body.replace(/\$ARGUMENTS|\$(\d+)/g, (_, n) => (n ? parts[Number(n) - 1] ?? "" : args));
     if (body.length > 40000) body = body.slice(0, 40000) + NL + "[cut short here]";
     return { name: hit.name, kind: hit.kind, args, body };
   } catch { return null; }

@@ -39,6 +39,21 @@ export function hideSecrets(text) {
 // 5 MB it starts again and keeps only the file before it (runner.log.1).
 const LOG_MAX = 5 * 1024 * 1024;
 let logWrites = 0;
+// Text cut to n, never through the middle of a character that takes two (most emoji).
+export const cut = (s, n) => {
+  const t = String(s ?? "");
+  if (t.length <= n) return t;
+  const x = t.slice(0, n);
+  return /[\uD800-\uDBFF]$/.test(x) ? x.slice(0, -1) : x;
+};
+// A file written whole or not at all: to a file beside it, then put in its place. A stop halfway through a write
+// used to leave settings or notes cut short, and the next start could not read them.
+export function writeWhole(file, text) {
+  const tmp = `${file}.${process.pid}.tmp`;
+  writeFileSync(tmp, text);
+  renameSync(tmp, file);
+}
+
 export function log(line) {
   if (logWrites++ % 200 === 0) {
     try { if (statSync(logFile).size > LOG_MAX) renameSync(logFile, `${logFile}.1`); } catch {}
@@ -52,7 +67,7 @@ export function readConfig() {
 }
 
 export function writeConfig(config) {
-  writeFileSync(configFile, JSON.stringify(config, null, 2));
+  writeWhole(configFile, JSON.stringify(config, null, 2));
 }
 
 function powershell(script, input, file) {

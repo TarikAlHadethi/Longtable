@@ -164,6 +164,18 @@ button { font: inherit; }
 }
 .panel h1 { margin: 0; font-size: 23px; letter-spacing: -0.01em; }
 
+.code-block {
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+  line-height: 1.5;
+  margin: 0.4em 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  overflow-x: auto;
+  white-space: pre;
+  background: light-dark(oklch(0.95 0.006 80), oklch(0.24 0.006 80));
+}
+
 .inline-code {
   font-family: var(--font-mono);
   font-size: 0.86em;

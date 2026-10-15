@@ -58,10 +58,10 @@ export function SandboxReview({ table, me, client, box, aiOn, changes, jobs, onS
   const mine = changes.filter((c) => c.member_id === client.id && (!c.test || on)).sort((a, b) => b.created_at.localeCompare(a.created_at));
   const waiting = mine.filter((c) => c.status === "ready" && !c.verdict && !c.test).length;
 
-  async function turn(enabled: boolean) {
+  async function turn(enabled: boolean, ticks?: { data: boolean; keys: boolean }) {
     setBusy("turn");
     setError("");
-    const { error } = await supabase.rpc("set_client_sandbox", { m: client.id, enabled });
+    const { error } = await supabase.rpc("set_client_sandbox", { m: client.id, enabled, made_up_data: !!ticks?.data, no_real_keys: !!ticks?.keys });
     setBusy(null);
     if (error) return setError(error.message);
     onBox({ member_id: client.id, mode: enabled ? "sandbox" : "chat" });
@@ -115,7 +115,7 @@ export function SandboxReview({ table, me, client, box, aiOn, changes, jobs, onS
 
       {owner && !on && giving && (
         <SandboxSetup table={table} client={client} box={box} aiOn={aiOn} jobs={jobs} changes={changes} ours={links.ours}
-          onBox={onBox} onGive={() => turn(true)} giving={busy === "turn"} />
+          onBox={onBox} onGive={(ticks) => turn(true, ticks)} giving={busy === "turn"} />
       )}
 
       {owner && on && setup && (

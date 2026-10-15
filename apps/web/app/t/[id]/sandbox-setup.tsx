@@ -42,7 +42,7 @@ export function SandboxSetup({ table, client, box, aiOn, jobs, changes, ours, on
   changes: SandboxChange[];
   ours: string | null;
   onBox: (b: Partial<SandboxRow> & { member_id: string }) => void;
-  onGive: () => void;
+  onGive: (ticks: { data: boolean; keys: boolean }) => void;
   giving: boolean;
 }) {
   const supabase = browserClient();
@@ -200,7 +200,7 @@ export function SandboxSetup({ table, client, box, aiOn, jobs, changes, ours, on
 
       <div className={s.setupActions}>
         <span className={s.hint}>{ready ? "" : "Each step above has to be done first."}</span>
-        <button type="button" className="btn" disabled={!ready || giving} onClick={onGive} data-testid="sandbox-on">Give {first} the copy</button>
+        <button type="button" className="btn" disabled={!ready || giving} onClick={() => onGive({ data, keys })} data-testid="sandbox-on">Give {first} the copy</button>
       </div>
     </div>
   );

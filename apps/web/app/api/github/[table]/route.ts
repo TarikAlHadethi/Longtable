@@ -22,6 +22,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ table: 
       signature,
       event: req.headers.get("x-github-event"),
       payload,
+      delivery: req.headers.get("x-github-delivery"),
     }),
   });
   if (!res.ok) return new Response(null, { status: 502 });

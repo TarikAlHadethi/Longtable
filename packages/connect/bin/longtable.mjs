@@ -19,7 +19,7 @@ import { client, fetchConfig } from "../src/api.mjs";
 import { claudeVersion, findClaude, tokenWorks } from "../src/claude.mjs";
 import { codexSignIn, codexSignedIn, codexVersion, findCodex } from "../src/codex.mjs";
 import { disableAutostart, enableAutostart } from "../src/autostart.mjs";
-import { freshCopy, resolveSource } from "../src/repo.mjs";
+import { forgetCopies, freshCopy, gitCanJoin, resolveSource } from "../src/repo.mjs";
 import { endConnection, runLoop, runningConnection } from "../src/run.mjs";
 import { forgetSecret, home, loadSecret, log, readConfig, saveSecret, writeConfig } from "../src/store.mjs";
 
@@ -93,7 +93,7 @@ async function connect() {
       freshCopy(paired.table_id, source);
     } catch (e) {
       writeConfig({ ...config, connections: config.connections.filter((c) => c.table_id !== paired.table_id) });
-      await leave(`The connection could not copy the project's code: ${String(e.message).split("\n").pop()}`);
+      await leave(`The connection could not copy the project's code: ${String(e.message).split(/\r?\n/).map((l) => l.trim()).filter(Boolean).pop() || "git could not reach it"}`);
     }
   }
 
@@ -117,6 +117,11 @@ async function connect() {
   const word = ai === "codex" ? "Codex" : "Claude";
   log(`connected to "${paired.table_name}" for ${paired.member_name} (${ai === "codex" ? codexVersion(codex) : claudeVersion(claude)})`);
   say(`Connected. ${paired.member_name}'s ${word} is now at "${paired.table_name}". It answers in the background whenever this computer is on.`);
+  const git = gitCanJoin();
+  if (!git.ok) {
+    log(`git cannot join two parts of work (${git.version})`);
+    say(`One thing to know: this computer's git (${git.version}) is older than 2.38, so when two AIs work on one task, this one's part goes on a branch of its own beside the other. Updating git puts them together.`);
+  }
 }
 
 async function status() {
@@ -149,7 +154,10 @@ function disconnect() {
     if (pid && pid !== process.pid) endConnection(pid);
   } catch {}
   rmSync(join(home, "runner.pid"), { force: true });
-  say("Disconnected on this computer. Remove it in Longtable's settings too if it still shows.");
+  // The project copies and work folders it kept go too (his choice, 16 Oct 2026). The Claude sign-in stays: it is
+  // the person's own, and another table on this computer may still use it.
+  forgetCopies((config.connections || []).map((c) => c.table_id));
+  say("Disconnected on this computer, and its copies of the project are removed. Remove it in Longtable's settings too if it still shows.");
 }
 
 try {

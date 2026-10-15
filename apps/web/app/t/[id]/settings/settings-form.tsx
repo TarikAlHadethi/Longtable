@@ -92,6 +92,20 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
   async function deleteTable(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    if (confirmName.trim() !== table.name) return setError("Type the table's name exactly to delete it.");
+    // Its files go from storage first, while this person is still its owner: storage keeps them otherwise, and
+    // nothing in the database can remove them.
+    const store = supabase.storage.from("attachments");
+    const { data: folders } = await store.list(table.id, { limit: 1000 });
+    for (const folder of (folders ?? []) as { name: string }[]) {
+      for (;;) {
+        const { data: files } = await store.list(`${table.id}/${folder.name}`, { limit: 1000 });
+        const paths = ((files ?? []) as { name: string }[]).map((f) => `${table.id}/${folder.name}/${f.name}`);
+        if (!paths.length) break;
+        const { error: gone } = await store.remove(paths);
+        if (gone) break;
+      }
+    }
     const { error } = await supabase.rpc("delete_table", { t: table.id, confirm_name: confirmName });
     if (error) return setError(error.message);
     router.replace("/?deleted=1");

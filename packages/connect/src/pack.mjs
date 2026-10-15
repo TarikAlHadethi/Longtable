@@ -69,17 +69,21 @@ export function packCode(dir, about, { budget = 110000, perFile = 16000 } = {}) 
     scored.push({ p, body, score });
   }
   scored.sort((a, b) => b.score - a.score || a.p.length - b.p.length);
-  const tree = paths.slice(0, 500).join("\n") + (paths.length > 500 ? `\n… and ${paths.length - 500} more files` : "");
-  let left = budget - tree.length;
+  let tree = paths.slice(0, 500).join("\n") + (paths.length > 500 ? `\n… and ${paths.length - 500} more files` : "");
+  // The list of files takes at most a third of the room; it could take all of it, and more, with long names.
+  if (tree.length > budget / 3) tree = `${tree.slice(0, Math.floor(budget / 3))}\n… (the list is cut here)`;
+  let left = budget - tree.length - 200;
   const parts = [];
   const files = [];
   for (const f of scored) {
     if (left < 1500 || files.length >= 28) break;
     if (f.score <= 0 && files.length >= 6) break;
-    const cut = f.body.length > Math.min(perFile, left) ? `${f.body.slice(0, Math.min(perFile, left))}\n… (cut here)` : f.body;
+    const room = Math.min(perFile, left - f.p.length - 40);
+    if (room < 500) break;
+    const cut = f.body.length > room ? `${f.body.slice(0, room)}\n… (cut here)` : f.body;
     parts.push(`=== ${f.p} ===\n${cut}`);
     files.push(f.p);
-    left -= cut.length + f.p.length + 10;
+    left -= cut.length + f.p.length + 40;
   }
   return {
     text: `Every file in the project:\n${tree}\n\nThe files most related to the question, in full unless marked cut:\n\n${parts.join("\n\n")}`,

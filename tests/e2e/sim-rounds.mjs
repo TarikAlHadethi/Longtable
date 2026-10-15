@@ -658,11 +658,11 @@ try {
       && (await rest(people.Maya.token, `client_lines?select=id&member_id=eq.${dana.id}`)).body.length === 2, deskLines);
 
     // Only the owner gives one.
-    const tries = { lee: await rpc(people.Lee.token, "set_client_sandbox", { m: dana.id, enabled: true }), dana: await rpc(dana.token, "set_client_sandbox", { m: dana.id, enabled: true }),
-      onDev: await rpc(people.Maya.token, "set_client_sandbox", { m: people.Lee.id, enabled: true }) };
+    const tries = { lee: await rpc(people.Lee.token, "set_client_sandbox", { m: dana.id, enabled: true, made_up_data: true, no_real_keys: true }), dana: await rpc(dana.token, "set_client_sandbox", { m: dana.id, enabled: true, made_up_data: true, no_real_keys: true }),
+      onDev: await rpc(people.Maya.token, "set_client_sandbox", { m: people.Lee.id, enabled: true, made_up_data: true, no_real_keys: true }) };
     check("11b only the owner gives a copy, and only to a client", Object.values(tries).every((r) => r.status >= 400), Object.fromEntries(Object.entries(tries).map(([k, v]) => [k, v.status])));
     // Setting it up comes first: the place for the copy is made by the connection, with no AI asked anything.
-    const early = await rpc(people.Maya.token, "set_client_sandbox", { m: dana.id, enabled: true });
+    const early = await rpc(people.Maya.token, "set_client_sandbox", { m: dana.id, enabled: true, made_up_data: true, no_real_keys: true });
     check("11b0 a copy cannot be given before it is set up", early.status >= 400, early.status);
     const prepTries = { lee: await rpc(people.Lee.token, "prepare_client_sandbox", { m: dana.id }), dana: await rpc(dana.token, "prepare_client_sandbox", { m: dana.id }),
       notClient: await rpc(people.Maya.token, "prepare_client_sandbox", { m: people.Lee.id }) };
@@ -676,7 +676,7 @@ try {
     await fin("Maya", probe, "", { commit: "f".repeat(40) });
     const boxNow = JSON.parse(sql(`select row_to_json(s) from public.sandboxes s where member_id = '${dana.id}'`));
     check("11b2 the place is made: the branch is noted, and it is still the team's", boxNow.mode === "chat" && !!boxNow.opened_at && boxNow.tip === "f".repeat(40) && boxNow.url === null, boxNow);
-    const stillNo = await rpc(people.Maya.token, "set_client_sandbox", { m: dana.id, enabled: true });
+    const stillNo = await rpc(people.Maya.token, "set_client_sandbox", { m: dana.id, enabled: true, made_up_data: true, no_real_keys: true });
     check("11b2 it still cannot be given without somewhere to open it", stillNo.status >= 400, stillNo.status);
 
     // The hosting reports the address by the commit that made the place.
@@ -701,7 +701,9 @@ try {
     check("11b5 the client never sees the team's test, and it is not theirs to be answered", testRow.status === "ready" && testRow.test === true && (await mine()).changes.length === 0
       && (await rpc(people.Maya.token, "judge_change", { change: tried.body, answer: "take" })).status >= 400, { status: testRow.status, hers: (await mine()).changes.length });
 
-    const given = await rpc(people.Maya.token, "set_client_sandbox", { m: dana.id, enabled: true });
+    const unticked = await rpc(people.Maya.token, "set_client_sandbox", { m: dana.id, enabled: true });
+    check("a copy is not given until the owner has said its previews hold made-up data and no real keys", unticked.status >= 400 && /made-up data/.test(JSON.stringify(unticked.body)), unticked);
+    const given = await rpc(people.Maya.token, "set_client_sandbox", { m: dana.id, enabled: true, made_up_data: true, no_real_keys: true });
     const branch = sql(`select branch from public.sandboxes where member_id = '${dana.id}'`);
     check("11b the owner gives it, on a plain branch of its own", given.status < 300 && /^longtable\/sandbox-dana-[0-9a-f]{8}$/.test(branch) && (await mine()).on === true && (await mine()).left === 20, { status: given.status, branch, left: (await mine()).left });
 
@@ -841,7 +843,7 @@ try {
     const other2 = await startTable(browser, `other2-${run}@example.test`, "Elsewhere", "Olga");
     const oTok = await accessToken(other2.context);
     const cross = { read: (await rest(oTok, `sandbox_changes?select=id&table_id=eq.${table}`)).body, judge: await rpc(oTok, "judge_change", { change: ready[1].id, answer: "take" }),
-      give: await rpc(oTok, "set_client_sandbox", { m: dana.id, enabled: true }), mine: await rpc(oTok, "client_sandbox", { t: table }) };
+      give: await rpc(oTok, "set_client_sandbox", { m: dana.id, enabled: true, made_up_data: true, no_real_keys: true }), mine: await rpc(oTok, "client_sandbox", { t: table }) };
     check("11n someone at another table sees and touches none of it", cross.read.length === 0 && cross.judge.status >= 400 && cross.give.status >= 400 && cross.mine.status >= 400, { judge: cross.judge.status, give: cross.give.status, mine: cross.mine.status });
     await other2.context.close();
   }

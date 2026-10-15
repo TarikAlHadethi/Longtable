@@ -14,7 +14,7 @@ import { ask, findClaude, stopAll } from "./claude.mjs";
 import { askCodex, codexLimits, findCodex } from "./codex.mjs";
 import { packCode } from "./pack.mjs";
 import { changedSoFar, freshCopy, landWork, neverCommit, openBranch, openWork, patchOf, safeTable, workBranch } from "./repo.mjs";
-import { hideSecrets, home, loadSecret, log, readConfig } from "./store.mjs";
+import { cut, hideSecrets, home, loadSecret, log, readConfig, writeWhole } from "./store.mjs";
 
 const SOURCES = {
   type: "array",
@@ -141,10 +141,10 @@ const fence = (job) => {
   const who = (m) => (m.by_ai ? `${m.name}'s AI` : m.client ? `${m.name} (the client, asking)` : m.name);
   const parts = [];
   if (job.people?.length) parts.push(facts(job));
-  if (job.pinned?.length) parts.push("Pinned notes:\n" + job.pinned.map((n) => `(${n.title || n.kind}) ${n.body}`).join("\n"));
-  if (job.related?.length) parts.push("Related earlier messages from other chats:\n" + job.related.map((m) => `[${m.chat}] ${who(m)}: ${m.body}`).join("\n"));
+  if (job.pinned?.length) parts.push("Pinned notes:\n" + job.pinned.map((n) => `(${n.title || n.kind}) ${n.body ?? ""}`).join("\n"));
+  if (job.related?.length) parts.push("Related earlier messages from other chats:\n" + job.related.map((m) => `[${m.chat}] ${who(m)}: ${m.body ?? ""}`).join("\n"));
   const talk = recent(job.history, 120000);
-  parts.push(talk.length ? `The conversation in "${job.chat_name}"${talk.length < (job.history || []).length ? " (its start is left out for length)" : ""}:\n` + talk.map((m) => `${who(m)}: ${m.body}`).join("\n") : `No earlier messages in "${job.chat_name}".`);
+  parts.push(talk.length ? `The conversation in "${job.chat_name}"${talk.length < (job.history || []).length ? " (its start is left out for length)" : ""}:\n` + talk.map((m) => `${who(m)}: ${m.body ?? ""}`).join("\n") : `No earlier messages in "${job.chat_name}".`);
   if (job.kind === "plan") {
     parts.push("What the other AIs said before the work:" + NL + (job.views?.length ? job.views.map((v) => `${v.name}'s AI: ${v.view}`).join(NL) : "Nothing."));
   }
@@ -165,7 +165,7 @@ const fenceClient = (job) => {
   if (job.told?.length) parts.push("What the team told them, newest first:\n" + job.told.map((u) => `- ${u.words}${u.their_answer ? ` (they answered: ${u.their_answer})` : ""}`).join("\n"));
   if (job.work?.length) parts.push("What the team's AIs have taken on, newest first (titles only; \"finished\" means built and waiting for the team to check, not yet live):\n"
     + job.work.map((w) => `- "${w.title}": ${w.status === "done" ? "finished" : "under way"}`).join("\n"));
-  if (job.history?.length) parts.push("Your chat with them so far:\n" + job.history.map((l) => `${l.who === "client" ? job.me : "You"}: ${l.body}`).join("\n"));
+  if (job.history?.length) parts.push("Your chat with them so far:\n" + job.history.map((l) => `${l.who === "client" ? job.me : "You"}: ${l.body ?? ""}`).join("\n"));
   parts.push(`Their latest message:\n${job.question}`);
   return ["<<<TABLE", fenced(inert(parts.join("\n\n"))), "TABLE>>>"].join("\n");
 };
@@ -224,7 +224,7 @@ export function systemFor(job) {
 
 // The listener: the cheapest thing at the table. It sees the last few messages and nothing else, and decides
 // whether the AIs are wanted at all. No code, no tools, the smallest model.
-const short = (t, n) => (String(t).length > n ? String(t).slice(0, n) + "…" : String(t));
+const short = (t, n) => (String(t ?? "").length > n ? cut(t, n) + "…" : String(t ?? ""));
 export function listenPrompt(job) {
   const who = (m) => (m.by_ai ? `${m.name}'s AI` : m.client ? `${m.name} (the client)` : m.name);
   // The conversation as far back as a generous size reaches, never a fixed number of messages.
@@ -372,11 +372,11 @@ export function mind(tableId) {
   try { return readFileSync(mindFile(tableId), "utf8").trim(); } catch { return ""; }
 }
 export function remember(tableId, text) {
-  const line = hideSecrets(String(text || "")).replace(/\s+/g, " ").trim().slice(0, 300);
+  const line = cut(hideSecrets(String(text || "")).replace(/\s+/g, " ").trim(), 300);
   if (line.length < 12) return;
   mkdirSync(join(home, "minds"), { recursive: true });
   const kept = mind(tableId).split(NL).filter(Boolean).slice(-39);
-  writeFileSync(mindFile(tableId), [...kept, `- ${new Date().toISOString().slice(0, 10)}: ${line}`].join(NL) + NL);
+  writeWhole(mindFile(tableId), [...kept, `- ${new Date().toISOString().slice(0, 10)}: ${line}`].join(NL) + NL);
 }
 
 // Keep only sources that are real files inside the copy, written relative to it.
@@ -543,12 +543,15 @@ const NOT_IN_A_SANDBOX = new RegExp([
   // what runs on the server, at build time, or decides who may do what
   "(^|/)(scripts?|migrations?|supabase|prisma|drizzle|db|database|server|functions|workers?|lambda|infra|deploy|ops|bin|tools)/",
   "(^|/)(api|trpc|actions?)/", "(^|/)(route|middleware|instrumentation|proxy|actions?|server)[.][cm]?[jt]sx?$",
-  "(^|[/._-])(auth|login|signin|sign-in|session|permissions?|polic(y|ies)|rls|guard|roles?|admin|secrets?|credentials?|tokens?|keys?)([/._-]|$)",
+  "(^|[/._-])(auth|login|signin|sign-in|session|permissions?|polic(y|ies)|rls|guard|admin|secrets?|credentials?)([/._-]|$)",
+  // Words that are also ordinary parts of a name ("role-picker", "token-list") only count as a whole folder or file.
+  "(^|/)(roles?|tokens?|keys?)([/.]|$)",
   // tests, so one cannot be changed to pass
   "(^|/)(tests?|__tests__|e2e|spec|cypress|playwright)/", "[.](test|spec)[.]",
 ].join("|"), "i");
 const NOT_A_SANDBOX_WORD = new RegExp([
-  "\\bprocess\\s*\\??\\.[A-Za-z_$]", "\\bprocess\\s*\\[", "[=(,:]\\s*process\\s*[;),}\\]]", "\\bprocess\\s*$", "import\\s*[.]\\s*meta", "\\b(Deno|Bun)\\s*[.]", "\\benv\\s*[\\[.})]", "\\bgetenv\\b", "os[.]environ", "\\bENV\\s*[\\[.]",
+  "\\bprocess\\s*\\??\\.[A-Za-z_$]", "\\bprocess\\s*\\[", "[=(,:]\\s*process\\s*[;),}\\]]", "[=(,:]\\s*process\\s*$", "import\\s*[.]\\s*meta", "\\b(Deno|Bun)\\s*[.]",
+  "\\benv\\s*\\[", "\\benv\\s*\\??\\.[A-Za-z_$]", "[{,]\\s*env\\s*[,})]", "\\bgetenv\\b", "os[.]environ", "\\bENV\\s*[\\[.]",
   "\\b(readFile|readFileSync|readdir|readdirSync|createReadStream|child_process|execSync|spawn)\\b", "[\"'`](node:)?(fs|fs/promises|vm|net|dns|child_process|worker_threads)[\"'`]",
   // The server's other ways out, named where a module is asked for, so "http" in an ordinary sentence is left alone.
   "\\b(require|import)\\s*\\(\\s*[\"'`](node:)?(https?|http2|os|tls|dgram|module)[\"'`]", "\\bfrom\\s*[\"'`](node:)?(https?|http2|os|tls|dgram|module)[\"'`]",
@@ -660,7 +663,19 @@ async function workListen(rpc, seat, engines, job) {
   log(`listen job ${job.job_id}: ${act}`);
 }
 
-async function work(rpc, seat, engines, job) {
+// People's and tables' names come from the table like any other words, and go into the AI's own instructions: a
+// name could carry a fence marker, quotes or line breaks that read as instructions of their own. Each is one plain
+// line before any prompt is built.
+export const oneName = (t) => cut(inert(t).replace(/\s+/g, " ").replace(/"/g, "'").trim(), 80) || "someone";
+export function cleanNames(job) {
+  const out = { ...job };
+  for (const k of ["me", "asker", "client", "table_name"]) if (typeof out[k] === "string") out[k] = oneName(out[k]);
+  if (Array.isArray(out.people)) out.people = out.people.map((p) => ({ ...p, name: oneName(p?.name) }));
+  return out;
+}
+
+async function work(rpc, seat, engines, raw) {
+  const job = cleanNames(raw);
   log(`${job.kind} job ${job.job_id} for ${job.me}`);
   if (job.kind === "sandbox") {
     try {
@@ -734,7 +749,7 @@ async function work(rpc, seat, engines, job) {
       const at = pointedPaths(job.question);
       if (at.length) {
         if (seat.source) neverCommit(seat.table_id, YOURS);
-        laid = layPointed(join(dir, YOURS), at, { reading: !doing });
+        laid = layPointed(join(dir, YOURS), at, { reading: !doing, home });
         log(`job ${job.job_id}: opened ${laid.files.length + laid.dirs.length + laid.copied.length} pointed place(s), left ${laid.skipped.length}`);
         // And, while their person leaves it on, the text of them for the other AIs on this same request.
         if (job.share_paths && ["plan", "work", "look", "answer"].includes(job.kind)) {

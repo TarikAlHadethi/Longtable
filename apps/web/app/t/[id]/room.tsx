@@ -135,6 +135,16 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const [slashAt, setSlashAt] = useState(0);
   const [draft, setDraft] = useState("");
   const [now, setNow] = useState(() => Date.now());
+  // How far this computer's clock is from the server's, measured once: deadlines the server set are counted with it.
+  const skew = useRef(0);
+  useEffect(() => {
+    const sent = Date.now();
+    supabase.rpc("server_now").then(({ data, error }: { data: unknown; error: unknown }) => {
+      if (error || typeof data !== "string") return;
+      const back = Date.now();
+      skew.current = new Date(data).getTime() - (sent + back) / 2;
+    });
+  }, [supabase]);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [asking, setAsking] = useState(false);
@@ -379,7 +389,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const counting = decisions.some((d) => d.status === "decided" && !d.delivered_at && d.deliver_after && new Date(d.deliver_after).getTime() > now - 3000);
   useEffect(() => {
     if (!counting) return;
-    const t = setInterval(() => setNow(Date.now()), 500);
+    const t = setInterval(() => setNow(Date.now() + skew.current), 500);
     return () => clearInterval(t);
   }, [counting]);
 
@@ -477,7 +487,11 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       const { data, error } = ask
         ? await supabase.rpc("ask_table", { c: chat.id, body, files })
         : await supabase.rpc("send_with_files", { c: chat.id, body, files });
-      if (error) { putBack(); return setNotice(error.message); }
+      if (error) {
+        await supabase.storage.from("attachments").remove(files.map((f) => f.path)).catch(() => {});
+        putBack();
+        return setNotice(error.message);
+      }
       attach.clear();
       setNotice("");
       finishFiles(ask, data);
@@ -686,6 +700,12 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     setClientId(id as string);
   };
   const removeTest = async () => {
+    // What was attached as the test client goes from storage first: removing the seat used to leave the files behind.
+    if (testClient) {
+      const { data: files } = await supabase.from("attachments").select("path").eq("table_id", table.id).eq("member_id", testClient.id);
+      const paths = ((files ?? []) as { path: string }[]).map((f) => f.path);
+      if (paths.length) await supabase.storage.from("attachments").remove(paths);
+    }
     const { error } = await supabase.rpc("remove_test_client", { t: table.id });
     if (error) return didNotTake("The test client was not removed. Try again.");
     setMembers((prev) => prev.filter((m) => !m.test));

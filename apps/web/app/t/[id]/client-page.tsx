@@ -270,7 +270,11 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
     if (!files) return setBusy(false);
     const { data, error } = await supabase.rpc("client_say", { t: table.id, body, files });
     setBusy(false);
-    if (error) return setError(sentence(error.message));
+    if (error) {
+      // What was uploaded for a message that was refused is not left in storage.
+      if (files.length) await supabase.storage.from("attachments").remove(files.map((f) => f.path)).catch(() => {});
+      return setError(sentence(error.message));
+    }
     attach.clear();
     setDraft("");
     requestAnimationFrame(grow);

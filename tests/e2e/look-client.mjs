@@ -191,7 +191,7 @@ try {
   const place = await heavy();
   await anon("runner_finish", { token: teamDevice, job: place.job_id, answer: "", info: { commit: "a".repeat(40) } });
   await rpc(ownerToken, "set_sandbox_links", { t: tableId, ours: "", cap: 20, m: elenaId0, theirs: "https://elena-copy.example.test" });
-  await rpc(ownerToken, "set_client_sandbox", { m: elenaId0, enabled: true });
+  await rpc(ownerToken, "set_client_sandbox", { m: elenaId0, enabled: true, made_up_data: true, no_real_keys: true });
   await page.goto(`${APP}/t/${tableId}`);
   await page.waitForSelector("[data-testid=client-chat][data-with=copy]");
   await snap(page, "a-copy-of-her-own-the-first-time");

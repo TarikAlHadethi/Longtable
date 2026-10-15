@@ -71,10 +71,30 @@ const inPlace = layPointed(work, pointedPaths(`"${plainDir}"`), { reading: true 
 check("reading: a folder with nothing secret in it is read where it is", inPlace.dirs.length === 1 && inPlace.copied.length === 0 && inPlace.skipped.length === 0, inPlace);
 const bigDir = join(root, "big");
 mkdirSync(join(bigDir, "deep"), { recursive: true });
-for (let i = 0; i < 405; i++) writeFileSync(join(bigDir, `f${i}.txt`), "x");
+for (let i = 0; i < 5005; i++) writeFileSync(join(bigDir, `f${i}.txt`), "x");
 writeFileSync(join(bigDir, "deep", "server.pem"), "x\n");
 const tooBig = layPointed(work, pointedPaths(`"${bigDir}"`), { reading: true });
-check("reading: a big folder with a key somewhere inside is not opened at all, and the AI is told why", tooBig.dirs.length === 0 && tooBig.copied.length === 0 && tooBig.skipped.length === 1 && /key/.test(tooBig.skipped[0].why), tooBig);
+check("reading: a folder over 5,000 files with a key somewhere inside is not opened at all, and the AI is told why", tooBig.dirs.length === 0 && tooBig.copied.length === 0 && tooBig.skipped.length === 1 && /key/.test(tooBig.skipped[0].why), tooBig);
+// A whole project with a .env.local in it (his case): comes as a filtered copy, kept between jobs, without the .env.
+const project = join(root, "whole-project");
+mkdirSync(join(project, "src"), { recursive: true });
+mkdirSync(join(project, "node_modules", "lib"), { recursive: true });
+for (let i = 0; i < 450; i++) writeFileSync(join(project, "src", `part${i}.ts`), `export const n = ${i};\n`);
+writeFileSync(join(project, ".env.local"), "SECRET=1\n");
+writeFileSync(join(project, "node_modules", "lib", "index.js"), "x\n");
+const keep = join(root, "connection-home");
+const kept = layPointed(work, pointedPaths(`"${project}"`), { reading: true, home: keep });
+const at = kept.copied[0]?.at;
+check("reading: a whole project with a .env.local in it comes as a kept copy instead of being refused", kept.skipped.length === 0 && kept.copied.length === 1 && kept.copied[0].kept && kept.dirs.includes(at), kept);
+check("and the copy has its code but not its .env.local or node_modules", !!at && existsSync(join(at, "src", "part449.ts")) && !existsSync(join(at, ".env.local")) && !existsSync(join(at, "node_modules")), at);
+check("and the AI is told where the copy is, under the path the person wrote", pointedSystem("Maya", kept, work).join("").includes(project) && pointedSystem("Maya", kept, work).join("").includes(at));
+// The next job brings the copy up to date instead of making it again.
+writeFileSync(join(project, "src", "part0.ts"), "export const n = 'changed';\n");
+rmSync(join(project, "src", "part1.ts"));
+writeFileSync(join(project, "src", "new.ts"), "export const fresh = true;\n");
+const again = layPointed(work, pointedPaths(`"${project}"`), { reading: true, home: keep });
+check("the next job uses the same kept copy, brought up to date: a change in, a deleted file out, a new file in", again.copied[0]?.at === at
+  && readFileSync(join(at, "src", "part0.ts"), "utf8").includes("changed") && !existsSync(join(at, "src", "part1.ts")) && existsSync(join(at, "src", "new.ts")), again.copied);
 // The example a project keeps to show which settings it wants is not a secret; every real kind of .env still is.
 const shown = join(root, "shown");
 mkdirSync(join(shown, "src"), { recursive: true });

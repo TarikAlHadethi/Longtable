@@ -2,7 +2,8 @@
 // C:\Users\me\notes\plan.md". Their AI may read them, the way it would if they had said so at their own keyboard.
 // Nobody else's message can do this, and some places are never opened whoever asks.
 
-import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, rmSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, isAbsolute, join, parse, resolve, sep } from "node:path";
 
@@ -101,8 +102,10 @@ export function pointedPaths(text) {
 }
 
 const FILE_CAP = 40 * 1024 * 1024;
-const DIR_FILES = 400;
-const DIR_BYTES = 30 * 1024 * 1024;
+// A folder that cannot be read where it is comes as a filtered copy, kept between jobs, up to this size (his choice,
+// 16 Oct 2026; it was 400 files and 30 MB, so most whole projects were refused).
+const DIR_FILES = 5000;
+const DIR_BYTES = 300 * 1024 * 1024;
 // How much is in a folder, stopping as soon as it is clearly too much to bring along.
 function weigh(dir) {
   let files = 0;
@@ -145,17 +148,61 @@ function whyNotInPlace(dir) {
   return walk(dir);
 }
 const NOT_IN_PLACE = {
-  secret: "the folder has a key or a sign-in file inside it and is too big to bring along without them; point at a folder or a file inside it",
+  secret: "the folder has a key or a sign-in file inside it and is too big (more than about 5,000 files or 300 MB) to bring along without them; point at a folder or a file inside it",
   many: "the folder is too big to look through for keys and sign-in files before opening it; point at a folder or a file inside it",
-  link: "the folder has a link inside it to somewhere else and is too big to bring along without it; point at a folder or a file inside it",
-  unreadable: "part of the folder could not be looked through for keys and sign-in files, and it is too big to bring along as a copy; point at a folder or a file inside it",
+  link: "the folder has a link inside it to somewhere else and is too big (more than about 5,000 files or 300 MB) to bring along without it; point at a folder or a file inside it",
+  unreadable: "part of the folder could not be looked through for keys and sign-in files, and it is too big (more than about 5,000 files or 300 MB) to bring along as a copy; point at a folder or a file inside it",
 };
+
+// What may come along in a copy of a folder: never a link, a key or sign-in file, node_modules or .git.
+// On Windows Node's copy hands its filter paths that start with \\?\ (seen 16 Oct 2026), so a path never matched the
+// folder it was copied from and every file in a folder inside node_modules was left out.
+const plainPath = (p) => String(p).replace(/^\\\\\?\\/, "");
+const comesAlong = (src, root) => {
+  const s = plainPath(src);
+  const r = root ? plainPath(root) : "";
+  if (isLink(src) || refused(s)) return false;
+  const below = r && s.startsWith(r) ? s.slice(r.length) : s;
+  return !/[\\/](node_modules|\.git)([\\/]|$)/.test(below);
+};
+
+// The filtered copy of a folder, kept in the connection's own folder between jobs and brought up to date each time:
+// a file that changed (by size or time) is copied again, one that is gone from the folder goes from the copy. So a
+// big project is copied once, not on every question.
+export function keptCopy(real, home) {
+  const at = join(home, "pointed", createHash("sha256").update(real).digest("hex").slice(0, 24));
+  const seen = new Set();
+  const bring = (from, to) => {
+    mkdirSync(to, { recursive: true });
+    for (const e of readdirSync(from, { withFileTypes: true })) {
+      const src = join(from, e.name);
+      if (!comesAlong(src, real)) continue;
+      const dst = join(to, e.name);
+      seen.add(dst);
+      if (e.isDirectory()) { bring(src, dst); continue; }
+      if (!e.isFile()) continue;
+      let same = false;
+      try { const a = statSync(src), b = statSync(dst); same = a.size === b.size && b.mtimeMs >= a.mtimeMs; } catch {}
+      if (!same) copyFileSync(src, dst);
+    }
+  };
+  const prune = (dir) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, e.name);
+      if (!seen.has(p)) { rmSync(p, { recursive: true, force: true }); continue; }
+      if (e.isDirectory()) prune(p);
+    }
+  };
+  bring(real, at);
+  prune(at);
+  return at;
+}
 
 // Puts what was pointed at where the AI can read it. A file is copied beside the work, into a folder that is never
 // committed. A folder is read where it is when the job only reads and nothing inside it is a key or a sign-in; when
 // the job may change files, or something inside must stay out, it is copied instead without those, if it is small,
 // so nothing on the person's own disk can be changed from the table and no key comes along.
-export function layPointed(into, paths, { reading }) {
+export function layPointed(into, paths, { reading, home: keep }) {
   const dest = join(into, "pointed");
   try { rmSync(dest, { recursive: true, force: true }); } catch {}
   const out = { files: [], dirs: [], copied: [], skipped: [] };
@@ -175,14 +222,21 @@ export function layPointed(into, paths, { reading }) {
     } else {
       const w = weigh(p.real);
       if (w.files > DIR_FILES || w.bytes > DIR_BYTES) {
-        out.skipped.push({ path: p.path, why: reading ? NOT_IN_PLACE[why] : "the folder is too big to bring into a job that changes files; ask about it as a question first" });
+        out.skipped.push({ path: p.path, why: reading ? NOT_IN_PLACE[why] : "the folder is too big (more than about 5,000 files or 300 MB) to bring into a job that changes files; point at a folder inside it" });
         continue;
       }
-      const at = join(dest, `${++n}-${basename(p.real)}`);
       try {
-        mkdirSync(dest, { recursive: true });
-        cpSync(p.real, at, { recursive: true, filter: (src) => src === p.real || !isLink(src) && !refused(src) && !/[\\/](node_modules|\.git)([\\/]|$)/.test(src) });
-        out.copied.push({ path: p.path, at });
+        if (keep) {
+          // Kept between jobs, beside the connection's other folders; the job is given it as a folder to read.
+          const at = keptCopy(p.real, keep);
+          out.copied.push({ path: p.path, at, kept: true });
+          out.dirs.push(at);
+        } else {
+          const at = join(dest, `${++n}-${basename(p.real)}`);
+          mkdirSync(dest, { recursive: true });
+          cpSync(p.real, at, { recursive: true, filter: (src) => plainPath(src) === plainPath(p.real) || comesAlong(src, p.real) });
+          out.copied.push({ path: p.path, at });
+        }
       } catch { out.skipped.push({ path: p.path, why: "it could not be read" }); }
     }
   }
@@ -194,8 +248,8 @@ export function pointedSystem(me, laid, base) {
   const rel = (at) => at.slice(base.length).replace(/^[\\/]+/, "").split(sep).join("/");
   const lines = [
     ...laid.files.map((f) => `- the file ${f.path} is here for you as ${rel(f.at)}`),
-    ...laid.copied.map((f) => `- the folder ${f.path} is here for you as ${rel(f.at)}/`),
-    ...laid.dirs.map((d) => `- the folder ${d} (read it where it is)`),
+    ...laid.copied.map((f) => f.kept ? `- the folder ${f.path} is here for you, without its keys, sign-in files and node_modules, at ${f.at}` : `- the folder ${f.path} is here for you as ${rel(f.at)}/`),
+    ...laid.dirs.filter((d) => !laid.copied.some((f) => f.at === d)).map((d) => `- the folder ${d} (read it where it is)`),
     ...laid.skipped.map((s) => `- ${s.path} was NOT opened: ${s.why}. Say so plainly if it matters.`),
   ];
   if (!lines.length) return [];

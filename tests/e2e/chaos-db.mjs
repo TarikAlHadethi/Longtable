@@ -271,7 +271,7 @@ async function sequence(seed, steps, db, db2, log = null) {
       case "clearTasks": return say(`select to_jsonb(public.clear_tasks('${t}'::uuid))`);
       case "prepareCopy": { const m = of(atT.filter((q) => q.role === "client" || x.chance(0.2)), c); if (!m) return null; return say(`select to_jsonb(public.prepare_client_sandbox('${m.id}'::uuid))`); }
       case "copyLinks": { const m = of(atT.filter((q) => q.role === "client" || x.chance(0.2)), c); return say(`select to_jsonb(public.set_sandbox_links('${t}'::uuid, 'https://ours.example.test', ${x.pick([null, -1, 0, 1, 2, 3])}, ${uuid(m?.id)}, ${lit(x.pick(["https://copy.example.test", null, "http://plain.example.test"]))}, null))`); }
-      case "giveCopy": { const m = of(atT.filter((q) => q.role === "client" || x.chance(0.2)), c); if (!m) return null; return say(`select to_jsonb(public.set_client_sandbox('${m.id}'::uuid, ${x.chance(0.7)}))`); }
+      case "giveCopy": { const m = of(atT.filter((q) => q.role === "client" || x.chance(0.2)), c); if (!m) return null; return say(`select to_jsonb(public.set_client_sandbox('${m.id}'::uuid, ${x.chance(0.7)}, true, true))`); }
       case "teamChange": { const m = of(atT.filter((q) => q.role === "client"), c); if (!m) return null; return say(`select to_jsonb(public.team_sandbox_change('${m.id}'::uuid, ${lit(words(x) || "make it blue")}))`); }
       case "judge": { const ch = of(s.changes.filter((q) => q.t === t), c); if (!ch) return null; return say(`select to_jsonb(public.judge_change('${ch.id}'::uuid, ${lit(x.pick(["take", "differently", "no", "maybe"]))}, ${lit(words(x))}))`); }
       case "time": await passTime(x.pick(["5 seconds", "95 seconds", "3 minutes", "11 minutes", "25 hours"])); return null;
@@ -314,7 +314,7 @@ async function sequence(seed, steps, db, db2, log = null) {
         if (token) out.push(await act(null, `select public.runner_hello(${lit(token)})`, session));
         out.push(await act(owner.u, `select to_jsonb(public.prepare_client_sandbox('${client.id}'::uuid))`, session));
         out.push(await act(owner.u, `select to_jsonb(public.set_sandbox_links('${t}'::uuid, 'https://ours.example.test', ${x.pick([null, 1, 2, 5])}, '${client.id}'::uuid, 'https://copy.example.test', null))`, session));
-        out.push(await act(owner.u, `select to_jsonb(public.set_client_sandbox('${client.id}'::uuid, true))`, session));
+        out.push(await act(owner.u, `select to_jsonb(public.set_client_sandbox('${client.id}'::uuid, true, true, true))`, session));
         for (let i = 0; i < 1 + x.int(3); i++) {
           out.push(await act(client.u, `select public.client_say('${t}'::uuid, ${lit(words(x) || "make the header blue")}, '[]'::jsonb)`, session));
           if (token) {
