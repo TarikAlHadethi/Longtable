@@ -11,19 +11,24 @@ export default async function Usage({ params }: { params: Promise<{ id: string }
   const supabase = await serverClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect(`/sign-in?next=/t/${id}/usage`);
-  const { data: table } = await supabase.from("tables").select("id, name").eq("id", id).maybeSingle();
+  // A read that failed is a fault, not a table that is not there.
+  const { data: table, error: tableError } = await supabase.from("tables").select("id, name").eq("id", id).maybeSingle();
+  if (tableError) throw new Error("The table could not be read just now.");
   if (!table) notFound();
-  const { data: people } = await supabase.from("members").select("id, user_id, display_name, role, color")
+  const { data: people, error: peopleError } = await supabase.from("members").select("id, user_id, display_name, role, color")
     .eq("table_id", id).is("removed_at", null).order("created_at");
+  if (peopleError) throw new Error("The table's people could not be read just now.");
   const mine = (people ?? []).find((m) => m.user_id === user.id);
   if (!mine) notFound();
   if (mine.role === "client") redirect(`/t/${id}`);
 
   const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
-  const [{ data: connections }, { data: jobs }] = await Promise.all([
+  const [{ data: connections, error: connError }, { data: jobs, error: jobsError }] = await Promise.all([
     supabase.from("connections").select("member_id, kind, last_seen, limits, limits_at").eq("table_id", id).is("revoked_at", null),
     supabase.from("jobs").select("member_id, status, usage").eq("table_id", id).gte("created_at", since),
   ]);
+  // Without these the page would say nobody's AI did anything this week.
+  if (connError || jobsError) throw new Error("Usage could not be read just now.");
 
   const cards: Card[] = (people ?? []).map((p) => {
     const mineConns = (connections ?? []).filter((c) => c.member_id === p.id);

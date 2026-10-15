@@ -255,6 +255,11 @@
 .workingDot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--sage); animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
 .notice { font-size: 14px; color: var(--muted); }
+/* What did not go through, over everything for a few seconds. */
+.toast { position: fixed; left: 50%; bottom: 28px; z-index: 80; max-width: min(520px, calc(100vw / var(--zoom) - 32px)); transform: translateX(-50%);
+  background: var(--ink); color: var(--paper); font-size: 14.5px; line-height: 1.45; padding: 10px 16px; border-radius: 12px;
+  box-shadow: 0 14px 36px oklch(0.2 0.01 70 / 0.25); animation: lt-toast 0.28s var(--ease-spring) both; }
+@keyframes lt-toast { from { opacity: 0; transform: translate(-50%, 12px) scale(0.96); } to { opacity: 1; transform: translateX(-50%); } }
 
 /* Sources and how they got here */
 .sources { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }

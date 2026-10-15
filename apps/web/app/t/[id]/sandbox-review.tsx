@@ -10,6 +10,7 @@ import { SandboxSetup } from "./sandbox-setup";
 import type { Job, Member, SandboxChange, SandboxRow } from "./types";
 import room from "./room.module.css";
 import s from "./sandbox-review.module.css";
+import { firstName } from "@/lib/names";
 
 const STATUS: Record<SandboxChange["status"], string> = {
   working: "Being built", ready: "Ready", nothing: "Nothing changed", passed: "Passed to the team as a request", failed: "Did not work", stopped: "Stopped",
@@ -39,7 +40,7 @@ export function SandboxReview({ table, me, client, box, aiOn, changes, jobs, onS
   const supabase = browserClient();
   const owner = me.role === "owner";
   const on = client.client_mode === "sandbox";
-  const first = client.display_name.split(" ")[0];
+  const first = firstName(client.display_name);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [noting, setNoting] = useState<{ id: string; answer: "differently" | "no" } | null>(null);

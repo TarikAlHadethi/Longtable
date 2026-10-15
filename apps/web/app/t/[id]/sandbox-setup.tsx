@@ -6,6 +6,7 @@ import { browserClient } from "@/lib/supabase/browser";
 import type { Job, Member, SandboxChange, SandboxRow } from "./types";
 import room from "./room.module.css";
 import s from "./sandbox-review.module.css";
+import { firstName } from "@/lib/names";
 
 const WHY: Record<string, string> = {
   "sign-in": "It asks for a sign-in first. Turn off sign-in protection for previews at your hosting, then check again.",
@@ -45,7 +46,7 @@ export function SandboxSetup({ table, client, box, aiOn, jobs, changes, ours, on
   giving: boolean;
 }) {
   const supabase = browserClient();
-  const first = client.display_name.split(" ")[0];
+  const first = firstName(client.display_name);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [typed, setTyped] = useState("");
@@ -55,6 +56,8 @@ export function SandboxSetup({ table, client, box, aiOn, jobs, changes, ours, on
   const [data, setData] = useState(false);
   const [keys, setKeys] = useState(false);
   const checked = useRef<string | null>(null);
+  // The address can be put right during set-up: a mistyped one used to stay for good.
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     supabase.rpc("github_status", { t: table.id }).then(({ data }: { data: unknown }) => setHub((data as { connected?: boolean; repo?: string } | null) ?? {}));
@@ -81,21 +84,32 @@ export function SandboxSetup({ table, client, box, aiOn, jobs, changes, ours, on
     const { error } = await supabase.rpc("set_sandbox_links", { t: table.id, ours: ours ?? "", cap: null, m: client.id, theirs: typed.trim() });
     setBusy(null);
     if (error) return setError(error.message);
-    onBox({ member_id: client.id, url: typed.trim() || null });
+    setEditing(false);
+    // A new address has not been looked at yet: what was found at the old one says nothing about it.
+    setCheck(null);
+    onBox({ member_id: client.id, url: typed.trim() || null, open_ok: null, checked_at: null });
   }
 
   async function look() {
     setBusy("check");
     setError("");
-    const res = await fetch("/api/sandbox/check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ member: client.id }) });
-    const out = (await res.json().catch(() => ({ ok: false, why: "unreachable" }))) as { ok: boolean; why: string };
+    // A failed request (no network) is an answer too: it used to leave this step saying "Looking..." for good.
+    let out: { ok: boolean; why: string } = { ok: false, why: "unreachable" };
+    try {
+      const res = await fetch("/api/sandbox/check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ member: client.id }) });
+      out = (await res.json().catch(() => out)) as { ok: boolean; why: string };
+    } catch {}
     setBusy(null);
     setCheck(out);
     onBox({ member_id: client.id, open_ok: out.ok, checked_at: new Date().toISOString() });
   }
-  // The first time an address is there, look at once: nobody should have to ask.
+  // Look at once the first time an address is there, and again whenever it changes (typed, or arriving from the
+  // hosting): what was found at the old address says nothing about the new one.
   useEffect(() => {
-    if (box?.url && checked.current !== box.url && !box.checked_at) { checked.current = box.url; look(); }
+    if (!box?.url || checked.current === box.url) return;
+    const firstSeen = checked.current === null;
+    checked.current = box.url;
+    if (!firstSeen || !box.checked_at) { setCheck(null); look(); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [box?.url]);
 
@@ -129,14 +143,19 @@ export function SandboxSetup({ table, client, box, aiOn, jobs, changes, ours, on
       </Step>
 
       <Step n={3} done={!!box?.url} title="Where it opens">
-        {box?.url ? <a className={s.address} href={box.url} target="_blank" rel="noreferrer" data-testid="setup-address">{box.url} <Arrow size={14} /></a> : (
+        {box?.url && !editing ? (
+          <div className={s.hint}>
+            <a className={s.address} href={box.url} target="_blank" rel="noreferrer" data-testid="setup-address">{box.url} <Arrow size={14} /></a>
+            {" "}<button type="button" className={room.toolLink} onClick={() => { setTyped(box.url ?? ""); setEditing(true); }} data-testid="setup-change-address">Change</button>
+          </div>
+        ) : (
           <>
             <div className={s.hint}>
               {!made ? "Appears once the copy is made."
                 : hub?.connected ? "Waiting for your hosting to say where it put the branch. That takes as long as one deploy. If it never comes, your hosting is not building from this repository, or does not report to GitHub: type the address below."
                 : "GitHub is not connected to this table, so the address cannot arrive by itself. Connect it in Table settings, or type the address your hosting gave the branch."}
             </div>
-            {made && (
+            {(made || editing) && (
               <form className={s.noteForm} onSubmit={saveAddress}>
                 <input className="field" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="https://" inputMode="url" aria-label="Where the copy opens" />
                 <button className="btn btn-quiet" disabled={busy === "address" || !typed.trim()}>Use this address</button>

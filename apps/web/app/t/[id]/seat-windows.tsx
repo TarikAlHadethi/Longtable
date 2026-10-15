@@ -9,6 +9,7 @@ import { ModelPick, prettyModel } from "./model-pick";
 import type { Connection, Member } from "./types";
 import room from "./room.module.css";
 import s from "./panels.module.css";
+import { firstName } from "@/lib/names";
 
 const prettyPlan = (plan?: string | null) => (plan ? `${plan.charAt(0).toUpperCase()}${plan.slice(1)}`.replace(/_/g, " ") : null);
 
@@ -39,7 +40,7 @@ export function AiWindow({ me, person, conn, on, busy, onClose, onModel, onOptio
   useEscape(onClose);
   const [asking, setAsking] = useState(false);
   const mine = person.id === me.id;
-  const first = person.display_name.split(" ")[0];
+  const first = firstName(person.display_name);
   const live = conn && !conn.revoked_at ? conn : null;
   const ai = conn ? AI_NAME[conn.kind] : "AI";
   const plan = prettyPlan(conn?.limits?.plan);
@@ -134,7 +135,7 @@ export function TableWindow({ me, tableName, writer, tableModel, onTableModel, p
           <div className={s.sub}>{tableName}</div>
         </div>
         <div className={s.facts}>
-          <div className={s.fact}><span>Speaks through</span><b>{writer ? `${writer.person.id === me.id ? "Your" : `${writer.person.display_name.split(" ")[0]}'s`} ${AI_NAME[writer.conn.kind]}` : "Nobody's AI is on"}</b></div>
+          <div className={s.fact}><span>Speaks through</span><b>{writer ? `${writer.person.id === me.id ? "Your" : `${firstName(writer.person.display_name)}'s`} ${AI_NAME[writer.conn.kind]}` : "Nobody's AI is on"}</b></div>
           {writer && (
             <div className={s.fact}>
               <span>Model for the table&apos;s own words</span>

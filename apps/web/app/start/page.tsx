@@ -15,13 +15,15 @@ export default async function Start() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/sign-in?next=/start");
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("members")
     // Named by its key: tables point back at members too (whose AI speaks for the table), so the plain name is two ways.
     .select("table_id, role, tables!members_table_id_fkey(name)")
     .eq("user_id", user.id)
     .is("removed_at", null)
     .order("created_at", { ascending: false });
+  // A read that failed is not "no tables": that showed someone with tables the page for starting their first one.
+  if (error) throw new Error("Your tables could not be read just now.");
   const rows = (data ?? []) as unknown as Row[];
 
   return (

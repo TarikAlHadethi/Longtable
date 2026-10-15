@@ -91,7 +91,7 @@ export function useAttach(supabase: SupabaseClient, tableId: string, folder: str
         const type = cur.r.mimeType || "audio/webm";
         const ext = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
         const at = new Date();
-        const name = `Voice note ${String(at.getHours()).padStart(2, "0")}.${String(at.getMinutes()).padStart(2, "0")}.${ext}`;
+        const name = `Voice note ${at.getHours() % 12 || 12}.${String(at.getMinutes()).padStart(2, "0")} ${at.getHours() < 12 ? "am" : "pm"}.${ext}`;
         add([new File(cur.chunks, name, { type: type.split(";")[0] })]);
       }
     };
@@ -99,11 +99,15 @@ export function useAttach(supabase: SupabaseClient, tableId: string, folder: str
     setRecording(false);
     setSeconds(0);
   }, [add]);
+  const asking = useRef(false);
   const startRecording = useCallback(async () => {
+    if (rec.current || asking.current) return;
     setError("");
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") return setError("This browser cannot record sound.");
+    asking.current = true;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      asking.current = false;
       const r = new MediaRecorder(stream);
       const chunks: Blob[] = [];
       r.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
@@ -112,6 +116,7 @@ export function useAttach(supabase: SupabaseClient, tableId: string, folder: str
       rec.current = { r, chunks, stream, tick };
       setRecording(true);
     } catch {
+      asking.current = false;
       setError("The microphone is not allowed here. Allow it for this site in your browser, then try again.");
     }
   }, [stopRecording]);
@@ -191,7 +196,11 @@ export function dropHandlers(a: Attach) {
     onDragOver: (e: React.DragEvent<HTMLElement>) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); e.currentTarget.dataset.drop = "1"; } },
     onDragLeave: (e: React.DragEvent<HTMLElement>) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) delete e.currentTarget.dataset.drop; },
     onDrop: (e: React.DragEvent<HTMLElement>) => { delete e.currentTarget.dataset.drop; if (e.dataTransfer.files.length) { e.preventDefault(); a.add(e.dataTransfer.files); } },
-    onPaste: (e: React.ClipboardEvent) => { if (e.clipboardData.files.length) { e.preventDefault(); a.add(e.clipboardData.files); } },
+    onPaste: (e: React.ClipboardEvent) => {
+      if (!e.clipboardData.files.length) return;
+      a.add(e.clipboardData.files);
+      if (!e.clipboardData.getData("text/plain")) e.preventDefault();
+    },
   };
 }
 
@@ -199,6 +208,13 @@ export function dropHandlers(a: Attach) {
 const shown = new Map<string, { url: string; until: number }>();
 function useShown(supabase: SupabaseClient, files: FileRef[]) {
   const [, bump] = useState(0);
+  // Each address lasts an hour and is kept for fifty minutes; looking again every ten keeps every picture showing on
+  // a page left open all day, where before they all broke after the first hour.
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 10 * 60 * 1000);
+    return () => clearInterval(t);
+  }, []);
   const key = files.map((f) => f.path).join("|");
   useEffect(() => {
     const need = files.filter((f) => { const have = shown.get(f.path); return !have || have.until < Date.now(); }).map((f) => f.path);
@@ -211,7 +227,7 @@ function useShown(supabase: SupabaseClient, files: FileRef[]) {
     });
     return () => { off = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, supabase]);
+  }, [key, supabase, tick]);
   return (path: string) => shown.get(path)?.url ?? null;
 }
 

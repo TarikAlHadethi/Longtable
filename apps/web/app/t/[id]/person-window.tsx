@@ -13,6 +13,7 @@ import { UsagePanel } from "./usage-panel";
 import type { Connection, Member } from "./types";
 import room from "./room.module.css";
 import s from "./panels.module.css";
+import { firstName } from "@/lib/names";
 
 const ROLE = { owner: "Owner", developer: "Developer", client: "Client" } as const;
 const day = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "");
@@ -76,7 +77,7 @@ export function PersonWindow({ table, me, person, connections, here, edit = fals
   const file = useRef<HTMLInputElement>(null);
   const conn = connections.find((c) => c.member_id === person.id && !c.revoked_at);
   const model = conn ? prettyModel(conn.model_choice) ?? (conn.kind === "claude" ? "Opus 5.5" : prettyModel(conn.limits?.model)) : null;
-  const first = person.display_name.split(" ")[0];
+  const first = firstName(person.display_name);
   const shown = mine ? { display_name: name || person.display_name, color, avatar: avatar || null } : person;
   const changed = mine && (name.trim() !== person.display_name || color !== person.color || nameColor !== (person.name_color ?? "")
     || avatar !== (person.avatar ?? "") || status.trim() !== (person.status ?? "") || bubble !== (person.bubble ?? "stone"));

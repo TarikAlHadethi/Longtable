@@ -24,15 +24,18 @@ export async function RoomPage({ id, wanted, view, side, sandbox }: { id: string
     redirect(`/sign-in?next=${encodeURIComponent(`/t/${id}${view === "settings" ? "/settings" : view === "logs" ? "/activity" : ""}${query}`)}`);
   }
 
-  const { data: table } = await supabase.from("tables").select("id, name").eq("id", id).maybeSingle();
+  // A read that failed is a fault, not a table that is not there: it used to show "not found" to the table's own team.
+  const { data: table, error: tableError } = await supabase.from("tables").select("id, name").eq("id", id).maybeSingle();
+  if (tableError) throw new Error("The table could not be read just now.");
   if (!table) notFound();
 
-  const { data: rows } = await supabase
+  const { data: rows, error: rowsError } = await supabase
     .from("members")
     .select("id, user_id, display_name, role, color, created_at, avatar, name_color, status, bubble, tasks_cleared_at, test")
     .eq("table_id", id)
     .is("removed_at", null)
     .order("created_at");
+  if (rowsError) throw new Error("The table's people could not be read just now.");
   const members = (rows ?? []) as MemberRow[];
   const mine = members.find((m) => m.user_id === user.id);
   if (!mine) notFound();

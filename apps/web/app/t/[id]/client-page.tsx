@@ -17,6 +17,7 @@ import { ProfileMenu } from "./profile-menu";
 import { AttachButtons, AttachTray, Files, dropHandlers, useAttach } from "./attach";
 import room from "./room.module.css";
 import styles from "./client.module.css";
+import { firstName } from "@/lib/names";
 
 // How each status reads to the client. Three things matter to them: it is with the team, it needs them, or it is
 // settled. The team's own steps in between are the team's.
@@ -47,11 +48,6 @@ const CHANGE: Record<Change["status"], { words: string; pill: string }> = {
 const VERDICT = { take: "The team is building this into the real thing.", differently: "The team will do this, in a different way.", no: "The team decided against this one." } as const;
 
 const byTime = <T extends { created_at: string }>(a: T, b: T) => a.created_at.localeCompare(b.created_at);
-// "Elena Ruiz" is Elena; "Dr. Ruiz" stays Dr. Ruiz, never just "Dr.".
-const firstName = (name: string) => {
-  const words = name.trim().split(/\s+/);
-  return /^(dr|mr|mrs|ms|miss|prof|sir|dame)\.?$/i.test(words[0] ?? "") && words[1] ? `${words[0]} ${words[1]}` : words[0] || name;
-};
 const sentence = (s: string) => `${s.charAt(0).toUpperCase()}${s.slice(1)}${/[.!?]$/.test(s) ? "" : "."}`;
 // The line every passed-on request starts with. The state beside it already says so, so it is not said twice.
 const isAck = (u: ClientUpdate) => /^(thanks, )?passed on to the team\b/i.test(u.body) && !u.replies?.length;
@@ -135,6 +131,13 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, table.id, me.id, putUpdates, putLines, !!viewer]);
+
+  // Read the database as soon as the page opens. It used to wait for its live channel to say it was ready, so with
+  // live updates blocked (a strict network) a copy's button and cards could be missing for up to a minute.
+  useEffect(() => {
+    if (!viewer) reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // A viewer has no place on the client's own channels: the page just reads again every few seconds.
   useEffect(() => {
@@ -226,7 +229,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
       // Their own words to their assistant show as a line unless they became a request, which carries them.
       ...lines.filter((l) => !(l.who === "client" && l.request_id)).map((l): Item => ({ kind: "line", id: `l-${l.id}`, created_at: l.created_at, me: l.who === "client", own: true, desk: !!l.by_table, text: l.body })),
       // What every client was told, with no request of theirs behind it.
-      ...updates.filter((u) => !u.request_id).map((u): Item => ({ kind: "line", id: `u-${u.id}`, created_at: u.created_at, me: false, own: false, text: u.body, question: u.replies?.length && !u.answer ? u : undefined })),
+      ...updates.filter((u) => !u.request_id).map((u): Item => ({ kind: "line", id: `u-${u.id}`, created_at: u.created_at, me: false, own: false, text: u.body, question: u.replies?.length ? u : undefined })),
     ];
     return items.sort(byTime);
   }, [requests, lines, updates, sandbox]);
@@ -278,8 +281,15 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   }
 
   async function disconnect() {
-    if (mine) await supabase.rpc("disconnect", { conn: mine.id });
+    if (mine) {
+      const { error } = await supabase.rpc("disconnect", { conn: mine.id });
+      if (error) setError("Your assistant was not disconnected. Try again.");
+    }
     reload();
+  }
+  async function downloadMine() {
+    const problem = await downloadExport("export_mine", table.id, table.name);
+    if (problem) setError(sentence(problem));
   }
 
   if (gone) {
@@ -339,7 +349,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
           <ProfileMenu me={{ id: me.id, display_name: me.display_name, role: "client", color: me.color ?? "var(--sage)" }} tableId={table.id}
             ai={mine?.kind ?? null} aiWord="assistant"
             onConnect={sandbox?.on ? undefined : () => setConnectOpen(true)} onDisconnect={sandbox?.on ? undefined : disconnect}
-            onDownload={() => downloadExport("export_mine", table.id, table.name)} privacy />
+            onDownload={downloadMine} privacy />
         )}
       </header>
 
@@ -375,13 +385,15 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
                       {speaker(item.own ? (item.desk ? "desk" : "assistant") : "team")}
                       <div className={styles.said}>
                         {item.text}
-                        {item.question && (
+                        {item.question && !item.question.answer && (
                           <div className={styles.replies} data-testid="replies">
                             {item.question.replies.map((label, k) => (
                               <button key={label} className={styles.reply} disabled={locked} onClick={() => answer(item.question!, k + 1)}>{label}</button>
                             ))}
                           </div>
                         )}
+                        {/* Once answered, the question says what they chose, as a request's question does. */}
+                        {item.question?.answer && <div className={styles.answered}>You answered: {item.question.answer}</div>}
                       </div>
                     </div>
                   </div>

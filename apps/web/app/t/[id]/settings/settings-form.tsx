@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Select } from "@/components/select";
 import { downloadExport } from "@/lib/download";
 import { browserClient } from "@/lib/supabase/browser";
 import styles from "./settings.module.css";
+import { firstName } from "@/lib/names";
 
 type Person = { id: string; display_name: string; role: "owner" | "developer" | "client"; color: string };
 type Extra = { undo_seconds: number; client_chat: string | null; final_seat: string | null; when_final_offline: string };
@@ -22,7 +23,9 @@ export async function loadSettings(supabase: Db, tableId: string): Promise<Setti
     supabase.from("tables").select("undo_seconds, client_chat, final_seat, when_final_offline").eq("id", tableId).maybeSingle(),
     supabase.rpc("github_status", { t: tableId }),
   ]);
-  return { extra: (row.data as Extra | null) ?? null, github: (hub.data as Github) ?? null };
+  // A read that failed is not settings: nothing is shown as loaded, so nothing made up can be saved over the real ones.
+  if (row.error || !row.data) throw new Error("The table's settings could not be read.");
+  return { extra: row.data as Extra, github: (hub.data as Github) ?? null };
 }
 
 // Settings in plain words: the table, who writes the final answer, GitHub, your data, and the people at the table.
@@ -38,9 +41,11 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
   onRemoved: (id: string) => void;
 }) {
   const supabase = browserClient();
-  const loaded = !!data;
+  // Saving is only possible once the table's own settings are on screen: before, a failed read showed made-up
+  // values (an undo window of 30) as if loaded, and Save wrote them over the real ones.
+  const [loaded, setLoaded] = useState(!!data?.extra);
   const [name, setName] = useState(table.name);
-  const [undo, setUndo] = useState(String(data?.extra?.undo_seconds ?? 30));
+  const [undo, setUndo] = useState(data?.extra ? String(data.extra.undo_seconds) : "");
   const [requests, setRequests] = useState(data?.extra?.client_chat ?? "");
   const [seat, setSeat] = useState(data?.extra?.final_seat ?? "");
   const [offline, setOffline] = useState(data?.extra?.when_final_offline ?? "wait");
@@ -52,8 +57,14 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
   const [confirmName, setConfirmName] = useState("");
-  // What is saved here is kept by the room too, so coming back shows it as it was left.
-  const keep = (patch: Partial<Extra>, hub: Github = github) => onData({ extra: { undo_seconds: Number(undo), client_chat: requests || null, final_seat: seat || null, when_final_offline: offline, ...patch }, github: hub });
+  // What is saved here is kept by the room too, so coming back shows it as it was left: only what was really saved.
+  // Each card keeps its own fields; a change typed into the other card and never saved is not kept as if it were.
+  const kept = useRef<Extra | null>(data?.extra ?? null);
+  const keep = (patch: Partial<Extra>, hub: Github = github) => {
+    if (!kept.current) return;
+    kept.current = { ...kept.current, ...patch };
+    onData({ extra: kept.current, github: hub });
+  };
   const setGithub = (g: Github) => { setGithubState(g); keep({}, g); };
 
   // Only if the room has not read them yet: read them here.
@@ -61,11 +72,13 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
     if (data) return;
     let cancelled = false;
     loadSettings(supabase, table.id).then((d) => {
-      if (cancelled) return;
-      if (d.extra) { setUndo(String(d.extra.undo_seconds)); setRequests(d.extra.client_chat ?? ""); setSeat(d.extra.final_seat ?? ""); setOffline(d.extra.when_final_offline); }
+      if (cancelled || !d.extra) return;
+      setUndo(String(d.extra.undo_seconds)); setRequests(d.extra.client_chat ?? ""); setSeat(d.extra.final_seat ?? ""); setOffline(d.extra.when_final_offline);
+      kept.current = d.extra;
+      setLoaded(true);
       setGithubState(d.github);
       onData(d);
-    });
+    }).catch((e: Error) => { if (!cancelled) setError(`${e.message} Open Settings again in a moment.`); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [table.id]);
@@ -111,7 +124,7 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
     });
     if (error) return setError(error.message);
     setSaved("table");
-    keep({});
+    keep({ undo_seconds: Number(undo), client_chat: requests || null });
     onRenamed(name.trim());
   }
 
@@ -122,7 +135,7 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
     const { error } = await supabase.rpc("set_final_seat", { t: table.id, seat: seat || null, offline });
     if (error) return setError(error.message);
     setSaved("answers");
-    keep({});
+    keep({ final_seat: seat || null, when_final_offline: offline });
   }
 
   async function remove(id: string) {
@@ -150,7 +163,7 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
           <Select id="s-requests" value={requests} onChange={setRequests}
             options={[{ value: "", label: "General" }, ...chats.filter((c) => !c.is_general).map((c) => ({ value: c.id, label: c.name }))]} />
           <div className={styles.actions}>
-            <button className="btn">Save</button>
+            <button className="btn" disabled={!loaded}>Save</button>
             {saved === "table" && <span className={styles.saved} role="status">Saved</span>}
           </div>
         </form>
@@ -165,7 +178,7 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
             <label><input type="radio" name="offline" checked={offline === "next"} onChange={() => setOffline("next")} /> Let another connected AI write it</label>
           </div>
           <div className={styles.actions}>
-            <button className="btn">Save</button>
+            <button className="btn" disabled={!loaded}>Save</button>
             {saved === "answers" && <span className={styles.saved} role="status">Saved</span>}
           </div>
         </form>
@@ -223,7 +236,7 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
               <span className={styles.role}>{ROLE[p.role]}</span>
               {p.role !== "owner" && (confirming === p.id ? (
                 <>
-                  <button className="btn" onClick={() => remove(p.id)}>Take {p.display_name.split(" ")[0]} off</button>
+                  <button className="btn" onClick={() => remove(p.id)}>Take {firstName(p.display_name)} off</button>
                   <button className="btn btn-quiet" onClick={() => setConfirming(null)}>Keep</button>
                 </>
               ) : (

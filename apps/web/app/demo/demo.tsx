@@ -146,21 +146,23 @@ export function Demo() {
           </div>
         </section>
 
+        {/* The client's page as it is now: one conversation, their words on the right, and under them who answers,
+            one state, and what they were told. No greeting, no request cards: those were cut from the real page. */}
         <section className={`${styles.pane} ${view === "client" ? styles.paneOn : ""}`} aria-label="Elena's page">
-          <div className={styles.clientHead}>Good morning, Elena</div>
-          <div className={client.request} style={{ marginBottom: 12 }}>
-            <div className={client.requestHead} style={{ cursor: "default" }}>
-              <div className={client.requestText}>
-                <div className={client.requestTitle}>{ASK}</div>
-                <div className={client.requestNote}>{step >= 6 ? TOLD : step >= 4 ? "The team is deciding" : "Sent just now"}</div>
-              </div>
-              <div className={`${client.pill} ${step >= 6 ? client.pillDone : client.pillWait}`}>{step >= 6 ? "Decided" : step >= 4 ? "Being decided" : "With the team"}</div>
-            </div>
-          </div>
+          <div className={styles.clientHead}>Fernhill Dental booking</div>
           <div className={styles.clientChat}>
-            <div className={client.lineMe}><div className={client.bubbleMe}>{ASK}</div></div>
-            <div className={client.lineTeam}><div className={client.bubbleTeam}>Passed on to the team. You will hear here what they decide.</div></div>
-            {step >= 6 && <div className={client.lineTeam}><div className={client.bubbleTeam} data-testid="demo-told">{TOLD}</div></div>}
+            <div className={client.turn}>
+              <div className={client.mine}><div className={room.bubble} data-bubble="rose">{ASK}</div></div>
+              <div className={client.back}>
+                <div className={client.from}>
+                  <span className={client.fromName}>The team</span>
+                  <span key={step >= 6 ? "done" : "wait"} className={`${client.pill} ${step >= 6 ? client.pillDone : client.pillWait}`}>{step >= 6 ? "Decided" : "With the team"}</span>
+                </div>
+                {step >= 6
+                  ? <div className={client.said} data-testid="demo-told">{TOLD}</div>
+                  : <div className={client.waiting}>They have your message. Their answer will show here.</div>}
+              </div>
+            </div>
           </div>
         </section>
       </div>

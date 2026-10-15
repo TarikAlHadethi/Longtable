@@ -33,10 +33,14 @@ export function SignInForm({ next }: { next: string }) {
     const t = setTimeout(() => setWait((n) => n - 1), 1000);
     return () => clearTimeout(t);
   }, [wait]);
+  // Once at a time: a second press while the first was on its way sent two codes, and the first stopped working.
   async function resend() {
+    if (busy) return;
     setError("");
     setCode("");
+    setBusy(true);
     const { error } = await browserClient().auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: true } });
+    setBusy(false);
     if (error) return setError(error.message);
     setWait(45);
   }

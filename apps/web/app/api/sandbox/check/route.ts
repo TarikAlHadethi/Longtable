@@ -2,11 +2,14 @@
 // server, and notes what it found. It only ever opens the address already kept for that copy.
 
 import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 import { serverClient } from "@/lib/supabase/server";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-// Never a machine on a private network, whatever address was typed.
-const PRIVATE = /^(localhost|.*\.local|.*\.internal|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|0\.|\[)/i;
+// Never a machine on a private network, whatever address was typed. Names are judged whole: "10.preview.example.com"
+// and "app.localstack.cloud" are public names, which the old unanchored rule refused. A typed number is judged by
+// the rule for addresses below, like every address a name leads to.
+const PRIVATE_NAME = /^(localhost|.+\.local|.+\.internal|.+\.localhost)$/i;
 // Nor a public name that leads to one: the name is looked up first, and every address it has must be a public one.
 const PRIVATE_ADDRESS = /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|0\.|::$|::1$|::ffff:|f[cd][0-9a-f]{2}:|fe[89ab][0-9a-f]:)/i;
 
@@ -28,7 +31,9 @@ export async function POST(req: Request) {
   let why = "unreachable";
   try {
     const at = new URL(url);
-    if (at.protocol !== "https:" || !at.hostname.includes(".") || PRIVATE.test(at.hostname)) throw new Error("not public");
+    // Only the usual https port: any other is how a public name is pointed at a service it was never meant to show.
+    if (at.protocol !== "https:" || (at.port && at.port !== "443") || at.hostname.startsWith("[")) throw new Error("not public");
+    if (!isIP(at.hostname) && (!at.hostname.includes(".") || PRIVATE_NAME.test(at.hostname))) throw new Error("not public");
     const leads = await lookup(at.hostname, { all: true });
     if (!leads.length || leads.some((a) => PRIVATE_ADDRESS.test(a.address))) throw new Error("not public");
     const res = await fetch(at, { redirect: "manual", signal: AbortSignal.timeout(9000), headers: { "user-agent": "Longtable copy check" } });

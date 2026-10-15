@@ -95,7 +95,14 @@ export function NewDecision({ chatId, myName, clientName, hasClient, request, on
         <label className={styles.toggleRow}>
           <input type="checkbox" checked={affects} disabled={!!request} onChange={(e) => {
             setAffects(e.target.checked);
-            if (!e.target.checked) setOptions((prev) => prev.filter((o) => !o.asks));
+            // The options that asked the client go; the recommendation stays on the same option, wherever it now
+            // is (it used to stay on the same place in the list, so it moved to another option or to none).
+            if (!e.target.checked) {
+              const kept = options.filter((o) => !o.asks);
+              const was = options[recommended];
+              setOptions(kept);
+              setRecommended(Math.max(0, was ? kept.indexOf(was) : 0));
+            }
           }} />
           <span>{capital(told)} hears the answer</span>
         </label>

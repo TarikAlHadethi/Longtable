@@ -16,17 +16,21 @@ const logCache = new Map<string, Entry[]>();
 export function LogsPanel({ table, members }: { table: { id: string; name: string }; members: Member[] }) {
   const [entries, setEntries] = useState<Entry[] | null>(() => logCache.get(table.id) ?? null);
   const [names, setNames] = useState<Map<string, string>>(() => new Map(members.map((m) => [m.id, m.display_name])));
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
     let cancelled = false;
     const supabase = browserClient();
     Promise.all([
       supabase.from("activity").select("id, actor, action, details, created_at").eq("table_id", table.id).order("id", { ascending: false }).limit(300),
       supabase.from("members").select("id, display_name").eq("table_id", table.id),
-    ]).then(([rows, people]: [{ data: unknown }, { data: unknown }]) => {
+    ]).then(([rows, people]: [{ data: unknown; error: unknown }, { data: unknown }]) => {
       if (cancelled) return;
+      // A read that failed is not an empty log: it says so, keeps whatever was shown before, and is not remembered.
+      if (rows.error || !rows.data) { setFailed(true); setEntries((prev) => prev ?? []); return; }
+      setFailed(false);
       setNames(new Map(((people.data ?? []) as { id: string; display_name: string }[]).map((p) => [p.id, p.display_name])));
-      logCache.set(table.id, (rows.data ?? []) as Entry[]);
-      setEntries((rows.data ?? []) as Entry[]);
+      logCache.set(table.id, rows.data as Entry[]);
+      setEntries(rows.data as Entry[]);
     });
     return () => { cancelled = true; };
   }, [table.id]);
@@ -57,7 +61,8 @@ export function LogsPanel({ table, members }: { table: { id: string; name: strin
   return (
     <div className={s.logs} data-testid="logs-panel">
       {entries === null && <div className={s.loading}><i /><i /><i /></div>}
-      {entries?.length === 0 && <p className="note">Nothing yet.</p>}
+      {failed && <p className="error" role="alert">The log could not be read just now. Open it again in a moment.</p>}
+      {!failed && entries?.length === 0 && <p className="note">Nothing yet.</p>}
       <ol className={s.log}>
         {(entries ?? []).map((e, i) => (
           <li key={e.id} style={{ animationDelay: `${Math.min(i, 14) * 18}ms` }}>

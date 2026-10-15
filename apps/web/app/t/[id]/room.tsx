@@ -33,6 +33,7 @@ import {
   CHANGE_COLUMNS, type SandboxChange, SANDBOX_COLUMNS, type SandboxRow, TASK_COLUMNS, type Task,
 } from "./types";
 import styles from "./room.module.css";
+import { firstName } from "@/lib/names";
 
 const byTime = <T extends { created_at: string }>(a: T, b: T) => a.created_at.localeCompare(b.created_at);
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -102,6 +103,15 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const [requests, setRequests] = useState(initialRequests);
   const [askingFor, setAskingFor] = useState<Request | null>(null);
   const [notice, setNotice] = useState("");
+  // Something pressed did not go through: the screen goes back to how it was, and this says so for a few seconds.
+  // Before, each of these failures was silent and the new value stayed showing as if it had been kept.
+  const [failed, setFailed] = useState("");
+  const failTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const didNotTake = useCallback((message?: string) => {
+    setFailed(message || "That did not go through. Try again.");
+    if (failTimer.current) clearTimeout(failTimer.current);
+    failTimer.current = setTimeout(() => setFailed(""), 6000);
+  }, []);
   const [chatId, setChatId] = useState(initialChatId);
   // The room opens on the table itself; a chat opens from there or from the list.
   const [view, setView] = useState<View>(initialView);
@@ -131,6 +141,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   // The live channel is set up once; it reaches the newest dropChat through this.
   const dropRef = useRef<(id: string) => void>(() => {});
   const chatIdRef = useRef(initialChatId);
+  const viewRef = useRef<View>(initialView);
+  const generalRef = useRef<string | null>(initialChats.find((c) => c.is_general)?.id ?? null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const atBottom = useRef(true);
@@ -144,7 +156,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   useEffect(() => {
     if (self.role !== "owner") return;
     let cancelled = false;
-    loadSettings(supabase, table.id).then((d) => { if (!cancelled) setSettings(d); });
+    // A failed read leaves it to Settings itself, which reads again when opened and says so if it still cannot.
+    loadSettings(supabase, table.id).then((d) => { if (!cancelled) setSettings(d); }).catch(() => {});
     return () => { cancelled = true; };
   }, [supabase, table.id, self.role]);
   const chatById = useMemo(() => new Map(chats.map((c) => [c.id, c])), [chats]);
@@ -189,9 +202,14 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   // each still lands, and an older one never undoes a newer one.
   const reads = useRef(0);
   const shown = useRef(0);
+  // When the last live change arrived. A read that began before it may hold the state from before it, so it is not
+  // put on the page; another read follows instead (at most a few times, so a busy table still settles).
+  const pushedAt = useRef(0);
+  const retries = useRef(0);
   const catchUp = useCallback(async () => {
     const mine = ++reads.current;
-    const [{ data: recent }, { data: inFlight }, { data: ds }, { data: rq }, { data: ns }, { data: cs }, { data: tk }, { data: sc }, { data: bx }] = await Promise.all([
+    const began = performance.now();
+    const [{ data: recent }, { data: inFlight }, { data: ds }, { data: rq }, { data: ns }, { data: cs }, { data: tk }, { data: sc }, { data: bx }, { data: ch }] = await Promise.all([
       supabase.from("messages").select(MESSAGE_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(100),
       supabase.from("jobs").select(JOB_COLUMNS).eq("table_id", table.id).in("status", ["queued", "running", "waiting", "failed"]).order("created_at", { ascending: false }).limit(50),
       supabase.from("decisions").select(DECISION_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(100),
@@ -201,14 +219,23 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       supabase.from("tasks").select(TASK_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(40),
       supabase.from("sandbox_changes").select(CHANGE_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(120),
       supabase.from("sandboxes").select(SANDBOX_COLUMNS).eq("table_id", table.id),
+      supabase.from("chats").select("id, name, about, is_general, created_at, created_by").eq("table_id", table.id),
     ]);
     if (mine < shown.current) return;
+    if (pushedAt.current > began && retries.current < 3) {
+      retries.current++;
+      setTimeout(() => catchUpRef.current?.(), 700);
+      return;
+    }
+    retries.current = 0;
     // The table was closed, or this person was taken off it, with no word reaching this page.
     const { data: still, error: gone } = await supabase.from("members").select("id").eq("id", me.id).is("removed_at", null).maybeSingle();
     if (!gone && !still) return setGone(true);
     if (mine < shown.current) return;
     shown.current = mine;
     if (tk) setTasks(tk as Task[]);
+    // The chat list too: one made, renamed or deleted while this page missed the word is put right here.
+    if (ch && (ch as Chat[]).length) setChats((ch as Chat[]).slice().sort(byTime));
     if (sc) setChanges(sc as SandboxChange[]);
     if (bx) { boxes.current = new Map((bx as SandboxRow[]).map((b) => [b.member_id, b])); setMembers((prev) => [...prev]); }
     if (recent) setMessages((prev) => {
@@ -223,6 +250,9 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (cs) setConnections(cs as Connection[]);
   }, [supabase, table.id, me.id]);
 
+  const catchUpRef = useRef<(() => void) | null>(null);
+  catchUpRef.current = catchUp;
+
   const loadDecision = useCallback(async (id: string) => {
     const { data } = await supabase.from("decisions").select(DECISION_COLUMNS).eq("id", id).maybeSingle();
     if (data) setDecisions((prev) => [...prev.filter((d) => d.id !== id), data as unknown as Decision]);
@@ -233,6 +263,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     let channel: RealtimeChannel | null = null;
     let cancelled = false;
     const onChange = (kind: "INSERT" | "UPDATE") => ({ payload }: { payload: unknown }) => {
+      pushedAt.current = performance.now();
       const { table: name, record } = (payload ?? {}) as Change;
       if (!record) return;
       if (name === "messages") {
@@ -410,7 +441,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       else if (url.pathname.endsWith("/activity")) setView("logs");
       else if (url.searchParams.get("sandbox")) { setSandboxOf(url.searchParams.get("sandbox")); setView("sandbox"); }
       else if (url.searchParams.get("side") === "client") setView("client");
-      else if (c) { if (c !== "general") setChatId(c); setView("chat"); }
+      else if (c) { setChatId(c === "general" ? generalRef.current ?? chatIdRef.current : c); setView("chat"); }
       else setView("table");
     };
     window.addEventListener("popstate", onPop);
@@ -429,20 +460,32 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
   }
 
-  // A message with things attached: they are uploaded first, then the message carries them.
+  // A message with things attached: they are uploaded first, then the message carries them. One at a time: a second
+  // Enter while the first was still on its way sent it all twice. The box is emptied at once, as for any message, so
+  // what is typed during a long upload is kept; if it does not go, the words come back ahead of anything new.
+  const sendingFiles = useRef(false);
   async function sendFiles(ask = false) {
-    if (!chat || attach.busy) return;
+    if (!chat || attach.busy || sendingFiles.current) return;
+    sendingFiles.current = true;
     const body = draft.trim();
-    const files = await attach.upload();
-    if (!files) return;
-    const { data, error } = ask
-      ? await supabase.rpc("ask_table", { c: chat.id, body, files })
-      : await supabase.rpc("send_with_files", { c: chat.id, body, files });
-    if (error) return setNotice(error.message);
-    attach.clear();
+    const putBack = () => { setDraft((d) => (d.trim() ? `${body}\n${d}` : body)); requestAnimationFrame(grow); };
     setDraft("");
-    setNotice("");
     requestAnimationFrame(grow);
+    try {
+      const files = await attach.upload();
+      if (!files) return putBack();
+      const { data, error } = ask
+        ? await supabase.rpc("ask_table", { c: chat.id, body, files })
+        : await supabase.rpc("send_with_files", { c: chat.id, body, files });
+      if (error) { putBack(); return setNotice(error.message); }
+      attach.clear();
+      setNotice("");
+      finishFiles(ask, data);
+    } finally {
+      sendingFiles.current = false;
+    }
+  }
+  async function finishFiles(ask: boolean, data: unknown) {
     atBottom.current = true;
     const id = ask ? (data as { message_id: string }).message_id : (data as string);
     const { data: row } = await supabase.from("messages").select(MESSAGE_COLUMNS).eq("id", id).single();
@@ -514,7 +557,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
 
   async function disconnect(id: string) {
     const { error } = await supabase.rpc("disconnect", { conn: id });
-    if (!error) setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, revoked_at: new Date().toISOString() } : c)));
+    if (error) return didNotTake("Your AI was not disconnected. Try again.");
+    setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, revoked_at: new Date().toISOString() } : c)));
   }
 
   async function makeChat(name: string) {
@@ -527,10 +571,10 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   }
 
   async function renameChat(id: string, name: string) {
-    const before = chats;
+    const old = chats.find((c) => c.id === id)?.name;
     setChats((prev) => prev.map((c) => (c.id === id ? { ...c, name } : c)));
     const { error } = await supabase.rpc("rename_chat", { c: id, chat_name: name });
-    if (error) { setChats(before); return error.message; }
+    if (error) { if (old !== undefined) setChats((prev) => prev.map((c) => (c.id === id && c.name === name ? { ...c, name: old } : c))); return error.message; }
     return null;
   }
 
@@ -541,7 +585,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     setDecisions((prev) => prev.filter((d) => d.chat_id !== id));
     setTasks((prev) => prev.filter((t) => t.chat_id !== id));
     setJobs((prev) => prev.filter((j) => j.chat_id !== id));
-    if (chatIdRef.current === id) goHome();
+    if (chatIdRef.current === id && viewRef.current === "chat") goHome();
   }
   async function deleteChat(id: string) {
     const { error } = await supabase.rpc("delete_chat", { c: id });
@@ -552,6 +596,12 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
 
   dropRef.current = dropChat;
   chatIdRef.current = chatId;
+  viewRef.current = view;
+  generalRef.current = chats.find((c) => c.is_general)?.id ?? generalRef.current;
+  // A person's copy that is gone (they were taken off) has nothing to show: back to the table, not an empty middle.
+  useEffect(() => {
+    if (view === "sandbox" && sandboxOf && !byId.get(sandboxOf)) setView("table");
+  }, [view, sandboxOf, byId]);
 
   function patchDecision(id: string, patch: Partial<Decision>) {
     setDecisions((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
@@ -574,10 +624,12 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const noSide = view === "settings" || view === "logs" || view === "sandbox";
   async function clearTasks() {
     // At once, to the newest time the server has given for a task: never this computer's own clock, which may be off.
+    const before = clearedAt;
     const newest = tasks.reduce((m, t) => { const x = t.finished_at ?? t.created_at; return !m || after(x, m) ? x : m; }, clearedAt ?? "");
     if (newest) setClearedAt(newest);
     setInboxOpen(false);
-    const { data } = await supabase.rpc("clear_tasks", { t: table.id });
+    const { data, error } = await supabase.rpc("clear_tasks", { t: table.id });
+    if (error) { setClearedAt(before); return didNotTake("The finished work was not cleared. Try again."); }
     if (data) setClearedAt(data as string);
   }
   const here = members.filter((m) => online.has(m.id));
@@ -603,17 +655,39 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     />
   );
 
+  // Model choices show at once, and go back if the table did not keep them.
+  async function setTableModelKept(model: string) {
+    const before = tableModel;
+    setTableModel(model || null);
+    const { error } = await supabase.rpc("set_table_model", { t: table.id, model });
+    if (error) { setTableModel(before); didNotTake("The table's model was not changed. Try again."); }
+  }
+  async function setModelKept(conn: string, model: string) {
+    const before = connections.find((c) => c.id === conn)?.model_choice ?? null;
+    setConnections((prev) => prev.map((c) => (c.id === conn ? { ...c, model_choice: model || null } : c)));
+    const { error } = await supabase.rpc("set_model", { conn, model });
+    if (error) {
+      setConnections((prev) => prev.map((c) => (c.id === conn ? { ...c, model_choice: before } : c)));
+      didNotTake("The model was not changed. Try again.");
+    }
+  }
+  // Stopping work says so when it did not stop.
+  function stopJob(id: string) {
+    supabase.rpc("stop_job", { job: id }).then(({ error }: { error: unknown }) => { if (error) didNotTake("That work was not stopped. Try again."); catchUp(); });
+  }
+
   // A test client: a pretend client seat the owner adds to try the client's side for real, and takes off again.
   const testClient = clients.find((c) => c.test);
   const addTest = async () => {
-    const { data: id } = await supabase.rpc("add_test_client", { t: table.id });
-    if (!id) return;
+    const { data: id, error } = await supabase.rpc("add_test_client", { t: table.id });
+    if (error || !id) return didNotTake(error?.message || "The test client was not added. Try again.");
     const { data: row } = await supabase.from("members").select(MEMBER_COLUMNS).eq("id", id as string).maybeSingle();
     if (row) setMembers((prev) => (prev.some((m) => m.id === id) ? prev : [...prev, row as unknown as Member]));
     setClientId(id as string);
   };
   const removeTest = async () => {
-    await supabase.rpc("remove_test_client", { t: table.id });
+    const { error } = await supabase.rpc("remove_test_client", { t: table.id });
+    if (error) return didNotTake("The test client was not removed. Try again.");
     setMembers((prev) => prev.filter((m) => !m.test));
     setClientId(null);
   };
@@ -624,15 +698,19 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     const seen = clients.find((c) => c.id === clientId) ?? client;
     if (seen) {
       return (
+        <>
+        {failed && <div className={styles.toast} role="alert" data-testid="did-not-take">{failed}</div>}
         <ClientPage key={seen.id} table={{ id: table.id, name: tableName }} me={{ id: seen.id, display_name: seen.display_name, color: seen.color }}
           initialRequests={requests.filter((r) => r.member_id === seen.id)} initialEvents={[]} initialUpdates={[]} initialLines={[]}
           initialConnections={connections.filter((c) => c.member_id === seen.id && !c.revoked_at)} initialJobs={[]}
           viewer={{ onBack: goHome, others: clients, onPick: setClientId, acting: !!seen.test && self.role === "owner", uploader: self.id,
             onTest: self.role === "owner" && !testClient ? addTest : undefined, onRemoveTest: seen.test && self.role === "owner" ? removeTest : undefined }} />
+        </>
       );
     }
     return (
       <main className={`page-center ${styles.noClient}`} data-testid="client-view">
+        {failed && <div className={styles.toast} role="alert" data-testid="did-not-take">{failed}</div>}
         <div className="panel" style={{ alignItems: "center", textAlign: "center" }}>
           <Mark size={48} />
           <h1>No client is at this table yet</h1>
@@ -722,14 +800,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
             <TableView table={{ id: table.id, name: tableName }} me={self} members={members} connections={connections} jobs={jobs} online={online} messages={messages}
               chats={chats} onOpenChat={openChat} onConnect={() => setConnectOpen(true)}
               tableModel={tableModel}
-              onTableModel={async (model) => {
-                setTableModel(model || null);
-                await supabase.rpc("set_table_model", { t: table.id, model });
-              }}
-              onModel={async (conn, model) => {
-                setConnections((prev) => prev.map((c) => (c.id === conn ? { ...c, model_choice: model || null } : c)));
-                await supabase.rpc("set_model", { conn, model });
-              }} onInvite={self.role === "owner" ? () => setInviting(true) : undefined}
+              onTableModel={(model) => setTableModelKept(model)}
+              onModel={(conn, model) => setModelKept(conn, model)} onInvite={self.role === "owner" ? () => setInviting(true) : undefined}
               onPerson={(id) => openPerson(id)} onAi={setAiOf} onTable={() => setTableOpen(true)} />
           </main>
         )}
@@ -737,7 +809,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           <main className={styles.main}>
             <SandboxReview table={{ id: table.id, name: tableName }} me={self} client={byId.get(sandboxOf)!} box={boxes.current.get(sandboxOf) ?? null}
               aiOn={connections.some((c) => !c.revoked_at && c.kind === "claude" && byId.get(c.member_id)?.role !== "client" && !!c.last_seen && Date.now() - new Date(c.last_seen).getTime() < 90000)}
-              changes={changes} jobs={jobs} onStop={(id) => { supabase.rpc("stop_job", { job: id }).then(() => catchUp()); }} links={links} onLinks={setLinks}
+              changes={changes} jobs={jobs} onStop={stopJob} links={links} onLinks={setLinks}
               onBox={(b) => { boxes.current.set(b.member_id, { ...(boxes.current.get(b.member_id) ?? { member_id: b.member_id, mode: "chat", branch: "", url: null }), ...b }); setMembers((prev) => [...prev]); }}
               onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) openChat(t.chat_id); else goHome(); }} />
           </main>
@@ -844,7 +916,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 return (
                   <div key={j.id} className={`${styles.working} ${j.status === "failed" ? styles.workingFailed : ""}`} data-testid="working">
                     {j.status !== "failed" && <span className={styles.workingDot} />}{text.replace(/…$/, doing ? "" : "…")}{doing}
-                    {stoppable && <button type="button" className={styles.toolLink} data-testid="stop-job" onClick={() => supabase.rpc("stop_job", { job: j.id }).then(() => catchUp())}>Stop</button>}
+                    {stoppable && <button type="button" className={styles.toolLink} data-testid="stop-job" onClick={() => stopJob(j.id)}>Stop</button>}
                   </div>
                 );
               })}
@@ -909,9 +981,9 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
             </div>
           </aside>
         ) : (
-          <WorkPanel review={toReview.map((x) => ({ id: x.m.id, name: x.m.display_name.split(" ")[0], n: x.n }))} onReview={openSandbox} tasks={shownTasks} jobs={jobs} members={byId} aiWord={aiWord} open={inboxOpen}
+          <WorkPanel review={toReview.map((x) => ({ id: x.m.id, name: firstName(x.m.display_name), n: x.n }))} onReview={openSandbox} tasks={shownTasks} jobs={jobs} members={byId} aiWord={aiWord} open={inboxOpen}
             onOpenChat={(id) => openChat(id)} onClear={clearTasks}
-            onStop={(id) => { supabase.rpc("stop_job", { job: id }).then(() => catchUp()); }} />
+            onStop={stopJob} />
         )}
       </div>
 
@@ -930,13 +1002,15 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         return (
           <AiWindow me={self} person={byId.get(aiOf)!} conn={conn} on={on} busy={on && jobs.some((j) => j.member_id === aiOf && (j.status === "running" || j.status === "queued"))}
             onClose={() => setAiOf(null)} onConnect={() => setConnectOpen(true)} onDisconnect={disconnect}
-            onModel={async (id, model) => {
-              setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, model_choice: model || null } : c)));
-              await supabase.rpc("set_model", { conn: id, model });
-            }}
+            onModel={(id, model) => setModelKept(id, model)}
             onOptions={async (id, patch) => {
+              const before = connections.find((c) => c.id === id);
               setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
-              await supabase.rpc("set_connection_options", { conn: id, open: patch.open_paths ?? null, share: patch.share_paths ?? null });
+              const { error } = await supabase.rpc("set_connection_options", { conn: id, open: patch.open_paths ?? null, share: patch.share_paths ?? null });
+              if (error && before) {
+                setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, open_paths: before.open_paths, share_paths: before.share_paths } : c)));
+                didNotTake("That switch was not changed. Try again.");
+              }
             }} />
         );
       })()}
@@ -946,10 +1020,11 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         return (
           <TableWindow me={self} tableName={tableName} writer={w && byId.get(w.member_id) ? { person: byId.get(w.member_id)!, conn: w } : null}
             tableModel={tableModel} people={members.filter((m) => m.role !== "client").length} aisOn={onNow.length}
-            onTableModel={async (model) => { setTableModel(model || null); await supabase.rpc("set_table_model", { t: table.id, model }); }}
+            onTableModel={(model) => setTableModelKept(model)}
             onSettings={self.role === "owner" ? () => go("settings", `${base}/settings`) : undefined} onClose={() => setTableOpen(false)} />
         );
       })()}
+      {failed && <div className={styles.toast} role="alert" data-testid="did-not-take">{failed}</div>}
       {connectOpen && (
         <ConnectModal tableId={table.id} tableName={tableName} connected={myConnection?.kind ?? null} onClose={() => setConnectOpen(false)} />
       )}
