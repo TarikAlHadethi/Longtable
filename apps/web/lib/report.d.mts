@@ -21,3 +21,4 @@ export function reportOptions(o: { dsn?: string; environment?: string; release?:
 };
 export function serverReporting(env?: Record<string, string | undefined>): boolean;
 export function browserReporting(env: Record<string, string | undefined>, host: string): boolean;
+export class PersonalError extends Error {}

@@ -8,7 +8,7 @@
 
 import * as Sentry from "@sentry/node";
 import { serializeEnvelope } from "@sentry/core";
-import { browserReporting, reportOptions, routeShape, scrubBreadcrumb, scrubSpan, scrubText, serverReporting } from "../../apps/web/lib/report.mjs";
+import { PersonalError, browserReporting, reportOptions, routeShape, scrubBreadcrumb, scrubSpan, scrubText, serverReporting } from "../../apps/web/lib/report.mjs";
 
 const results = {};
 const check = (name, ok, detail) => { results[name] = ok ? "pass" : `FAIL ${JSON.stringify(detail ?? "").slice(0, 400)}`; };
@@ -51,10 +51,20 @@ Sentry.withScope((scope) => {
 // A database refusal names a person in its sentence; only its code goes out.
 const refused = Object.assign(new Error(`${EMAIL} is not at this table`), { code: "P0001" });
 Sentry.captureException(refused);
+// An error built from a person's own words (the upload error carries the file's name): only its kind and place.
+const personal = new PersonalError(`"${FILE}" could not be uploaded. ${MESSAGE} ${USER}`);
+Sentry.captureException(personal);
+// A storage or sign-in refusal with no database code, and a PostgREST one with details: their sentences stay home.
+Sentry.captureException(Object.assign(new Error(`${EMAIL} may not read ${TABLE}/${FILE}`), { name: "StorageError", status: 403 }));
+Sentry.captureException(Object.assign(new Error(`Results contain 0 rows for ${MESSAGE}`), { code: "PGRST116", details: MESSAGE, hint: EMAIL }));
 await Sentry.flush(2000);
 
 const all = sent.join("\n");
-check("errors reach the send step", sent.length >= 2, sent.length);
+check("errors reach the send step", sent.length >= 5, sent.length);
+const report = (type) => sent.find((s) => s.includes(`"type":"${type}"`)) || "";
+check("an error built from a person's words goes out as its kind and place only", /"value":"message withheld"/.test(report("PersonalError")) && /unit-report\.mjs/.test(report("PersonalError")) && !/uploaded|booking|Daniel|tariqfake/i.test(report("PersonalError")), report("PersonalError").slice(0, 300));
+check("a storage refusal with no code goes out without its sentence", /"value":"database error"/.test(report("StorageError")) && !/may not read/.test(report("StorageError")), report("StorageError").slice(0, 300));
+check("a PostgREST refusal goes out as its code, without its details or hint", /database error PGRST116/.test(all) && !/Results contain/.test(all));
 const leaks = SECRETS.filter((s) => all.toLowerCase().includes(s.toLowerCase()));
 check("the made-up message, email and file name are all gone at the send step", ![MESSAGE, EMAIL, FILE].some((s) => all.includes(s)), leaks);
 check("nor any part of them, the user's folder, the key, the table id or the address", leaks.length === 0, leaks);

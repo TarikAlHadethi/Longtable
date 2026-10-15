@@ -58,11 +58,28 @@ export function routeShape(address) {
   return parts.join("/") || "/";
 }
 
-// A database refusal says who and what in its sentence ("raise exception"); only its code and kind go out.
-function databaseCode(original) {
+// An error whose words are a person's: a file's name, what they typed. Shown to them as it is; in a report only its
+// kind and where it was thrown go out, never its message.
+export class PersonalError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "PersonalError";
+  }
+}
+
+// What stands in for an error's message when the message itself may not go out, or null when it may (scrubbed).
+// A database, storage or sign-in refusal says who and what in its sentence ("raise exception", a path, an email), so
+// only its code goes out.
+function withheld(original) {
   if (!original || typeof original !== "object") return null;
-  const code = original.code;
-  return typeof code === "string" && /^(?:[0-9A-Z]{5}|PGRST\d{3})$/.test(code) ? code : null;
+  if (original instanceof PersonalError || original.name === "PersonalError") return "message withheld";
+  const code = typeof original.code === "string" ? original.code : null;
+  if (code && /^(?:[0-9A-Z]{5}|PGRST\d{3})$/.test(code)) return `database error ${code}`;
+  const named = String(original.name || original.constructor?.name || "");
+  const fromStore = /^(?:Postgrest|Storage|Auth|Functions)\w*Error$/.test(named) || "details" in original || "hint" in original
+    || typeof original.status === "number" || typeof original.statusCode === "number" || typeof original.statusCode === "string";
+  if (fromStore) return code && /^[A-Za-z0-9_.-]{1,40}$/.test(code) ? `database error ${code}` : "database error";
+  return null;
 }
 
 function frame(f) {
@@ -78,8 +95,8 @@ function frame(f) {
 }
 
 function exception(value, original) {
-  const code = databaseCode(original);
-  const out = { type: typeof value.type === "string" ? scrubText(value.type) : "Error", value: code ? `database error ${code}` : scrubText(value.value) };
+  const instead = withheld(original);
+  const out = { type: typeof value.type === "string" ? scrubText(value.type) : "Error", value: instead ?? scrubText(value.value) };
   if (value.mechanism && typeof value.mechanism === "object") out.mechanism = { type: String(value.mechanism.type || "generic"), handled: value.mechanism.handled !== false };
   const frames = value.stacktrace?.frames;
   if (Array.isArray(frames)) out.stacktrace = { frames: frames.slice(-60).map(frame).filter(Boolean) };
