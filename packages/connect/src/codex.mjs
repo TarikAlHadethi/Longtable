@@ -118,16 +118,22 @@ export function codexLimits(codex) {
     const child = spawn(codex.cmd, [...codex.pre, "app-server"], { env: env(), windowsHide: true });
     let buf = "";
     let limits = null;
-    const done = (value) => { clearTimeout(timer); child.kill(); resolve(value); };
+    let over = false;
+    // Once answered or out of time, nothing more is read or written: a reply arriving after the ten seconds used to
+    // write to the stopped program's input, and that failed write took the whole connection down.
+    const done = (value) => { if (over) return; over = true; clearTimeout(timer); try { child.kill(); } catch {} resolve(value); };
     const timer = setTimeout(() => done(limits), 10000);
-    const send = (m) => child.stdin.write(JSON.stringify(m) + "\n");
+    child.stdin.on("error", (e) => log(`codex limits: ${e.message}`));
+    child.stdout.on("error", (e) => log(`codex limits: ${e.message}`));
+    const send = (m) => { if (!over && child.stdin.writable) child.stdin.write(JSON.stringify(m) + "\n"); };
     const name = (mins) => mins === 300 ? "5-hour" : mins === 10080 ? "weekly" : mins === 43200 ? "30-day" : `${Math.round(mins / 60)}-hour`;
     const window = (w) => w && ({ name: name(w.windowDurationMins), used: Math.round(w.usedPercent ?? 0),
       resets: w.resetsAt ? new Date(w.resetsAt * 1000).toISOString() : null });
     child.stdout.on("data", (d) => {
+      if (over) return;
       buf += d;
       let i;
-      while ((i = buf.indexOf("\n")) >= 0) {
+      while (!over && (i = buf.indexOf("\n")) >= 0) {
         const line = buf.slice(0, i);
         buf = buf.slice(i + 1);
         let m;

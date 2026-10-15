@@ -5,11 +5,12 @@
 
 import { layPointed, pointedPaths, pointedSystem } from "./pointed.mjs";
 import { attachedPrompt, commandPrompt, fetchAttachments, loadCommand, materialsPrompt, scanCommands, shareable } from "./extras.mjs";
+import { spawnSync } from "node:child_process";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, uptime } from "node:os";
 import { isAbsolute, join, normalize, relative, resolve } from "node:path";
 import { client } from "./api.mjs";
-import { ask, findClaude } from "./claude.mjs";
+import { ask, findClaude, stopAll } from "./claude.mjs";
 import { askCodex, codexLimits, findCodex } from "./codex.mjs";
 import { packCode } from "./pack.mjs";
 import { changedSoFar, freshCopy, landWork, neverCommit, openBranch, openWork, patchOf, safeTable, workBranch } from "./repo.mjs";
@@ -586,7 +587,7 @@ async function workSandbox(rpc, seat, engines, job) {
   const control = {};
   const tell = async () => {
     told = Date.now();
-    try { if ((await rpc("runner_beat", { token: seat.token, job: job.job_id, note })) === false) control.kill?.(); } catch {}
+    try { if ((await rpc("runner_beat", { token: seat.token, job: job.job_id, note })) === false) control.kill?.(); } catch (e) { if (/connection was removed/i.test(e.message)) control.kill?.(); }
   };
   const beat = setInterval(tell, 20000);
   try {
@@ -720,7 +721,7 @@ async function work(rpc, seat, engines, job) {
     const control = {};
     const tell = async () => {
       told = Date.now();
-      try { if ((await rpc("runner_beat", { token: seat.token, job: job.job_id, note })) === false) control.kill?.(); } catch {}
+      try { if ((await rpc("runner_beat", { token: seat.token, job: job.job_id, note })) === false) control.kill?.(); } catch (e) { if (/connection was removed/i.test(e.message)) control.kill?.(); }
     };
     beat = setInterval(tell, 20000);
     const dir = opened ? opened.dir : copy.dir;
@@ -772,13 +773,22 @@ async function work(rpc, seat, engines, job) {
       if (e.message !== "ran out of time" || !doing) throw e;
       return { structured_output: { answer: "I ran out of time. What I had changed up to then is on the branch. It is not finished, so look at it before building on it.", sources: [] }, usage: {}, modelUsage: {} };
     });
-    if (result.is_error) throw new Error(result.result || "Claude Code reported an error");
-    const s = result.structured_output || {};
-    const text = job.kind === "view" || job.kind === "review" ? s.view
+    const s = result.is_error ? {} : result.structured_output || {};
+    let text = job.kind === "view" || job.kind === "review" ? s.view
       : job.kind === "plan" ? planText(job, s)
       : job.kind === "intro" ? `${s.knows}\n\nI can check: ${s.can_check}`
       : s.answer;
-    if (!text || !String(text).trim()) throw new Error("Claude Code came back empty");
+    const unfinished = result.is_error ? String(result.result || "Claude Code reported an error")
+      : !text || !String(text).trim() ? "Claude Code came back empty" : null;
+    if (unfinished) {
+      // Work that already changed files is not thrown away because its last word went wrong: what it changed lands
+      // on the branch, and the answer says plainly that it is not finished. Anything else fails as before.
+      let changed = 0;
+      try { changed = opened && doing ? changedSoFar(seat.table_id, opened).files.length : 0; } catch {}
+      if (!changed) throw new Error(unfinished);
+      log(`${job.kind} job ${job.job_id} ended without an answer (${unfinished.slice(0, 120)}); landing the ${changed} file(s) it changed`);
+      text = "I could not finish my answer. What I had changed up to then is on the branch. It is not finished, so look at it before building on it.";
+    }
     if (s.learned) remember(seat.table_id, s.learned);
     const landed = opened && doing ? landWork(seat.table_id, opened, branch, String(job.question || "Work from the table").split(/\r?\n/)[0].slice(0, 72), job.me) : null;
     const said = landed && !landed.pushed ? `${text}\n\nI made the change, but git on ${job.me}'s computer could not push the branch ${branch}, so nobody else can see it yet. It is kept there as commit ${landed.commit}.`
@@ -823,6 +833,16 @@ async function work(rpc, seat, engines, job) {
   }
 }
 
+// End another running connection and every program it started. On Windows a plain kill ends only the connection
+// itself and its Claude carries on, so the whole tree is ended there; elsewhere the connection's own signal handler
+// ends its Claudes before it goes.
+export function endConnection(pid) {
+  try {
+    if (process.platform === "win32") spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+    else process.kill(pid, "SIGTERM");
+  } catch (e) { log(`could not end connection ${pid}: ${e.message}`); }
+}
+
 // The connection that is running on this computer right now, if its note can be trusted: written since this computer
 // last started (a number from before a restart may belong to any program by now), by a process that still exists.
 export function runningConnection() {
@@ -862,11 +882,11 @@ export async function runLoop({ pollMs = 2000 } = {}) {
   // Only one connection runs on a computer. A second one would wipe the first one's work folder under it.
   const lock = join(home, "runner.pid");
   const old = runningConnection();
-  if (old && old !== process.pid) { try { process.kill(old); log(`ended the connection that was already running (${old})`); } catch {} }
+  if (old && old !== process.pid) { endConnection(old); log(`ended the connection that was already running (${old})`); }
   writeFileSync(lock, `${process.pid} ${Date.now()}`);
   const unlock = () => { try { if (runningConnection() === process.pid) rmSync(lock, { force: true }); } catch {} };
-  process.on("exit", unlock);
-  for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) process.on(sig, () => { unlock(); process.exit(0); });
+  process.on("exit", () => { stopAll(); unlock(); });
+  for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) process.on(sig, () => { stopAll(); unlock(); process.exit(0); });
   // Starting with no network yet (right after sign-in) is normal: keep trying. A table that took this connection
   // off is skipped, and the others carry on.
   for (const s of seats) {

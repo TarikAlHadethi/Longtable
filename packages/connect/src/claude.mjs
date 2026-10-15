@@ -68,6 +68,18 @@ export function claudeVersion(claude) {
   return execFileSync(claude, ["--version"], { windowsHide: true, env: childEnv(null) }).toString().trim();
 }
 
+// Every Claude Code this connection has running. When the connection ends they end with it: before this, a
+// disconnect or a second start ended the connection and left its Claude editing the work folder on its own.
+const running = new Set();
+export function keepTrack(child) {
+  running.add(child);
+  child.on("close", () => running.delete(child));
+}
+export function stopAll() {
+  for (const child of running) { try { child.kill(); } catch {} }
+  running.clear();
+}
+
 // Answer one job, locked down: read and search the clean copy only. No commands, no edits, no network tools, none
 // of the person's own settings, and no MCP servers. The prompt goes in through stdin, so a long table history never
 // hits the command-line length limit. With a schema, the result carries `structured_output`.
@@ -91,6 +103,7 @@ export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,
   return new Promise((resolve, reject) => {
     const started = Date.now();
     const child = spawn(claude, args, { cwd, env: childEnv(token, apiKey), windowsHide: true });
+    keepTrack(child);
     // Only the result and the plan's limits are kept: work with no time limit would otherwise hold every file it ever
     // read in memory.
     let err = "";

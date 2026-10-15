@@ -83,9 +83,13 @@ export function signIn(claude, { title = "Connect your Claude" } = {}) {
       name: "xterm-256color", cols: 400, rows: 200, cwd: process.env.USERPROFILE || process.env.HOME || process.cwd(), env: childEnv(null),
     });
 
+    // The ten-minute limit below. Cleared when the sign-in ends, or `connect` waited out all ten minutes before
+    // exiting even after a sign-in that worked first time.
+    let deadline = null;
     function finish(ok, message) {
       if (finished) return;
       finished = true;
+      clearTimeout(deadline);
       state = { state: ok ? "connected" : "failed", message };
       try { term.kill(); } catch {}
       setTimeout(() => { server.close(); resolve(ok); }, 3000);
@@ -147,6 +151,6 @@ export function signIn(claude, { title = "Connect your Claude" } = {}) {
       res.end();
     });
     server.listen(0, "127.0.0.1", () => openInBrowser(`http://127.0.0.1:${server.address().port}/${secret}`));
-    setTimeout(() => finish(false, "This took too long, so it stopped. Close this page and try again."), 10 * 60 * 1000);
+    deadline = setTimeout(() => finish(false, "This took too long, so it stopped. Close this page and try again."), 10 * 60 * 1000);
   });
 }

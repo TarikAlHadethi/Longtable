@@ -20,7 +20,7 @@ import { claudeVersion, findClaude, tokenWorks } from "../src/claude.mjs";
 import { codexSignIn, codexSignedIn, codexVersion, findCodex } from "../src/codex.mjs";
 import { disableAutostart, enableAutostart } from "../src/autostart.mjs";
 import { freshCopy, resolveSource } from "../src/repo.mjs";
-import { runLoop, runningConnection } from "../src/run.mjs";
+import { endConnection, runLoop, runningConnection } from "../src/run.mjs";
 import { forgetSecret, home, loadSecret, log, readConfig, saveSecret, writeConfig } from "../src/store.mjs";
 
 const binPath = fileURLToPath(import.meta.url);
@@ -146,7 +146,7 @@ function disconnect() {
   // The connection that is running right now still holds its keys in memory: end it.
   try {
     const pid = runningConnection();
-    if (pid && pid !== process.pid) process.kill(pid);
+    if (pid && pid !== process.pid) endConnection(pid);
   } catch {}
   rmSync(join(home, "runner.pid"), { force: true });
   say("Disconnected on this computer. Remove it in Longtable's settings too if it still shows.");

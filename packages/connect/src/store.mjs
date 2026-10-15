@@ -2,7 +2,7 @@
 // Secrets are encrypted for this Windows user with DPAPI; elsewhere they are files only this user can read.
 
 import { spawnSync } from "node:child_process";
-import { appendFileSync, chmodSync, cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -35,7 +35,14 @@ export function hideSecrets(text) {
     .replace(/\b[0-9a-f]{64}\b/gi, "[device token]");
 }
 
+// The log keeps to a size. Offline, a connection writes a line every few seconds, so it once grew without end; past
+// 5 MB it starts again and keeps only the file before it (runner.log.1).
+const LOG_MAX = 5 * 1024 * 1024;
+let logWrites = 0;
 export function log(line) {
+  if (logWrites++ % 200 === 0) {
+    try { if (statSync(logFile).size > LOG_MAX) renameSync(logFile, `${logFile}.1`); } catch {}
+  }
   appendFileSync(logFile, `${new Date().toISOString()} ${hideSecrets(line)}\n`);
 }
 

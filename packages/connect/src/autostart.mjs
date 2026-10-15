@@ -8,7 +8,7 @@
 // that ran `connect` may itself live somewhere only the app can see.
 
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { home } from "./store.mjs";
@@ -38,11 +38,24 @@ export function installCopy(binPath) {
   return join(app, "bin", "longtable.mjs");
 }
 
+// Whether a connection wrote ~/.longtable/runner.pid since `since`, waiting up to `ms` for it.
+export function wroteNoteSince(since, ms) {
+  const pause = new Int32Array(new SharedArrayBuffer(4));
+  for (const end = Date.now() + ms; Date.now() < end;) {
+    try { if (statSync(join(home, "runner.pid")).mtimeMs >= since - 1000) return true; } catch {}
+    Atomics.wait(pause, 0, 0, 250);
+  }
+  return false;
+}
+
 // The task runs this script, which starts Node with no window.
-function writeStarter(nodePath, binPath) {
+export function writeStarter(nodePath, binPath) {
   const q = (s) => s.replace(/"/g, '""');
   const file = join(home, "start.vbs");
-  writeFileSync(file, `CreateObject("Wscript.Shell").Run """${q(nodePath)}"" ""${q(binPath)}"" run", 0, False\r\n`);
+  // Written as UTF-16 with its mark: Windows Script Host reads any other file in the system's old code page, so a
+  // profile folder with letters outside it (an Arabic or accented name) made a path that did not exist, and the
+  // connection never started.
+  writeFileSync(file, `\ufeffCreateObject("Wscript.Shell").Run """${q(nodePath)}"" ""${q(binPath)}"" run", 0, False\r\n`, "utf16le");
   return file;
 }
 
@@ -81,8 +94,10 @@ export function enableAutostart(nodePath, binPath) {
     const copy = installCopy(binPath);
     registerTask(TASK, writeStarter(nodePath, copy));
     rmSync(legacyStartup(), { force: true });
+    const asked = Date.now();
     startTask(TASK);
-    return { started: true, where: `Task Scheduler: ${TASK}` };
+    // Said started only when the connection really wrote its note; otherwise `connect` runs it itself.
+    return { started: wroteNoteSince(asked, 20000), where: `Task Scheduler: ${TASK}` };
   }
   if (process.platform === "darwin") {
     mkdirSync(join(homedir(), "Library", "LaunchAgents"), { recursive: true });
