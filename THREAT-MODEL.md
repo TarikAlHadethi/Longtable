@@ -43,6 +43,7 @@ What Longtable protects, from whom, how, and which test proves it. Gaps are list
 | A client floods the team | 30 asks an hour per client | code review |
 | The background connection does more than answer | It only calls six functions with its device token; it has no login to Longtable | step 3 |
 | A live push is lost and someone acts on stale state | Pages re-read the database on reconnect, on returning to the tab, and on a timer | step 5 (pushes dropped on purpose) |
+| An error report leaks a message, a name, an email, a file name or a key | Web app only, real site only (production on longtable.chat with an address set); no personal data by default, no replay; every report rebuilt from a short safe list in `apps/web/lib/report.mjs` (route shapes, no request, no user, breadcrumbs without text) | unit-report (a planted message, email, file name, folder, key and request body all gone at the send step) |
 
 ## Known gaps
 

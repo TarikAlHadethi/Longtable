@@ -35,6 +35,15 @@ export default function Privacy() {
         not just the page. Your AI runs on your own plan and answers only from what its job hands it.
       </p>
 
+      <h2 style={h2}>When something breaks</h2>
+      <p style={{ margin: 0 }}>
+        When the website itself breaks, a short technical report goes to Sentry, an error-tracking service (stored in the EU): what
+        kind of error, where in our code it happened, the browser, and the kind of page (never its full address). For a small share
+        of visits it also notes how long the page took to load. A report never includes your messages, a client&apos;s chat, prompts,
+        file names or contents, email addresses, names, IP addresses, cookies or sign-in details. We use it only to fix faults. The
+        connection on your own computer reports nothing to anyone but your table.
+      </p>
+
       <h2 style={h2}>Whoever runs this Longtable</h2>
       <p style={{ margin: 0 }}>
         Their page shows counts only, never names, messages or table titles. Like any hosted service, though, the database itself

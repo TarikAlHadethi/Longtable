@@ -41,6 +41,7 @@ jobs:
       - run: node tests/e2e/unit-prompts.mjs
       - run: node tests/e2e/unit-pointed.mjs
       - run: node tests/e2e/unit-land.mjs
+      - run: node tests/e2e/unit-report.mjs
       - run: node tests/e2e/chaos-connect.mjs
 
   # The connection's chaos checks over many more seeded random inputs (a few minutes). No AI, no network.
