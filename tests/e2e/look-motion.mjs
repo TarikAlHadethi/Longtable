@@ -121,7 +121,7 @@ try {
   const list = await moving(p, "[data-testid=slash-menu]");
   check("the list of her own commands opens with each line arriving in turn", list?.some((n) => /lt-slash/.test(n)) && list.filter((n) => /lt-rise/.test(n)).length >= 4, list);
   const offered = await p.locator("[data-testid=slash-menu] [role=option]").allTextContents();
-  check("every command is offered, her own first and the built-in ones after them under their own line", offered.length === 11 && /helper:plan/.test(offered[0]) && /standup/.test(offered[4]) && /code-review/.test(offered[5]) && /Built in/.test(await p.textContent("[data-testid=slash-menu]")), offered.map((t) => t.slice(0, 18)));
+  check("every command is offered, her own first, then the ones the table runs, then the rest of Claude Code's", offered.length > 11 && /helper:plan/.test(offered[0]) && /standup/.test(offered[4]) && /code-review/.test(offered[5]) && /Built in/.test(await p.textContent("[data-testid=slash-menu]")) && /Claude Code.s own/.test(await p.textContent("[data-testid=slash-menu]")) && /verify/.test(offered[10]), offered.map((t) => t.slice(0, 18)));
   await sleep(90);
   await p.screenshot({ path: `${out}/motion-slash-opening.png` });
   await sleep(500);

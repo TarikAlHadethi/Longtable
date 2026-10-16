@@ -56,8 +56,9 @@ function walk(dir, depth = 3) {
 // The commands every Claude Code has built in that mean something at a table, in Longtable's own words. Claude
 // Code's own versions are not files, and run as they are they reach for a shell and for git, which no AI at the table
 // has: tried under the table's lock, one answered nothing and one never came back. These do the same jobs with what an
-// AI here does have, which is reading the code and, when it is doing work, changing files. The ones that only steer
-// Claude Code's own window (clear, compact, model, config and the like) have nothing to steer here and are left out.
+// AI here does have, which is reading the code and, when it is doing work, changing files. The ones that steer Claude
+// Code's own window (model, usage, clear, effort, fast and the like) are carried out by Longtable's own screens and
+// settings instead, and never reach an AI.
 const HERE = "You cannot run commands, tests or git here, so read the code itself and say plainly what you could not confirm by running it.";
 const BUILTIN = {
   "review": { about: "Read code for bugs and say what is wrong, most serious first", body: `Review code for bugs. What to review: $ARGUMENTS
@@ -73,6 +74,18 @@ Cover how to build, run and test it (and how to run one test), and the parts of 
 If no problem is described, take the one being talked about in this conversation. Follow it through the code from where it shows to where it starts. Say the cause, the lines that prove it, and the fix. Keep what you know apart from what you suspect. Do not change any file unless you were asked to fix it. ${HERE}` },
   "verify": { about: "Check that a change does what it claims", body: `Check that a change does what it is meant to. What to check: $ARGUMENTS
 If nothing is named, check the most recent work in this conversation. Read the change and what calls it, follow each path through it including the awkward ones (nothing given, too much given, the wrong person asking, the same thing twice), and say for each claim whether the code bears it out. ${HERE}` },
+  "design": { about: "Make a visual design of a screen or idea, as a page", body: `Make a design as a page the team can open: $ARGUMENTS
+If nothing is named, design what this conversation is about. Match the look the project already has where it has one (read its styles first). Make it look finished, with real words rather than filler, and working at phone width and in dark mode. Put the design in the page you hand back, and say in a sentence or two what you chose and why.` },
+  "dataviz": { about: "Turn numbers into a clear chart, as a page", body: `Make a chart or a small dashboard as a page the team can open: $ARGUMENTS
+Use the numbers given here or in this conversation, or ones you can read from the project's files; never make numbers up, and say where each came from. Pick the kind of chart that answers the question at a glance, label everything, and keep it readable at phone width and in dark mode.` },
+  "claude-api": { about: "Help build with the Claude API in this project", body: `Help with building on the Claude API (Anthropic's models) in this project: $ARGUMENTS
+Read how the project calls models now, if it does. Use the latest models (Claude Opus 5.5, Sonnet 5.5, Haiku 5.5) unless the project pins one for a reason, keep keys out of code, and give working code in the project's own language and style. Say plainly which details you would check against Anthropic's documentation before shipping. ${HERE}` },
+  "recap": { about: "Sum up this chat: what was decided, what is done, what is open", body: `Sum up this conversation for someone who missed it. $ARGUMENTS
+Say what was asked, what was decided and by whom, what was done (with branches or files where the work landed), and what is still open, in that order. Short, plain, no headings beyond those four. Do not change any file.` },
+  "team-onboarding": { about: "A guide for a new teammate to this project, as a page", body: `Write a guide for a new teammate joining this project, as a page they can open. $ARGUMENTS
+Cover what the product is and who it is for, how the code is laid out, how to run it and its tests, the conventions the code follows, where the tricky parts are, and who to ask about what (from this conversation). Read the code and its docs; leave out anything you could not confirm.` },
+  "goal": { about: "Set what the work is for, and go after it", body: `This is the goal: $ARGUMENTS
+Work toward it now. Say first, in two or three lines, what done looks like and the steps to get there. Then do the first steps you can do from here, and say what is left and what would need someone with a shell, the web or a decision.` },
 };
 
 // The plugins this person has for this project or for themselves, switched on in their settings: each one's folder.
@@ -168,6 +181,8 @@ export function loadCommand(seat, question) {
     const args = m[2].trim();
     if (hit.kind === "builtin") {
       const b = BUILTIN[hit.name.toLowerCase()];
+      // A command Claude Code has that the table carries out with its own screens, or not at all: never run here.
+      if (!b) return null;
       const body = (BUILTIN[b.same] || b).body.replace(/\$ARGUMENTS/g, () => args || "(nothing more was typed)");
       return { name: hit.name, kind: hit.kind, args, body };
     }

@@ -5,6 +5,7 @@
 
 import { layPointed, pointedPaths, pointedSystem } from "./pointed.mjs";
 import { PAGE, PAGE_KINDS, PAGE_SYSTEM, pageOut, pagesPrompt } from "./pages.mjs";
+import { newer, ownVersion, restartOnNew, updateTo } from "./update.mjs";
 import { attachedPrompt, commandPrompt, fetchAttachments, loadCommand, materialsPrompt, scanCommands, shareable } from "./extras.mjs";
 import { spawnSync } from "node:child_process";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -402,7 +403,17 @@ export function cleanSources(dir, sources) {
 // The model that did the work goes with them, so the table's home shows what each person's AI is running.
 async function report(rpc, seat, limits, model) {
   if (!limits && !model) return;
-  try { await rpc("runner_report", { token: seat.token, limits: { ai: seat.kind, ...(limits || {}), ...(model ? { model } : {}) } }); } catch (e) { log(`limits report failed: ${e.message}`); }
+  // Whether fast mode can serve this person's Claude, as Claude Code itself last said, so their AI's window can say so.
+  const fast = seat.kind === "claude" && claudeSays.fast ? { fast: claudeSays.fast, fast_why: claudeSays.fastWhy } : {};
+  try { await rpc("runner_report", { token: seat.token, limits: { ai: seat.kind, ...(limits || {}), ...fast, version: ownVersion(), ...(model ? { model } : {}) } }); } catch (e) { log(`limits report failed: ${e.message}`); }
+}
+
+// What this computer's Claude Code said of itself on its last run: the commands it has built in, and fast mode.
+const claudeSays = { commands: [], fast: null, fastWhy: null };
+export function heardFromClaude(init) {
+  claudeSays.commands = (init.commands || []).filter((n) => typeof n === "string" && /^[A-Za-z0-9][A-Za-z0-9:_-]{0,59}$/.test(n)).slice(0, 120);
+  claudeSays.fast = init.fast || null;
+  claudeSays.fastWhy = init.fastWhy || null;
 }
 
 // A client's reply, on whichever AI the client connected. No copy of the code, and no tools.
@@ -655,6 +666,7 @@ async function workListen(rpc, seat, engines, job) {
     const empty = join(home, "empty");
     mkdirSync(empty, { recursive: true });
     const result = await ask({ claude: engines.claude, cwd: empty, prompt: listenPrompt(job), system: listenSystem(job), schema, tools: "", model: process.env.LONGTABLE_LISTEN_MODEL || "haiku", timeoutMs: 60 * 1000 });
+    if (result.init) heardFromClaude(result.init);
     if (result.is_error) throw new Error(result.result || "Claude Code reported an error");
     s = result.structured_output;
     model = Object.keys(result.modelUsage || {})[0] || "haiku";
@@ -788,6 +800,8 @@ async function work(rpc, seat, engines, raw) {
       addDirs: laid ? laid.dirs : [],
       schema: KINDS[job.kind].schema,
       model: seat.model || process.env.LONGTABLE_MODEL,
+      effort: job.effort || null,
+      fast: job.fast === true,
     }).catch((e) => {
       // Only short jobs have a time limit now; if one that was changing files hits it, what it changed still lands.
       if (e.message !== "ran out of time" || !doing) throw e;
@@ -810,6 +824,7 @@ async function work(rpc, seat, engines, raw) {
       text = "I could not finish my answer. What I had changed up to then is on the branch. It is not finished, so look at it before building on it.";
     }
     if (s.learned) remember(seat.table_id, s.learned);
+    if (result.init) heardFromClaude(result.init);
     // A page it made, or a new version of one, goes to the table before its answer, so the answer can show it.
     const page = PAGE_KINDS.has(job.kind) && !unfinished ? pageOut(job, s.page) : null;
     if (page) {
@@ -886,9 +901,16 @@ export function runningConnection() {
 // what is in them: that stays on this computer and is read only when they run one. A line is the first line of a
 // file the person wrote, which can hold a key, so it is cleaned before it leaves.
 export const toldCommands = (list) => list.map(({ name, about, kind }) => ({ name, about: hideSecrets(about), kind }));
+// Every command Claude Code itself has, by name only, after the person's own and the table's: Longtable's screens
+// know what each one does at a table, and a new one Anthropic adds still shows up, said to be not for the table yet.
+export function withClaudeCommands(list, names) {
+  const have = new Set(list.map((c) => c.name.toLowerCase()));
+  const more = (names || []).filter((n) => !n.startsWith("__") && !have.has(n.toLowerCase())).map((name) => ({ name, about: "", kind: "builtin" }));
+  return [...list, ...more];
+}
 async function tellCommands(rpc, seat) {
   try {
-    const list = toldCommands(scanCommands(seat));
+    const list = toldCommands(seat.kind === "claude" ? withClaudeCommands(scanCommands(seat), claudeSays.commands) : scanCommands(seat));
     const key = JSON.stringify(list);
     if (seat.told === key) return;
     await rpc("runner_commands", { token: seat.token, list });
@@ -921,6 +943,8 @@ export async function runLoop({ pollMs = 2000 } = {}) {
         const who = await rpc("runner_hello", { token: s.token });
         log(`at "${who.table_name}" for ${who.member_name}`);
         tellCommands(rpc, s);
+        // Which version it runs, at once, so the table sees an update take.
+        report(rpc, s, {}, null);
         break;
       } catch (e) {
         log(`hello failed: ${e.message}`);
@@ -930,8 +954,31 @@ export async function runLoop({ pollMs = 2000 } = {}) {
     }
   }
   if (seats.every((s) => s.gone)) throw new Error("Every table has taken this connection off. Connect again from Longtable.");
-  // The person's commands change as they write new ones: the table hears again every few minutes.
-  setInterval(() => { for (const s of seats) if (!s.gone) tellCommands(rpc, s); }, 5 * 60 * 1000).unref?.();
+  // Each minute: nothing is sent unless the list changed (a new command written, or Claude Code's own list learned).
+  setInterval(() => { for (const s of seats) if (!s.gone) tellCommands(rpc, s); }, 60 * 1000).unref?.();
+  // Keeping itself up to date: Longtable says which version to run. When it is newer, no new job is taken, the ones
+  // running finish, and the connection moves to it and starts again. Nobody has to connect again.
+  let busy = 0;
+  let pausing = false;
+  const checkRelease = async () => {
+    if (pausing || process.env.LONGTABLE_NO_UPDATE) return;
+    const seat = seats.find((s) => !s.gone);
+    if (!seat) return;
+    let want = null;
+    try { want = await rpc("runner_release", { token: seat.token }); } catch (e) { log(`release check failed: ${e.message}`); return; }
+    if (!want || !newer(want, ownVersion())) return;
+    pausing = true;
+    while (busy > 0) await new Promise((r) => setTimeout(r, 2000));
+    try {
+      const bin = await updateTo(want);
+      if (bin) restartOnNew(bin);
+    } catch (e) {
+      log(`update to ${want} did not happen: ${e.message}; trying again later`);
+    }
+    pausing = false;
+  };
+  setTimeout(checkRelease, Number(process.env.LONGTABLE_UPDATE_AFTER_MS) || 30 * 1000).unref?.();
+  setInterval(checkRelease, 10 * 60 * 1000).unref?.();
   // Two lanes on one connection: long work in one, everything quick in the other, so an hour of work never keeps
   // the table from hearing people or answering a question.
   await Promise.all([lane("light"), lane("heavy")]);
@@ -940,7 +987,7 @@ export async function runLoop({ pollMs = 2000 } = {}) {
   for (;;) {
     let worked = false;
     for (const s of seats) {
-      if (s.gone) continue;
+      if (s.gone || pausing) continue;
       let job = null;
       try {
         job = await rpc("runner_claim", { token: s.token, lane: name });
@@ -950,7 +997,8 @@ export async function runLoop({ pollMs = 2000 } = {}) {
       }
       if (!job) continue;
       worked = true;
-      await work(rpc, s, engines, job);
+      busy++;
+      try { await work(rpc, s, engines, job); } finally { busy--; }
     }
     await new Promise((r) => setTimeout(r, worked ? 100 : name === "heavy" ? pollMs * 2 : pollMs));
   }

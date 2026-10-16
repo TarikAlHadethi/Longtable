@@ -125,3 +125,10 @@
 .steps li:nth-child(3) { --n: 2; }
 .steps li:nth-child(4) { --n: 3; }
 @keyframes pn-pop { from { opacity: 0; transform: scale(0.55) rotate(-8deg); } to { opacity: 1; transform: none; } }
+
+/* How hard a person's Claude thinks at the table. */
+.effort {
+  font: inherit; font-size: 14px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 8px;
+  padding: 4px 8px; cursor: pointer; transition: border-color 0.15s ease;
+}
+.effort:hover { border-color: var(--line-strong); }

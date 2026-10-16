@@ -36,6 +36,7 @@ import {
 } from "./types";
 import styles from "./room.module.css";
 import { firstName } from "@/lib/names";
+import { EFFORT_LEVELS, SLASH, slashEntry } from "@/lib/slash.mjs";
 
 const byTime = <T extends { created_at: string }>(a: T, b: T) => a.created_at.localeCompare(b.created_at);
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -572,6 +573,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (attach.pending.length) return sendFiles();
     const body = draft.trim();
     if (!body || !chat) return;
+    if (body.startsWith("/") && doSlash(body)) { setDraft(""); requestAnimationFrame(grow); return; }
     setDraft("");
     requestAnimationFrame(grow);
     atBottom.current = true;
@@ -599,6 +601,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (attach.pending.length) return sendFiles(true);
     const body = draft.trim();
     if (!body || !chat) return;
+    if (body.startsWith("/") && doSlash(body)) { setDraft(""); requestAnimationFrame(grow); return; }
     setDraft("");
     setNotice("");
     requestAnimationFrame(grow);
@@ -618,16 +621,79 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
 
   // Their own AI's commands and skills, offered while the box holds only "/" and the start of a name.
   const slashWord = draft.match(/^\/([A-Za-z0-9:_-]*)$/)?.[1];
-  const slash = slashWord === undefined ? [] : (myConnection ? myCommands : []).filter((c) => c.name.toLowerCase().includes(slashWord.toLowerCase()))
-    .sort((x, y) => Number(x.kind === "builtin") - Number(y.kind === "builtin")
+  const slashAll = useMemo(() => {
+    if (!myConnection) return [] as Command[];
+    const own = myCommands.filter((c) => c.kind !== "builtin" || c.about);
+    const have = new Set(own.map((c) => c.name.toLowerCase()));
+    const told = myCommands.filter((c) => c.kind === "builtin" && !c.about).map((c) => c.name);
+    // Claude Code's own names, from this person's connection, and the ones the table knows even before it says.
+    const rest = [...new Set([...(myConnection.kind === "claude" ? Object.keys(SLASH) : []), ...told])].filter((n) => !have.has(n.toLowerCase()))
+      .map((name) => ({ name, about: slashEntry(name, false).about, kind: "builtin" as const }));
+    return [...own, ...rest];
+  }, [myConnection, myCommands]);
+  const runnable = (name: string) => myCommands.some((c) => c.name.toLowerCase() === name.toLowerCase() && (c.kind !== "builtin" || !!c.about));
+  const slash = slashWord === undefined ? [] : slashAll.filter((c) => c.name.toLowerCase().includes(slashWord.toLowerCase()))
+    .sort((x, y) => slashRank(x) - slashRank(y)
       || Number(y.name.toLowerCase().startsWith(slashWord.toLowerCase())) - Number(x.name.toLowerCase().startsWith(slashWord.toLowerCase())) || x.name.localeCompare(y.name));
-  // The ones every Claude has come after the person's own, under a line saying so, when there are both.
-  const slashBuiltAt = slash.findIndex((c) => c.kind === "builtin");
+  // Their own first; then the ones their Claude runs here in the table's own words; then the rest of Claude Code's,
+  // which Longtable's screens carry out or explain. Each group under a line saying so.
+  function slashRank(c: Command) { return c.kind !== "builtin" ? 0 : c.about && runnable(c.name) ? 1 : 2; }
+  const slashBuiltAt = slash.findIndex((c) => slashRank(c) === 1);
+  const slashOwnAt = slash.findIndex((c) => slashRank(c) === 2);
   const slashIndex = Math.min(slashAt, Math.max(0, slash.length - 1));
   function pickSlash(name: string) {
-    setDraft(`/${name} `);
     setSlashAt(0);
+    const e = slashEntry(name, runnable(name));
+    // Ones that need nothing more are done at once; the rest wait for what comes after the name.
+    if (e.act === "say" || (e.act === "open" && ["ai", "usage", "profile"].includes(e.where))) { setDraft(""); doSlash(`/${name}`); return; }
+    setDraft(`/${name} `);
     requestAnimationFrame(() => { grow(); inputRef.current?.focus(); });
+  }
+
+  // A "/" command that steers this person's own AI or the table's screens is done here and never sent to the chat.
+  // True when it was one; a command that runs (theirs, or one the table does in its own words) goes on as a message.
+  function doSlash(body: string): boolean {
+    const m = body.match(/^\/([A-Za-z0-9:_-]+)\s*([\s\S]*)$/);
+    if (!m || !myConnection) return false;
+    const [, name, rest] = m;
+    const args = rest.trim();
+    const e = slashEntry(name, runnable(name));
+    if (e.act === "run") return false;
+    if (e.act === "say") { setNotice(e.words); return true; }
+    if (e.act === "open") {
+      if (e.where === "ai") setAiOf(me.id);
+      else if (e.where === "usage") window.location.assign(`/t/${table.id}/usage`);
+      else if (e.where === "profile") openPerson(me.id, true);
+      else if (e.where === "new-chat") makeChat(args.slice(0, 60) || "New chat").then((problem) => setNotice(problem ?? ""));
+      else if (e.where === "rename-chat") {
+        if (!chat || chat.is_general) setNotice("General keeps its name. Open another chat to rename it.");
+        else if (!args) setNotice("Type the new name after /rename.");
+        else renameChat(chat.id, args.slice(0, 60)).then((problem) => setNotice(problem ?? `This chat is now called ${args.slice(0, 60)}.`));
+      }
+      return true;
+    }
+    if (e.act === "effort") {
+      const level = args.toLowerCase();
+      if (!level) { setAiOf(me.id); return true; }
+      if (!(EFFORT_LEVELS as readonly string[]).includes(level) && level !== "default") { setNotice("Effort is low, medium, high, xhigh or max (or default)."); return true; }
+      setSpeed(myConnection.id, { effort: level === "default" ? "" : level }).then((ok) => ok && setNotice(level === "default" ? "Your Claude thinks as hard as its model usually does." : `Your Claude now works at ${level} effort here.`));
+      return true;
+    }
+    if (e.act === "fast") {
+      const word = args.toLowerCase();
+      const on = word === "on" ? true : word === "off" ? false : !myConnection.fast;
+      setSpeed(myConnection.id, { fast: on }).then((ok) => ok && setNotice(on ? "Fast mode is on for your Claude here, if your account allows it (its window says)." : "Fast mode is off for your Claude here."));
+      return true;
+    }
+    return false;
+  }
+
+  async function setSpeed(id: string, patch: { effort?: string; fast?: boolean }) {
+    const before = connections.find((c) => c.id === id);
+    setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, ...(patch.effort !== undefined ? { effort: patch.effort || null } : {}), ...(patch.fast !== undefined ? { fast: patch.fast } : {}) } : c)));
+    const { error } = await supabase.rpc("set_ai_speed", { conn: id, effort: patch.effort ?? null, fast: patch.fast ?? null });
+    if (error && before) { setConnections((prev) => prev.map((c) => (c.id === id ? before : c))); didNotTake("That setting was not kept. Try again."); return false; }
+    return true;
   }
 
   async function disconnect(id: string) {
@@ -1016,6 +1082,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 {slash.map((c, i) => (
                   <Fragment key={c.name}>
                     {i === slashBuiltAt && i > 0 && <div className={styles.slashHead} role="presentation">Built in</div>}
+                    {i === slashOwnAt && i > 0 && <div className={styles.slashHead} role="presentation">Claude Code&apos;s own</div>}
                     <button type="button" role="option" aria-selected={i === slashIndex} className={`${styles.slashItem} ${i === slashIndex ? styles.slashOn : ""}`} style={{ "--i": i } as React.CSSProperties}
                       ref={i === slashIndex ? (el) => { el?.scrollIntoView({ block: "nearest" }); } : undefined}
                       onMouseMove={() => { if (i !== slashIndex) setSlashAt(i); }} onMouseDown={(e) => { e.preventDefault(); pickSlash(c.name); }}>
@@ -1097,6 +1164,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           <AiWindow me={self} person={byId.get(aiOf)!} conn={conn} commands={aiOf === me.id ? myCommands : []} on={on} busy={on && jobs.some((j) => j.member_id === aiOf && (j.status === "running" || j.status === "queued"))}
             onClose={() => setAiOf(null)} onConnect={() => setConnectOpen(true)} onDisconnect={disconnect}
             onModel={(id, model) => setModelKept(id, model)}
+            onSpeed={(id, patch) => { setSpeed(id, patch); }}
             onOptions={async (id, patch) => {
               const before = connections.find((c) => c.id === id);
               setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));

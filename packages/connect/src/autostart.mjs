@@ -10,7 +10,7 @@
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, normalize } from "node:path";
 import { home } from "./store.mjs";
 
 export const TASK = "Longtable connection";
@@ -32,6 +32,8 @@ function powershell(script, env = {}) {
 export function installCopy(binPath) {
   const pkg = dirname(dirname(binPath));
   const app = join(home, "app");
+  // Already the copy: copying it onto itself would first delete it.
+  if (normalize(pkg) === normalize(app)) return join(app, "bin", "longtable.mjs");
   rmSync(app, { recursive: true, force: true });
   mkdirSync(app, { recursive: true });
   for (const part of ["bin", "src", "package.json"]) cpSync(join(pkg, part), join(app, part), { recursive: true });
@@ -103,6 +105,9 @@ export function enableAutostart(nodePath, binPath) {
     // Said started only when the connection really wrote its note; otherwise `connect` runs it itself.
     return { started: wroteNoteSince(asked, 20000), where: `Task Scheduler: ${TASK}` };
   }
+  // Every system runs the copy in ~/.longtable/app, which the connection keeps up to date itself, never the copy
+  // that ran `connect` (on Mac and Linux that was a cache folder npm may clear).
+  binPath = installCopy(binPath);
   if (process.platform === "darwin") {
     mkdirSync(join(homedir(), "Library", "LaunchAgents"), { recursive: true });
     // Restarted only when it stops in a failure: a connection with nothing to run stops cleanly, and KeepAlive true

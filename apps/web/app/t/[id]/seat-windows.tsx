@@ -10,6 +10,7 @@ import type { Command, Connection, Member } from "./types";
 import room from "./room.module.css";
 import s from "./panels.module.css";
 import { firstName } from "@/lib/names";
+import { EFFORT_LEVELS, fastWhy } from "@/lib/slash.mjs";
 
 const prettyPlan = (plan?: string | null) => (plan ? `${plan.charAt(0).toUpperCase()}${plan.slice(1)}`.replace(/_/g, " ") : null);
 
@@ -25,13 +26,14 @@ function Switch({ on, disabled, onChange, title, about, testid }: { on: boolean;
 
 // A person's AI at the table: what it is, what it runs, what it may do. Its own person can change it; everyone else
 // on the team can look.
-export function AiWindow({ me, person, conn, commands, on, busy, onClose, onModel, onOptions, onConnect, onDisconnect }: {
+export function AiWindow({ me, person, conn, commands, on, busy, onSpeed, onClose, onModel, onOptions, onConnect, onDisconnect }: {
   me: Member;
   person: Member;
   conn: Connection | null;
   // Only ever the viewer's own: someone else's commands are theirs.
   commands: Command[];
   on: boolean;
+  onSpeed: (conn: string, patch: { effort?: string; fast?: boolean }) => void;
   busy: boolean;
   onClose: () => void;
   onModel: (conn: string, model: string) => void;
@@ -69,6 +71,7 @@ export function AiWindow({ me, person, conn, commands, on, busy, onClose, onMode
             {plan && <div className={s.fact}><span>Plan</span><b>{plan}</b></div>}
             {conn.last_seen && <div className={s.fact}><span>Last on</span><b><Time iso={conn.last_seen} style="stamp" /></b></div>}
             <div className={s.fact}><span>Runs on</span><b>{mine ? "Your computer, your own plan" : `${first}'s computer, their own plan`}</b></div>
+            {conn.limits?.version && <div className={s.fact}><span>Connection</span><b>Version {conn.limits.version}, keeps itself up to date</b></div>}
             {mine && live && <div className={s.fact}><span>Its own commands</span><b>{commands.length ? `${commands.length}, by typing / in a chat` : "None found"}</b></div>}
           </div>
         )}
@@ -83,6 +86,25 @@ export function AiWindow({ me, person, conn, commands, on, busy, onClose, onMode
               <Switch on={open && share} disabled={!open} onChange={(v) => onOptions(live.id, { share_paths: v })} testid="opt-share"
                 title="Share it with the other AIs on the same request"
                 about="So a teammate's AI working on the same thing is not left in the dark. Text files only, small ones, with anything shaped like a secret hidden. Kept for a week, never shown to a client." />
+            </div>
+          </div>
+        )}
+        {mine && live && conn?.kind === "claude" && (
+          <div className={s.block}>
+            <h3 className={s.h2}>How it works here</h3>
+            <div className={s.fact}>
+              <span>Effort</span>
+              <b>
+                <select className={s.effort} value={live.effort ?? ""} onChange={(e) => onSpeed(live.id, { effort: e.target.value })} aria-label="Effort" data-testid="opt-effort">
+                  <option value="">Its model's usual</option>
+                  {EFFORT_LEVELS.map((l) => <option key={l} value={l}>{l === "xhigh" ? "Extra high" : l.charAt(0).toUpperCase() + l.slice(1)}</option>)}
+                </select>
+              </b>
+            </div>
+            <div className={s.switches}>
+              <Switch on={!!live.fast} onChange={(v) => onSpeed(live.id, { fast: v })} testid="opt-fast"
+                title="Fast mode"
+                about={live.fast && live.limits?.fast !== "on" && live.limits?.fast_why ? fastWhy(live.limits.fast_why) : "Answers come faster on the same model, at a higher cost to your plan. Only some accounts allow it; this says so after its next answer."} />
             </div>
           </div>
         )}

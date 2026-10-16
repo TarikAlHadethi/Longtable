@@ -20,6 +20,8 @@ import { codexSignIn, codexSignedIn, codexVersion, findCodex } from "../src/code
 import { disableAutostart, enableAutostart } from "../src/autostart.mjs";
 import { forgetCopies, freshCopy, gitCanJoin, resolveSource } from "../src/repo.mjs";
 import { endConnection, runLoop, runningConnection } from "../src/run.mjs";
+import { handOffTo } from "../src/update.mjs";
+import { pathToFileURL } from "node:url";
 import { forgetSecret, home, loadSecret, log, readConfig, saveSecret, writeConfig } from "../src/store.mjs";
 
 const binPath = fileURLToPath(import.meta.url);
@@ -174,7 +176,10 @@ try {
   if (command === "connect") await connect();
   else if (command === "run") {
     if (!readConfig().connections?.length) { log("run: not connected to any table, so nothing to do"); process.exit(0); }
-    await runLoop();
+    // Started from an older copy (a cache, or an old start-up entry) while ~/.longtable/app holds a newer one: run that.
+    const newerCopy = handOffTo();
+    if (newerCopy) { log(`run: handing over to the newer copy in ${newerCopy}`); await import(pathToFileURL(newerCopy).href); }
+    else await runLoop();
   }
   else if (command === "status") await status();
   else if (command === "disconnect") await disconnect();

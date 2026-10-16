@@ -54,11 +54,11 @@ export type Job = {
   created_at: string;
 };
 
-export type Limits = { ai?: string | null; plan?: string | null; model?: string | null; status?: string | null; models?: string[]; windows?: { name: string; used: number; resets: string | null }[] };
+export type Limits = { ai?: string | null; plan?: string | null; model?: string | null; status?: string | null; models?: string[]; fast?: string | null; fast_why?: string | null; version?: string | null; windows?: { name: string; used: number; resets: string | null }[] };
 // A person's own command or skill on their computer: its name and a line on what it is for.
 export type Command = { name: string; about: string; kind: "command" | "skill" | "prompt" | "builtin" };
 export type Connection = { id: string; member_id: string; kind: "claude" | "codex"; last_seen: string | null; revoked_at: string | null; created_at: string; limits?: Limits | null; model_choice?: string | null;
-  open_paths?: boolean; share_paths?: boolean };
+  open_paths?: boolean; share_paths?: boolean; effort?: string | null; fast?: boolean };
 // Something attached to a message.
 export type FileRef = { id: string; name: string; mime: string; size: number; path: string; kind: "image" | "video" | "audio" | "file" };
 
@@ -133,7 +133,7 @@ export const CHANGE_COLUMNS = "id, member_id, words, status, summary, detail, fi
 export type Task = { id: string; chat_id: string; member_id: string | null; title: string; branch: string; status: "working" | "done" | "stopped"; result: string | null; created_at: string; finished_at: string | null };
 export const TASK_COLUMNS = "id, chat_id, member_id, title, branch, status, result, created_at, finished_at";
 export const NOTE_COLUMNS = "id, member_id, kind, title, body, updated_at";
-export const CONNECTION_COLUMNS = "id, member_id, kind, last_seen, revoked_at, created_at, limits, model_choice, open_paths, share_paths";
+export const CONNECTION_COLUMNS = "id, member_id, kind, last_seen, revoked_at, created_at, limits, model_choice, open_paths, share_paths, effort, fast";
 export const DECISION_COLUMNS =
   "id, chat_id, title, context, origin, affects_client, status, chosen, decided_by, decided_at, deliver_after, delivered_at, created_by, created_at, request_id, options:decision_options(position, label, recommended, client_words, asks_client, replies)";
 export const REQUEST_COLUMNS = "id, member_id, title, body, status, message_id, from_line, created_at, updated_at, files";

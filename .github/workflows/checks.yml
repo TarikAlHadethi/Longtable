@@ -43,6 +43,8 @@ jobs:
       - run: node tests/e2e/unit-land.mjs
       - run: node tests/e2e/unit-report.mjs
       - run: node tests/e2e/unit-pages.mjs
+      - run: node tests/e2e/unit-slash.mjs
+      - run: node tests/e2e/unit-update.mjs
       - run: node tests/e2e/unit-connection.mjs
       - run: node tests/e2e/chaos-connect.mjs
 
