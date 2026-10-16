@@ -675,7 +675,7 @@ export function cleanNames(job) {
 }
 
 async function work(rpc, seat, engines, raw) {
-  const job = cleanNames(raw);
+  let job = cleanNames(raw);
   log(`${job.kind} job ${job.job_id} for ${job.me}`);
   if (job.kind === "sandbox") {
     try {
