@@ -20,7 +20,7 @@ const QUIET_MS = 75 * 1000;
 
 // The table's home: who is at the table, the AI each person brought and the model it is running, and how they all
 // meet at the table. Everything hangs from one centred column, so the people always sit squarely over the table.
-export function TableView({ table, me, members, connections, jobs, online, messages, chats, onOpenChat, onConnect, onInvite, onModel, tableModel, onTableModel, onPerson, onAi, onTable }: {
+export function TableView({ table, me, members, connections, jobs, online, messages, chats, onOpenChat, onConnect, onInvite, onModel, tableModel, onTableModel, onPerson, onAi, onTable, pickAny = false }: {
   table: { id: string; name: string };
   me: Member;
   members: Member[];
@@ -39,6 +39,8 @@ export function TableView({ table, me, members, connections, jobs, online, messa
   onPerson: (id: string) => void;
   onAi: (member: string) => void;
   onTable: () => void;
+  // The opening page's picture of a table: anyone's model can be changed there, for show.
+  pickAny?: boolean;
 }) {
   const keyOpen = (go: () => void) => (e: React.KeyboardEvent) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); go(); } };
   // A clock, so a seat goes quiet by itself when its computer is switched off.
@@ -112,7 +114,7 @@ export function TableView({ table, me, members, connections, jobs, online, messa
                       <div className={s.aiName}>{AI_NAME[seat.conn.kind]}{plan ? ` ${plan}` : ""}{seat.on ? "" : " · disconnected"}</div>
                       {isBusy ? <div className={s.model}>Reading the code…</div>
                         : <span onClick={(e) => e.stopPropagation()}><ModelPick kind={seat.conn.kind} value={seat.conn.model_choice ?? ""} text={modelText(seat.conn)} reported={seat.conn.limits?.models}
-                            className={s.model} canPick={mine && seat.on && !!onModel} onPick={(model) => onModel?.(seat.conn.id, model)} /></span>}
+                            className={s.model} canPick={(mine || pickAny) && seat.on && !!onModel} onPick={(model) => onModel?.(seat.conn.id, model)} /></span>}
                       {mine && seat.removed && <button className={s.again} onClick={(e) => { e.stopPropagation(); onConnect(); }}>Connect again</button>}
                     </div>
                   ) : mine ? (

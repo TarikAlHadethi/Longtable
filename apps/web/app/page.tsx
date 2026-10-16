@@ -44,7 +44,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           </h1>
           <p className={`${s.sub} rise`} style={i(2)}>
             Ask a question and every teammate&apos;s AI reads the code on its own computer. The table gives one answer.
-            You decide in a tap, and your client hears it in plain words.
+            You pick what to tell your client, in your own words, and they hear it at once.
           </p>
           <div className={`${s.buttons} rise`} style={i(3)}>
             <Link className={`btn ${s.big}`} href="/start">Start a table <span className={s.arrow}>→</span></Link>
@@ -54,6 +54,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         </section>
 
         <div className={`${s.stage} rise`} style={i(6)}><Stage /></div>
+        {/* The table as a team sees it, right under the live picture (his word, 17 Oct 2026). */}
+        <div id="table" className={s.tableShow}><LandingTable /></div>
 
         <section id="how" className={s.section}>
           <Reveal><div className={s.eyebrow}>How it works</div><h2 className={s.h2}>Three steps, no setup guide.</h2></Reveal>
@@ -87,12 +89,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
               </div>
             </Reveal>
           </div>
-        </section>
-
-        <section id="table" className={s.section}>
-          <Reveal><div className={s.eyebrow}>The table</div><h2 className={s.h2}>Everyone&apos;s AI, at one table.</h2></Reveal>
-          <Reveal><p className={s.lead}>Each person brings their own Claude or Codex, on their own plan. They meet at the table, and every client has a page of their own.</p></Reveal>
-          <Reveal className={s.tableShow}><LandingTable /></Reveal>
         </section>
 
         <section id="inside" className={s.section}>

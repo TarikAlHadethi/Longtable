@@ -82,8 +82,7 @@
 .sendMini { margin-top: auto; display: flex; flex-direction: column; gap: 8px; font-size: 14px; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
 .sendMini span { font-family: var(--font-voice); font-size: 15px; color: var(--ink-2); }
 .sendMini b { align-self: flex-end; font-size: 13px; font-weight: 560; padding: 4px 12px; border-radius: 8px; background: var(--table); color: var(--on-table); }
-.lead { max-width: 640px; font-size: 18px; line-height: 1.55; color: var(--muted); margin: -22px 0 0; }
-.tableShow { margin-top: 34px; display: flex; border: 1px solid var(--line); border-radius: 22px; overflow: hidden; background: var(--paper); box-shadow: 0 24px 60px oklch(0.2 0.01 70 / 0.08); }
+.tableShow { width: 100%; max-width: 1120px; margin-top: 56px; display: flex; border: 1px solid var(--line); border-radius: 22px; overflow: hidden; background: var(--paper); box-shadow: 0 24px 60px oklch(0.2 0.01 70 / 0.08); }
 .handout { margin-top: auto; position: relative; display: flex; flex-direction: column; gap: 2px; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
 .handout b { font-size: 15px; font-weight: 560; }
 .handout span { font-size: 13px; color: var(--muted); }
