@@ -58,7 +58,9 @@ try {
   await elena.page.click(`button:has-text('${AI === "codex" ? "Codex" : "Claude"}')`);
   await elena.page.click("text=What the message says");
   const message = await elena.page.locator("[data-testid=connect-message]").textContent();
-  const m = message.match(/connect ([0-9A-F]{20}) --ai (\w+) --app (\S+)/);
+  // Claude is the default, so its message carries no --ai; ChatGPT's says --ai codex.
+  const found = message.match(/connect ([0-9A-F]{20})(?: --ai (\w+))? --app (\S+)/);
+  const m = found && [found[0], found[1], found[2] || "claude", found[3]];
   check("the window writes the setup message for her AI", !!m && m[2] === AI && message.includes("gets no code"), message);
   results.connectMessage = message;
 
@@ -104,7 +106,7 @@ try {
   await rpc(devToken, "create_decision", { c: general, title: "Text reminders", context: "", origin: "requested by Elena Ruiz",
     affects_client: true, request: mine[0].id, options: [{ label: "Text", recommended: true, client_words: "Reminders go out by text." },
       { label: "Email", recommended: false, client_words: "Reminders go out by email." }] });
-  await elena.page.waitForFunction((id) => document.querySelector(`[data-request='${id}'] [data-testid=status]`)?.textContent === "With the team", mine[0].id, { timeout: 30000 });
+  for (let i = 0; i < 40 && (await rest(ownerToken, `requests?select=status&id=eq.${mine[0].id}`)).body[0]?.status !== "being decided"; i++) await new Promise((r) => setTimeout(r, 500));
   const before = (await chatText(elena.page)).length;
   const statusAsk = "Where are we on the text reminders?";
   await elena.page.fill("[aria-label='Ask the team']", statusAsk);

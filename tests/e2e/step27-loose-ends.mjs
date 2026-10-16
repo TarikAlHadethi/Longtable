@@ -43,12 +43,14 @@ try {
   const conn = sql(`select id from public.connections where member_id = '${id("Sam")}' and revoked_at is null`);
   await rpc(tokens.Sam, "disconnect", { conn });
   delete device.Sam;
-  check("a client's question goes on to the team when the AI answering it is disconnected", (await asked()).some((b) => /first of the month/.test(b)) && told() === "1", { asked: await asked(), told: told() });
+  // It reaches the team, and waits for the next team AI to answer her (17 Oct 2026: never a they-have-your-message).
+  const waits = () => sql(`select count(*) from public.client_lines where member_id = '${id("Elena")}' and who = 'client' and waiting`);
+  check("a client's question goes on to the team when the AI answering it is disconnected, and waits for the next AI", (await asked()).some((b) => /first of the month/.test(b)) && waits() === "1", { asked: await asked(), waits: waits() });
   await pair("Lee");
   await rpc(tokens.Elena, "client_say", { t: table, body: "And could the logo be a little larger?" });
   await rpc(tokens.Maya, "remove_member", { m: id("Lee") });
   delete device.Lee;
-  check("and when the person whose AI was answering is taken off the table", (await asked()).some((b) => /logo be a little larger/.test(b)) && told() === "2", { asked: await asked(), told: told() });
+  check("and when the person whose AI was answering is taken off the table", (await asked()).some((b) => /logo be a little larger/.test(b)) && waits() === "2", { asked: await asked(), waits: waits() });
 
   // ---- what one connection shares for a request stays a few files, however many times it calls
   await pair("Maya");

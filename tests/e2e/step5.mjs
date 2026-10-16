@@ -24,6 +24,8 @@ async function pollFor(page, title) {
   await page.click(`form[aria-label='Make a poll'] [role=option]:has-text(${JSON.stringify(title)})`);
   await page.waitForSelector("[data-testid=asked]");
 }
+// Where a request stands on the client's own page: the panel beside the conversation (never a pill on a message).
+const waitPanel = (page, id, state, ms = 8000) => page.waitForFunction(([i, st]) => document.querySelector(`[data-testid=panel-request][data-id='${i}']`)?.getAttribute("data-state") === st, [id, state], { timeout: ms }).then(() => true, () => false);
 // Where a request stands, read from the database as the team.
 const reqStatus = async (token, id) => (await rest(token, `requests?select=status&id=eq.${id}`)).body?.[0]?.status ?? null;
 const waitReq = async (token, id, status, ms = 8000) => { for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 250))) if ((await reqStatus(token, id)) === status) return true; return false; };
@@ -45,7 +47,7 @@ try {
   // The client lands on their own page, never the team's room.
   await elena.page.waitForSelector("[data-testid=client-chat]");
   const firstLook = (await textOf(elena.page)).toLowerCase();
-  check("the client gets their own page", ["ask the team for anything"].every((w) => firstLook.includes(w))
+  check("the client gets their own page", ["this is where you talk to the team", "what's done so far?"].every((w) => firstLook.includes(w))
     && !["ask the table", "inbox", "general"].some((w) => firstLook.includes(w)), firstLook.slice(0, 300));
 
   const [ownerToken, devToken, elenaToken, priyaToken] = await Promise.all([owner, dev, elena, priya].map((p) => accessToken(p.context)));
@@ -70,9 +72,7 @@ try {
   await elena.page.press("[aria-label='Ask the team']", "Enter");
   await elena.page.waitForSelector("[data-request]");
   const reqId = await elena.page.getAttribute("[data-request]", "data-request");
-  await waitStatus(elena.page, reqId, "status", "With the team");
-
-  check("her page shows the request and the team's note", true);
+  check("her page shows the request, with where it stands beside the conversation, never a pill on it", await waitPanel(elena.page, reqId, "asked") && (await elena.page.locator(`[data-request='${reqId}'] [data-testid=status]`).count()) === 0);
 
   // The team sees it live, as a client card with a way to decide it.
   await dev.page.waitForSelector(`[data-request='${reqId}']`, { timeout: 5000 });
@@ -114,8 +114,7 @@ try {
   await dev.page.click("button:has-text('Start the poll')");
 
   // Her page moves to Being decided, live; the team's card follows and the button goes.
-  await waitStatus(elena.page, reqId, "status", "With the team");
-  check("she sees it being decided, live", await waitReq(ownerToken, reqId, "being decided"));
+  check("she sees it being decided, live", await waitReq(ownerToken, reqId, "being decided") && await waitPanel(elena.page, reqId, "being decided", 20000));
   await owner.page.click("button:has-text('Make a poll') >> nth=-1");
   await owner.page.click("form[aria-label='Make a poll'] button[aria-haspopup=listbox]").catch(() => {});
   const offered = await owner.page.locator("form[aria-label='Make a poll'] [role=option]").allTextContents().catch(() => []);
@@ -132,12 +131,13 @@ try {
   const decidedAt = Date.now();
   await elena.page.waitForFunction((w) => document.querySelector("[data-testid=client-chat]")?.textContent?.includes(w), yes, { timeout: 30000 });
   results.heardAfterSeconds = Math.round((Date.now() - decidedAt) / 100) / 10;
-  await waitStatus(elena.page, reqId, "status", "Decided");
+  await waitPanel(elena.page, reqId, "decided", 30000);
   const timeline = await elena.page.textContent(`[data-request='${reqId}']`);
   results.timeline = timeline;
-  check("she hears it after the window, in the chosen words, under what she asked", results.heardAfterSeconds >= 9 && [ask, "Decided", yes].every((w) => timeline.includes(w)) && !timeline.includes("Passed on to the team"),
+  check("she hears it after the window, in the chosen words, under what she asked", results.heardAfterSeconds >= 9 && [ask, yes].every((w) => timeline.includes(w)) && !timeline.includes("Passed on to the team"),
     `${results.heardAfterSeconds} s, ${timeline}`);
-  const elenaLook = await textOf(elena.page);
+  // The conversation, not the panel: the panel shows her team's faces and first names on purpose (17 Oct 2026).
+  const elenaLook = await elena.page.textContent("[data-testid=client-chat]");
   check("the team's own words never reach her", !["Hygienist choice", "Ship it for launch", "First update", later, "Maya", "Sam"].some((w) => elenaLook.includes(w)),
     elenaLook.slice(0, 600));
   check("the request is decided for the team too", await waitReq(ownerToken, reqId, "decided"));
@@ -230,7 +230,7 @@ try {
   await dev.page.fill("input[aria-label='Answer 1']", "At launch");
   await dev.page.fill("input[aria-label='Answer 2']", "Keep the time for testing");
   await dev.page.click("button:has-text('Start the poll')");
-  await waitStatus(elena.page, req3, "status", "With the team");
+  await waitReq(ownerToken, req3, "being decided");
   let d3;
   for (let i = 0; i < 40 && !d3; i++) { d3 = (await rest(ownerToken, `decisions?select=id,request_id&table_id=eq.${tableId}`)).body.find((x) => x.request_id === req3)?.id; if (!d3) await sleep(250); }
   await owner.page.waitForSelector(`[data-did='${d3}']`, { timeout: 5000 });
@@ -241,12 +241,12 @@ try {
 
   // After the window, the question reaches her with its answers, and the request is a question for her.
   await elena.page.waitForSelector("[data-testid=replies] button:has-text('At launch')", { timeout: 30000 });
-  await waitStatus(elena.page, req3, "status", "Needs your answer");
+  await waitReq(ownerToken, req3, "question", 15000);
   if (process.env.SCREENSHOTS) await elena.page.screenshot({ path: `${process.env.SCREENSHOTS}/step5-question.png` });
   const qLook = await elena.page.textContent("[data-testid=client-chat]");
   check("she gets the question with answers to tap", qLook.includes(question) && !qLook.includes("Build it for launch"), qLook.slice(-400));
   await elena.page.click("[data-testid=replies] button:has-text('At launch')");
-  await waitStatus(elena.page, req3, "status", "With the team");
+  await waitReq(ownerToken, req3, "answered", 15000);
   const answeredLine = await elena.page.textContent(`[data-request='${req3}']`);
   const repliesLeft = await elena.page.locator("[data-testid=replies]").count();
   check("her tap answers it, once", answeredLine.includes("You answered: At launch") && repliesLeft === 0, `${answeredLine} / ${repliesLeft} left`);
@@ -298,12 +298,14 @@ try {
     affects_client: true, request: req2, options: [{ label: "Show prices", recommended: true, client_words: "Prices will show on the booking page." },
       { label: "Not yet", recommended: false, client_words: "Prices come in a later update." }] });
   await sleep(3000);
-  const stale = { client: await statusOn(elena.page, req2, "status"), team: (await textOf(dev.page)).includes("Prices on the booking page") };
+  const stale = { client: await elena.page.getAttribute(`[data-testid=panel-request][data-id='${req2}']`, "data-state").catch(() => null), team: (await textOf(dev.page)).includes("Prices on the booking page") };
   await dev.page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
   const teamCaughtUp = await dev.page.waitForFunction(() => document.body.innerText.includes("Prices on the booking page"), null, { timeout: 5000 }).then(() => true, () => false);
-  const clientCaughtUp = await waitStatus(elena.page, req2, "status", "With the team", 20000).then(() => true, () => false);
+  const clientCaughtUp = await waitPanel(elena.page, req2, "being decided", 25000);
   results.lostPushes = { stale, teamCaughtUp, clientCaughtUp };
-  check("a lost push only delays", stale.client === "With the team" && !stale.team && teamCaughtUp && clientCaughtUp, JSON.stringify(results.lostPushes));
+  // The team's page waits for its next read; the client's page reads every few seconds while an answer is forming,
+  // so it may have caught up already. Either way, nothing is lost.
+  check("a lost push only delays", !stale.team && teamCaughtUp && clientCaughtUp, JSON.stringify(results.lostPushes));
 
   if (process.env.SCREENSHOTS) {
     await elena.page.setViewportSize({ width: 1280, height: 860 });

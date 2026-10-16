@@ -14,18 +14,21 @@ type Github = { connected: boolean; repo: string; last_event_at: string | null }
 
 const ROLE = { owner: "Owner", developer: "Developer", client: "Client" } as const;
 
-export type SettingsData = { extra: Extra | null; github: Github };
+export type SettingsData = { extra: Extra | null; github: Github; answerers?: Record<string, "own" | "table"> };
 type Db = ReturnType<typeof browserClient>;
 // The table's own settings and its GitHub link. The room reads these once when it opens, so Settings is complete the
 // moment it is shown.
 export async function loadSettings(supabase: Db, tableId: string): Promise<SettingsData> {
-  const [row, hub] = await Promise.all([
+  const [row, hub, who] = await Promise.all([
     supabase.from("tables").select("undo_seconds, client_chat, final_seat, when_final_offline").eq("id", tableId).maybeSingle(),
     supabase.rpc("github_status", { t: tableId }),
+    supabase.from("client_settings").select("member_id, answered_by").eq("table_id", tableId),
   ]);
   // A read that failed is not settings: nothing is shown as loaded, so nothing made up can be saved over the real ones.
   if (row.error || !row.data) throw new Error("The table's settings could not be read.");
-  return { extra: row.data as Extra, github: (hub.data as Github) ?? null };
+  if (who.error) console.warn("[settings] who answers clients could not be read:", who.error.code);
+  const answerers = Object.fromEntries(((who.data ?? []) as { member_id: string; answered_by: "own" | "table" }[]).map((x) => [x.member_id, x.answered_by]));
+  return { extra: row.data as Extra, github: (hub.data as Github) ?? null, answerers };
 }
 
 // Settings in plain words: the table, who writes the final answer, GitHub, your data, and the people at the table.
@@ -53,6 +56,17 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
   const [saved, setSaved] = useState("");
   const [error, setError] = useState("");
   const team = people.filter((p) => p.role !== "client");
+  const clients = people.filter((p) => p.role === "client");
+  // Who answers each client, saved the moment it is chosen.
+  const [answerers, setAnswerers] = useState<Record<string, "own" | "table">>(data?.answerers ?? {});
+  useEffect(() => { if (data?.answerers) setAnswerers(data.answerers); }, [data?.answerers]);
+  async function setAnswerer(m: string, who: "own" | "table") {
+    const before = answerers[m] ?? "own";
+    setAnswerers((a) => ({ ...a, [m]: who }));
+    const { error } = await supabase.rpc("set_client_answerer", { m, who });
+    if (error) { setAnswerers((a) => ({ ...a, [m]: before })); setSaved(""); return; }
+    setSaved(`client-${m}`);
+  }
   const [github, setGithubState] = useState<Github>(data?.github ?? null);
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
@@ -196,6 +210,21 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
             {saved === "answers" && <span className={styles.saved} role="status">Saved</span>}
           </div>
         </form>
+
+        {clients.length > 0 && (
+          <section className={styles.card} aria-label="Clients" data-testid="clients-settings">
+            <div className={styles.cardTitle}>Clients</div>
+            <div className="note">Who answers each client. The table answers from what the team has done and decided, and asks the team&apos;s AIs when it has to.</div>
+            {clients.map((c) => (
+              <div key={c.id} className={styles.clientRow} data-client={c.display_name}>
+                <label className="label" htmlFor={`who-${c.id}`}>Who answers {firstName(c.display_name)}</label>
+                <Select id={`who-${c.id}`} value={answerers[c.id] ?? "own"} onChange={(v) => setAnswerer(c.id, v as "own" | "table")}
+                  options={[{ value: "own", label: "Their own AI when it is on, else the table" }, { value: "table", label: "Always the table" }]} />
+                {saved === `client-${c.id}` && <span className={styles.saved} role="status">Saved</span>}
+              </div>
+            ))}
+          </section>
+        )}
 
         </div>
         <div className={styles.col}>

@@ -11,40 +11,21 @@ import { browserClient } from "@/lib/supabase/browser";
 import { ConnectModal } from "./connect-modal";
 import {
   CONNECTION_COLUMNS, JOB_COLUMNS, LINE_COLUMNS, REQUEST_COLUMNS, UPDATE_COLUMNS,
-  type ClientLine, type ClientUpdate, type Connection, type Job, type Request, type RequestEvent, type RequestStatus as Status,
+  type ClientLine, type ClientUpdate, type Connection, type Job, type Request, type RequestEvent,
 } from "./types";
 import { ProfileMenu } from "./profile-menu";
 import { AttachButtons, AttachTray, Files, dropHandlers, useAttach } from "./attach";
 import room from "./room.module.css";
 import styles from "./client.module.css";
 import { firstName } from "@/lib/names";
+import { ClientPanel, ClientWelcome, Suggestions, type Overview } from "./client-panel";
 
-// How each status reads to the client. Three things matter to them: it is with the team, it needs them, or it is
-// settled. The team's own steps in between are the team's.
-const SHOWN: Record<Status, { words: string; pill: string }> = {
-  asked: { words: "With the team", pill: styles.pillWait },
-  "being decided": { words: "With the team", pill: styles.pillWait },
-  answered: { words: "With the team", pill: styles.pillWait },
-  question: { words: "Needs your answer", pill: styles.pillAsk },
-  decided: { words: "Decided", pill: styles.pillDone },
-  planned: { words: "Planned", pill: styles.pillPlan },
-  "ready to try": { words: "Ready to try", pill: styles.pillDone },
-  done: { words: "Done", pill: styles.pillDone },
-};
 
 // A change in the client's own copy, as their page is given it: their words, where it stands, what they were told in
 // plain words, and what the team made of it. Nothing of the team's part.
 type Change = { id: string; words: string; status: "working" | "ready" | "nothing" | "passed" | "failed" | "stopped"; summary: string | null;
   verdict: "take" | "differently" | "no" | null; note: string | null; request_id: string | null; created_at: string; finished_at: string | null };
 type Sandbox = { on: boolean; url: string | null; left: number | null; changes: Change[] };
-const CHANGE: Record<Change["status"], { words: string; pill: string }> = {
-  working: { words: "Being built", pill: styles.pillWait },
-  ready: { words: "Ready to try", pill: styles.pillDone },
-  nothing: { words: "Nothing changed", pill: styles.pillPlan },
-  passed: { words: "With the team", pill: styles.pillWait },
-  failed: { words: "Did not work", pill: styles.pillPlan },
-  stopped: { words: "Stopped", pill: styles.pillPlan },
-};
 const VERDICT = { take: "The team is building this into the real thing.", differently: "The team will do this, in a different way.", no: "The team decided against this one." } as const;
 
 const byTime = <T extends { created_at: string }>(a: T, b: T) => a.created_at.localeCompare(b.created_at);
@@ -101,7 +82,17 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
 
   // Everything again from the database: covers the moment between the page loading and the channels opening,
   // and anything missed while a laptop slept.
+  // Beside the conversation: their team, their requests and where each stands, and what is being built.
+  const [overview, setOverview] = useState<Overview | null>(null);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const readOverview = useCallback(async () => {
+    if (viewer && !viewer.acting) return;
+    const { data, error } = await supabase.rpc("client_overview", { t: table.id });
+    if (error) console.warn("[client] overview could not be read:", error.code);
+    else setOverview(data as Overview);
+  }, [supabase, table.id, !!viewer, !!viewer?.acting]);
   const reload = useCallback(async () => {
+    readOverview();
     const { data: still, error: stillError } = await supabase.from("members").select("id").eq("id", me.id).is("removed_at", null).maybeSingle();
     if (!stillError && !still && !viewer) { setGone(true); return; }
     const [{ data: r }, { data: up }, { data: ln }, { data: cn }, { data: jb }] = await Promise.all([
@@ -132,7 +123,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
       if (sb) setSandbox(sb as Sandbox);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase, table.id, me.id, putUpdates, putLines, !!viewer]);
+  }, [supabase, table.id, me.id, putUpdates, putLines, !!viewer, readOverview]);
 
   // Read the database as soon as the page opens. It used to wait for its live channel to say it was ready, so with
   // live updates blocked (a strict network) a copy's button and cards could be missing for up to a minute.
@@ -198,8 +189,13 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   // Their own assistant's job is theirs to see. When the team's AI is answering, the sign is their own last words
   // still waiting: sent to it, not yet answered, not yet passed on, and not long ago.
   const lastLine = lines.length ? [...lines].sort(byTime)[lines.length - 1] : null;
-  const deskBusy = !!lastLine && lastLine.who === "client" && !!lastLine.by_table && !lastLine.request_id && Date.now() - new Date(lastLine.created_at).getTime() < 300000;
-  const thinking = deskBusy || jobs.some((j) => j.kind === "client" && (j.status === "queued" || j.status === "running"));
+  // Their last words with no answer yet: the answer is forming. Waiting words wait for a team AI to come on.
+  const waitingOn = !!lastLine && lastLine.who === "client" && !!lastLine.by_table && !!lastLine.waiting;
+  const deskBusy = !!lastLine && lastLine.who === "client" && !!lastLine.by_table && (waitingOn || (!lastLine.request_id && Date.now() - new Date(lastLine.created_at).getTime() < 300000));
+  const open = jobs.filter((j) => j.kind === "client" && (j.status === "queued" || j.status === "running"));
+  const thinking = deskBusy || open.length > 0;
+  // How far along: a deeper look means the table asked one of the team's AIs, which reads the project.
+  const stage = open.some((j) => (j as { stage?: number }).stage === 1) ? 1 : 0;
   const building = !!sandbox?.changes.some((c) => c.status === "working");
 
   // Back to the tab, and every so often while something of theirs is in the works: read the database too, so a lost
@@ -263,8 +259,8 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
 
   // What they type goes to their copy when they have one, to their own assistant when it is on, and otherwise
   // straight to the team.
-  async function say() {
-    const body = draft.trim();
+  async function say(words?: string) {
+    const body = (words ?? draft).trim();
     if ((!body && !attach.pending.length) || busy || attach.busy) return;
     setBusy(true);
     setError("");
@@ -313,13 +309,13 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   const first = firstName(me.display_name);
   const locked = !!viewer && !viewer.acting;
   // Who is answering on the left: their copy, their own assistant, or the team. Beside the name, the one state.
-  const speaker = (who: "copy" | "assistant" | "desk" | "team", pill?: { words: string; pill: string; testid: string; busy?: boolean }) => (
+  const speaker = (who: "copy" | "assistant" | "desk" | "team") => (
     <div className={styles.from}>
       {/* An AI answers under its maker's sign; the team answers under the table's. A copy is built by the team's
           Claude today, so that is the sign it carries. */}
       {who === "assistant" && theirs ? <AiLogo kind={theirs} size={18} /> : who === "copy" ? <AiLogo kind="claude" size={18} /> : <Mark size={18} />}
-      <span className={styles.fromName}>{who === "copy" ? "Your copy" : who === "assistant" ? "Your assistant" : who === "desk" ? "The team's assistant" : "The team"}</span>
-      {pill && <span key={pill.words} className={`${styles.pill} ${pill.pill}`} data-testid={pill.testid}>{pill.busy && <i className={styles.pulse} />}{pill.words}</span>}
+      <span className={styles.fromName}>{who === "copy" ? "Your copy" : who === "assistant" ? "Your assistant" : "The team"}</span>
+      {who === "desk" && <span className={styles.fromTag}>assistant</span>}
     </div>
   );
   const answers = (u: ClientUpdate) => (
@@ -346,6 +342,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
         <div className={room.divider} />
         <div className={room.project}>{table.name}</div>
         <div className={room.spacer} />
+        {overview && <button className={`btn btn-quiet ${styles.panelButton}`} onClick={() => setPanelOpen(true)} data-testid="open-panel">Your project</button>}
         {sandbox?.on && sandbox.url && (
           <a className={`btn btn-quiet ${styles.openCopy}`} href={sandbox.url} target="_blank" rel="noreferrer" data-testid="open-copy">{viewer ? `Open ${first}'s copy` : "Open my copy"} <Arrow size={15} /></a>
         )}
@@ -372,10 +369,14 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
         </div>
       )}
 
+      <div className={styles.body}>
       <main className={styles.thread}>
         <div ref={chatRef} className={styles.scroll} data-testid="client-chat" data-with={sandbox?.on ? "copy" : mine ? "assistant" : "team"}>
           <div className={styles.col}>
-            {feed.length === 0 && (
+            {feed.length === 0 && !sandbox?.on && !mine && overview && (
+              <ClientWelcome first={first} tableName={table.name} team={overview.team} onAsk={(w, send) => { if (locked) return; if (send) say(w); else { setDraft(w); requestAnimationFrame(() => { grow(); inputRef.current?.focus(); }); } }} />
+            )}
+            {feed.length === 0 && (sandbox?.on || mine || !overview) && (
               <div className={styles.empty} data-testid="chat-head">
                 {sandbox?.on ? `Say what you would like changed in ${table.name}. It is built in your own copy for you to try, and the team decides what goes into the real thing.`
                   : mine ? `Ask where anything stands, or for something new. Your ${AI_NAME[mine.kind]} answers what it can and passes the rest to the team.`
@@ -408,12 +409,12 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
               if (item.kind === "change") {
                 const c = item.c;
                 const asked = c.request_id ? requests.find((r) => r.id === c.request_id) : undefined;
-                const shown = asked ? SHOWN[asked.status] ?? CHANGE[c.status] : CHANGE[c.status];
                 return (
                   <div key={item.id} className={styles.turn} data-change={c.id}>
                     {myWords(c.words)}
                     <div className={styles.back}>
-                      {speaker(asked ? "team" : "copy", { ...shown, testid: "change-status", busy: c.status === "working" })}
+                      {speaker(asked ? "team" : "copy")}
+                      {c.status === "working" && <div className={styles.formingLine} data-testid="change-status">Building it in your copy<span className={styles.formingDots}><i /><i /><i /></span></div>}
                       {c.summary && <div className={styles.said}>{c.summary}</div>}
                       {c.request_id && told(c.request_id).map(answers)}
                       {c.status === "ready" && sandbox?.url && !c.verdict && (
@@ -425,27 +426,41 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
                 );
               }
               const r = item.r;
-              const shown = SHOWN[r.status] ?? SHOWN.asked;
               return (
                 <div key={item.id} className={styles.turn} data-request={r.id}>
                   {myWords(r.body)}
                   {r.files?.length ? <div className={styles.mineFiles}><Files supabase={supabase} files={r.files} /></div> : null}
-                  <div className={styles.back}>
-                    {speaker("team", { ...shown, testid: "status" })}
-                    {told(r.id).map(answers)}
-                    {/* Until the team says something, the line is not left empty. */}
-                    {told(r.id).length === 0 && shown.words === "With the team" && <div className={styles.waiting} data-testid="waiting">They have your message. Their answer will show here.</div>}
-                  </div>
+                  {/* What the team said about it, once they have said something: never an empty heading. */}
+                  {told(r.id).length > 0 && (
+                    <div className={styles.back}>
+                      {speaker("team")}
+                      {told(r.id).map(answers)}
+                    </div>
+                  )}
                 </div>
               );
             })}
-            {thinking && <div className={styles.writing} data-testid="thinking"><i className={styles.pulse} />{deskBusy ? "The team's assistant is writing…" : "Your assistant is writing…"}</div>}
+            {/* The answer forming, the way a reply forms in Claude: the mark at work and a word on what is happening. */}
+            {thinking && (
+              <div className={styles.turn}>
+                <div className={styles.back}>
+                  <div className={styles.from}>
+                    <span className={styles.forming} aria-hidden="true"><Mark size={18} /></span>
+                    <span className={styles.fromName}>{deskBusy || !mine ? "The team" : "Your assistant"}</span>
+                  </div>
+                  <div className={styles.formingLine} data-testid="thinking" data-stage={waitingOn ? "waiting" : stage}>
+                    {waitingOn ? "Waiting for the team to come online" : stage === 1 ? "Checking with the team" : "Thinking"}<span className={styles.formingDots}><i /><i /><i /></span>
+                  </div>
+                </div>
+              </div>
+            )}
             {viewer && mine && <div className={styles.private}>{first}&apos;s chat with their own assistant is private and is not shown.</div>}
           </div>
         </div>
 
         <div className={styles.foot}>
           <div className={styles.col}>
+            {!locked && feed.length > 0 && !sandbox?.on && <Suggestions small onAsk={(w, send) => { if (send) say(w); else { setDraft(w); requestAnimationFrame(() => { grow(); inputRef.current?.focus(); }); } }} />}
             {!locked && <AttachTray a={attach} />}
             <form className={room.composer} onSubmit={(e) => { e.preventDefault(); if (!locked) say(); }} {...(locked ? {} : dropHandlers(attach))}>
               <textarea ref={inputRef} className={room.input} rows={1} value={draft} disabled={locked} maxLength={4000}
@@ -464,6 +479,12 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
           </div>
         </div>
       </main>
+
+      {overview && (
+        <ClientPanel overview={overview} tableName={table.name} open={panelOpen} onClose={() => setPanelOpen(false)}
+          onPick={(id) => { setPanelOpen(false); const el = document.querySelector(`[data-request='${id}']`); el?.scrollIntoView({ behavior: "smooth", block: "center" }); el?.classList.add(styles.flash); setTimeout(() => el?.classList.remove(styles.flash), 1600); }} />
+      )}
+      </div>
 
       {connectOpen && (
         <ConnectModal audience="client" tableId={table.id} tableName={table.name} connected={mine?.kind ?? null} onClose={() => setConnectOpen(false)} />

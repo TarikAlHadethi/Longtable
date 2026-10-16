@@ -1,0 +1,121 @@
+"use client";
+
+import { Face } from "@/components/face";
+import { firstName } from "@/lib/names";
+import styles from "./client.module.css";
+
+// What a client's page shows beside the conversation, from client_overview: their team, their own requests and where
+// each stands, and the work under way they may hear of. Statuses live here, never on every message.
+export type Overview = {
+  team: { name: string; color: string | null; avatar: string | null; role: string; ai_on: boolean }[];
+  requests: { id: string; title: string; status: string; at: string }[];
+  work: { title: string; status: "working" | "done" }[];
+};
+
+const STATE: Record<string, { words: string; tone: "ask" | "wait" | "done" | "plan" }> = {
+  asked: { words: "With the team", tone: "wait" },
+  "being decided": { words: "Being decided", tone: "wait" },
+  answered: { words: "With the team", tone: "wait" },
+  question: { words: "Needs your answer", tone: "ask" },
+  decided: { words: "Decided", tone: "done" },
+  planned: { words: "Planned", tone: "plan" },
+  "ready to try": { words: "Ready to try", tone: "done" },
+  done: { words: "Done", tone: "done" },
+};
+
+export function ClientPanel({ overview, tableName, onPick, open, onClose }: {
+  overview: Overview;
+  tableName: string;
+  onPick: (requestId: string) => void;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const aiOn = overview.team.some((p) => p.ai_on);
+  return (
+    <aside className={`${styles.panel} ${open ? styles.panelOpen : ""}`} aria-label="Your project" data-testid="client-panel">
+      <div className={styles.panelHead}>
+        <span>{tableName}</span>
+        <button className={styles.panelClose} onClick={onClose} aria-label="Close">×</button>
+      </div>
+
+      <section className={styles.card} style={{ "--i": 0 } as React.CSSProperties}>
+        <div className={styles.cardTitle}>Your team</div>
+        <div className={styles.faces}>
+          {overview.team.map((p) => (
+            <div key={p.name} className={styles.person} title={p.name}>
+              <span className={styles.face} style={{ background: p.color ?? "var(--faint)" }}><Face who={{ display_name: p.name, avatar: p.avatar }} />{p.ai_on && <i className={styles.on} />}</span>
+              <span className={styles.personName}>{firstName(p.name)}</span>
+            </div>
+          ))}
+        </div>
+        <p className={styles.cardNote} data-testid="team-ai">{aiOn ? "The team's AIs are on: you hear back in moments." : "The team's AIs are off right now. Anything you ask is answered as soon as one is on."}</p>
+      </section>
+
+      <section className={styles.card} style={{ "--i": 1 } as React.CSSProperties}>
+        <div className={styles.cardTitle}>What you asked</div>
+        {overview.requests.length === 0 ? <p className={styles.cardNote}>Nothing yet. Anything you ask for shows here, with where it stands.</p> : (
+          <ul className={styles.asks}>
+            {overview.requests.map((r, i) => {
+              const s = STATE[r.status] ?? STATE.asked;
+              return (
+                <li key={r.id} style={{ "--i": i } as React.CSSProperties}>
+                  <button className={styles.ask} onClick={() => onPick(r.id)} data-testid="panel-request" data-id={r.id} data-state={r.status} title={r.title}>
+                    <span className={styles.askTitle}>{r.title}</span>
+                    <span className={`${styles.state} ${styles[`state_${s.tone}`]}`}>{s.words}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      {overview.work.length > 0 && (
+        <section className={styles.card} style={{ "--i": 2 } as React.CSSProperties}>
+          <div className={styles.cardTitle}>Being built</div>
+          <ul className={styles.work}>
+            {overview.work.map((w, i) => (
+              <li key={`${w.title}-${i}`} className={styles.workItem} style={{ "--i": i } as React.CSSProperties}>
+                <i className={w.status === "working" ? styles.workOn : styles.workDone} />
+                <span>{w.title}</span>
+                <span className={styles.workState}>{w.status === "working" ? "Under way" : "Built, being checked"}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </aside>
+  );
+}
+
+// The first thing a client sees with nothing said yet: the team behind the project, and a few things to ask.
+export function ClientWelcome({ first, tableName, team, onAsk }: { first: string; tableName: string; team: Overview["team"]; onAsk: (words: string, send: boolean) => void }) {
+  return (
+    <div className={styles.welcome} data-testid="chat-head">
+      <div className={styles.welcomeFaces}>
+        {team.slice(0, 5).map((p, i) => (
+          <span key={p.name} className={styles.face} style={{ background: p.color ?? "var(--faint)", "--i": i } as React.CSSProperties}><Face who={{ display_name: p.name, avatar: p.avatar }} /></span>
+        ))}
+      </div>
+      <h1 className={styles.welcomeTitle}>Hi {first}</h1>
+      <p className={styles.welcomeLead}>This is where you talk to the team building {tableName}. Ask where things stand, or for anything new, in your own words.</p>
+      <Suggestions onAsk={onAsk} />
+    </div>
+  );
+}
+
+// Quick things a client can ask, one press away.
+export function Suggestions({ onAsk, small = false }: { onAsk: (words: string, send: boolean) => void; small?: boolean }) {
+  const list: [string, string, boolean][] = [
+    ["What's done so far?", "What's done so far?", true],
+    ["What's being worked on?", "What's being worked on right now?", true],
+    ["I'd like a change", "I'd like ", false],
+  ];
+  return (
+    <div className={`${styles.suggest} ${small ? styles.suggestSmall : ""}`} data-testid="suggestions">
+      {list.map(([label, words, send], i) => (
+        <button key={label} type="button" className={styles.chip} style={{ "--i": i } as React.CSSProperties} onClick={() => onAsk(words, send)}>{label}</button>
+      ))}
+    </div>
+  );
+}

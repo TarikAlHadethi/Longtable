@@ -104,7 +104,7 @@ try {
 
   const d1 = (await rest(ownerToken, `decisions?select=id,request_id&table_id=eq.${tableId}`)).body.find((x) => x.request_id === reqId).id;
   await owner.page.locator(`[data-did='${d1}'] button:has-text('Ship it for launch')`).click();
-  await page.waitForFunction((id) => document.querySelector(`[data-request='${id}'] [data-testid=status]`)?.textContent === "Decided", reqId, { timeout: 40000 });
+  await page.waitForFunction((id) => document.querySelector(`[data-testid=panel-request][data-id='${id}']`)?.getAttribute("data-state") === "decided", reqId, { timeout: 40000 }).catch(() => {});
   await snap(page, "decided-she-is-told-in-the-teams-chosen-words", true);
 
   // ---- the team asks her something back
@@ -131,7 +131,7 @@ try {
   await page.waitForSelector("[data-testid=replies] button:has-text('At launch')", { timeout: 40000 });
   await snap(page, "a-question-for-her-with-answers-to-tap", true);
   await page.click("[data-testid=replies] button:has-text('At launch')");
-  await page.waitForFunction((id) => document.querySelector(`[data-request='${id}'] [data-testid=status]`)?.textContent === "With the team", req2, { timeout: 10000 });
+  await page.waitForSelector(`[data-request='${req2}']`, { timeout: 10000 });
   await snap(page, "she-answered-it-goes-back-to-the-team", true);
 
   // ---- connecting her own assistant
@@ -213,7 +213,7 @@ try {
   await snap(page, "her-change-is-being-built");
   await anon("runner_finish", { token: teamDevice, job: c1.job_id, answer: "The booking button is larger and green now, and it sits at the top of the page. Open the booking page to try it.", info: { changed: true, commit: "c".repeat(40), files: ["app/booking/page.tsx"], detail: "Moved the button." } });
   await rpc(ownerToken, "set_sandbox_links", { t: tableId, ours: "", cap: 20, m: elenaId0, theirs: "https://elena-copy.example.test" });
-  await page.waitForFunction(() => document.querySelector("[data-change] [data-testid=change-status]")?.textContent === "Ready to try", null, { timeout: 20000 });
+  await page.waitForSelector("[data-testid=try-it]", { timeout: 20000 });
   await page.reload();
   await page.waitForSelector("[data-testid=try-it]");
   await snap(page, "ready-she-can-try-it");

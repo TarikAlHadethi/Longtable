@@ -60,34 +60,43 @@ try {
   const elena = await joinTable(browser, await inviteLink(owner.page, "client"), `elena-${run}@example.test`, "Elena Ruiz");
   const say = async (text) => { await elena.page.fill("[aria-label='Ask the team']", text); await elena.page.click("button:has-text('Send')"); };
   const chat = () => elena.page.textContent("[data-testid=client-chat]");
-  const lines = async () => (await rest(token, `client_lines?select=who,body,request_id,by_table&table_id=eq.${owner.tableId}&order=created_at`)).body;
+  const lines = async () => (await rest(token, `client_lines?select=who,body,request_id,by_table,waiting&table_id=eq.${owner.tableId}&order=created_at`)).body;
+  // Wait until the team's assistant has answered n times in all.
+  const answered = async (n, ms = 150000) => { for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 1500))) { const l = await lines(); if (l.filter((x) => x.who === "assistant").length >= n) return l; } return lines(); };
 
-  // Nobody's AI is on: her words go to the team, as before.
+  // Nobody's AI is on: her words reach the team at once, and wait for an AI, which the page says.
   await say("Hello, is anyone there?");
-  await elena.page.waitForSelector("[data-testid=waiting]", { timeout: 15000 });
-  check("with no AI on at the table, her words wait for the team", (await lines()).length === 0);
+  await elena.page.waitForSelector("[data-testid=thinking][data-stage=waiting]", { timeout: 15000 });
+  const offline = await lines();
+  const firstReq = (await rest(token, `requests?select=id,body&table_id=eq.${owner.tableId}`)).body;
+  check("with no AI on at the table, her words reach the team and wait for an AI", offline.length === 1 && offline[0].waiting === true && firstReq.length === 1 && /anyone there/.test(firstReq[0].body), { offline, firstReq });
+  check("and never a they-have-your-message line", (await elena.page.locator("[data-testid=waiting]").count()) === 0);
 
   runners.push(await connect(owner.page, homes[0]));
   await owner.page.waitForFunction(() => document.querySelectorAll("[data-ai='intro']").length >= 1, null, { timeout: 180000 });
 
+  // The moment an AI is on, what waited is answered, by itself, and not passed on a second time.
+  const woke = await answered(1);
+  check("the moment a team AI is on, her waiting words are answered by it", woke.filter((x) => x.who === "assistant").length === 1 && !woke[0].waiting
+    && (await rest(token, `requests?select=id&table_id=eq.${owner.tableId}`)).body.length === 1, woke);
+
   // Now she is answered at once, by the team's assistant, from what she may know.
   await say("What have I asked for so far?");
   await elena.page.waitForSelector("[data-testid=thinking]", { timeout: 10000 }).catch(() => {});
-  await elena.page.waitForFunction(() => /The team's assistant/.test(document.querySelector("[data-testid=client-chat]")?.textContent ?? "") && !document.querySelector("[data-testid=thinking]"), null, { timeout: 120000 });
-  const first = await lines();
+  const first = (await answered(2)).slice(2);
   results.first = first;
   check("she is answered by the team's assistant, not left waiting", first.length === 2 && first[1].who === "assistant" && first[1].by_table === true && first[1].body.length > 10, first);
   check("the answer is drawn from her own requests", /anyone there|hello/i.test(first[1].body), first[1]?.body);
   check("the team can read what its assistant told her", first.every((l) => l.by_table));
+  check("it shows as the team, marked as an assistant", /The team\s*assistant/.test(await chat()));
 
   // A vague wish for a change: one short question back, or passed on. Never nothing.
   await say("I want to make a change on the bookings page");
-  await elena.page.waitForFunction(() => (document.querySelector("[data-testid=client-chat]")?.textContent ?? "").split("The team's assistant").length >= 3 && !document.querySelector("[data-testid=thinking]"), null, { timeout: 120000 });
-  const second = await lines();
-  results.second = second.slice(2);
-  check("a wish for a change gets a reply too", second.length === 4 && second[3].who === "assistant", second.slice(2));
+  const second = (await answered(3)).slice(4);
+  results.second = second;
+  check("a wish for a change gets a reply too", second.length === 2 && second[1].who === "assistant", second);
   await say("Make the title on the bookings page bigger and blue");
-  await elena.page.waitForFunction(() => (document.querySelector("[data-testid=client-chat]")?.textContent ?? "").split("The team's assistant").length >= 4 && !document.querySelector("[data-testid=thinking]"), null, { timeout: 120000 });
+  await answered(4);
   const reqs = (await rest(token, `requests?select=title,body,from_line&table_id=eq.${owner.tableId}&order=created_at`)).body;
   results.requests = reqs;
   check("a clear change reaches the team as a request", reqs.length >= 2 && reqs.some((r) => /bigger|blue|title/i.test(r.title + r.body)), reqs);
@@ -107,6 +116,11 @@ try {
     for (let i = 0; i < 120 && (await replies()).length <= n; i++) await new Promise((r) => setTimeout(r, 1000));
     return (await replies()).slice(-1)[0]?.body ?? "";
   };
+  // Something only the code knows: the table asks a team AI that reads it, in its own words, and answers her plainly.
+  const deep = await next("What exact greeting does the app show people? Please check.");
+  results.deep = deep;
+  const looked = sql(`select count(*) from public.jobs where table_id = '${owner.tableId}' and kind = 'client' and stage = 1 and status = 'done'`);
+  check("a question only the code can answer is looked up by a team AI, and answered plainly", looked !== "0" && /hello/i.test(deep) && !/greet\.js|export const/i.test(deep), { looked, deep });
   const done = await next("What is finished and what are you still working on?");
   results.done = done;
   check("she hears what is finished and what is under way", /photos/i.test(done) && /trimester/i.test(done), done);

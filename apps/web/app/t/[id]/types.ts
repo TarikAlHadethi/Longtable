@@ -105,7 +105,7 @@ export type Request = {
 
 // A line in a client's private chat with their own AI. The team never reads these.
 // by_table: the team's own AI answered, not an assistant the client connected.
-export type ClientLine = { id: string; who: "client" | "assistant"; body: string; request_id: string | null; created_at: string; by_table?: boolean };
+export type ClientLine = { id: string; who: "client" | "assistant"; body: string; request_id: string | null; created_at: string; by_table?: boolean; waiting?: boolean };
 
 export type RequestEvent = { id: number; request_id: string; label: string; created_at: string };
 
@@ -137,7 +137,7 @@ export const CONNECTION_COLUMNS = "id, member_id, kind, last_seen, revoked_at, c
 export const DECISION_COLUMNS =
   "id, chat_id, title, context, origin, affects_client, status, chosen, decided_by, decided_at, deliver_after, delivered_at, created_by, created_at, request_id, options:decision_options(position, label, recommended, client_words, asks_client, replies)";
 export const REQUEST_COLUMNS = "id, member_id, title, body, status, message_id, from_line, created_at, updated_at, files";
-export const LINE_COLUMNS = "id, who, body, request_id, created_at, by_table";
+export const LINE_COLUMNS = "id, who, body, request_id, created_at, by_table, waiting";
 export const EVENT_COLUMNS = "id, request_id, label, created_at";
 export const UPDATE_COLUMNS = "id, body, request_id, decision_id, created_at, replies, answer, answered_at";
 

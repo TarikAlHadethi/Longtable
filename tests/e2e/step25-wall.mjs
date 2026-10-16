@@ -39,7 +39,9 @@ try {
   // ---- a test client that is taken off leaves nothing behind for real clients
   await rpc(tokens.Maya, "add_test_client", { t: table });
   const asked = await rpc(tokens.Maya, "client_say", { t: table, body: "Trying it out: could the title be bigger?" });
-  const request = asked.body?.request;
+  // With no team AI on, the words reach the team as a request at once and wait for an AI (17 Oct 2026): the request
+  // is the one made from that line.
+  const request = asked.body?.request ?? (asked.body?.line ? sql(`select request_id from public.client_lines where id = '${asked.body.line}'`) || null : null);
   const decision = (await rpc(tokens.Maya, "create_decision", { c: chat, title: "A bigger title", context: "", origin: "test", affects_client: true, request,
     options: [{ label: "Yes", client_words: "We will make the title bigger.", recommended: true }, { label: "No", client_words: "The title stays as it is." }] })).body;
   // A second decision about the same request, already made and told, as the scheduler would have left it.

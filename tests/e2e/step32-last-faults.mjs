@@ -78,7 +78,7 @@ try {
   const heardJob = ear.heard.find((m) => m?.table === "jobs" && m?.record?.kind === "client");
   check("the client's page hears live that their question is being answered", !!heardJob && heardJob.record.member_id === ids.Elena, ear.heard.map((m) => m?.table));
   check("and hears nothing of the team's own work on that channel", !ear.heard.some((m) => m?.table === "jobs" && m?.record?.kind !== "client"));
-  check("what it hears is only which job, its kind and its state", !!heardJob && Object.keys(heardJob.record).every((k) => ["id", "kind", "status", "member_id", "created_at"].includes(k)), heardJob?.record);
+  check("what it hears is only which job, its kind and its state", !!heardJob && Object.keys(heardJob.record).every((k) => ["id", "kind", "status", "member_id", "created_at", "stage"].includes(k)), heardJob?.record);
   await ear.stop();
 } catch (e) {
   results.error = String(e?.stack || e).slice(0, 900);
