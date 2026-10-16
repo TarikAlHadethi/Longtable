@@ -64,8 +64,10 @@ try {
   results.card = card;
   check("the Usage page shows them, with reset times and his work here", /5-hour limit/.test(card) && /Weekly limit/.test(card)
     && /Resets/.test(card) && /\d+%/.test(card) && /1 answer/.test(card), card);
-  const clientCard = await owner.page.textContent("[data-person='Dr. Ruiz']");
-  check("people without an AI show as not connected", clientCard.includes("Not connected"), clientCard);
+  const mayaCard = await owner.page.textContent("[data-person='Maya']");
+  check("people without an AI show as not connected", mayaCard.includes("Not connected"), mayaCard);
+  // A client's own AI and its plan are the client's (the access sweep, 16 Oct 2026): not on the team's page.
+  check("a client is not on the team's Usage page", (await owner.page.locator("[data-person='Dr. Ruiz']").count()) === 0);
   if (process.env.SCREENSHOTS) await owner.page.screenshot({ path: `${process.env.SCREENSHOTS}/step6-usage.png`, fullPage: true });
 
   await client.page.goto(`${APP}/t/${tableId}/usage`);
