@@ -11,7 +11,7 @@ import { browserClient } from "@/lib/supabase/browser";
 import { Inline } from "@/lib/inline";
 import { AttachButtons, AttachTray, Files, dropHandlers, useAttach } from "./attach";
 import { AiWindow, TableWindow } from "./seat-windows";
-import { PagesList, PageWindow } from "./page-window";
+import { PageIcon, PagesList, PageWindow } from "./page-window";
 import { Time } from "@/components/time";
 import { Answer } from "./answer";
 import { ChatList } from "./chat-list";
@@ -30,7 +30,7 @@ import { elapsed, WorkPanel } from "./work-panel";
 import { SandboxReview } from "./sandbox-review";
 import {
   CONNECTION_COLUMNS, DECISION_COLUMNS, JOB_COLUMNS, MEMBER_COLUMNS, MESSAGE_COLUMNS, NOTE_COLUMNS, REQUEST_COLUMNS,
-  type Chat, type Command, type Connection, type Decision, type Job, type Member, type Message, type Note, type Request, type RequestStatus,
+  type Chat, type Command, type Connection, type Decision, type Job, type Member, type Message, type Note, type Request,
   CHANGE_COLUMNS, type SandboxChange, SANDBOX_COLUMNS, type SandboxRow, TASK_COLUMNS, type Task,
   PAGE_COLUMNS, PAGE_COMMENT_COLUMNS, PAGE_VERSION_COLUMNS, type Page, type PageComment, type PageValue, type PageVersion,
 } from "./types";
@@ -42,18 +42,6 @@ const CLAUDE_ALSO: Record<string, true> = { model: true, status: true, effort: t
 
 const byTime = <T extends { created_at: string }>(a: T, b: T) => a.created_at.localeCompare(b.created_at);
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-// A client's request as the team sees it.
-function requestWords(status: RequestStatus, who: string): { words: string; pill: string } {
-  switch (status) {
-    case "asked": return { words: "New request", pill: "" };
-    case "being decided": return { words: "Being decided", pill: "" };
-    case "question": return { words: `Waiting on ${who}`, pill: styles.requestPillAsk };
-    case "answered": return { words: `${who} answered`, pill: "" };
-    case "decided": return { words: "Decided", pill: styles.requestPillDone };
-    case "planned": return { words: "Planned", pill: styles.requestPillPlan };
-    default: return { words: capital(status), pill: styles.requestPillDone };
-  }
-}
 
 type Change = { table?: string; record?: Record<string, unknown> };
 type View = "table" | "chat" | "client" | "logs" | "settings" | "sandbox";
@@ -215,15 +203,6 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   }, [supabase, table.id, self.role]);
   const chatById = useMemo(() => new Map(chats.map((c) => [c.id, c])), [chats]);
   const requestById = useMemo(() => new Map(requests.map((r) => [r.id, r])), [requests]);
-  // The newest client card about each request is the one that offers the next decision.
-  const lastCard = useMemo(() => {
-    const map = new Map<string, Message>();
-    for (const m of messages) {
-      const r = m.kind === "client" ? m.meta?.request : null;
-      if (r && (!map.has(r) || map.get(r)!.created_at <= m.created_at)) map.set(r, m);
-    }
-    return map;
-  }, [messages]);
   const clients = members.filter((m) => m.role === "client");
   const client = clients[0];
   // Who hears a decision meant for the client: one client by name; with several, every one of them.
@@ -462,6 +441,20 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     const ds = decisions.filter((d) => d.chat_id === chat?.id).map((d) => ({ kind: "decision" as const, created_at: d.created_at, d }));
     return [...ms, ...ds].sort(byTime);
   }, [messages, decisions, chat?.id]);
+  // Like texting: one person's messages one after another, within a few minutes, sit under each other with their
+  // name and picture said once. `follows` drops them from a message; `held` keeps the time for the last of the run.
+  const runs = useMemo(() => {
+    const key = (it: (typeof items)[number]) => it.kind !== "message" || it.m.kind === "intro" || it.m.kind === "github" || it.m.state === "failed" ? null
+      : `${it.m.kind === "client" ? "client" : it.m.by_ai ? `ai:${it.m.meta?.round ? "table" : "own"}` : "say"}:${it.m.member_id}`;
+    const close = (a: (typeof items)[number], b: (typeof items)[number]) => Math.abs(new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) < 5 * 60 * 1000;
+    return items.map((it, i) => {
+      const k = key(it);
+      return {
+        follows: !!k && i > 0 && key(items[i - 1]) === k && close(items[i - 1], it),
+        held: !!k && i < items.length - 1 && key(items[i + 1]) === k && close(it, items[i + 1]),
+      };
+    });
+  }, [items]);
 
   const viewsByRound = useMemo(() => {
     const map = new Map<string, Message[]>();
@@ -919,9 +912,22 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
             waiting={new Set(decisions.filter((d) => d.status === "open").map((d) => d.chat_id))}
             canDelete={(c) => !c.is_general && (self.role === "owner" || c.created_by === me.id)}
             onOpen={openChat} onCreate={makeChat} onRename={renameChat} onDelete={deleteChat} />
-          <button className={styles.pagesLink} onClick={() => setPagesOpen(true)} data-testid="pages-link">
-            <span>Pages</span>{pages.length > 0 && <span className={styles.pagesCount}>{pages.length}</span>}
-          </button>
+          {/* Handouts: what the AIs made for the table to look at. Its own section, there only once there is one. */}
+          {pages.length > 0 && (
+            <div className={`${styles.section} ${styles.handouts}`} data-testid="handouts">
+              <div className={styles.sectionHead}>
+                <div className={styles.sectionTitle}>Handouts</div>
+                {pages.length > 4 && <button className={styles.sectionMore} onClick={() => setPagesOpen(true)} data-testid="pages-link">All {pages.length}</button>}
+              </div>
+              {[...pages].sort((a, b) => Number(pins.has(b.id)) - Number(pins.has(a.id)) || b.touched_at.localeCompare(a.touched_at)).slice(0, 4).map((p, i) => (
+                <button key={p.id} className={`${styles.chat} ${styles.handout} ${openPage === p.id ? styles.chatActive : ""}`} style={{ "--i": i } as React.CSSProperties}
+                  onClick={() => { setOpenPage(p.id); setDrawerOpen(false); }} title={p.about || p.title}>
+                  <span className={styles.handoutIcon}><PageIcon icon={p.icon} size={15} /></span>
+                  <span className={styles.handoutName}>{p.title}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <div className={styles.section}>
             <div className={styles.sectionTitle}>People</div>
             {/* The people working first, then a quiet line, then the clients. */}
@@ -994,7 +1000,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                   <div className={styles.emptyTitle}>{`Nothing in ${chat?.name ?? "this chat"} yet`}</div>
                 </div>
               )}
-              {items.map((it) => {
+              {items.map((it, at) => {
+                const { follows, held } = runs[at] ?? { follows: false, held: false };
                 if (it.kind === "decision") return card(it.d, false);
                 const m = it.m;
                 const who = byId.get(m.member_id);
@@ -1009,42 +1016,35 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                   );
                 }
                 if (m.kind === "client") {
-                  const req = m.meta?.request ? requestById.get(m.meta.request) : undefined;
-                  const shown = req ? requestWords(req.status, name) : null;
-                  const offer = !!req && (req.status === "asked" || req.status === "answered") && lastCard.get(req.id)?.id === m.id;
                   return (
-                    <div key={m.id} className={styles.clientSay} data-mid={m.id} data-request={m.meta?.request ?? ""}>
-                      <div className={styles.sayName} style={{ color: who?.name_color || undefined }}>{name} <span className={styles.clientTag}>client</span></div>
+                    <div key={m.id} className={`${styles.clientSay} ${follows ? styles.follow : ""} ${held ? styles.held : ""}`} data-mid={m.id} data-request={m.meta?.request ?? ""} data-follows={follows || undefined}>
+                      {!follows && <div className={styles.sayName} style={{ color: who?.name_color || undefined }}>{name} <span className={styles.clientTag}>client</span></div>}
                       {m.meta?.answers && m.meta.question && <div className={styles.questionQuote}>Answering: {m.meta.question}</div>}
                       <div className={styles.clientRow}>
-                        <div className={styles.messageAvatar} style={{ background: who?.color ?? "var(--faint)" }}><Face who={who} name={name} /></div>
+                        <div className={`${styles.messageAvatar} ${follows ? styles.unseen : ""}`} style={{ background: who?.color ?? "var(--faint)" }} aria-hidden={follows || undefined}><Face who={who} name={name} /></div>
                         <div className={styles.bubble} data-bubble={who?.bubble ?? "stone"}>{m.body}</div>
                       </div>
                       {m.meta?.files?.length ? <div className={styles.clientFiles}><Files supabase={supabase} files={m.meta.files} /></div> : null}
                       <div className={styles.clientTools}>
-                        {req && shown && <span className={`${styles.requestPill} ${shown.pill}`} data-testid="request-status">{shown.words}</span>}
-                        {req && shown && offer && (
-                          <button className={styles.toolLink} onClick={() => { setAskingFor(req); setAsking(true); }}>Make a poll</button>
-                        )}
                         <span className={styles.sayWhen}><Time iso={m.created_at} /></span>
                       </div>
                     </div>
                   );
                 }
                 if (m.by_ai) {
-                  return <Answer key={m.id} m={m} members={byId} views={m.meta?.round ? viewsByRound.get(m.meta.round) ?? [] : []}
+                  return <Answer key={m.id} m={m} members={byId} views={m.meta?.round ? viewsByRound.get(m.meta.round) ?? [] : []} follows={follows}
                     pages={m.meta?.job ? pages.filter((p) => p.job_id === m.meta?.job || pageVersions.some((v) => v.page_id === p.id && v.job_id === m.meta?.job)) : []}
                     onOpenPage={setOpenPage}
                     again={m.kind === "intro" && items.some((o) => o.kind !== "decision" && o.m.kind === "intro" && o.m.member_id === m.member_id && o.m.created_at < m.created_at)} />;
                 }
                 const mine = m.member_id === me.id;
                 return (
-                  <div key={m.id} className={`${styles.say} ${mine ? styles.sayMine : ""} ${m.state === "sending" ? styles.pending : ""}`} data-mid={m.id}>
+                  <div key={m.id} className={`${styles.say} ${mine ? styles.sayMine : ""} ${m.state === "sending" ? styles.pending : ""} ${follows ? styles.follow : ""} ${held ? styles.held : ""}`} data-mid={m.id} data-follows={follows || undefined}>
                     {!mine && (
-                      <div className={styles.messageAvatar} style={{ background: who?.color ?? "var(--faint)" }}><Face who={who} name={name} /></div>
+                      <div className={`${styles.messageAvatar} ${follows ? styles.unseen : ""}`} style={{ background: who?.color ?? "var(--faint)" }} aria-hidden={follows || undefined}><Face who={who} name={name} /></div>
                     )}
                     <div className={styles.sayCol}>
-                      {!mine && <div className={styles.sayName} style={{ color: who?.name_color || undefined }}>{name}</div>}
+                      {!mine && !follows && <div className={styles.sayName} style={{ color: who?.name_color || undefined }}>{name}</div>}
                       <div className={styles.bubble} data-bubble={who?.bubble ?? "stone"}><Inline text={m.body} /></div>
                       {m.meta?.files?.length ? <div className={styles.sayFiles}><Files supabase={supabase} files={m.meta.files} /></div> : null}
                       <div className={styles.sayWhen}>
@@ -1200,6 +1200,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           clientName={clientName}
           hasClient={!!client}
           request={askingFor ? { id: askingFor.id, title: askingFor.title, body: askingFor.body, who: byId.get(askingFor.member_id)?.display_name ?? clientName } : null}
+          requests={requests.filter((r) => r.status === "asked" || r.status === "answered").map((r) => ({ id: r.id, title: r.title, body: r.body, who: byId.get(r.member_id)?.display_name ?? clientName }))}
           onClose={() => { setAsking(false); setAskingFor(null); }}
         />
       )}

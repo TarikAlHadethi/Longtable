@@ -73,9 +73,8 @@ try {
   check("nothing scrolls sideways on a phone", !sideways);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.click("[data-testid=page-window] button[aria-label=Close]");
-  await page.click("[data-testid=pages-link]");
   await sleep(500);
-  await page.screenshot({ path: join(out, "pages-list.png") });
+  await page.screenshot({ path: join(out, "pages-sidebar.png") });
 } catch (e) {
   results.error = String(e?.stack || e).slice(0, 900);
 } finally {

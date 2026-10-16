@@ -3,6 +3,7 @@
 import { useEscape } from "@/components/use-escape";
 import { useState } from "react";
 import { browserClient } from "@/lib/supabase/browser";
+import { Select } from "@/components/select";
 import styles from "./room.module.css";
 
 type Draft = { label: string; client_words: string; asks?: boolean; replies?: string[] };
@@ -12,17 +13,21 @@ const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 // Ask the table for a decision: the question, two to four options, which one you recommend,
 // and, when the client is affected, the exact words they will be told for each option.
 // One option may instead ask the client a question first, with two to four answers they can tap.
-// From a client's request, the client always hears the answer, and the request follows the decision.
-export function NewDecision({ chatId, myName, clientName, hasClient, request, onClose }: {
+// From a client's request, the client always hears the answer, and the request follows the decision. The poll is
+// made from under the box; which request it is about (if any) is picked in it.
+type Asked = { id: string; title: string; body: string; who: string };
+export function NewDecision({ chatId, myName, clientName, hasClient, request: first, requests = [], onClose }: {
   chatId: string;
   myName: string;
   clientName: string;
   hasClient: boolean;
-  request?: { id: string; title: string; body: string; who: string } | null;
+  request?: Asked | null;
+  requests?: Asked[];
   onClose: () => void;
 }) {
   useEscape(onClose);
-  const [title, setTitle] = useState(request?.title ?? "");
+  const [request, setRequest] = useState<Asked | null>(first ?? null);
+  const [title, setTitle] = useState(first?.title ?? "");
   const [context, setContext] = useState("");
   const [affects, setAffects] = useState(hasClient || !!request);
   const told = request?.who ?? clientName;
@@ -82,6 +87,20 @@ export function NewDecision({ chatId, myName, clientName, hasClient, request, on
     <div className={styles.modalBack} onClick={onClose}>
       <form className={styles.modal} onSubmit={save} onClick={(e) => e.stopPropagation()} aria-label="Make a poll">
         <div className={styles.modalTitle}>Make a poll</div>
+        {requests.length > 0 && (
+          <div>
+            <label className="label" htmlFor="d-about">About a client&apos;s request</label>
+            <Select id="d-about" label="About a client's request" value={request?.id ?? ""}
+              options={[{ value: "", label: "Nothing a client asked" }, ...requests.map((r) => ({ value: r.id, label: `${r.who}: ${r.title}` }))]}
+              onChange={(v) => {
+                const r = requests.find((x) => x.id === v) ?? null;
+                setRequest(r);
+                if (r) { setAffects(true); setTitle((t) => t.trim() ? t : r.title); }
+                // Asking a client a question is only ever about their own request.
+                else setOptions((p) => p.filter((o) => !o.asks));
+              }} />
+          </div>
+        )}
         {request && <blockquote className={styles.asked} data-testid="asked">{request.who} asked: {request.body}</blockquote>}
         <div>
           <label className="label" htmlFor="d-title">What needs deciding?</label>
@@ -158,7 +177,7 @@ export function NewDecision({ chatId, myName, clientName, hasClient, request, on
             <button type="button" className="btn btn-quiet" onClick={() => setOptions((p) => [...p, { label: "", client_words: "" }])}>
               Add an option
             </button>
-            {affects && !asking && (
+            {affects && !asking && request && (
               <button type="button" className="btn btn-quiet"
                 onClick={() => setOptions((p) => [...p, { label: `Ask ${capital(told)} first`, client_words: "", asks: true, replies: ["", ""] }])}>
                 Ask {told} first

@@ -63,17 +63,17 @@ body { zoom: var(--zoom); }
 * { box-sizing: border-box; }
 
 /* A person's bubble colour, by name. One person holds each at a table (members.bubble). */
-[data-bubble="rose"] { --bubble: light-dark(oklch(0.92 0.055 15), oklch(0.37 0.065 15)); --bubble-dot: oklch(0.72 0.13 15); }
-[data-bubble="peach"] { --bubble: light-dark(oklch(0.92 0.055 50), oklch(0.37 0.065 50)); --bubble-dot: oklch(0.72 0.13 50); }
-[data-bubble="sand"] { --bubble: light-dark(oklch(0.92 0.055 85), oklch(0.37 0.065 85)); --bubble-dot: oklch(0.72 0.13 85); }
-[data-bubble="lime"] { --bubble: light-dark(oklch(0.92 0.055 125), oklch(0.37 0.065 125)); --bubble-dot: oklch(0.72 0.13 125); }
-[data-bubble="mint"] { --bubble: light-dark(oklch(0.92 0.055 160), oklch(0.37 0.065 160)); --bubble-dot: oklch(0.72 0.13 160); }
-[data-bubble="teal"] { --bubble: light-dark(oklch(0.92 0.055 190), oklch(0.37 0.065 190)); --bubble-dot: oklch(0.72 0.13 190); }
-[data-bubble="sky"] { --bubble: light-dark(oklch(0.92 0.055 220), oklch(0.37 0.065 220)); --bubble-dot: oklch(0.72 0.13 220); }
-[data-bubble="blue"] { --bubble: light-dark(oklch(0.92 0.055 250), oklch(0.37 0.065 250)); --bubble-dot: oklch(0.72 0.13 250); }
-[data-bubble="iris"] { --bubble: light-dark(oklch(0.92 0.055 280), oklch(0.37 0.065 280)); --bubble-dot: oklch(0.72 0.13 280); }
-[data-bubble="lilac"] { --bubble: light-dark(oklch(0.92 0.055 305), oklch(0.37 0.065 305)); --bubble-dot: oklch(0.72 0.13 305); }
-[data-bubble="pink"] { --bubble: light-dark(oklch(0.92 0.055 345), oklch(0.37 0.065 345)); --bubble-dot: oklch(0.72 0.13 345); }
+[data-bubble="rose"] { --bubble: light-dark(oklch(0.935 0.03 15), oklch(0.34 0.04 15)); --bubble-dot: oklch(0.72 0.13 15); }
+[data-bubble="peach"] { --bubble: light-dark(oklch(0.935 0.03 50), oklch(0.34 0.04 50)); --bubble-dot: oklch(0.72 0.13 50); }
+[data-bubble="sand"] { --bubble: light-dark(oklch(0.935 0.03 85), oklch(0.34 0.04 85)); --bubble-dot: oklch(0.72 0.13 85); }
+[data-bubble="lime"] { --bubble: light-dark(oklch(0.935 0.03 125), oklch(0.34 0.04 125)); --bubble-dot: oklch(0.72 0.13 125); }
+[data-bubble="mint"] { --bubble: light-dark(oklch(0.935 0.03 160), oklch(0.34 0.04 160)); --bubble-dot: oklch(0.72 0.13 160); }
+[data-bubble="teal"] { --bubble: light-dark(oklch(0.935 0.03 190), oklch(0.34 0.04 190)); --bubble-dot: oklch(0.72 0.13 190); }
+[data-bubble="sky"] { --bubble: light-dark(oklch(0.935 0.03 220), oklch(0.34 0.04 220)); --bubble-dot: oklch(0.72 0.13 220); }
+[data-bubble="blue"] { --bubble: light-dark(oklch(0.935 0.03 250), oklch(0.34 0.04 250)); --bubble-dot: oklch(0.72 0.13 250); }
+[data-bubble="iris"] { --bubble: light-dark(oklch(0.935 0.03 280), oklch(0.34 0.04 280)); --bubble-dot: oklch(0.72 0.13 280); }
+[data-bubble="lilac"] { --bubble: light-dark(oklch(0.935 0.03 305), oklch(0.34 0.04 305)); --bubble-dot: oklch(0.72 0.13 305); }
+[data-bubble="pink"] { --bubble: light-dark(oklch(0.935 0.03 345), oklch(0.34 0.04 345)); --bubble-dot: oklch(0.72 0.13 345); }
 [data-bubble="stone"] { --bubble: light-dark(oklch(0.92 0.008 80), oklch(0.36 0.01 80)); --bubble-dot: oklch(0.62 0.015 80); }
 
 /* A person's photo fills the circle that would hold their letter (components/face.tsx). */
@@ -227,3 +227,20 @@ b, strong, h1, h2, h3, h4 { font-weight: 560; }
 
 /* Scrollbars are a thin, quiet line with no track and no arrows, wherever one is needed. */
 * { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+
+/* Nothing is static: every expander in the product opens and closes smoothly, and what it shows rises in. */
+:root { interpolate-size: allow-keywords; }
+details::details-content {
+  block-size: 0; overflow-y: clip;
+  transition: block-size 0.3s var(--ease-out), content-visibility 0.3s allow-discrete;
+}
+details[open]::details-content { block-size: auto; }
+details[open] > :not(summary) { animation: lt-unfold 0.32s var(--ease-out) both; }
+details > summary { transition: color 0.15s ease; }
+@keyframes lt-unfold { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+/* A line that says what just happened arrives, never blinks in. */
+[role="status"] { animation: lt-unfold 0.25s var(--ease-out) both; }
+@media (prefers-reduced-motion: reduce) {
+  details::details-content { transition: none; }
+  details[open] > :not(summary), [role="status"] { animation: none; }
+}

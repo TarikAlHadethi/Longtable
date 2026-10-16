@@ -49,6 +49,7 @@ try {
   const count = async () => Number(sql(`select count(*) from public.messages where chat_id = '${general}'`));
   const before = await count();
 
+  check("with no handouts yet, the sidebar has no Handouts section", (await page.locator("[data-testid=handouts]").count()) === 0);
   await box.fill("/");
   await page.waitForSelector("[data-testid=slash-menu]");
   const menu = await page.textContent("[data-testid=slash-menu]");
@@ -66,8 +67,10 @@ try {
   await box.press("Enter");
   await page.waitForSelector("[data-testid=ai-window]", { timeout: 5000 }).catch(() => {});
   check("/model opens her AI's window, where the model is picked", (await page.locator("[data-testid=ai-window]").count()) === 1 && (await count()) === before);
-  check("the window has effort and fast mode", (await page.locator("[data-testid=opt-effort]").count()) === 1 && (await page.locator("[data-testid=opt-fast]").count()) === 1);
-  await page.selectOption("[data-testid=opt-effort]", "medium");
+  check("the window has effort and fast mode", (await page.locator("#opt-effort").count()) === 1 && (await page.locator("[data-testid=opt-fast]").count()) === 1);
+  // Our own menu, not the browser's: open it and pick.
+  await page.click("[data-testid=ai-window] button[aria-haspopup=listbox]");
+  await page.click("[data-testid=ai-window] [role=option]:has-text('Medium')");
   await sleep(800);
   check("effort chosen in the window is kept", sql(`select effort from public.connections where id = '${connId}'`) === "medium");
   await page.click("[data-testid=ai-window] button:has-text('Close')");
@@ -112,6 +115,17 @@ try {
   await box.press("Enter");
   await sleep(1500);
   check("/review is sent, for her Claude to run", sql(`select count(*) from public.messages where chat_id = '${plansChat}' and body = '/review the login page'`) === "1");
+
+  // Like texting: two of her messages in a row sit under each other, her name and picture said once.
+  await box.fill("first of two");
+  await box.press("Enter");
+  await sleep(700);
+  await box.fill("second of two");
+  await box.press("Enter");
+  await page.waitForFunction(() => [...document.querySelectorAll("[data-mid]")].some((el) => el.textContent.includes("second of two")), null, { timeout: 8000 });
+  // Her /review just before is the start of the same run: it alone carries her name; the two after it do not.
+  const run2 = await page.evaluate(() => { const els = [...document.querySelectorAll("[data-mid]")]; const at = (w) => els.find((e) => e.textContent.includes(w))?.hasAttribute("data-follows"); return { start: at("/review the login page"), a: at("first of two"), b: at("second of two") }; });
+  check("messages in a row sit under each other, her name said once at the start", run2.start === false && run2.a === true && run2.b === true, run2);
 
   // Usage.
   await box.fill("/usage");

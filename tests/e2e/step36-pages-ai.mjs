@@ -5,7 +5,7 @@
 //   AI=codex node --experimental-websocket tests/e2e/step36-pages-ai.mjs  (her AI is ChatGPT, with the saved sign-in)
 
 import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -88,6 +88,7 @@ try {
   check("the run did not crash", false, e.stack || String(e));
 } finally {
   if (runner) runner.kill();
+  try { results.log = readFileSync(join(dir, "runner.log"), "utf8").split(String.fromCharCode(10)).filter((l) => /handout|page|failed|update/i.test(l)).slice(-8); } catch {}
   await browser.close();
   for (const h of [dir, scratch]) { try { rmSync(h, { recursive: true, force: true }); } catch {} }
 }

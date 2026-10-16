@@ -87,7 +87,6 @@ export function Demo() {
                 <div className={room.messageBody}>
                   <div className={room.messageMeta}><span className={room.messageName}>Elena Ruiz</span><span>client · 10:42 am</span></div>
                   <div className={`${room.messageText} ${room.clientBubble}`}>{ASK}</div>
-                  <div className={room.clientTools}><span className={`${room.requestPill} ${step >= 6 ? room.requestPillDone : ""}`}>{step >= 6 ? "Decided" : step >= 4 ? "Being decided" : "New request"}</span></div>
                 </div>
               </div>
             )}

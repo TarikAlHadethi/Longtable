@@ -44,5 +44,16 @@ for (const path of tracked) {
 }
 check("no tracked file holds an em dash", dashed.length === 0, dashed.slice(0, 20));
 
+// One menu for the whole product (his rule, 17 Oct 2026): a screen never shows the browser's own dropdown. Every
+// choice goes through components/select.tsx (or the model picker), which keeps a hidden <select> of its own.
+const plain = [];
+for (const path of tracked) {
+  if (!/^apps\/web\/.*\.tsx$/.test(path) || path === "apps/web/components/select.tsx") continue;
+  let text;
+  try { text = readFileSync(path, "utf8"); } catch { continue; }
+  text.split(String.fromCharCode(10)).forEach((l, i) => { if (/<select[\s>]/.test(l)) plain.push(`${path}:${i + 1}`); });
+}
+check("every dropdown is the product's own menu, never the browser's", plain.length === 0, plain);
+
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

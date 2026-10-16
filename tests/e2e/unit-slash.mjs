@@ -33,7 +33,7 @@ const known = (n) => builtIn.includes(n) || !!SLASH[n];
 check("every command Claude Code has means something at the table", CLAUDE_CODE.every(known), CLAUDE_CODE.filter((n) => !known(n)));
 check("none is both run by the table and carried out by its screens", builtIn.every((n) => !SLASH[n]), builtIn.filter((n) => SLASH[n]));
 check("the ones the table runs have their words", builtIn.every((n) => loadCommand(seat, `/${n} the login page`)?.body?.includes("the login page")), builtIn);
-check("the new ones make what they say: design, charts and onboarding as pages", ["design", "dataviz", "team-onboarding"].every((n) => /page/.test(loadCommand(seat, `/${n}`).body)));
+check("the new ones make what they say: design, charts and onboarding as handouts", ["design", "dataviz", "team-onboarding"].every((n) => /handout/.test(loadCommand(seat, `/${n}`).body)));
 check("a name Claude Code has that the table does not run is never run", loadCommand(seat, "/compact everything") === null && loadCommand(seat, "/model opus") === null);
 check("a command nobody here knows says so instead of nothing", slashEntry("brand-new-thing", false).act === "say");
 check("a command the connection holds words for runs", slashEntry("compact", true).act === "run");

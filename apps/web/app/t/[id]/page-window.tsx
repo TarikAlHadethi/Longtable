@@ -3,6 +3,7 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import { useEscape } from "@/components/use-escape";
+import { Select } from "@/components/select";
 import { Face } from "@/components/face";
 import { Time } from "@/components/time";
 import { Inline } from "@/lib/inline";
@@ -138,7 +139,7 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
     setHtml(null);
     supabase.from("page_versions").select("html").eq("page_id", page.id).eq("n", n).maybeSingle().then(({ data, error }) => {
       if (gone) return;
-      if (error || !data) { failedRef.current("This page could not be opened just now."); return; }
+      if (error || !data) { failedRef.current("This handout could not be opened just now."); return; }
       setHtml((data as { html: string }).html);
     });
     return () => { gone = true; };
@@ -275,15 +276,14 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
           {naming === null ? (
             <button className={s.title} title="Rename" onClick={() => setNaming(page.title)}>{page.title}</button>
           ) : (
-            <form className={s.rename} onSubmit={async (e) => { e.preventDefault(); if (naming.trim() && naming.trim() !== page.title) await call("rename_page", { p: page.id, title: naming.trim() }, "The page was not renamed. Try again."); setNaming(null); }}>
-              <input className="field" autoFocus value={naming} maxLength={120} onChange={(e) => setNaming(e.target.value)} onBlur={() => setNaming(null)} aria-label="The page's name" />
+            <form className={s.rename} onSubmit={async (e) => { e.preventDefault(); if (naming.trim() && naming.trim() !== page.title) await call("rename_page", { p: page.id, title: naming.trim() }, "The handout was not renamed. Try again."); setNaming(null); }}>
+              <input className="field" autoFocus value={naming} maxLength={120} onChange={(e) => setNaming(e.target.value)} onBlur={() => setNaming(null)} aria-label="The handout's name" />
             </form>
           )}
-          <select className={s.versions} value={n} onChange={(e) => setN(Number(e.target.value))} aria-label="Version" data-testid="page-version">
-            {[...versions].sort((a, b) => b.n - a.n).map((v) => (
-              <option key={v.id} value={v.n}>v{v.n}{v.n === page.version ? " (newest)" : ""}, {madeBy(v)}{v.note ? `: ${v.note}` : ""}</option>
-            ))}
-          </select>
+          <div className={s.versions} data-testid="page-version">
+            <Select label="Version" value={String(n)} onChange={(v) => setN(Number(v))}
+              options={[...versions].sort((a, b) => b.n - a.n).map((v) => ({ value: String(v.n), label: `v${v.n}${v.n === page.version ? " (newest)" : ""}, ${madeBy(v)}${v.note ? `: ${v.note}` : ""}` }))} />
+          </div>
           {others.length > 0 && (
             <span className={s.viewers} title={`Also here: ${others.map((id) => firstName(name(id))).join(", ")}`} data-testid="page-viewers">
               {others.slice(0, 4).map((id) => { const w = members.get(id); return <span key={id} className={s.face} style={{ background: w?.color }}><Face who={w} /></span>; })}
@@ -302,7 +302,7 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
             {open.length > 0 && <span className={s.count}>{open.length}</span>}
           </button>
           {(mine || owner) && (
-            <button className={s.tool} title="Delete the page" onClick={async () => { if (window.confirm(`Delete "${page.title}" with all its versions and comments?`) && await call("delete_page", { p: page.id }, "The page was not deleted. Try again.")) onClose(); }}>
+            <button className={s.tool} title="Delete the handout" onClick={async () => { if (window.confirm(`Delete the handout "${page.title}" with all its versions and comments?`) && await call("delete_page", { p: page.id }, "The handout was not deleted. Try again.")) onClose(); }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l.8 12a1.5 1.5 0 0 0 1.5 1.4h6.4a1.5 1.5 0 0 0 1.5-1.4l.8-12" /></svg>
             </button>
           )}
@@ -319,7 +319,7 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
           {side && (
             <aside className={s.side} aria-label="Comments">
               <div className={s.sideList}>
-                {open.length === 0 && resolved.length === 0 && <div className="note">No comments yet. Pick words out of the page to comment on them, or say something about the whole of it.</div>}
+                {open.length === 0 && resolved.length === 0 && <div className="note">No comments yet. Pick words out of the handout to comment on them, or say something about all of it.</div>}
                 {open.map((c) => comment(c))}
                 {resolved.length > 0 && (
                   <button className={s.showResolved} onClick={() => setShowResolved(!showResolved)}>{showResolved ? "Hide" : "Show"} {resolved.length} resolved</button>
@@ -331,8 +331,8 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
               )}
               <form className={s.compose} onSubmit={(e) => { e.preventDefault(); send(); }}>
                 {replyTo && <div className={s.replying}>Replying <button type="button" onClick={() => setReplyTo(null)}>Cancel</button></div>}
-                {!replyTo && picked && <div className={s.anchor}>{picked} <button type="button" className={s.unpick} onClick={() => setPicked("")} aria-label="Comment on the whole page instead">×</button></div>}
-                <textarea className="field" rows={3} maxLength={4000} value={draft} placeholder={replyTo ? "Your reply" : picked ? "About these words" : "About this page"}
+                {!replyTo && picked && <div className={s.anchor}>{picked} <button type="button" className={s.unpick} onClick={() => setPicked("")} aria-label="Comment on the whole handout instead">×</button></div>}
+                <textarea className="field" rows={3} maxLength={4000} value={draft} placeholder={replyTo ? "Your reply" : picked ? "About these words" : "About this handout"}
                   onChange={(e) => { setDraft(e.target.value); if (e.target.value.trim()) sayWriting(); }} onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); } }} data-testid="page-comment-box" />
                 <div className={s.composeRow}>
                   {!replyTo && (
@@ -355,9 +355,9 @@ export function PagesList({ pages, pins, members, onOpen, onClose }: { pages: Pa
   const sorted = [...pages].sort((a, b) => Number(pins.has(b.id)) - Number(pins.has(a.id)) || b.touched_at.localeCompare(a.touched_at));
   return (
     <div className={s.back} onClick={onClose}>
-      <div className={s.list} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Pages" data-testid="pages-list">
-        <div className={s.listHead}><b>Pages</b><button className="btn btn-quiet" onClick={onClose}>Close</button></div>
-        {sorted.length === 0 && <div className="note">No pages yet. Ask an AI at the table for one: a report, a chart, a mockup, a small tool.</div>}
+      <div className={s.list} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Handouts" data-testid="pages-list">
+        <div className={s.listHead}><b>Handouts</b><button className="btn btn-quiet" onClick={onClose}>Close</button></div>
+        {sorted.length === 0 && <div className="note">No handouts yet. Ask an AI at the table for one: a chart, a mockup, a report, a small tool.</div>}
         {sorted.map((p) => (
           <button key={p.id} className={s.row} onClick={() => onOpen(p.id)}>
             <span className={s.cardIcon}><PageIcon icon={p.icon} /></span>

@@ -38,10 +38,7 @@
 }
 .title:hover { background: var(--hover); }
 .rename input { height: 32px; font-size: 15px; min-width: 18ch; }
-.versions {
-  font: inherit; font-size: 13px; color: var(--muted); background: var(--paper); border: 1px solid var(--line); border-radius: 8px;
-  padding: 4px 8px; max-width: 30ch;
-}
+.versions { min-width: 0; max-width: 34ch; font-size: 13px; }
 .viewers { display: inline-flex; margin-left: 4px; }
 .viewers .face { margin-left: -6px; border: 2px solid var(--card); animation: lt-rise 0.3s var(--ease-out) both; }
 .spacer { flex: 1; }

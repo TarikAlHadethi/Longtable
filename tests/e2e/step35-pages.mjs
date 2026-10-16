@@ -83,7 +83,7 @@ try {
   const before = Number(sql(`select count(*) from public.messages where chat_id = '${general}'`));
   await rpc(tok.sam, "comment_page", { p: pageId, body: "Make the title green", to_ai: true });
   const asked = sql(`select body from public.messages where chat_id = '${general}' order by created_at desc limit 1`);
-  check("a comment sent to the AIs asks the table to change the page", Number(sql(`select count(*) from public.messages where chat_id = '${general}'`)) === before + 1 && asked.includes("On the page \"Launch plan\"") && asked.includes("Make the title green"), asked);
+  check("a comment sent to the AIs asks the table to change the page", Number(sql(`select count(*) from public.messages where chat_id = '${general}'`)) === before + 1 && asked.includes("On the handout \"Launch plan\"") && asked.includes("Make the title green"), asked);
   let next = null;
   for (let i = 0; i < 30 && !next; i++) { for (const lane of ["heavy", "light"]) { const j = (await anon("runner_claim", { token: device, lane })).body; if (j?.job_id) { next = j; break; } } if (!next) await sleep(400); }
   check("that job is handed the page whole, with what was said on it", next?.pages?.[0]?.id === pageId && next.pages[0].html.includes("Launch plan") && JSON.stringify(next.pages[0].comments).includes("Make the title green"), next?.pages?.[0]?.title);
@@ -122,8 +122,7 @@ try {
   await sleep(1500);
   check("a comment written in the window is kept", sql(`select count(*) from public.page_comments where page_id = '${pageId}' and body = 'Looks right now'`) === "1");
   await page.click("[data-testid=page-window] button[aria-label=Close]");
-  await page.click("[data-testid=pages-link]");
-  check("the Pages list has it", (await page.textContent("[data-testid=pages-list]")).includes("Launch plan"));
+  check("the sidebar's Handouts section has it", (await page.textContent("[data-testid=handouts]")).includes("Launch plan"));
   check("the owner deletes it, versions and comments with it", (await rpc(tok.maya, "delete_page", { p: pageId })).status < 300
     && sql(`select count(*) from public.page_versions where page_id = '${pageId}'`) === "0" && sql(`select count(*) from public.page_comments where page_id = '${pageId}'`) === "0");
 } catch (e) {

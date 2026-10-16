@@ -11,6 +11,7 @@ import room from "./room.module.css";
 import s from "./panels.module.css";
 import { firstName } from "@/lib/names";
 import { EFFORT_LEVELS, fastWhy } from "@/lib/slash.mjs";
+import { Select } from "@/components/select";
 
 const prettyPlan = (plan?: string | null) => (plan ? `${plan.charAt(0).toUpperCase()}${plan.slice(1)}`.replace(/_/g, " ") : null);
 
@@ -71,8 +72,8 @@ export function AiWindow({ me, person, conn, commands, on, busy, onSpeed, onClos
             {plan && <div className={s.fact}><span>Plan</span><b>{plan}</b></div>}
             {conn.last_seen && <div className={s.fact}><span>Last on</span><b><Time iso={conn.last_seen} style="stamp" /></b></div>}
             <div className={s.fact}><span>Runs on</span><b>{mine ? "Your computer, your own plan" : `${first}'s computer, their own plan`}</b></div>
-            {conn.limits?.version && <div className={s.fact}><span>Connection</span><b>Version {conn.limits.version}, keeps itself up to date</b></div>}
-            {mine && live && <div className={s.fact}><span>Its own commands</span><b>{commands.length ? `${commands.length}, by typing / in a chat` : "None found"}</b></div>}
+            {conn.limits?.version && <div className={s.fact}><span>Connection</span><b>{conn.limits.version}, updates itself</b></div>}
+            {mine && live && <div className={s.fact}><span>Its own commands</span><b>{commands.length ? `${commands.length}, type / in a chat` : "None found"}</b></div>}
           </div>
         )}
 
@@ -81,11 +82,11 @@ export function AiWindow({ me, person, conn, commands, on, busy, onSpeed, onClos
             <h3 className={s.h2}>What it may do for you</h3>
             <div className={s.switches}>
               <Switch on={open} onChange={(v) => onOptions(live.id, { open_paths: v })} testid="opt-open"
-                title="Open what I point at on this computer"
-                about="When your own message names a file or a folder on this computer, it may read it. Never keys, passwords, browser data or a whole drive, never to change anything, and never because someone else asked." />
+                title="Open what I point at"
+                about="Reads a file or folder you name in your own message. Never keys or passwords, and it changes nothing." />
               <Switch on={open && share} disabled={!open} onChange={(v) => onOptions(live.id, { share_paths: v })} testid="opt-share"
-                title="Share it with the other AIs on the same request"
-                about="So a teammate's AI working on the same thing is not left in the dark. Text files only, small ones, with anything shaped like a secret hidden. Kept for a week, never shown to a client." />
+                title="Share it with the other AIs"
+                about="Your teammates' AIs see it too, for that request. Text only, secrets hidden, never the client." />
             </div>
           </div>
         )}
@@ -95,16 +96,14 @@ export function AiWindow({ me, person, conn, commands, on, busy, onSpeed, onClos
             <div className={s.fact}>
               <span>Effort</span>
               <b>
-                <select className={s.effort} value={live.effort ?? ""} onChange={(e) => onSpeed(live.id, { effort: e.target.value })} aria-label="Effort" data-testid="opt-effort">
-                  <option value="">Its model's usual</option>
-                  {EFFORT_LEVELS.map((l) => <option key={l} value={l}>{l === "xhigh" ? "Extra high" : l.charAt(0).toUpperCase() + l.slice(1)}</option>)}
-                </select>
+                <Select id="opt-effort" label="Effort" value={live.effort ?? ""} onChange={(v) => onSpeed(live.id, { effort: v })}
+                  options={[{ value: "", label: "Usual" }, ...EFFORT_LEVELS.map((l) => ({ value: l, label: l === "xhigh" ? "Extra high" : l.charAt(0).toUpperCase() + l.slice(1) }))]} />
               </b>
             </div>
             {conn?.kind === "claude" && <div className={s.switches}>
               <Switch on={!!live.fast} onChange={(v) => onSpeed(live.id, { fast: v })} testid="opt-fast"
                 title="Fast mode"
-                about={live.fast && live.limits?.fast !== "on" && live.limits?.fast_why ? fastWhy(live.limits.fast_why) : "Answers come faster on the same model, at a higher cost to your plan. Only some accounts allow it; this says so after its next answer."} />
+                about={live.fast && live.limits?.fast !== "on" && live.limits?.fast_why ? fastWhy(live.limits.fast_why) : "Faster answers, at a higher cost to your plan."} />
             </div>}
           </div>
         )}

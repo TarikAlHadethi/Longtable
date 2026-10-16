@@ -31,7 +31,10 @@ check("an older page only by name", told.includes("P2: \"Old\"") && !told.includ
 check("nothing in a page can close the fence it is handed in", told.includes("[marker] escape") && told.trimEnd().endsWith("PAGES>>>"), told);
 check("no pages, nothing said", pagesPrompt({ pages: [] }) === "" && pagesPrompt({}) === "");
 check("an update by label goes to that page's id", pageOut(job, { title: "Plan", html: "<p>new</p>", update: "p1" })?.update === job.pages[0].id);
-check("a label that is not one of them makes a new page", pageOut(job, { title: "X", html: "<p>x</p>", update: "P7" })?.update === null);
+check("a label that is not one of them makes a new page when there are several", pageOut(job, { title: "X", html: "<p>x</p>", update: "P7" })?.update === null);
+check("with only one handout in the chat, any pointer means that one", pageOut({ pages: [job.pages[0]] }, { title: "Plan", html: "<p>x</p>", update: "P2" })?.update === job.pages[0].id);
+check("a handout is found by its title or its id too", pageOut(job, { title: "Old", html: "<p>x</p>", update: "old" })?.update === job.pages[1].id && pageOut(job, { title: "x", html: "<p>x</p>", update: job.pages[1].id })?.update === job.pages[1].id);
+check("no pointer is a new handout", pageOut(job, { title: "New", html: "<p>x</p>", update: "" })?.update === null);
 check("an empty page is not a page", pageOut(job, { title: "X", html: "   " }) === null && pageOut(job, null) === null && pageOut(job, "text") === null);
 check("an odd icon becomes the plain one", pageOut(job, { title: "X", html: "<p>x</p>", icon: "<svg>" }).icon === "page");
 check("a page is cut to 2,000,000 characters", pageOut(job, { title: "X", html: "a".repeat(2100000) }).html.length === 2000000);

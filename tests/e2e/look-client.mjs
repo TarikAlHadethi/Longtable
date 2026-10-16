@@ -7,6 +7,17 @@
 import { execFileSync } from "node:child_process";
 import { accessToken, API, APP, inviteLink, join, KEY, launch, rest, rpc, sleep, startTable } from "./lib.mjs";
 
+
+// A poll about a client's request is made from under the box (17 Oct 2026: no poll link and no status pill under a
+// client's message any more): open it, then pick the request in its menu.
+async function pollFor(page, title) {
+  await page.click("button:has-text('Make a poll') >> nth=-1");
+  await page.waitForSelector("form[aria-label='Make a poll']");
+  await page.click("form[aria-label='Make a poll'] button[aria-haspopup=listbox]");
+  await page.click(`form[aria-label='Make a poll'] [role=option]:has-text(${JSON.stringify(title)})`);
+  await page.waitForSelector("[data-testid=asked]");
+}
+
 const out = process.env.SCREENSHOTS;
 if (!out) throw new Error("Set SCREENSHOTS to a folder.");
 const run = Date.now().toString(36);
@@ -80,8 +91,8 @@ try {
   await snap(page, "she-asked-it-is-with-the-team", true);
   const reqId = (await rest(elenaToken, `requests?select=id&table_id=eq.${tableId}`)).body[0].id;
 
-  await dev.page.waitForSelector(`[data-request='${reqId}'] button:has-text('Make a poll')`);
-  await dev.page.click(`[data-request='${reqId}'] button:has-text('Make a poll')`);
+  await dev.page.waitForSelector(`[data-request='${reqId}']`);
+  await pollFor(dev.page, (await rest(ownerToken, `requests?select=title&id=eq.${reqId}`)).body[0].title);
   await dev.page.fill("#d-title", "Hygienist choice: launch or first update?");
   await dev.page.fill("input[aria-label='Option 1']", "Ship it for launch");
   await dev.page.fill("input[aria-label='Option 2']", "First update");
@@ -102,8 +113,8 @@ try {
   await page.press("[aria-label='Ask the team']", "Enter");
   await page.waitForFunction(() => document.querySelectorAll("[data-request]").length >= 2);
   const req2 = (await rest(elenaToken, `requests?select=id,body&table_id=eq.${tableId}`)).body.find((r) => r.body === ask2).id;
-  await dev.page.waitForSelector(`[data-request='${req2}'] button:has-text('Make a poll')`);
-  await dev.page.click(`[data-request='${req2}'] button:has-text('Make a poll')`);
+  await dev.page.waitForSelector(`[data-request='${req2}']`);
+  await pollFor(dev.page, (await rest(ownerToken, `requests?select=title&id=eq.${req2}`)).body[0].title);
   await dev.page.fill("#d-title", "Waiting list: launch or later?");
   await dev.page.fill("input[aria-label='Option 1']", "Build it for launch");
   await dev.page.fill("input[aria-label='Option 2']", "After launch");

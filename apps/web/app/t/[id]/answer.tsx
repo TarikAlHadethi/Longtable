@@ -12,7 +12,7 @@ import styles from "./room.module.css";
 
 // An answer from the table: one AI's, or one combined from several. Sources are the files it read; "How they got
 // here" opens the back-room views and how they were settled.
-export function Answer({ m, members, views, again, pages = [], onOpenPage }: { m: Message; members: Map<string, Member>; views: Message[]; again?: boolean; pages?: Page[]; onOpenPage?: (id: string) => void }) {
+export function Answer({ m, members, views, again, follows = false, pages = [], onOpenPage }: { m: Message; members: Map<string, Member>; views: Message[]; again?: boolean; follows?: boolean; pages?: Page[]; onOpenPage?: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   const who = members.get(m.member_id);
   const name = who?.display_name ?? "Someone";
@@ -41,14 +41,16 @@ export function Answer({ m, members, views, again, pages = [], onOpenPage }: { m
   const changed = read.startsWith("changed ");
 
   return (
-    <div className={`${styles.message} ${styles.aiMessage}`} data-mid={m.id} data-ai="true">
-      <div className={styles.aiAvatar}>
+    <div className={`${styles.message} ${styles.aiMessage} ${follows ? styles.follow : ""}`} data-mid={m.id} data-ai="true" data-follows={follows || undefined}>
+      <div className={`${styles.aiAvatar} ${follows ? styles.unseen : ""}`} aria-hidden={follows || undefined}>
         {combined || quick ? <Mark size={22} /> : <AiLogo kind={kindOfModel(m.meta?.model)} size={22} />}
       </div>
       <div className={styles.messageBody}>
-        <div className={styles.messageMeta}>
-          <span className={styles.messageName}>{combined || quick ? "The table" : `${name}'s ${ai}`}</span>
-        </div>
+        {!follows && (
+          <div className={styles.messageMeta}>
+            <span className={styles.messageName}>{combined || quick ? "The table" : `${name}'s ${ai}`}</span>
+          </div>
+        )}
         <div className={`${styles.messageText} ${styles.aiText}`}><Prose text={m.body} /></div>
         {pages.map((p) => <PageCard key={p.id} page={p} onOpen={() => onOpenPage?.(p.id)} />)}
         {/* The small print: when, what it read, where a change went. There when you point at the answer. */}

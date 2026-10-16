@@ -1,6 +1,7 @@
 "use client";
 
 import { useEscape } from "@/components/use-escape";
+import { Grow } from "@/components/grow";
 import { Arrow, Check } from "@/components/icons";
 import { useEffect, useState } from "react";
 import { AI_NAME, AI_TOOL, AiLogo, type AiKind } from "@/components/ai-logo";
@@ -138,7 +139,9 @@ export function ConnectModal({ tableId, tableName, audience = "team", connected,
             <div className={`${s.more} ${kind ? s.moreOpen : ""}`}>
               <div className={s.moreInner}>
                 {kind && (
-                  <div className={s.steps} key={kind}>
+                  <Grow>
+                  {/* A new key for each step, so the next one arrives instead of swapping in place. */}
+                  <div className={s.steps} key={`${kind}:${audience === "team" && !repo && !fromFolder ? "where" : "send"}`}>
                     {audience === "team" && !repo && !fromFolder ? (
                       <form className={s.repo} onSubmit={saveRepo}>
                         <label className={s.stepsTitle} htmlFor="repo">Where is the project&apos;s code?</label>
@@ -181,6 +184,7 @@ export function ConnectModal({ tableId, tableName, audience = "team", connected,
                     )}
                     </>)}
                   </div>
+                  </Grow>
                 )}
               </div>
             </div>

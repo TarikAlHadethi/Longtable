@@ -477,6 +477,7 @@ async function workPacked(rpc, seat, engines, job, copy) {
   const limits = await codexLimits(engines.codex);
   const model = seat.model || limits?.model || "gpt";
   const page = PAGE_KINDS.has(job.kind) ? pageOut(job, s.page) : null;
+  if (s.page) log(`job ${job.job_id}: ChatGPT handed back a handout (update ${JSON.stringify(String(s.page.update || "").slice(0, 40))}, ${(job.pages || []).length} in the chat)`);
   if (page) {
     try { await rpc("runner_page", { token: seat.token, job: job.job_id, page }); log(`job ${job.job_id}: ${page.update ? "changed a page" : "made a page"}`); }
     catch (e) { log(`job ${job.job_id}: the page was not kept: ${e.message}`); }

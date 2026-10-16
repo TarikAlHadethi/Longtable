@@ -15,6 +15,19 @@ const statusOn = (page, id, testid) => page.evaluate(([i, t]) => document.queryS
 const waitStatus = (page, id, testid, words, timeout = 5000) => page.waitForFunction(([i, t, w]) =>
   document.querySelector(`[data-request='${i}'] [data-testid=${t}]`)?.textContent === w, [id, testid, words], { timeout });
 
+// A poll about a client's request is made from under the box (17 Oct 2026: no poll link and no status pill under a
+// client's message any more): open it, then pick the request in its menu.
+async function pollFor(page, title) {
+  await page.click("button:has-text('Make a poll') >> nth=-1");
+  await page.waitForSelector("form[aria-label='Make a poll']");
+  await page.click("form[aria-label='Make a poll'] button[aria-haspopup=listbox]");
+  await page.click(`form[aria-label='Make a poll'] [role=option]:has-text(${JSON.stringify(title)})`);
+  await page.waitForSelector("[data-testid=asked]");
+}
+// Where a request stands, read from the database as the team.
+const reqStatus = async (token, id) => (await rest(token, `requests?select=status&id=eq.${id}`)).body?.[0]?.status ?? null;
+const waitReq = async (token, id, status, ms = 8000) => { for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 250))) if ((await reqStatus(token, id)) === status) return true; return false; };
+
 // A call with no one signed in: the public key only, no session.
 const signedOut = async (fn, args) => (await fetch(`${API}/rest/v1/rpc/${fn}`, {
   method: "POST", headers: { apikey: KEY, "Content-Type": "application/json" }, body: JSON.stringify(args),
@@ -62,10 +75,10 @@ try {
   check("her page shows the request and the team's note", true);
 
   // The team sees it live, as a client card with a way to decide it.
-  await dev.page.waitForFunction((id) => !!document.querySelector(`[data-request='${id}'] [data-testid=request-status]`), reqId, { timeout: 5000 });
+  await dev.page.waitForSelector(`[data-request='${reqId}']`, { timeout: 5000 });
   results.teamSawItAfterMs = Date.now() - askedAt;
   const card = await dev.page.textContent(`[data-request='${reqId}']`);
-  check("the team sees it live as a client card", card.includes(ask) && card.includes("client") && card.includes("New request") && card.includes("Make a poll"), card);
+  check("the team sees it live as her message, with no status pill and no poll link under it", card.includes(ask) && card.includes("client") && !card.includes("New request") && !card.includes("Make a poll"), card);
 
   // Priya sees none of it, on her page or in the database.
   await priya.page.reload();
@@ -80,8 +93,8 @@ try {
   check("another client sees none of it", !priyaLook.includes(ask) && Object.values(priyaReads).every((n) => n === 0), JSON.stringify(priyaReads));
 
   // The developer opens a decision from the card. It starts from her words, and she will hear the answer.
-  await dev.page.click(`[data-request='${reqId}'] button:has-text('Make a poll')`);
-  await dev.page.waitForSelector("[data-testid=asked]");
+  const reqTitle = (await rest(ownerToken, `requests?select=title&id=eq.${reqId}`)).body[0].title;
+  await pollFor(dev.page, reqTitle);
   const form = "form[aria-label='Make a poll']";
   const prefilled = {
     title: await dev.page.inputValue("#d-title"),
@@ -102,10 +115,13 @@ try {
 
   // Her page moves to Being decided, live; the team's card follows and the button goes.
   await waitStatus(elena.page, reqId, "status", "With the team");
-  await waitStatus(owner.page, reqId, "request-status", "Being decided");
-  check("she sees it being decided, live", true);
-  const ownerCard = await owner.page.textContent(`[data-request='${reqId}']`);
-  check("the card stops offering a second decision", !ownerCard.includes("Make a poll"), ownerCard);
+  check("she sees it being decided, live", await waitReq(ownerToken, reqId, "being decided"));
+  await owner.page.click("button:has-text('Make a poll') >> nth=-1");
+  await owner.page.click("form[aria-label='Make a poll'] button[aria-haspopup=listbox]").catch(() => {});
+  const offered = await owner.page.locator("form[aria-label='Make a poll'] [role=option]").allTextContents().catch(() => []);
+  await owner.page.keyboard.press("Escape");
+  await owner.page.keyboard.press("Escape");
+  check("a request being decided is not offered for a second poll", !offered.some((t) => t.includes(reqTitle)), offered);
 
   const { body: ds } = await rest(ownerToken, `decisions?select=id,request_id,affects_client,origin&table_id=eq.${tableId}`);
   const d = ds.find((x) => x.request_id === reqId);
@@ -124,8 +140,7 @@ try {
   const elenaLook = await textOf(elena.page);
   check("the team's own words never reach her", !["Hygienist choice", "Ship it for launch", "First update", later, "Maya", "Sam"].some((w) => elenaLook.includes(w)),
     elenaLook.slice(0, 600));
-  await waitStatus(dev.page, reqId, "request-status", "Decided");
-  check("the team's card shows it decided", true);
+  check("the request is decided for the team too", await waitReq(ownerToken, reqId, "decided"));
 
   // What went over the wire: Elena heard her request, its timeline and the answer; Priya heard nothing of it.
   await sleep(500);
@@ -202,8 +217,8 @@ try {
   await elena.page.press("[aria-label='Ask the team']", "Enter");
   await elena.page.waitForFunction((t) => document.body.innerText.includes(t), ask3, { timeout: 5000 });
   const req3 = (await rest(elenaToken, `requests?select=id,body&table_id=eq.${tableId}`)).body.find((r) => r.body === ask3)?.id;
-  await dev.page.waitForFunction((id) => !!document.querySelector(`[data-request='${id}'] button`), req3, { timeout: 5000 });
-  await dev.page.click(`[data-request='${req3}'] button:has-text('Make a poll')`);
+  await dev.page.waitForSelector(`[data-request='${req3}']`, { timeout: 5000 });
+  await pollFor(dev.page, (await rest(ownerToken, `requests?select=title&id=eq.${req3}`)).body[0].title);
   await dev.page.fill("#d-title", "Waiting list: launch or later?");
   await dev.page.fill("input[aria-label='Option 1']", "Build it for launch");
   await dev.page.fill("input[aria-label='Option 2']", "After launch");
@@ -237,10 +252,10 @@ try {
   check("her tap answers it, once", answeredLine.includes("You answered: At launch") && repliesLeft === 0, `${answeredLine} / ${repliesLeft} left`);
 
   // Her answer reaches the team live, as a client card that offers the next decision.
-  await dev.page.waitForFunction((id) => [...document.querySelectorAll(`[data-request='${id}'] [data-testid=request-status]`)].some((el) => el.textContent === "Elena Ruiz answered"), req3, { timeout: 5000 });
+  const answered = await waitReq(ownerToken, req3, "answered");
+  await dev.page.waitForFunction((id) => [...document.querySelectorAll(`[data-request='${id}']`)].some((el) => el.textContent.includes("At launch")), req3, { timeout: 5000 }).catch(() => {});
   const cards = await dev.page.$$eval(`[data-request='${req3}']`, (els) => els.map((el) => el.textContent));
-  const offering = cards.filter((t) => t.includes("Make a poll")).length;
-  check("the team gets her answer and can decide again", cards.some((t) => t.includes("Answering: " + "Would you rather") && t.includes("At launch")) && offering === 1,
+  check("the team gets her answer and can decide again", answered && cards.some((t) => t.includes("Answering: " + "Would you rather") && t.includes("At launch")),
     JSON.stringify(cards));
 
   // Only she answers, and only once.
