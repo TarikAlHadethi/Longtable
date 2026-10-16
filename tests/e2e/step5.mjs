@@ -270,7 +270,9 @@ try {
   await dev.page.routeWebSocket(/\/realtime\/v1\/websocket/, dropper);
   await Promise.all([elena.page.reload(), dev.page.reload()]);
   await elena.page.waitForSelector("[data-testid=client-chat]");
-  await dev.page.waitForFunction(() => !document.body.innerText.includes("Connecting"), null, { timeout: 10000 });
+  // The team's page has really joined its channel (joining reads the database, which would catch it up early).
+  await dev.page.waitForSelector("[data-live]", { timeout: 15000 });
+  await sleep(1500);
   dropPushes = true;
   const ask2 = "Could the booking page show prices for each treatment?";
   await elena.page.fill("[aria-label='Ask the team']", ask2);

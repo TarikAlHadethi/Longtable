@@ -884,7 +884,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   }
 
   return (
-    <div className={`${styles.shell} ${noSide ? styles.shellWide : ""}`}>
+    <div className={`${styles.shell} ${noSide ? styles.shellWide : ""}`} data-live={live || undefined}>
       <header className={styles.header}>
         <button className={styles.menuToggle} aria-label="Menu" aria-expanded={drawerOpen} onClick={() => { setDrawerOpen(!drawerOpen); setInboxOpen(false); }}>
           <span /><span /><span />
