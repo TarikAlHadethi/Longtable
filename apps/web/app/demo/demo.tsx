@@ -154,7 +154,7 @@ export function Demo() {
               <div className={client.mine}><div className={room.bubble} data-bubble="rose">{ASK}</div></div>
               <div className={client.back}>
                 <div className={client.from}>
-                  {step < 6 && <span className={client.forming} aria-hidden="true"><WorkingMark size={18} /></span>}
+                  {step < 6 && <span className={client.forming} aria-hidden="true"><WorkingMark size={24} /></span>}
                   <span className={client.fromName}>The team</span>
                 </div>
                 {step >= 6

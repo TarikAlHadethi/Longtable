@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 
 // The Longtable mark: a table with three seats on each side, drawn to the brand's proportions.
 const CLAY = "oklch(0.62 0.09 30)";
@@ -41,13 +41,57 @@ export function Wordmark({ size = 16 }: { size?: number }) {
   );
 }
 
-// While something is being worked out (the table thinking): the mark's own opening animation, the very same one, at
-// whatever size it is drawn, played again and again for as long as the work goes on.
+// While something is being worked out (the table thinking): the Longtable loader from his design file, the very same
+// animation (the six seats ride round the table clockwise, keeping their spacing, 1.5 s moving, 1 s resting), only
+// scaled so its 32 by 20 box fits `size` wide.
+const SEAT_COLOURS = [HEATHER, SLATE, CLAY, HEATHER, SAGE, CLAY];
+const X = 6, Y = 8;
+const AR = Math.PI * Y, PER = 4 * X + 2 * AR;
+const HOME = [0, X, 2 * X, PER / 2, PER / 2 + X, PER / 2 + 2 * X];
+const MOVE = 1500, PAUSE = 1000;
+function atLen(L: number): [number, number] {
+  L = ((L % PER) + PER) % PER;
+  if (L < 2 * X) return [X - L, -Y];
+  L -= 2 * X;
+  if (L < AR) { const a = L / Y; return [-X - Y * Math.sin(a), -Y * Math.cos(a)]; }
+  L -= AR;
+  if (L < 2 * X) return [-X + L, Y];
+  L -= 2 * X;
+  const a = L / Y;
+  return [X + Y * Math.sin(a), Y * Math.cos(a)];
+}
+const ease = (u: number) => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
+
 export function WorkingMark({ size = 18 }: { size?: number }) {
-  const [round, setRound] = useState(0);
+  const z = size / 32;
+  const seats = useRef<(HTMLSpanElement | null)[]>([]);
   useEffect(() => {
-    const t = setInterval(() => setRound((r) => r + 1), 1800);
-    return () => clearInterval(t);
-  }, []);
-  return <Mark key={round} size={size} live />;
+    let raf = 0;
+    const t0 = performance.now();
+    const tick = (now: number) => {
+      const e = now - t0, beat = MOVE + PAUSE, n = Math.floor(e / beat), r = e % beat;
+      const p = n + (r < MOVE ? ease(r / MOVE) : 1);
+      seats.current.forEach((el, k) => {
+        if (!el) return;
+        const [x, y] = atLen(HOME[k] - (p * PER) / 2);
+        el.style.transform = `translate(${x * z}px,${y * z}px)`;
+      });
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [z]);
+  const W = 32 * z, H = 20 * z, d = 4 * z;
+  return (
+    <span style={{ position: "relative", display: "inline-block", width: W, height: H, flex: "none" }} data-testid="working-mark">
+      <span style={{ position: "absolute", left: W / 2 - 10 * z, top: H / 2 - 4 * z, width: 20 * z, height: 8 * z, borderRadius: 4 * z, background: "var(--table)" }} />
+      {SEAT_COLOURS.map((c, k) => {
+        const [x, y] = atLen(HOME[k]);
+        return (
+          <span key={k} ref={(el) => { seats.current[k] = el; }}
+            style={{ position: "absolute", left: W / 2 - d / 2, top: H / 2 - d / 2, width: d, height: d, borderRadius: "50%", background: c, transform: `translate(${x * z}px,${y * z}px)`, willChange: "transform" }} />
+        );
+      })}
+    </span>
+  );
 }

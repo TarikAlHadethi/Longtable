@@ -445,7 +445,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
               <div className={styles.turn}>
                 <div className={styles.back}>
                   <div className={styles.from}>
-                    <span className={styles.forming} aria-hidden="true"><WorkingMark size={18} /></span>
+                    <span className={styles.forming} aria-hidden="true"><WorkingMark size={24} /></span>
                     <span className={styles.fromName}>{deskBusy || !mine ? "The team" : "Your assistant"}</span>
                   </div>
                   <div className={styles.formingLine} data-testid="thinking" data-stage={waitingOn ? "waiting" : stage}>
