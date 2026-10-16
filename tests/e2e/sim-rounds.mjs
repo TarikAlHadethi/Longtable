@@ -692,10 +692,12 @@ try {
     check("11b4 only the owner's check is noted", Object.values(notes).every((r) => r.status >= 400) && noted.status < 300 && sql(`select open_ok from public.sandboxes where member_id = '${dana.id}'`) === "t");
 
     // The team tries a change of its own before the client ever has the copy.
-    const tTries = { dana: await rpc(dana.token, "team_sandbox_change", { m: dana.id, body: "x" }), empty: await rpc(people.Maya.token, "team_sandbox_change", { m: dana.id, body: "  " }) };
-    const tried = await rpc(people.Lee.token, "team_sandbox_change", { m: dana.id, body: "Make the title blue" });
+    // The owner's own, from the copy's set-up (since the access sweep of 16 Oct 2026): not the client, not a developer.
+    const tTries = { dana: await rpc(dana.token, "team_sandbox_change", { m: dana.id, body: "x" }), lee: await rpc(people.Lee.token, "team_sandbox_change", { m: dana.id, body: "x" }),
+      empty: await rpc(people.Maya.token, "team_sandbox_change", { m: dana.id, body: "  " }) };
+    const tried = await rpc(people.Maya.token, "team_sandbox_change", { m: dana.id, body: "Make the title blue" });
     const tj = await take("Maya", "heavy");
-    check("11b5 a test change from the team is built like any other", Object.values(tTries).every((r) => r.status >= 400) && tried.status < 300 && tj?.kind === "sandbox" && tj.test === true && tj.words === "Make the title blue", { tries: Object.fromEntries(Object.entries(tTries).map(([k, v]) => [k, v.status])), tj: tj && { kind: tj.kind, test: tj.test } });
+    check("11b5 a test change of the owner's own is built like any other", Object.values(tTries).every((r) => r.status >= 400) && tried.status < 300 && tj?.kind === "sandbox" && tj.test === true && tj.words === "Make the title blue", { tries: Object.fromEntries(Object.entries(tTries).map(([k, v]) => [k, v.status])), tj: tj && { kind: tj.kind, test: tj.test } });
     await fin("Maya", tj, "The title is blue.", { changed: true, commit: "9".repeat(40), files: ["app/page.tsx"], detail: "Blue title." });
     const testRow = JSON.parse(sql(`select row_to_json(c) from public.sandbox_changes c where id = '${tried.body}'`));
     check("11b5 the client never sees the team's test, and it is not theirs to be answered", testRow.status === "ready" && testRow.test === true && (await mine()).changes.length === 0

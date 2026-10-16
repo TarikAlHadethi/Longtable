@@ -12,7 +12,6 @@
 
 import { spawn } from "node:child_process";
 import { rmSync } from "node:fs";
-import { hostname } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { client, fetchConfig } from "../src/api.mjs";
@@ -56,7 +55,7 @@ async function connect() {
 
   const cfg = await fetchConfig(app);
   const rpc = client(cfg);
-  const paired = await rpc("pair_connection", { code, device_label: hostname() });
+  const paired = await rpc("pair_connection", { code, device_label: { win32: "Windows computer", darwin: "Mac", linux: "Linux computer" }[process.platform] || "computer" });
   // From here on, anything that goes wrong takes the connection off the table again, so the table never shows an AI
   // as connected that is not running.
   const leave = async (message) => {
@@ -143,8 +142,16 @@ async function status() {
   }
 }
 
-function disconnect() {
+async function disconnect() {
   const config = readConfig();
+  // The table is told first, so it takes the AI off at once (its list of commands goes with it).
+  if (config.supabaseUrl && config.publishableKey) {
+    const rpc = client(config);
+    for (const c of config.connections || []) {
+      const token = loadSecret(`device-${c.table_id}-${c.kind}`);
+      if (token) { try { await rpc("runner_leave", { token, reason: "Disconnected on its own computer" }); } catch (e) { log(`disconnect: the table was not told: ${e.message}`); } }
+    }
+  }
   for (const c of config.connections || []) forgetSecret(`device-${c.table_id}-${c.kind}`);
   writeConfig({ ...config, connections: [] });
   disableAutostart();
@@ -157,6 +164,9 @@ function disconnect() {
   // The project copies and work folders it kept go too (his choice, 16 Oct 2026). The Claude sign-in stays: it is
   // the person's own, and another table on this computer may still use it.
   forgetCopies((config.connections || []).map((c) => c.table_id));
+  // Its own notes from those tables, and a client's ChatGPT sign-in kept for Longtable alone, go too.
+  for (const c of config.connections || []) { try { rmSync(join(home, "minds", `${String(c.table_id).replace(/[^0-9a-f-]/gi, "")}.md`), { force: true }); } catch {} }
+  if ((config.connections || []).some((c) => c.role === "client")) { try { rmSync(join(home, "codex"), { recursive: true, force: true }); } catch {} }
   say("Disconnected on this computer, and its copies of the project are removed. Remove it in Longtable's settings too if it still shows.");
 }
 
@@ -167,7 +177,7 @@ try {
     await runLoop();
   }
   else if (command === "status") await status();
-  else if (command === "disconnect") disconnect();
+  else if (command === "disconnect") await disconnect();
   else say("Usage: longtable connect <code> | run | status | disconnect");
 } catch (e) {
   log(`error: ${e.message}`);

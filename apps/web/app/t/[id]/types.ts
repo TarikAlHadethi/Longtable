@@ -32,6 +32,7 @@ export type Message = {
     part?: string | null;
     ok?: boolean | null;
     changed?: boolean | null;
+    job?: string | null;
   };
   state?: "sending" | "failed";
 };
@@ -139,3 +140,14 @@ export const REQUEST_COLUMNS = "id, member_id, title, body, status, message_id, 
 export const LINE_COLUMNS = "id, who, body, request_id, created_at, by_table";
 export const EVENT_COLUMNS = "id, request_id, label, created_at";
 export const UPDATE_COLUMNS = "id, body, request_id, decision_id, created_at, replies, answer, answered_at";
+
+// A page one of the table's AIs made: a whole HTML document the team opens in a locked frame. Each change is a version.
+export type Page = { id: string; table_id: string; chat_id: string; job_id: string | null; made_by: string | null; title: string; about: string;
+  icon: string; version: number; created_at: string; touched_at: string };
+export type PageVersion = { id: string; page_id: string; n: number; job_id?: string | null; made_by: string | null; by_ai: boolean; note: string; created_at: string };
+export type PageComment = { id: string; page_id: string; member_id: string | null; parent_id: string | null; version: number; anchor: string; body: string;
+  to_ai: boolean; resolved_at: string | null; resolved_by: string | null; deleted_at: string | null; created_at: string };
+export type PageValue = { page_id: string; key: string; value: unknown; updated_by: string | null; updated_at: string };
+export const PAGE_COLUMNS = "id, table_id, chat_id, job_id, made_by, title, about, icon, version, created_at, touched_at";
+export const PAGE_VERSION_COLUMNS = "id, page_id, n, job_id, made_by, by_ai, note, created_at";
+export const PAGE_COMMENT_COLUMNS = "id, page_id, member_id, parent_id, version, anchor, body, to_ai, resolved_at, resolved_by, deleted_at, created_at";

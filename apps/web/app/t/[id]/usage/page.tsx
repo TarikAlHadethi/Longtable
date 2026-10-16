@@ -30,7 +30,7 @@ export default async function Usage({ params }: { params: Promise<{ id: string }
   // Without these the page would say nobody's AI did anything this week.
   if (connError || jobsError) throw new Error("Usage could not be read just now.");
 
-  const cards: Card[] = (people ?? []).map((p) => {
+  const cards: Card[] = (people ?? []).filter((p) => p.role !== "client").map((p) => {
     const mineConns = (connections ?? []).filter((c) => c.member_id === p.id);
     const latest = [...mineConns].sort((a, b) => (b.limits_at ?? "").localeCompare(a.limits_at ?? ""))[0];
     const done = (jobs ?? []).filter((j) => j.member_id === p.id && j.status === "done");

@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, wri
 import { homedir } from "node:os";
 import { basename, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { cut } from "./store.mjs";
+import { cut, hideSecrets } from "./store.mjs";
 
 const NL = String.fromCharCode(10);
 const claudeHome = () => process.env.LONGTABLE_CLAUDE_HOME || join(homedir(), ".claude");
@@ -16,7 +16,7 @@ const folderOf = (seat) => {
 };
 // A file's name and a person's name come from the table like any other words (a client names their own attachment),
 // so neither may close a fence, and a name stays on its own one line. The same markers as inert() in run.mjs.
-const inert = (t) => String(t ?? "").replace(/<<<(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT)|(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT)>>>/g, "[marker]");
+const inert = (t) => String(t ?? "").replace(/<<<(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT|PAGES)|(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT|PAGES)>>>/g, "[marker]");
 const named = (t) => cut(inert(t).replace(/\s+/g, " ").replace(/"/g, "'").trim(), 200);
 
 // The top of a command or skill file: "---", lines of "key: value", "---".
@@ -211,27 +211,33 @@ function textFiles(dir, depth) {
   let list = [];
   try { list = readdirSync(dir, { withFileTypes: true }); } catch { return here; }
   for (const e of list) {
-    if (e.name === "node_modules" || e.name === ".git") continue;
+    if (e.name === "node_modules" || e.name === ".git" || PRIVATE_DIR.test(e.name)) continue;
     const p = join(dir, e.name);
-    if (e.isFile() && TEXTISH.test(e.name)) here.push(p);
+    if (e.isFile() && TEXTISH.test(e.name) && !PRIVATE_FILE.test(e.name)) here.push(p);
     else if (e.isDirectory() && depth > 0) below.push(...textFiles(p, depth - 1));
   }
   return [...here.sort(), ...below];
 }
 
-// The text of what was pointed at, for the other AIs: text files only, small, a few.
+// What is never handed to another person's AI from a folder someone pointed at, even with sharing on: their own
+// Claude's instructions and settings, AI tool settings that carry keys, and anything shaped like a secrets file.
+const PRIVATE_DIR = /^\.(claude|codex|cursor|vscode|idea|aws|ssh|gnupg|docker|kube|config)$/i;
+const PRIVATE_FILE = /^(claude(\.local)?\.md|agents\.md|\.mcp\.json|mcp\.json|.*settings.*\.json|\.env.*|.*secret.*|.*credential.*|.*\.pem|.*\.key|\.npmrc|\.netrc|\.pypirc|id_[a-z0-9]+)$/i;
+
+// The text of what was pointed at, for the other AIs: text files only, small, a few, keys hidden.
 export function shareable(laid) {
   const out = [];
   let total = 0;
   const take = (name, file) => {
     if (out.length >= 8) return;
     try {
+      if (PRIVATE_FILE.test(basename(file))) return;
       const st = statSync(file);
       if (!st.isFile() || st.size > 110000) return;
       const text = readFileSync(file, "utf8");
       if (!text.trim() || text.includes("\u0000") || total + text.length > 340000) return;
       total += text.length;
-      out.push({ name, body: text });
+      out.push({ name, body: hideSecrets(text) });
     } catch {}
   };
   for (const f of laid.files || []) take(f.path, f.at);

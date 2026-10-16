@@ -105,6 +105,7 @@ export function BugButton({ tableId, place }: { tableId: string; place: string }
             <>
               <label className={s.bugTitle} htmlFor="bug-text">What went wrong?</label>
               <textarea id="bug-text" className="field" rows={4} maxLength={4000} autoFocus value={text} onChange={(e) => setText(e.target.value)} />
+              <div className="note">Goes to whoever runs this Longtable, word for word. Leave out anything private.</div>
               {error && <div className="error">{error}</div>}
               <div className={s.row}>
                 <button className="btn" disabled={state === "sending" || !text.trim()}>{state === "sending" ? "Sending…" : "Send"}</button>

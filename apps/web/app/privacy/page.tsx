@@ -46,7 +46,7 @@ export default function Privacy() {
 
       <h2 style={h2}>Whoever runs this Longtable</h2>
       <p style={{ margin: 0 }}>
-        Their page shows counts only, never names, messages or table titles. Like any hosted service, though, the database itself
+        Their page shows counts only, never names, messages or table titles, plus any bug report you send them, as you wrote it. Like any hosted service, though, the database itself
         is not end-to-end encrypted, so the person who runs the server could read it. Longtable is open source, so you can run your own.
       </p>
 

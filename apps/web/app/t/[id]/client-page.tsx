@@ -102,6 +102,8 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   // Everything again from the database: covers the moment between the page loading and the channels opening,
   // and anything missed while a laptop slept.
   const reload = useCallback(async () => {
+    const { data: still, error: stillError } = await supabase.from("members").select("id").eq("id", me.id).is("removed_at", null).maybeSingle();
+    if (!stillError && !still && !viewer) { setGone(true); return; }
     const [{ data: r }, { data: up }, { data: ln }, { data: cn }, { data: jb }] = await Promise.all([
       supabase.from("requests").select(REQUEST_COLUMNS).eq("table_id", table.id).eq("member_id", me.id),
       supabase.from("client_updates").select(UPDATE_COLUMNS).eq("table_id", table.id),

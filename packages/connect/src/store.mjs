@@ -28,10 +28,13 @@ const configFile = join(home, "config.json");
 const logFile = join(home, "runner.log");
 
 mkdirSync(secretsDir, { recursive: true });
+if (process.platform !== "win32") { try { chmodSync(home, 0o700); chmodSync(secretsDir, 0o700); } catch {} }
 
 export function hideSecrets(text) {
   return String(text)
     .replace(/sk-ant-[A-Za-z0-9_-]{8,}/g, "[token]")
+    .replace(/\b(sk-(proj|svcacct|admin)-[A-Za-z0-9_-]{16,}|sk-[A-Za-z0-9]{32,}|[sr]k_(live|test)_[A-Za-z0-9]{16,}|whsec_[A-Za-z0-9]{16,}|re_[A-Za-z0-9]{8,}_[A-Za-z0-9]{16,}|xox[abprs]-[A-Za-z0-9-]{10,}|npm_[A-Za-z0-9]{30,}|AIza[0-9A-Za-z_-]{35}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|sb_secret_[A-Za-z0-9_-]{8,})/g, "[key]")
+    .replace(/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(-----END [A-Z ]*PRIVATE KEY-----|$)/g, "[private key]")
     .replace(/\b[0-9a-f]{64}\b/gi, "[device token]");
 }
 

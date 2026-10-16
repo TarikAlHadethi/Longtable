@@ -11,7 +11,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 // the rule for addresses below, like every address a name leads to.
 const PRIVATE_NAME = /^(localhost|.+\.local|.+\.internal|.+\.localhost)$/i;
 // Nor a public name that leads to one: the name is looked up first, and every address it has must be a public one.
-const PRIVATE_ADDRESS = /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|0\.|::$|::1$|::ffff:|f[cd][0-9a-f]{2}:|fe[89ab][0-9a-f]:)/i;
+const PRIVATE_ADDRESS = /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|0\.|192\.0\.0\.|198\.1[89]\.|2(2[4-9]|[3-5]\d)\.|::$|::1$|::ffff:|64:ff9b:|f[cd][0-9a-f]{2}:|fe[89ab][0-9a-f]:|ff[0-9a-f]{2}:)/i;
 
 export async function POST(req: Request) {
   const { member } = ((await req.json().catch(() => null)) ?? {}) as { member?: string };

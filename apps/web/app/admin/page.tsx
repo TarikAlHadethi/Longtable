@@ -36,7 +36,7 @@ export default async function Admin() {
         <Mark size={24} /> Longtable
       </Link>
       <h1 style={{ margin: 0, fontSize: 26 }}>How it is going</h1>
-      <p className="note" style={{ margin: 0 }}>Counts only. No names, messages or table titles reach this page.</p>
+      <p className="note" style={{ margin: 0 }}>Counts only: no names, messages or table titles. Bug reports below are shown as people wrote them.</p>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
         {LABELS.map(([key, label]) => (
           <div key={key} className="panel" style={{ padding: "14px 16px", gap: 4 }} data-count={key}>

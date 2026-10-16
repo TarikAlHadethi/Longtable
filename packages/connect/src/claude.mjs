@@ -93,7 +93,7 @@ export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,
   const token = apiKey ? null : loadSecret("claude-token");
   if (!token && !apiKey) return Promise.reject(new Error("This connection has no Claude sign-in yet. Run connect again."));
   // Streamed output carries the plan's usage limits (a rate_limit_event) as well as the result.
-  const args = ["-p", "--output-format", "stream-json", "--verbose", "--restricted", "--permission-mode", edit ? "acceptEdits" : "dontAsk",
+  const args = ["-p", "--output-format", "stream-json", "--verbose", "--no-session-persistence", "--restricted", "--permission-mode", edit ? "acceptEdits" : "dontAsk",
     "--strict-mcp-config", "--max-turns", edit ? (long ? "10000" : "60") : tools ? "25" : "4", "--tools", tools];
   if (system) args.push("--append-system-prompt", system);
   if (schema) args.push("--json-schema", JSON.stringify(schema));
@@ -121,8 +121,10 @@ export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,
         // A tool call says what the AI is doing right now.
         for (const part of e.message?.content || []) {
           if (part.type !== "tool_use") continue;
-          const file = String(part.input?.file_path || part.input?.path || "").split(/[/\\]/).pop();
-          onNote(part.name === "Edit" || part.name === "Write" ? `editing ${file}` : part.name === "Read" ? `reading ${file}` : "searching the code");
+          const where = String(part.input?.file_path || part.input?.path || "");
+          const file = where.split(/[/\\]/).pop();
+          if (/[/\\]\.longtable-yours([/\\]|$)/.test(where) || /^\.longtable-yours([/\\]|$)/.test(where)) onNote("reading what it knows");
+          else onNote(part.name === "Edit" || part.name === "Write" ? `editing ${file}` : part.name === "Read" ? `reading ${file}` : "searching the code");
         }
       }
     });

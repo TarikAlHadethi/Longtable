@@ -65,7 +65,7 @@ export function useAttach(supabase: SupabaseClient, tableId: string, folder: str
         const up = await supabase.storage.from("attachments").upload(path, p.file, { contentType: mime, upsert: false });
         if (up.error) throw new PersonalError(`"${p.file.name}" could not be uploaded.`);
         // The address an AI at this table fetches it from. People are shown a fresh one each time they look.
-        const signed = await supabase.storage.from("attachments").createSignedUrl(path, 60 * 60 * 24 * 30);
+        const signed = await supabase.storage.from("attachments").createSignedUrl(path, 60 * 60 * 24);
         if (signed.error || !signed.data?.signedUrl) throw new PersonalError(`"${p.file.name}" could not be uploaded.`);
         done.push({ path, name: p.file.name.slice(0, 200), mime, size: p.file.size, url: signed.data.signedUrl });
       }

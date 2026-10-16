@@ -11,6 +11,7 @@ import { browserClient } from "@/lib/supabase/browser";
 import { Inline } from "@/lib/inline";
 import { AttachButtons, AttachTray, Files, dropHandlers, useAttach } from "./attach";
 import { AiWindow, TableWindow } from "./seat-windows";
+import { PagesList, PageWindow } from "./page-window";
 import { Time } from "@/components/time";
 import { Answer } from "./answer";
 import { ChatList } from "./chat-list";
@@ -31,6 +32,7 @@ import {
   CONNECTION_COLUMNS, DECISION_COLUMNS, JOB_COLUMNS, MEMBER_COLUMNS, MESSAGE_COLUMNS, NOTE_COLUMNS, REQUEST_COLUMNS,
   type Chat, type Command, type Connection, type Decision, type Job, type Member, type Message, type Note, type Request, type RequestStatus,
   CHANGE_COLUMNS, type SandboxChange, SANDBOX_COLUMNS, type SandboxRow, TASK_COLUMNS, type Task,
+  PAGE_COLUMNS, PAGE_COMMENT_COLUMNS, PAGE_VERSION_COLUMNS, type Page, type PageComment, type PageValue, type PageVersion,
 } from "./types";
 import styles from "./room.module.css";
 import { firstName } from "@/lib/names";
@@ -139,6 +141,36 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     else setMyCommands((data as Command[] | null) ?? []);
   }, [supabase, table.id]);
   useEffect(() => { readCommands(); }, [readCommands]);
+  // The pages the table's AIs made, what each version was, what people said on them, what tools on them keep, and
+  // which ones this person pinned. The team's alone: a client never reads any of it.
+  const [pages, setPages] = useState<Page[]>([]);
+  const [pageVersions, setPageVersions] = useState<PageVersion[]>([]);
+  const [pageComments, setPageComments] = useState<PageComment[]>([]);
+  const [pageValues, setPageValues] = useState<PageValue[]>([]);
+  const [pins, setPins] = useState<Set<string>>(new Set());
+  const [openPage, setOpenPage] = useState<string | null>(null);
+  const [pagesOpen, setPagesOpen] = useState(false);
+  const [viewing, setViewing] = useState<Map<string, string[]>>(new Map());
+  const readPages = useCallback(async () => {
+    const [pg, vs, cm, st, pn] = await Promise.all([
+      supabase.from("pages").select(PAGE_COLUMNS).eq("table_id", table.id).order("touched_at", { ascending: false }).limit(200),
+      supabase.from("page_versions").select(PAGE_VERSION_COLUMNS).eq("table_id", table.id).order("n").limit(2000),
+      supabase.from("page_comments").select(PAGE_COMMENT_COLUMNS).eq("table_id", table.id).order("created_at").limit(2000),
+      supabase.from("page_state").select("page_id, key, value, updated_by, updated_at").eq("table_id", table.id).limit(5000),
+      supabase.from("page_pins").select("page_id").eq("member_id", me.id),
+    ]);
+    const bad = [pg, vs, cm, st, pn].find((r) => r.error);
+    if (bad) { console.warn("[pages] could not be read:", bad.error?.code); return; }
+    setPages(pg.data as Page[]);
+    setPageVersions(vs.data as PageVersion[]);
+    setPageComments(cm.data as PageComment[]);
+    setPageValues(st.data as PageValue[]);
+    setPins(new Set((pn.data as { page_id: string }[]).map((x) => x.page_id)));
+  }, [supabase, table.id, me.id]);
+  useEffect(() => { readPages(); }, [readPages]);
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  // Who else has a page open: told through the team's own presence, never stored.
+  useEffect(() => { channelRef.current?.track({ at: Date.now(), page: openPage }).catch(() => {}); }, [openPage]);
   const [tableOpen, setTableOpen] = useState(false);
   const [slashAt, setSlashAt] = useState(0);
   const [draft, setDraft] = useState("");
@@ -267,7 +299,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (ns) setNotes(ns as Note[]);
     if (cs) setConnections(cs as Connection[]);
     readCommands();
-  }, [supabase, table.id, me.id, readCommands]);
+    readPages();
+  }, [supabase, table.id, me.id, readCommands, readPages]);
 
   const catchUpRef = useRef<(() => void) | null>(null);
   catchUpRef.current = catchUp;
@@ -334,6 +367,19 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         const c = record as unknown as Chat;
         if ((record as { deleted?: boolean }).deleted) return dropRef.current(c.id);
         setChats((prev) => [...prev.filter((x) => x.id !== c.id), c].sort(byTime));
+      } else if (name === "pages") {
+        const p = record as unknown as Page & { deleted?: boolean };
+        if (p.deleted) { setPages((prev) => prev.filter((x) => x.id !== p.id)); setOpenPage((cur) => (cur === p.id ? null : cur)); return; }
+        setPages((prev) => [p, ...prev.filter((x) => x.id !== p.id)]);
+      } else if (name === "page_versions") {
+        const v = record as unknown as PageVersion;
+        setPageVersions((prev) => [...prev.filter((x) => x.id !== v.id), v]);
+      } else if (name === "page_comments") {
+        const c = record as unknown as PageComment;
+        setPageComments((prev) => [...prev.filter((x) => x.id !== c.id), c]);
+      } else if (name === "page_state") {
+        const v = record as unknown as PageValue;
+        setPageValues((prev) => [...prev.filter((x) => !(x.page_id === v.page_id && x.key === v.key)), v]);
       } else if (name === "decisions") {
         const d = record as unknown as Omit<Decision, "options">;
         if (kind === "INSERT") loadDecision(d.id);
@@ -351,15 +397,20 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       ch.on("broadcast", { event: "INSERT" }, onChange("INSERT"))
         .on("broadcast", { event: "UPDATE" }, onChange("UPDATE"))
         .on("presence", { event: "sync" }, () => {
-          const ids = new Set(Object.keys(ch.presenceState()));
+          const state = ch.presenceState() as Record<string, { page?: string | null }[]>;
+          const ids = new Set(Object.keys(state));
           ids.add(me.id);
           setOnline(ids);
+          const looking = new Map<string, string[]>();
+          for (const [who, metas] of Object.entries(state)) for (const p of new Set(metas.map((x) => x.page).filter(Boolean) as string[])) looking.set(p, [...(looking.get(p) ?? []), who]);
+          setViewing(looking);
           if ([...ids].some((id) => !known.current.has(id))) refreshMembers();
         })
         .subscribe(async (status: string) => {
           setLive(status === "SUBSCRIBED");
           if (status === "SUBSCRIBED") {
-            await ch.track({ at: Date.now() });
+            channelRef.current = ch;
+            await ch.track({ at: Date.now(), page: null });
             catchUp();
             refreshMembers();
           }
@@ -799,6 +850,9 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
             waiting={new Set(decisions.filter((d) => d.status === "open").map((d) => d.chat_id))}
             canDelete={(c) => !c.is_general && (self.role === "owner" || c.created_by === me.id)}
             onOpen={openChat} onCreate={makeChat} onRename={renameChat} onDelete={deleteChat} />
+          <button className={styles.pagesLink} onClick={() => setPagesOpen(true)} data-testid="pages-link">
+            <span>Pages</span>{pages.length > 0 && <span className={styles.pagesCount}>{pages.length}</span>}
+          </button>
           <div className={styles.section}>
             <div className={styles.sectionTitle}>People</div>
             {/* The people working first, then a quiet line, then the clients. */}
@@ -910,6 +964,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 }
                 if (m.by_ai) {
                   return <Answer key={m.id} m={m} members={byId} views={m.meta?.round ? viewsByRound.get(m.meta.round) ?? [] : []}
+                    pages={m.meta?.job ? pages.filter((p) => p.job_id === m.meta?.job || pageVersions.some((v) => v.page_id === p.id && v.job_id === m.meta?.job)) : []}
+                    onOpenPage={setOpenPage}
                     again={m.kind === "intro" && items.some((o) => o.kind !== "decision" && o.m.kind === "intro" && o.m.member_id === m.member_id && o.m.created_at < m.created_at)} />;
                 }
                 const mine = m.member_id === me.id;
@@ -1025,6 +1081,14 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           waiting={changes.filter((c) => c.member_id === personId && c.status === "ready" && !c.verdict && !c.test).length} />
       )}
       {inviting && <Invite tableId={table.id} onClose={() => setInviting(false)} />}
+      {pagesOpen && <PagesList pages={pages} pins={pins} members={byId} onClose={() => setPagesOpen(false)} onOpen={(id) => { setPagesOpen(false); setOpenPage(id); }} />}
+      {openPage && pages.some((p) => p.id === openPage) && (
+        <PageWindow supabase={supabase} page={pages.find((p) => p.id === openPage)!} me={self} owner={self.role === "owner"} members={byId}
+          versions={pageVersions.filter((v) => v.page_id === openPage)} comments={pageComments.filter((c) => c.page_id === openPage).sort((a, b) => a.created_at.localeCompare(b.created_at))}
+          values={pageValues.filter((v) => v.page_id === openPage)} pinned={pins.has(openPage)} viewers={viewing.get(openPage) ?? []}
+          onClose={() => setOpenPage(null)} onFailed={(msg) => { didNotTake(msg); readPages(); }}
+          onPinned={(on) => setPins((prev) => { const next = new Set(prev); if (on) next.add(openPage); else next.delete(openPage); return next; })} />
+      )}
       {aiOf && byId.get(aiOf) && (() => {
         const all = connections.filter((c) => c.member_id === aiOf);
         const conn = all.find((c) => !c.revoked_at) ?? [...all].sort((a, b) => (b.revoked_at ?? "").localeCompare(a.revoked_at ?? ""))[0] ?? null;
