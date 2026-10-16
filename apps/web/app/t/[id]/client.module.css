@@ -32,6 +32,14 @@
 .from { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
 .fromName { font-weight: 560; color: var(--ink); }
 .said { font-size: 16.5px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; text-wrap: pretty; display: flex; flex-direction: column; gap: 10px; }
+/* An AI's reply, set like an answer on the team's side: paragraphs with air, real lists, the voice's face. */
+.voice { font-family: var(--font-voice); font-size: 17px; line-height: 1.5; color: var(--ink); white-space: normal; max-width: 46em; }
+.voice p { margin: 0 0 0.6em; white-space: pre-wrap; }
+.voice ul, .voice ol { margin: 0 0 0.6em; padding-left: 1.4em; }
+.voice li { margin: 0.15em 0; padding-left: 0.2em; white-space: pre-wrap; }
+.voice li::marker { color: var(--muted); }
+.voice > :last-child { margin-bottom: 0; }
+.voice strong { font-weight: 600; }
 .answered { font-size: 14px; color: var(--muted); }
 .tryIt { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; animation: cl-pop 0.34s var(--ease-spring) backwards; }
 .verdict { animation: lt-rise 0.3s var(--ease-out) backwards; font-size: 15px; font-weight: 560; color: light-dark(oklch(0.4 0.07 150), oklch(0.82 0.07 150)); }

@@ -7,6 +7,7 @@ import { AI_NAME, AiLogo } from "@/components/ai-logo";
 import { Arrow } from "@/components/icons";
 import { Mark, WorkingMark } from "@/components/mark";
 import { downloadExport } from "@/lib/download";
+import { Prose } from "@/lib/inline";
 import { browserClient } from "@/lib/supabase/browser";
 import { ConnectModal } from "./connect-modal";
 import {
@@ -396,7 +397,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
                     <div className={styles.back}>
                       {speaker(item.own ? (item.desk ? "desk" : "assistant") : "team")}
                       <div className={styles.said}>
-                        {item.text}
+                        <div className={styles.voice}><Prose text={item.text} /></div>
                         {item.question && !item.question.answer && (
                           <div className={styles.replies} data-testid="replies">
                             {item.question.replies.map((label, k) => (
