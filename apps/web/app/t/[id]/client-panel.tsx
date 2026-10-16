@@ -45,10 +45,12 @@ export function ClientPanel({ overview, tableName, open, onClose }: {
           <div className={styles.cardTitle}>Being built</div>
           <ul className={styles.work}>
             {overview.work.map((w, i) => (
-              <li key={`${w.title}-${i}`} className={styles.workItem} style={{ "--i": i } as React.CSSProperties}>
+              // One line each: the heading already says it is being built. The dot tells the rest: it moves while the work
+              // is under way, and is still and green once it is built and with the team to check.
+              <li key={`${w.title}-${i}`} className={styles.workItem} style={{ "--i": i } as React.CSSProperties}
+                title={w.status === "working" ? undefined : "Built, and the team is checking it"} data-status={w.status}>
                 <i className={w.status === "working" ? styles.workOn : styles.workDone} />
                 <span>{w.title}</span>
-                <span className={styles.workState}>{w.status === "working" ? "Under way" : "Built, being checked"}</span>
               </li>
             ))}
           </ul>
