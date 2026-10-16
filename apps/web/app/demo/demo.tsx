@@ -154,12 +154,12 @@ export function Demo() {
               <div className={client.mine}><div className={room.bubble} data-bubble="rose">{ASK}</div></div>
               <div className={client.back}>
                 <div className={client.from}>
+                  {step < 6 && <span className={client.forming} aria-hidden="true"><Mark size={18} /></span>}
                   <span className={client.fromName}>The team</span>
-                  <span key={step >= 6 ? "done" : "wait"} className={`${client.pill} ${step >= 6 ? client.pillDone : client.pillWait}`}>{step >= 6 ? "Decided" : "With the team"}</span>
                 </div>
                 {step >= 6
                   ? <div className={client.said} data-testid="demo-told">{TOLD}</div>
-                  : <div className={client.waiting}>They have your message. Their answer will show here.</div>}
+                  : <div className={client.formingLine}>Thinking<span className={client.formingDots}><i /><i /><i /></span></div>}
               </div>
             </div>
           </div>

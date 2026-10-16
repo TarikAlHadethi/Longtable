@@ -481,8 +481,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
       </main>
 
       {overview && (
-        <ClientPanel overview={overview} tableName={table.name} open={panelOpen} onClose={() => setPanelOpen(false)}
-          onPick={(id) => { setPanelOpen(false); const el = document.querySelector(`[data-request='${id}']`); el?.scrollIntoView({ behavior: "smooth", block: "center" }); el?.classList.add(styles.flash); setTimeout(() => el?.classList.remove(styles.flash), 1600); }} />
+        <ClientPanel overview={overview} tableName={table.name} open={panelOpen} onClose={() => setPanelOpen(false)} />
       )}
       </div>
 

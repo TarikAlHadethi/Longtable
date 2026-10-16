@@ -64,8 +64,6 @@ export function Stage() {
 
   const tab = BEATS[step].tab;
   const reading = step === 3;
-  const pill = step >= 8 ? "Decided" : step >= 6 ? "Being decided" : "New request";
-  const status = step >= 8 ? "Decided" : step >= 6 ? "Being decided" : "With the team";
 
   return (
     <div className={s.wrap}>
@@ -124,7 +122,6 @@ export function Stage() {
                   <div>
                     <div className={s.meta}><b>Elena Ruiz</b> client · 10:42 am</div>
                     <div className={`${s.text} ${s.clientBubble}`}>{ASK}</div>
-                    <span key={pill} className={`${s.pill} ${step >= 8 ? s.pillDone : ""}`}>{pill}</span>
                   </div>
                 </div>
               )}
@@ -194,7 +191,6 @@ export function Stage() {
               {step >= 1 && (
                 <div className={s.mine}>
                   <div className={s.mineBubble}>{ASK}</div>
-                  <span key={status} className={`${s.status} ${step >= 8 ? s.statusDone : ""}`}>{status}</span>
                 </div>
               )}
               {step >= 8 && <div className={`${s.update} ${s.told}`}><b>Decided</b>{TOLD}</div>}

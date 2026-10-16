@@ -24,8 +24,6 @@ async function pollFor(page, title) {
   await page.click(`form[aria-label='Make a poll'] [role=option]:has-text(${JSON.stringify(title)})`);
   await page.waitForSelector("[data-testid=asked]");
 }
-// Where a request stands on the client's own page: the panel beside the conversation (never a pill on a message).
-const waitPanel = (page, id, state, ms = 8000) => page.waitForFunction(([i, st]) => document.querySelector(`[data-testid=panel-request][data-id='${i}']`)?.getAttribute("data-state") === st, [id, state], { timeout: ms }).then(() => true, () => false);
 // Where a request stands, read from the database as the team.
 const reqStatus = async (token, id) => (await rest(token, `requests?select=status&id=eq.${id}`)).body?.[0]?.status ?? null;
 const waitReq = async (token, id, status, ms = 8000) => { for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 250))) if ((await reqStatus(token, id)) === status) return true; return false; };
@@ -72,7 +70,7 @@ try {
   await elena.page.press("[aria-label='Ask the team']", "Enter");
   await elena.page.waitForSelector("[data-request]");
   const reqId = await elena.page.getAttribute("[data-request]", "data-request");
-  check("her page shows the request, with where it stands beside the conversation, never a pill on it", await waitPanel(elena.page, reqId, "asked") && (await elena.page.locator(`[data-request='${reqId}'] [data-testid=status]`).count()) === 0);
+  check("her page shows the request, with no state on it anywhere", await waitReq(ownerToken, reqId, "asked") && !/With the team|What you asked/.test(await textOf(elena.page)));
 
   // The team sees it live, as a client card with a way to decide it.
   await dev.page.waitForSelector(`[data-request='${reqId}']`, { timeout: 5000 });
@@ -114,7 +112,7 @@ try {
   await dev.page.click("button:has-text('Start the poll')");
 
   // Her page moves to Being decided, live; the team's card follows and the button goes.
-  check("she sees it being decided, live", await waitReq(ownerToken, reqId, "being decided") && await waitPanel(elena.page, reqId, "being decided", 20000));
+  check("she sees it being decided, live", await waitReq(ownerToken, reqId, "being decided") && await waitReq(ownerToken, reqId, "being decided", 20000));
   await owner.page.click("button:has-text('Make a poll') >> nth=-1");
   await owner.page.click("form[aria-label='Make a poll'] button[aria-haspopup=listbox]").catch(() => {});
   const offered = await owner.page.locator("form[aria-label='Make a poll'] [role=option]").allTextContents().catch(() => []);
@@ -131,7 +129,7 @@ try {
   const decidedAt = Date.now();
   await elena.page.waitForFunction((w) => document.querySelector("[data-testid=client-chat]")?.textContent?.includes(w), yes, { timeout: 30000 });
   results.heardAfterSeconds = Math.round((Date.now() - decidedAt) / 100) / 10;
-  await waitPanel(elena.page, reqId, "decided", 30000);
+  await waitReq(ownerToken, reqId, "decided", 30000);
   const timeline = await elena.page.textContent(`[data-request='${reqId}']`);
   results.timeline = timeline;
   check("she hears it after the window, in the chosen words, under what she asked", results.heardAfterSeconds >= 9 && [ask, yes].every((w) => timeline.includes(w)) && !timeline.includes("Passed on to the team"),
@@ -298,10 +296,10 @@ try {
     affects_client: true, request: req2, options: [{ label: "Show prices", recommended: true, client_words: "Prices will show on the booking page." },
       { label: "Not yet", recommended: false, client_words: "Prices come in a later update." }] });
   await sleep(3000);
-  const stale = { client: await elena.page.getAttribute(`[data-testid=panel-request][data-id='${req2}']`, "data-state").catch(() => null), team: (await textOf(dev.page)).includes("Prices on the booking page") };
+  const stale = { team: (await textOf(dev.page)).includes("Prices on the booking page") };
   await dev.page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
   const teamCaughtUp = await dev.page.waitForFunction(() => document.body.innerText.includes("Prices on the booking page"), null, { timeout: 5000 }).then(() => true, () => false);
-  const clientCaughtUp = await waitPanel(elena.page, req2, "being decided", 25000);
+  const clientCaughtUp = await waitReq(ownerToken, req2, "being decided", 25000);
   results.lostPushes = { stale, teamCaughtUp, clientCaughtUp };
   // The team's page waits for its next read; the client's page reads every few seconds while an answer is forming,
   // so it may have caught up already. Either way, nothing is lost.

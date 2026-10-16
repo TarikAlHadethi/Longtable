@@ -4,29 +4,18 @@ import { Face } from "@/components/face";
 import { firstName } from "@/lib/names";
 import styles from "./client.module.css";
 
-// What a client's page shows beside the conversation, from client_overview: their team, their own requests and where
-// each stands, and the work under way they may hear of. Statuses live here, never on every message.
+// What a client's page shows beside the conversation, from client_overview: their team, and the work under way they
+// may hear of. No states anywhere (his word, 17 Oct 2026: no "What you asked", never "With the team").
 export type Overview = {
   team: { name: string; color: string | null; avatar: string | null; role: string; ai_on: boolean }[];
   requests: { id: string; title: string; status: string; at: string }[];
   work: { title: string; status: "working" | "done" }[];
 };
 
-const STATE: Record<string, { words: string; tone: "ask" | "wait" | "done" | "plan" }> = {
-  asked: { words: "With the team", tone: "wait" },
-  "being decided": { words: "Being decided", tone: "wait" },
-  answered: { words: "With the team", tone: "wait" },
-  question: { words: "Needs your answer", tone: "ask" },
-  decided: { words: "Decided", tone: "done" },
-  planned: { words: "Planned", tone: "plan" },
-  "ready to try": { words: "Ready to try", tone: "done" },
-  done: { words: "Done", tone: "done" },
-};
 
-export function ClientPanel({ overview, tableName, onPick, open, onClose }: {
+export function ClientPanel({ overview, tableName, open, onClose }: {
   overview: Overview;
   tableName: string;
-  onPick: (requestId: string) => void;
   open: boolean;
   onClose: () => void;
 }) {
@@ -51,27 +40,8 @@ export function ClientPanel({ overview, tableName, onPick, open, onClose }: {
         <p className={styles.cardNote} data-testid="team-ai">{aiOn ? "The team's AIs are on: you hear back in moments." : "The team's AIs are off right now. Anything you ask is answered as soon as one is on."}</p>
       </section>
 
-      <section className={styles.card} style={{ "--i": 1 } as React.CSSProperties}>
-        <div className={styles.cardTitle}>What you asked</div>
-        {overview.requests.length === 0 ? <p className={styles.cardNote}>Nothing yet. Anything you ask for shows here, with where it stands.</p> : (
-          <ul className={styles.asks}>
-            {overview.requests.map((r, i) => {
-              const s = STATE[r.status] ?? STATE.asked;
-              return (
-                <li key={r.id} style={{ "--i": i } as React.CSSProperties}>
-                  <button className={styles.ask} onClick={() => onPick(r.id)} data-testid="panel-request" data-id={r.id} data-state={r.status} title={r.title}>
-                    <span className={styles.askTitle}>{r.title}</span>
-                    <span className={`${styles.state} ${styles[`state_${s.tone}`]}`}>{s.words}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
       {overview.work.length > 0 && (
-        <section className={styles.card} style={{ "--i": 2 } as React.CSSProperties}>
+        <section className={styles.card} style={{ "--i": 1 } as React.CSSProperties}>
           <div className={styles.cardTitle}>Being built</div>
           <ul className={styles.work}>
             {overview.work.map((w, i) => (
