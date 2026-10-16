@@ -6,7 +6,7 @@ import { AI_NAME, AiLogo } from "@/components/ai-logo";
 import { Mark } from "@/components/mark";
 import { Time } from "@/components/time";
 import { ModelPick, prettyModel } from "./model-pick";
-import type { Connection, Member } from "./types";
+import type { Command, Connection, Member } from "./types";
 import room from "./room.module.css";
 import s from "./panels.module.css";
 import { firstName } from "@/lib/names";
@@ -25,10 +25,12 @@ function Switch({ on, disabled, onChange, title, about, testid }: { on: boolean;
 
 // A person's AI at the table: what it is, what it runs, what it may do. Its own person can change it; everyone else
 // on the team can look.
-export function AiWindow({ me, person, conn, on, busy, onClose, onModel, onOptions, onConnect, onDisconnect }: {
+export function AiWindow({ me, person, conn, commands, on, busy, onClose, onModel, onOptions, onConnect, onDisconnect }: {
   me: Member;
   person: Member;
   conn: Connection | null;
+  // Only ever the viewer's own: someone else's commands are theirs.
+  commands: Command[];
   on: boolean;
   busy: boolean;
   onClose: () => void;
@@ -45,7 +47,6 @@ export function AiWindow({ me, person, conn, on, busy, onClose, onModel, onOptio
   const ai = conn ? AI_NAME[conn.kind] : "AI";
   const plan = prettyPlan(conn?.limits?.plan);
   const model = conn ? prettyModel(conn.model_choice) ?? (conn.kind === "claude" ? "Opus 5.5" : prettyModel(conn.limits?.model) ?? "Its own default") : "";
-  const commands = live?.commands ?? [];
   const open = live?.open_paths !== false;
   const share = live?.share_paths !== false;
   return (
@@ -68,7 +69,7 @@ export function AiWindow({ me, person, conn, on, busy, onClose, onModel, onOptio
             {plan && <div className={s.fact}><span>Plan</span><b>{plan}</b></div>}
             {conn.last_seen && <div className={s.fact}><span>Last on</span><b><Time iso={conn.last_seen} style="stamp" /></b></div>}
             <div className={s.fact}><span>Runs on</span><b>{mine ? "Your computer, your own plan" : `${first}'s computer, their own plan`}</b></div>
-            {live && <div className={s.fact}><span>Its own commands</span><b>{commands.length ? `${commands.length}, by typing / in a chat` : "None found"}</b></div>}
+            {mine && live && <div className={s.fact}><span>Its own commands</span><b>{commands.length ? `${commands.length}, by typing / in a chat` : "None found"}</b></div>}
           </div>
         )}
 

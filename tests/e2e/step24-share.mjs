@@ -32,8 +32,7 @@ try {
 
   // Her commands, by name.
   const told = await anon("runner_commands", { token: device.Maya, list: [{ name: "ship-it", about: "Ship with the key sk-ant-REDACTME1234567890abcdef", kind: "command" }, { name: "bad name!", about: "x" }, { name: "plan", about: "Plan the work", kind: "skill" }] });
-  const kept = (await rest(tokens.Sam, `connections?select=commands,member_id&table_id=eq.${table}&revoked_at=is.null`)).body;
-  const hers = kept.find((c) => c.commands.length)?.commands ?? [];
+  const hers = (await rpc(tokens.Maya, "my_commands", { t: table })).body ?? [];
   check("a connection's commands are kept by name, bad names dropped", told.body === 2 && hers.length === 2 && hers.some((c) => c.name === "ship-it") && hers.some((c) => c.kind === "skill"), hers);
   check("nothing shaped like a key is kept in what a command is for", !JSON.stringify(hers).includes("REDACTME"), hers);
 

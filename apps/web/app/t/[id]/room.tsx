@@ -29,7 +29,7 @@ import { elapsed, WorkPanel } from "./work-panel";
 import { SandboxReview } from "./sandbox-review";
 import {
   CONNECTION_COLUMNS, DECISION_COLUMNS, JOB_COLUMNS, MEMBER_COLUMNS, MESSAGE_COLUMNS, NOTE_COLUMNS, REQUEST_COLUMNS,
-  type Chat, type Connection, type Decision, type Job, type Member, type Message, type Note, type Request, type RequestStatus,
+  type Chat, type Command, type Connection, type Decision, type Job, type Member, type Message, type Note, type Request, type RequestStatus,
   CHANGE_COLUMNS, type SandboxChange, SANDBOX_COLUMNS, type SandboxRow, TASK_COLUMNS, type Task,
 } from "./types";
 import styles from "./room.module.css";
@@ -131,6 +131,14 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   // What is waiting to go with the next message, and the windows of an AI and of the table.
   const attach = useAttach(supabase, table.id, me.id);
   const [aiOf, setAiOf] = useState<string | null>(null);
+  // Their own AI's commands and skills: read for this person alone, never with the team's view of connections.
+  const [myCommands, setMyCommands] = useState<Command[]>([]);
+  const readCommands = useCallback(async () => {
+    const { data, error } = await supabase.rpc("my_commands", { t: table.id });
+    if (error) console.warn("[commands] could not be read:", error.code);
+    else setMyCommands((data as Command[] | null) ?? []);
+  }, [supabase, table.id]);
+  useEffect(() => { readCommands(); }, [readCommands]);
   const [tableOpen, setTableOpen] = useState(false);
   const [slashAt, setSlashAt] = useState(0);
   const [draft, setDraft] = useState("");
@@ -258,7 +266,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (rq) setRequests(rq as Request[]);
     if (ns) setNotes(ns as Note[]);
     if (cs) setConnections(cs as Connection[]);
-  }, [supabase, table.id, me.id]);
+    readCommands();
+  }, [supabase, table.id, me.id, readCommands]);
 
   const catchUpRef = useRef<(() => void) | null>(null);
   catchUpRef.current = catchUp;
@@ -315,6 +324,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       } else if (name === "connections") {
         const c = record as unknown as Connection;
         setConnections((prev) => [...prev.filter((x) => x.id !== c.id), { ...prev.find((x) => x.id === c.id), ...c }]);
+        if (c.member_id === me.id) readCommands();
       } else if (name === "table_ai") {
         setTableModel(((record as { model?: string | null }).model) ?? null);
       } else if (name === "requests") {
@@ -557,7 +567,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
 
   // Their own AI's commands and skills, offered while the box holds only "/" and the start of a name.
   const slashWord = draft.match(/^\/([A-Za-z0-9:_-]*)$/)?.[1];
-  const slash = slashWord === undefined ? [] : (myConnection?.commands ?? []).filter((c) => c.name.toLowerCase().includes(slashWord.toLowerCase()))
+  const slash = slashWord === undefined ? [] : (myConnection ? myCommands : []).filter((c) => c.name.toLowerCase().includes(slashWord.toLowerCase()))
     .sort((x, y) => Number(x.kind === "builtin") - Number(y.kind === "builtin")
       || Number(y.name.toLowerCase().startsWith(slashWord.toLowerCase())) - Number(x.name.toLowerCase().startsWith(slashWord.toLowerCase())) || x.name.localeCompare(y.name));
   // The ones every Claude has come after the person's own, under a line saying so, when there are both.
@@ -1020,7 +1030,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         const conn = all.find((c) => !c.revoked_at) ?? [...all].sort((a, b) => (b.revoked_at ?? "").localeCompare(a.revoked_at ?? ""))[0] ?? null;
         const on = !!conn && !conn.revoked_at && !!conn.last_seen && Date.now() - new Date(conn.last_seen).getTime() < 75000;
         return (
-          <AiWindow me={self} person={byId.get(aiOf)!} conn={conn} on={on} busy={on && jobs.some((j) => j.member_id === aiOf && (j.status === "running" || j.status === "queued"))}
+          <AiWindow me={self} person={byId.get(aiOf)!} conn={conn} commands={aiOf === me.id ? myCommands : []} on={on} busy={on && jobs.some((j) => j.member_id === aiOf && (j.status === "running" || j.status === "queued"))}
             onClose={() => setAiOf(null)} onConnect={() => setConnectOpen(true)} onDisconnect={disconnect}
             onModel={(id, model) => setModelKept(id, model)}
             onOptions={async (id, patch) => {

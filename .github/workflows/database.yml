@@ -65,7 +65,7 @@ jobs:
           failed=""
           for suite in step1 step2 step5 step6-settings step6-phone step6-admin step6-github step10-chats \
                        step11-room-pages step19-test-client step20-start step24-share step25-wall step26-doors \
-                       step27-loose-ends step28-screens step29-known-faults step30-screens step31-design step32-last-faults sim-rounds; do
+                       step27-loose-ends step28-screens step29-known-faults step30-screens step31-design step32-last-faults step33-own-commands sim-rounds; do
             echo "::group::$suite"
             if node --experimental-websocket "tests/e2e/$suite.mjs"; then echo "$suite passed"; else failed="$failed $suite"; fi
             echo "::endgroup::"

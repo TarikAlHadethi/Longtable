@@ -87,10 +87,11 @@ try {
   check("her AI's card opens its window, with what it may do", /Your Claude/.test(aiText) && /Open what I point at/.test(aiText) && /Share it with the other AIs/.test(aiText), aiText.slice(0, 300));
   await p.click("[data-testid=opt-share]");
   await wait(800);
-  const conns = (await rest(token, `connections?select=open_paths,share_paths,commands&table_id=eq.${owner.tableId}&revoked_at=is.null`)).body;
+  const conns = (await rest(token, `connections?select=open_paths,share_paths&table_id=eq.${owner.tableId}&revoked_at=is.null`)).body;
   check("a switch in it is kept", conns[0]?.open_paths === true && conns[0]?.share_paths === false, JSON.stringify(conns.map((c) => [c.open_paths, c.share_paths])));
-  check("the table knows her commands and skills by name, never what is in them", conns[0]?.commands?.some((c) => c.name === "signoff" && /sign off/.test(c.about)) && conns[0].commands.some((c) => c.name === "house-style" && c.kind === "skill")
-    && !JSON.stringify(conns[0].commands).includes("ZUCCHINI"), JSON.stringify(conns[0]?.commands));
+  const mine = (await rpc(token, "my_commands", { t: owner.tableId })).body ?? [];
+  check("the table knows her commands and skills by name, never what is in them", mine.some((c) => c.name === "signoff" && /sign off/.test(c.about)) && mine.some((c) => c.name === "house-style" && c.kind === "skill")
+    && !JSON.stringify(mine).includes("ZUCCHINI"), JSON.stringify(mine));
   await p.click("[data-testid=ai-window] button:has-text('Close')");
   await dev.page.click("[data-testid=home]");
   await dev.page.click("[data-testid=table-home] [data-seat-ai=claude]");
