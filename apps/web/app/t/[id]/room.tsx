@@ -211,6 +211,14 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const liveAI = new Set(connections.filter((c) => !c.revoked_at).map((c) => c.member_id));
   const myConnection = connections.find((c) => !c.revoked_at && c.member_id === me.id);
   // What to call a person's AI: Claude or ChatGPT once it is connected, their AI before that.
+  // Under each person in the sidebar: their AI, connected (a green dot) or not (a grey one), as in his picture of 17 Oct
+  // 2026. Nothing for someone who never connected one.
+  const aiState = (id: string) => {
+    const mine = connections.filter((x) => !x.revoked_at && x.member_id === id).sort((a, b) => Number(b.kind === "claude") - Number(a.kind === "claude"));
+    const on = mine.find((x) => !!x.last_seen && Date.now() - new Date(x.last_seen).getTime() < 90000);
+    const c = on ?? mine[0];
+    return c ? { word: c.kind === "codex" ? "Codex" : "Claude", on: !!on } : null;
+  };
   const aiWord = (id: string) => { const c = connections.find((x) => !x.revoked_at && x.member_id === id); return c ? AI_NAME[c.kind] : "AI"; };
   const working = jobs.filter((j) => j.chat_id === chat?.id && ["queued", "running", "waiting", "failed"].includes(j.status))
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
@@ -939,11 +947,14 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 <div className={styles.avatar} style={{ background: m.color }}>
                   <Face who={m} />
                   {m.role === "owner" && <span className={styles.crown}><Crown size={16} /></span>}
-                  <i className={`${styles.presence} ${online.has(m.id) ? styles.presenceOn : ""}`} />
                 </div>
                 <div className={styles.personText}>
                   <div className={styles.personName} style={{ color: m.name_color || undefined }}>{m.display_name}</div>
-                  {(m.role === "client" || m.status) && <div className={styles.personMeta}>{[m.test ? "Not a real person" : m.role === "client" ? "Client" : "", m.status].filter(Boolean).join(" · ")}</div>}
+                  {(() => {
+                    const ai = m.role === "client" ? null : aiState(m.id);
+                    const words = [ai ? `${ai.word} ${ai.on ? "connected" : "disconnected"}` : m.test ? "Not a real person" : m.role === "client" ? "Client" : "", m.status].filter(Boolean).join(" · ");
+                    return words ? <div className={styles.personMeta} data-ai={ai ? (ai.on ? "on" : "off") : undefined}>{ai && <i className={`${styles.aiDot} ${ai.on ? styles.aiDotOn : ""}`} />}{words}</div> : null;
+                  })()}
                 </div>
               </button>
               </Fragment>

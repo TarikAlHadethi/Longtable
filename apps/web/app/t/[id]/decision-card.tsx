@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { browserClient } from "@/lib/supabase/browser";
 import type { Decision, Member } from "./types";
 import styles from "./room.module.css";
 
-// A decision card: the question, its options, the exact words the client will be told (or the question they will
-// be asked, with the answers they can tap), one tap to decide, and Undo until the window closes. The window itself
-// is enforced in the database, not here.
+// A decision card: the question and its options. Picking one shows what the client would be told (or the question they
+// would be asked, with the answers they can tap), in words the team can change, and Send sends it at once. Nothing is
+// decided until Send (his words, 17 Oct 2026: "it shouldn't just be decided... the text should be editable, and there
+// should be a send"). A decision that tells nobody has Decide in place of Send.
 export function DecisionCard({ decision, chatName, members, clientName, now, onOpenChat, onChange }: {
   decision: Decision;
   chatName: string;
@@ -17,27 +18,52 @@ export function DecisionCard({ decision, chatName, members, clientName, now, onO
   onOpenChat?: () => void;
   onChange: (patch: Partial<Decision>) => void;
 }) {
-  const [hover, setHover] = useState<number | null>(null);
+  const [picked, setPicked] = useState<number | null>(null);
+  const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const box = useRef<HTMLTextAreaElement>(null);
   const d = decision;
   const open = d.status === "open";
   const options = [...d.options].sort((a, b) => a.position - b.position);
-  const shown = options.find((o) => o.position === (hover ?? d.chosen ?? -1)) ?? options.find((o) => o.recommended) ?? options[0];
+  const chosen = options.find((o) => o.position === (open ? picked : d.chosen));
   const left = d.deliver_after ? Math.ceil((new Date(d.deliver_after).getTime() - now) / 1000) : 0;
-  const canUndo = d.status === "decided" && !d.delivered_at && left > 0;
+  // Only a decision made the old way, still inside its window, can be taken back.
+  const oldWay = !!d.deliver_after && !!d.decided_at && new Date(d.deliver_after).getTime() - new Date(d.decided_at).getTime() > 1000;
+  const canUndo = oldWay && d.status === "decided" && !d.delivered_at && left > 0;
   const decider = d.decided_by ? members.get(d.decided_by)?.display_name ?? "Someone" : "";
-  const chosen = options.find((o) => o.position === d.chosen);
-  const verb = chosen?.asks_client ? { now: "is asked", done: "has been asked", doing: "asking" } : { now: "is told", done: "has been told", doing: "telling" };
+  const asks = !!chosen?.asks_client;
 
-  async function pick(position: number) {
+  // The words box fits what is in it.
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [draft, picked]);
+
+  function choose(position: number) {
     if (!open || busy) return;
+    setError("");
+    if (picked === position) { setPicked(null); return; }
+    setPicked(position);
+    setDraft(options.find((o) => o.position === position)?.client_words ?? "");
+  }
+
+  async function send() {
+    if (!open || busy || picked === null) return;
+    if (d.affects_client && !draft.trim()) return setError(`Write what ${clientName} will be told.`);
     setBusy(true);
     setError("");
-    const { data, error } = await browserClient().rpc("decide", { d: d.id, choice: position });
+    const words = d.affects_client ? draft.trim() : null;
+    const { error } = await browserClient().rpc("decide_and_send", { d: d.id, choice: picked, words });
     setBusy(false);
     if (error) return setError(error.message);
-    onChange({ status: "decided", chosen: position, decided_at: new Date().toISOString(), deliver_after: data as string });
+    const at = new Date().toISOString();
+    onChange({
+      status: "decided", chosen: picked, decided_at: at, deliver_after: at,
+      options: d.options.map((o) => (o.position === picked && words ? { ...o, client_words: words } : o)),
+    });
   }
 
   async function undo() {
@@ -52,7 +78,8 @@ export function DecisionCard({ decision, chatName, members, clientName, now, onO
   let after = "";
   if (d.status === "decided") {
     after = `Decided by ${decider || "you"}`;
-    if (d.affects_client) after += d.delivered_at ? ` · ${clientName} ${verb.done}` : left > 0 ? ` · ${clientName} ${verb.now} in ${left} s` : ` · ${verb.doing} ${clientName}…`;
+    const verb = asks ? { done: "has been asked", doing: "asking" } : { done: "has been told", doing: "telling" };
+    if (d.affects_client) after += d.delivered_at ? ` · ${clientName} ${verb.done}` : canUndo ? ` · ${clientName} hears in ${left} s` : ` · ${verb.doing} ${clientName}…`;
   }
 
   return (
@@ -65,17 +92,14 @@ export function DecisionCard({ decision, chatName, members, clientName, now, onO
       {open && d.context && <div className={styles.cardContext}>{d.context}</div>}
       <div className={styles.options}>
         {options.map((o) => {
-          const chosen = d.chosen === o.position;
+          const on = (open ? picked : d.chosen) === o.position;
           return (
             <button
               key={o.position}
-              className={`${styles.option} ${chosen ? styles.optionChosen : ""} ${!open && !chosen ? styles.optionFaded : ""}`}
+              className={`${styles.option} ${on ? styles.optionChosen : ""} ${!open && !on ? styles.optionFaded : ""}`}
               disabled={!open || busy}
-              onClick={() => pick(o.position)}
-              onMouseEnter={() => setHover(o.position)}
-              onMouseLeave={() => setHover(null)}
-              onFocus={() => setHover(o.position)}
-              onBlur={() => setHover(null)}
+              aria-pressed={open ? on : undefined}
+              onClick={() => choose(o.position)}
             >
               <span>{o.label}</span>
               {o.recommended && <span className={styles.optionTag}>Recommended</span>}
@@ -83,14 +107,32 @@ export function DecisionCard({ decision, chatName, members, clientName, now, onO
           );
         })}
       </div>
-      {d.affects_client && shown?.client_words && d.status !== "withdrawn" && (
-        <div className={styles.clientWords}>
-          <div className={styles.clientWordsLabel}>
-            {`${clientName} ${open ? "will be" : d.delivered_at ? "was" : "will be"} ${shown.asks_client ? "asked" : "told"}`}
+
+      {open && chosen && (d.affects_client ? (
+        <div className={`${styles.clientWords} ${styles.clientWordsEdit}`} key={chosen.position} data-testid="would-be-told">
+          <label className={styles.clientWordsLabel} htmlFor={`words-${d.id}`}>{`${clientName} would be ${asks ? "asked" : "told"}`}</label>
+          <textarea id={`words-${d.id}`} ref={box} className={styles.clientWordsInput} value={draft} rows={2} maxLength={2000}
+            onChange={(e) => setDraft(e.target.value)} disabled={busy}
+            onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); } }} />
+          {asks && chosen.replies.length > 0 && (
+            <div className={styles.replyChips}>{chosen.replies.map((r) => <span key={r} className={styles.replyChip}>{r}</span>)}</div>
+          )}
+          <div className={styles.sendRow}>
+            <button className="btn" onClick={send} disabled={busy || !draft.trim()} data-testid="send-decision">{busy ? "Sending" : "Send"}</button>
           </div>
-          <div className={styles.clientWordsText}>{shown.client_words}</div>
-          {shown.asks_client && shown.replies.length > 0 && (
-            <div className={styles.replyChips}>{shown.replies.map((r) => <span key={r} className={styles.replyChip}>{r}</span>)}</div>
+        </div>
+      ) : (
+        <div className={styles.sendRow} key={chosen.position}>
+          <button className="btn" onClick={send} disabled={busy} data-testid="send-decision">{busy ? "Deciding" : "Decide"}</button>
+        </div>
+      ))}
+
+      {!open && d.affects_client && chosen?.client_words && d.status !== "withdrawn" && (
+        <div className={styles.clientWords}>
+          <div className={styles.clientWordsLabel}>{`${clientName} ${d.delivered_at ? "was" : "will be"} ${asks ? "asked" : "told"}`}</div>
+          <div className={styles.clientWordsText}>{chosen.client_words}</div>
+          {asks && chosen.replies.length > 0 && (
+            <div className={styles.replyChips}>{chosen.replies.map((r) => <span key={r} className={styles.replyChip}>{r}</span>)}</div>
           )}
         </div>
       )}

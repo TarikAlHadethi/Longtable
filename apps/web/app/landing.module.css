@@ -79,6 +79,18 @@
 .bar i { display: block; }
 @keyframes ld-drain { from { transform: none; } to { transform: scaleX(0); } }
 
+.sendMini { margin-top: auto; display: flex; flex-direction: column; gap: 8px; font-size: 14px; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.sendMini span { font-family: var(--font-voice); font-size: 15px; color: var(--ink-2); }
+.sendMini b { align-self: flex-end; font-size: 13px; font-weight: 560; padding: 4px 12px; border-radius: 8px; background: var(--table); color: var(--on-table); }
+.lead { max-width: 640px; font-size: 18px; line-height: 1.55; color: var(--muted); margin: -22px 0 0; }
+.tableShow { margin-top: 34px; display: flex; border: 1px solid var(--line); border-radius: 22px; overflow: hidden; background: var(--paper); box-shadow: 0 24px 60px oklch(0.2 0.01 70 / 0.08); }
+.handout { margin-top: auto; position: relative; display: flex; flex-direction: column; gap: 2px; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.handout b { font-size: 15px; font-weight: 560; }
+.handout span { font-size: 13px; color: var(--muted); }
+.handout i { position: absolute; right: 18px; top: 26px; font-style: normal; font-size: 11.5px; font-weight: 560; color: white; background: oklch(0.6 0.1 250); padding: 2px 7px; border-radius: 6px 6px 6px 2px; animation: ld-bob 3.2s ease-in-out infinite; }
+.chatMini { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
+.chatMini span { align-self: flex-end; font-size: 14px; background: var(--chip); border-radius: 14px; padding: 7px 12px; }
+.chatMini b { font-family: var(--font-voice); font-weight: 500; font-size: 15.5px; color: var(--ink-2); }
 .bento { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .wide { grid-column: span 2; }
 .full { grid-column: 1 / -1; }
@@ -90,7 +102,7 @@
 .tileLink:hover { color: var(--on-night); }
 
 .merge { margin-top: auto; padding-top: 18px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.merge span { font-size: 14px; font-weight: 500; padding: 7px 12px; border-radius: 999px; border: 2px solid; background: var(--paper); animation: ld-bob 3.2s ease-in-out infinite; }
+.merge span { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 500; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--paper); animation: ld-bob 3.2s ease-in-out infinite; }
 .merge span:nth-child(2) { animation-delay: -1s; }
 .merge span:nth-child(3) { animation-delay: -2s; }
 .merge i { flex: 1; min-width: 30px; height: 2px; background: repeating-linear-gradient(90deg, var(--line-dashed) 0 6px, transparent 6px 12px); background-size: 12px 2px; animation: ld-flow 0.7s linear infinite; }
@@ -99,15 +111,15 @@
 @keyframes ld-flow { to { background-position: 12px 0; } }
 
 .files { margin-top: auto; padding-top: 16px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.files span { font-family: var(--font-mono); font-size: 13px; padding: 4px 9px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--paper); }
-.files em { font-family: var(--font-mono); font-style: normal; font-size: 12.5px; color: var(--muted); width: 100%; margin-top: 2px; }
+.files span { font-family: var(--font-ui); font-size: 13px; padding: 4px 9px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--paper); }
+.files em { font-family: var(--font-ui); font-style: normal; font-size: 12.5px; color: var(--muted); width: 100%; margin-top: 2px; }
 
 .undo { margin-top: auto; position: relative; display: flex; justify-content: space-between; align-items: center; font-size: 14.5px; font-weight: 560; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px 14px; }
 .undo u { color: var(--link); }
 .undo i { position: absolute; left: 12px; right: 12px; bottom: 6px; }
 
 .two { margin-top: auto; padding-top: 16px; display: flex; flex-direction: column; gap: 7px; }
-.two span { font-size: 13.5px; color: var(--faint); text-decoration: line-through; text-decoration-color: var(--line-dashed); font-family: var(--font-mono); }
+.two span { font-size: 13.5px; color: var(--faint); text-decoration: line-through; text-decoration-color: var(--line-dashed); font-family: var(--font-ui); }
 .two b { font-family: var(--font-voice); font-weight: 500; font-size: 17px; background: light-dark(oklch(0.955 0.02 150), oklch(0.254 0.02 150)); border-radius: 10px; padding: 9px 12px; }
 
 .meters { margin-top: auto; padding-top: 16px; display: flex; flex-direction: column; gap: 10px; }

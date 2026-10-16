@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Mark } from "@/components/mark";
+import { AiLogo } from "@/components/ai-logo";
 import s from "./stage.module.css";
 
 // The opening screen's live look at Longtable: the made-up demo team's room on the left, their client's page on
@@ -18,7 +19,7 @@ const BEATS = [
   { tab: 2, ms: 3800 }, // 4 the views are in
   { tab: 3, ms: 5000 }, // 5 one answer
   { tab: 4, ms: 3200 }, // 6 the decision card
-  { tab: 4, ms: 3400 }, // 7 decided, with an undo
+  { tab: 4, ms: 3400 }, // 7 picked: what Elena would be told, then Send
   { tab: 5, ms: 6500 }, // 8 Elena hears
 ];
 const TABS = [
@@ -32,9 +33,9 @@ const TABS = [
 const tabMs = (tab: number) => BEATS.filter((b) => b.tab === tab).reduce((n, b) => n + b.ms, 0);
 
 const VIEWS = [
-  { who: "Sam's Claude", where: "on Sam's laptop", color: "oklch(0.6 0.1 250)", file: "src/booking/StaffPicker.tsx", view: "About a day. The staff picker already exists for dentists." },
-  { who: "Priya's Codex", where: "on Priya's desktop", color: "oklch(0.62 0.1 150)", file: "src/booking/availability.ts", view: "A day and a half. The availability query needs a role filter." },
-  { who: "Maya's Claude", where: "on Maya's laptop", color: "oklch(0.62 0.12 30)", file: "src/jobs/reminders.ts", view: "The reminder job assumes one provider per booking. Small change." },
+  { who: "Sam's Claude", kind: "claude" as const, color: "oklch(0.6 0.1 250)", file: "src/booking/StaffPicker.tsx", view: "About a day. The staff picker already exists for dentists." },
+  { who: "Priya's Codex", kind: "codex" as const, color: "oklch(0.62 0.1 150)", file: "src/booking/availability.ts", view: "A day and a half. The availability query needs a role filter." },
+  { who: "Maya's Claude", kind: "claude" as const, color: "oklch(0.62 0.12 30)", file: "src/jobs/reminders.ts", view: "The reminder job assumes one provider per booking. Small change." },
 ];
 
 function Typed({ text, ms }: { text: string; ms: number }) {
@@ -88,7 +89,7 @@ export function Stage() {
           <aside className={s.side}>
             <div className={s.brand}><Mark size={20} /> Fernhill Dental</div>
             <div className={s.sideTitle}>Chats</div>
-            <div className={`${s.chat} ${s.chatOn}`}># General {step >= 1 && step < 8 && <span className={s.unread} />}</div>
+            <div className={`${s.chat} ${s.chatOn}`}># General</div>
             <div className={s.chat}># Booking flow</div>
             <div className={s.chat}># Launch</div>
             <div className={s.sideTitle}>At the table</div>
@@ -133,12 +134,12 @@ export function Stage() {
               )}
               {(step === 3 || step === 4) && (
                 <div className={s.back}>
-                  <div className={s.backTitle}>The back room <span>each AI reads the code on its own person&apos;s computer</span></div>
+                  <div className={s.backTitle}>The back room</div>
                   {VIEWS.map((v, i) => (
                     <div className={s.view} key={v.who} style={{ "--i": i } as React.CSSProperties}>
-                      <span className={s.viewAi} style={{ borderColor: v.color }}><Mark size={12} /></span>
+                      <span className={s.viewAi}><AiLogo kind={v.kind} size={16} /></span>
                       <div className={s.viewBody}>
-                        <div className={s.viewWho}><b>{v.who}</b> {v.where}</div>
+                        <div className={s.viewWho}><b>{v.who}</b></div>
                         {step === 3
                           ? <div className={s.viewReading}><span className={s.spin} />reading <code>{v.file}</code></div>
                           : <div className={s.viewText} style={{ "--i": i } as React.CSSProperties}>{v.view}</div>}
@@ -150,7 +151,7 @@ export function Stage() {
               )}
               {step >= 5 && (
                 <div className={`${s.msg} ${s.answer}`}>
-                  <span className={`${s.face} ${s.aiFace}`}><Mark size={16} /></span>
+                  <span className={`${s.face} ${s.aiFace}`}><Mark size={20} /></span>
                   <div>
                     <div className={s.meta}><b>The table</b> one answer from 3 AIs · <span className={s.read}>read main @ 4f2c9a1</span></div>
                     <div className={`${s.text} ${s.voice}`}>About a day and a half. The form already has a staff picker; hygienists need a role filter, and the reminder job needs a small change. It fits before launch.</div>
@@ -168,8 +169,13 @@ export function Stage() {
                     <span className={`${s.option} ${step >= 7 ? s.optionOff : ""}`}>First update</span>
                     <span className={`${s.option} ${step >= 7 ? s.optionOff : ""}`}>Ask Elena first</span>
                   </div>
-                  <div className={s.words}><b>{step >= 8 ? "Elena was told" : "Elena will be told"}</b> {TOLD}</div>
-                  {step === 7 && <div className={s.undo}><span>Decided by Maya. Elena hears in a moment.</span><em>Undo</em><i className={s.undoBar} /></div>}
+                  {step === 7 && (
+                    <div className={`${s.words} ${s.wordsEdit}`}><b>Elena would be told</b> {TOLD}<span className={s.caret} />
+                      <span className={s.sendRow}><span className={s.send}>Send</span></span>
+                    </div>
+                  )}
+                  {step >= 8 && <div className={s.words}><b>Elena was told</b> {TOLD}</div>}
+                  {step >= 8 && <div className={s.decided}>Decided by Maya · Elena has been told</div>}
                 </div>
               )}
             </div>

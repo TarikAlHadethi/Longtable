@@ -45,7 +45,7 @@
 .said { font-size: 15.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; display: flex; flex-direction: column; gap: 2px; }
 .said span { font-size: 12.5px; font-weight: 560; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); }
 .files { display: flex; flex-wrap: wrap; gap: 6px; }
-.file { font-family: var(--font-mono, ui-monospace, monospace); font-size: 12.5px; padding: 3px 8px; border-radius: 6px; background: var(--chip); color: var(--muted); overflow-wrap: anywhere; }
+.file { font-family: var(--font-ui); font-size: 12.5px; padding: 3px 8px; border-radius: 6px; background: var(--chip); color: var(--muted); overflow-wrap: anywhere; }
 .actions, .noteForm { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding-top: 4px; }
 .noteForm :global(.field) { flex: 1; min-width: 220px; }
 .verdict { font-size: 15px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; padding-top: 4px; border-top: 1px solid var(--line); padding-top: 12px; }

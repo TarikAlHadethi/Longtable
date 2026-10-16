@@ -184,9 +184,6 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
           <div className={styles.cardTitle}>The table</div>
           <label className="label" htmlFor="s-name">Name</label>
           <input id="s-name" className="field" maxLength={80} value={name} onChange={(e) => setName(e.target.value)} />
-          <label className="label" htmlFor="s-undo">Undo window, in seconds</label>
-          <input id="s-undo" className="field" type="number" min={5} max={300} value={undo} onChange={(e) => setUndo(e.target.value)} />
-          <div className="note">How long a decision can be undone before the client hears it. 5 to 300.</div>
           <label className="label" htmlFor="s-requests">Client requests go to</label>
           <Select id="s-requests" value={requests} onChange={setRequests}
             options={[{ value: "", label: "General" }, ...chats.filter((c) => !c.is_general).map((c) => ({ value: c.id, label: c.name }))]} />

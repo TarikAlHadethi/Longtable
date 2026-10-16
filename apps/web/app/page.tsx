@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Mark } from "@/components/mark";
 import { Reveal } from "@/components/reveal";
 import { Stage } from "./stage";
+import { LandingTable } from "./landing-table";
+import { AiLogo } from "@/components/ai-logo";
 import { serverClient } from "@/lib/supabase/server";
 import s from "./landing.module.css";
 
@@ -78,13 +80,19 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
             <Reveal className={s.step} delay={220}>
               <div className={s.stepNo}>3</div>
               <h3>Ask, decide, tell the client</h3>
-              <p>The table answers with its sources. A decision takes one tap, and the client hears the words you chose.</p>
+              <p>The table answers with its sources. Pick a decision, check the words the client would be told, and send.</p>
               <div className={s.mini}>
                 <div className={s.decide}><span>Ship it for launch</span><b>✓</b></div>
-                <div className={s.bar}><i /></div>
+                <div className={s.sendMini}><span>Good news: you can pick your hygienist at launch.</span><b>Send</b></div>
               </div>
             </Reveal>
           </div>
+        </section>
+
+        <section id="table" className={s.section}>
+          <Reveal><div className={s.eyebrow}>The table</div><h2 className={s.h2}>Everyone&apos;s AI, at one table.</h2></Reveal>
+          <Reveal><p className={s.lead}>Each person brings their own Claude or Codex, on their own plan. They meet at the table, and every client has a page of their own.</p></Reveal>
+          <Reveal className={s.tableShow}><LandingTable /></Reveal>
         </section>
 
         <section id="inside" className={s.section}>
@@ -94,9 +102,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
               <h3>Every AI gives a view. One writes the answer.</h3>
               <p>Each connected AI answers on its own first. Then one reads all the views and writes a single answer, and you can open how they got there.</p>
               <div className={s.merge}>
-                <span style={{ borderColor: "oklch(0.6 0.1 250)" }}>Sam&apos;s Claude</span>
-                <span style={{ borderColor: "oklch(0.62 0.1 150)" }}>Priya&apos;s Codex</span>
-                <span style={{ borderColor: "oklch(0.62 0.12 30)" }}>Maya&apos;s Claude</span>
+                <span><AiLogo kind="claude" size={16} />Sam&apos;s Claude</span>
+                <span><AiLogo kind="codex" size={16} />Priya&apos;s Codex</span>
+                <span><AiLogo kind="claude" size={16} />Maya&apos;s Claude</span>
                 <i />
                 <b><Mark size={16} ink="var(--on-table)" /> One answer</b>
               </div>
@@ -107,9 +115,24 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
               <div className={s.files}><span>StaffPicker.tsx</span><span>availability.ts</span><span>reminders.ts</span><em>read main @ 4f2c9a1</em></div>
             </Reveal>
             <Reveal className={s.tile}>
-              <h3>Decisions with an undo</h3>
-              <p>One tap decides. A short window lets you take it back before the client hears a word.</p>
-              <div className={s.undo}><span>Decided</span><u>Undo</u><i /></div>
+              <h3>Decisions in your words</h3>
+              <p>Pick an option and see exactly what the client would be told. Change the words if you like, then send.</p>
+              <div className={s.sendMini}><span>Good news: you can pick your hygienist at launch.</span><b>Send</b></div>
+            </Reveal>
+            <Reveal className={s.tile} delay={100}>
+              <h3>The AIs do the work</h3>
+              <p>Ask for a change in the chat. Your AIs make it on a branch of its own, look over each other&apos;s work, and tell you what to check.</p>
+              <div className={s.files}><span>longtable/hygienist-choice</span><em>3 files changed · looked over by 2 AIs</em></div>
+            </Reveal>
+            <Reveal className={s.tile} delay={200}>
+              <h3>Handouts</h3>
+              <p>Plans, mockups and charts the AIs make for the team, with versions, comments and everyone&apos;s cursor on the page.</p>
+              <div className={s.handout}><b>Launch plan</b><span>Version 3 · 2 comments</span><i>Sam</i></div>
+            </Reveal>
+            <Reveal className={s.tile}>
+              <h3>The client is always answered</h3>
+              <p>A client&apos;s question gets a reply in moments. When it needs the code, the table checks it first; anything new goes to the team.</p>
+              <div className={s.chatMini}><span>Where are we on reminders?</span><b>They are built and with the team to check.</b></div>
             </Reveal>
             <Reveal className={s.tile} delay={100}>
               <h3>A page just for the client</h3>
@@ -148,6 +171,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         <span className={s.spacer} />
         <Link href="/demo">Demo</Link>
         <Link href="/privacy">Privacy</Link>
+        <Link href="/terms">Terms</Link>
+        <Link href="/security">Security</Link>
         <Link href="/sign-in?next=/start">Sign in</Link>
       </footer>
     </div>

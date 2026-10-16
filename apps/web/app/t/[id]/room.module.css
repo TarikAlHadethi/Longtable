@@ -33,7 +33,7 @@
 .section { display: flex; flex-direction: column; gap: 2px; }
 .sectionHead { display: flex; align-items: center; justify-content: space-between; padding: 0 2px 0 0; }
 .sectionTitle {
-  font-size: 12px; font-weight: 560; letter-spacing: 0.08em; text-transform: uppercase; color: light-dark(oklch(0.48 0.01 70), oklch(0.72 0.01 70));
+  font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: light-dark(oklch(0.62 0.008 70), oklch(0.6 0.008 70));
   padding: 0 8px 8px;
 }
 .sectionHead .sectionTitle { padding-bottom: 6px; }
@@ -64,6 +64,10 @@
 .personName { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .personMeta { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
 .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.personMeta[data-ai] { gap: 5px; }
+.aiDot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: var(--faint); opacity: 0.7; transition: background-color 0.3s ease; }
+.aiDotOn { background: var(--online); opacity: 1; }
+.chatHash { color: var(--faint); margin-right: 5px; font-weight: 400; }
 .dotOn { background: var(--online); }
 .dotOff { background: transparent; border: 1.5px solid var(--line-dashed); }
 
@@ -141,6 +145,14 @@
 .clientWords { margin-top: 12px; padding: 10px 12px; border-radius: 9px; background: light-dark(oklch(0.97 0.01 120), oklch(0.198 0.01 120)); border: 1px dashed light-dark(oklch(0.86 0.02 120), oklch(0.33 0.02 120)); }
 .clientWordsLabel { font-size: 12px; font-weight: 560; letter-spacing: 0.06em; text-transform: uppercase; color: light-dark(oklch(0.45 0.03 120), oklch(0.75 0.03 120)); margin-bottom: 4px; }
 .clientWordsText { font-family: var(--font-voice); font-size: 16px; line-height: 1.45; color: var(--ink-2); }
+/* Picked, not yet sent: the words can be changed, then Send. */
+.clientWordsEdit { border-style: solid; animation: lt-rise 0.3s var(--ease-out) both; }
+.clientWordsInput {
+  display: block; width: 100%; resize: none; overflow: hidden; border: 0; padding: 0; margin: 0; background: transparent;
+  font-family: var(--font-voice); font-size: 16px; line-height: 1.45; color: var(--ink); outline: none; field-sizing: content;
+}
+.clientWordsEdit:focus-within { border-color: light-dark(oklch(0.7 0.04 120), oklch(0.45 0.04 120)); }
+.sendRow { display: flex; justify-content: flex-end; margin-top: 10px; animation: lt-rise 0.3s var(--ease-out) both; }
 .after { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
 .afterText { flex: 1; font-size: 13px; line-height: 1.5; color: light-dark(oklch(0.42 0.07 170), oklch(0.8 0.07 170)); }
 .undo {
@@ -169,7 +181,7 @@
 .popoverTitle { font-size: 15px; font-weight: 560; }
 .roles { display: flex; gap: 8px; }
 .linkBox {
-  font-family: var(--font-mono); font-size: 13px; padding: 10px; border-radius: 8px; background: var(--paper);
+  font-family: var(--font-ui); font-size: 13px; padding: 10px; border-radius: 8px; background: var(--paper);
   border: 1px solid var(--line); overflow-wrap: anywhere;
 }
 
@@ -233,7 +245,7 @@
 .connectDetails { font-size: 15px; color: var(--muted); }
 .connectDetails summary { cursor: pointer; }
 .connectMessage {
-  white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-mono); font-size: 13px; line-height: 1.5;
+  white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-ui); font-size: 13px; line-height: 1.5;
   background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin: 8px 0;
 }
 
@@ -249,7 +261,7 @@
 .aiText li::marker { color: var(--muted); }
 .aiText > :last-child { margin-bottom: 0; }
 .aiText strong { font-weight: 600; }
-.readTag { font-family: var(--font-mono); font-size: 12px; color: var(--faint); }
+.readTag { font-family: var(--font-ui); font-size: 12px; color: var(--faint); }
 .working { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); padding-left: 40px; }
 .workingFailed { color: var(--danger); }
 .workingDot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--sage); animation: pulse 1.2s ease-in-out infinite; }
@@ -264,7 +276,7 @@
 /* Sources and how they got here */
 .sources { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .source {
-  font-family: var(--font-mono); font-size: 12px; padding: 3px 8px; border-radius: 6px;
+  font-family: var(--font-ui); font-size: 12px; padding: 3px 8px; border-radius: 6px;
   background: var(--card); border: 1px solid var(--line); color: var(--ink-2);
 }
 .how { margin-top: 2px; }

@@ -58,7 +58,7 @@
 .details { font-size: 14.5px; color: var(--ink-2); }
 .details summary { cursor: pointer; padding: 4px 0; color: var(--muted); }
 .details summary:hover { color: var(--ink); }
-.message { margin: 8px 0; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-mono); font-size: 13px; line-height: 1.5; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.message { margin: 8px 0; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-ui); font-size: 13px; line-height: 1.5; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
 .foot { margin: 0; font-size: 13.5px; color: var(--faint); }
 .actions { display: flex; justify-content: flex-end; }
 
@@ -87,7 +87,7 @@
 .link { background: none; border: 0; padding: 0; font: inherit; font-size: 14px; color: var(--muted); text-decoration: underline; cursor: pointer; }
 .link:hover { color: var(--ink); }
 .repoLine { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13.5px; color: var(--faint); }
-.repoLine span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); }
+.repoLine span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-ui); }
 
 .waiting { display: flex; align-items: center; gap: 10px; font-size: 14.5px; line-height: 1.45; color: var(--ink-2); background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; animation: cn-rise 0.3s var(--ease-out) both; }
 .waiting .spin { flex-shrink: 0; }

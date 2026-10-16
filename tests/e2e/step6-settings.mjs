@@ -45,7 +45,6 @@ try {
   await owner.page.click("a:has-text('Table settings')");
   await owner.page.waitForURL(/\/settings$/);
   await owner.page.fill("#s-name", "Fernhill booking");
-  await owner.page.fill("#s-undo", "20");
   await owner.page.selectOption("#s-requests", { label: "Client asks" });
   await owner.page.click("form[aria-label='The table'] button:has-text('Save')");
   await owner.page.waitForSelector("form[aria-label='The table'] [role=status]");
@@ -60,7 +59,7 @@ try {
   const samId = people.find((p) => p.display_name === "Sam Lee")?.id;
   const askChat = (await rest(ownerToken, `chats?select=id&table_id=eq.${tableId}&name=eq.Client asks`)).body[0]?.id;
   results.table = t;
-  check("the settings save", t.name === "Fernhill booking" && t.undo_seconds === 20 && t.client_chat === askChat
+  check("the settings save", t.name === "Fernhill booking" && t.undo_seconds === 10 && t.client_chat === askChat
     && t.final_seat === samId && t.when_final_offline === "next", JSON.stringify(t));
 
   // A client's ask lands in the chat the owner chose.

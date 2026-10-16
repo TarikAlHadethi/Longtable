@@ -55,5 +55,16 @@ for (const path of tracked) {
 }
 check("every dropdown is the product's own menu, never the browser's", plain.length === 0, plain);
 
+// No code-style typeface anywhere on the site (his rule, 17 Oct 2026: "I don't want to see this font ever used again"):
+// file names, branches and code are set in the product's own face.
+const mono = [];
+for (const path of tracked) {
+  if (!/^apps\/web\/.*\.(css|tsx|ts|mjs)$/.test(path)) continue;
+  let text;
+  try { text = readFileSync(path, "utf8"); } catch { continue; }
+  text.split(String.fromCharCode(10)).forEach((l, i) => { if (/monospace|--font-mono|Mono\b.*from "next\/font/i.test(l)) mono.push(`${path}:${i + 1}`); });
+}
+check("no code-style typeface anywhere on the site", mono.length === 0, mono);
+
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -42,7 +42,7 @@
 .ai { background: var(--card); border: 2px solid oklch(0.62 0.12 30); }
 .voice { font-family: var(--font-voice); font-size: 17.5px; }
 .chips { display: flex; gap: 6px; margin-top: 8px; }
-.chips span { font-family: var(--font-mono); font-size: 12px; padding: 2px 7px; border: 1px solid var(--line-strong); border-radius: 6px; }
+.chips span { font-family: var(--font-ui); font-size: 12px; padding: 2px 7px; border: 1px solid var(--line-strong); border-radius: 6px; }
 .tick { width: 20px; height: 20px; border-radius: 50%; background: oklch(0.45 0.09 160); color: white; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; }
 
 .quote { position: relative; display: flex; align-items: center; gap: 16px; }
@@ -74,7 +74,7 @@
 .slots { display: flex; gap: 8px; }
 .slot {
   flex: 1; min-width: 0; height: 58px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--card);
-  display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 25px; font-weight: 560;
+  display: flex; align-items: center; justify-content: center; font-family: var(--font-ui); font-size: 25px; font-weight: 560;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s var(--ease-out);
 }
 .slotFilled { border-color: var(--ink-2); }

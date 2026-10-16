@@ -124,15 +124,16 @@ try {
   const d = ds.find((x) => x.request_id === reqId);
   check("the decision is tied to her request", !!d && d.affects_client && d.origin === "requested by Elena Ruiz", JSON.stringify(ds));
 
-  // The owner decides. After the undo window she hears the chosen option's own words, and only those.
+  // The owner picks and sends. She hears the chosen option's own words, and only those, at once.
   await owner.page.locator(`[data-did='${d.id}'] button:has-text('Ship it for launch')`).click();
+  await owner.page.click(`[data-did='${d.id}'] [data-testid=send-decision]`);
   const decidedAt = Date.now();
   await elena.page.waitForFunction((w) => document.querySelector("[data-testid=client-chat]")?.textContent?.includes(w), yes, { timeout: 30000 });
   results.heardAfterSeconds = Math.round((Date.now() - decidedAt) / 100) / 10;
   await waitReq(ownerToken, reqId, "decided", 30000);
   const timeline = await elena.page.textContent(`[data-request='${reqId}']`);
   results.timeline = timeline;
-  check("she hears it after the window, in the chosen words, under what she asked", results.heardAfterSeconds >= 9 && [ask, yes].every((w) => timeline.includes(w)) && !timeline.includes("Passed on to the team"),
+  check("she hears it at once, in the chosen words, under what she asked", results.heardAfterSeconds < 8 && [ask, yes].every((w) => timeline.includes(w)) && !timeline.includes("Passed on to the team"),
     `${results.heardAfterSeconds} s, ${timeline}`);
   // The conversation, not the panel: the panel shows her team's faces and first names on purpose (17 Oct 2026).
   const elenaLook = await elena.page.textContent("[data-testid=client-chat]");
@@ -233,8 +234,9 @@ try {
   for (let i = 0; i < 40 && !d3; i++) { d3 = (await rest(ownerToken, `decisions?select=id,request_id&table_id=eq.${tableId}`)).body.find((x) => x.request_id === req3)?.id; if (!d3) await sleep(250); }
   await owner.page.waitForSelector(`[data-did='${d3}']`, { timeout: 5000 });
   await owner.page.locator(`[data-did='${d3}'] button:has-text('Ask Elena Ruiz first')`).click();
-  await owner.page.waitForFunction((id) => /Elena Ruiz is asked in \d+ s/.test(document.querySelector(`[data-did='${id}']`)?.textContent || ""), d3, { timeout: 5000 });
+  await owner.page.waitForFunction((id) => /Elena Ruiz would be asked/.test(document.querySelector(`[data-did='${id}']`)?.textContent || ""), d3, { timeout: 5000 });
   const ownerSees = await owner.page.textContent(`[data-did='${d3}']`);
+  await owner.page.click(`[data-did='${d3}'] [data-testid=send-decision]`);
   check("the card shows the question and its answers", ownerSees.includes("Ask Elena Ruiz first") && ownerSees.includes("At launch") && ownerSees.includes("Keep the time for testing"), ownerSees);
 
   // After the window, the question reaches her with its answers, and the request is a question for her.

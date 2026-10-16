@@ -40,9 +40,10 @@ try {
   await owner.page.fill("textarea[aria-label^='What Dr. Ruiz will be told for option 2']", words2);
   await owner.page.click("button:has-text('Start the poll')");
 
-  // The developer is in another chat: the chat with the poll gets a mark, live. They open it and decide there.
-  await dev.page.waitForFunction(() => [...document.querySelectorAll("aside[aria-label=Menu] *")].some((el) => el.textContent?.trim() === "Booking flow" && el.querySelector("span:empty")), null, { timeout: 5000 })
-    .then(() => check("a chat with an open poll is marked for people elsewhere, live", true), () => check("a chat with an open poll is marked for people elsewhere, live", false));
+  // The developer is in another chat. Chats are listed with a "#" and no dot beside them (his picture, 17 Oct 2026); they
+  // open the chat with the poll and decide there.
+  await dev.page.waitForFunction(() => [...document.querySelectorAll("aside[aria-label=Menu] [data-chat]")].some((el) => /^#\s*Booking flow/.test(el.textContent?.trim() || "")), null, { timeout: 5000 })
+    .then(() => check("chats are listed with a # and no dot", true), () => check("chats are listed with a # and no dot", false));
   await dev.page.click("aside[aria-label=Menu] >> text=Booking flow");
   await dev.page.waitForFunction(() => document.body.innerText.includes("Reminder channel for launch"), null, { timeout: 5000 });
   check("the poll is in its chat for the developer", true);
@@ -52,21 +53,26 @@ try {
   const { body: list } = await rest(devToken, `decisions?select=id,title&table_id=eq.${tableId}`);
   const d1 = list.find((d) => d.title === "Reminder channel for launch")?.id;
 
+  // Picking an option decides nothing (17 Oct 2026): it shows what the client would be told, in words that can be
+  // changed, and only Send sends them, at once.
   const cardButton = dev.page.locator(`[data-did='${d1}'] button:has-text('Text, email as fallback')`);
   await cardButton.click();
-  const decidedAt = Date.now();
-  await dev.page.waitForFunction((id) => {
-    const el = document.querySelector(`[data-did='${id}']`);
-    return el && /Dr\. Ruiz is told in \d+ s/.test(el.textContent || "") && /Undo/.test(el.textContent || "");
-  }, d1, { timeout: 5000 });
-  check("card shows the countdown and Undo", true);
-
-  // Nothing reaches the client during the window.
-  await sleep(3000);
+  const box = dev.page.locator(`[data-did='${d1}'] [data-testid=would-be-told] textarea`);
+  await box.waitFor({ timeout: 5000 });
+  const shownWords = await box.inputValue();
+  const label = await dev.page.textContent(`[data-did='${d1}'] [data-testid=would-be-told] label`);
+  await sleep(1500);
+  const stillOpen = (await rest(devToken, `decisions?select=status&id=eq.${d1}`)).body[0]?.status;
   const early = await rest(clientToken, `client_updates?select=id,body&table_id=eq.${tableId}`);
-  check("client hears nothing during the window", early.status === 200 && early.body.length === 0, JSON.stringify(early));
+  check("picking shows what the client would be told, and decides nothing", shownWords === words1 && /Dr\. Ruiz would be told/.test(label) && stillOpen === "open" && early.body.length === 0,
+    JSON.stringify({ shownWords, label, stillOpen, early: early.body }));
+  const edited = `${words1} We will start with text.`;
+  await box.fill(edited);
+  await dev.page.click(`[data-did='${d1}'] [data-testid=send-decision]`);
+  const decidedAt = Date.now();
+  const words1Sent = edited;
 
-  // After the window, the client gets exactly the chosen option's words.
+  // The client gets exactly the words as they were sent, at once.
   let late;
   for (let i = 0; i < 20; i++) {
     late = await rest(clientToken, `client_updates?select=id,body,decision_id&table_id=eq.${tableId}`);
@@ -75,7 +81,9 @@ try {
   }
   const heardAfter = (Date.now() - decidedAt) / 1000;
   results.clientHeardAfterSeconds = Math.round(heardAfter * 10) / 10;
-  check("client hears after the window, in the exact words", late.body.length === 1 && late.body[0].body === words1 && heardAfter >= 10, JSON.stringify(late.body));
+  check("client hears at once, in the words as they were sent", late.body.length === 1 && late.body[0].body === words1Sent && heardAfter < 6, JSON.stringify(late.body));
+  const cardText = await dev.page.textContent(`[data-did='${d1}']`);
+  check("the card has no undo", !/Undo/.test(cardText), cardText);
   await dev.page.waitForFunction((id) => /has been told/.test(document.querySelector(`[data-did='${id}']`)?.textContent || ""), d1, { timeout: 5000 });
   check("card says the client has been told", true);
 
@@ -83,7 +91,7 @@ try {
   const lateUndo = await rpc(devToken, "undo_decision", { d: d1 });
   check("undo after delivery is refused", lateUndo.status >= 400 && /too late/.test(JSON.stringify(lateUndo.body)), JSON.stringify(lateUndo));
 
-  // A second decision, decided then undone inside the window: the client never hears it.
+  // A second decision, picked and picked again to let it go: nothing is decided and the client never hears it.
   const made = await rpc(ownerToken, "create_decision", {
     c: (await rest(ownerToken, `chats?select=id&table_id=eq.${tableId}&is_general=eq.true`)).body[0].id,
     title: "Hygienist choice: launch or first update?", context: "", origin: "from Maya", affects_client: true,
@@ -94,16 +102,14 @@ try {
   await owner.page.click("aside[aria-label=Menu] >> text=General");
   await owner.page.waitForFunction((id) => !!document.querySelector(`[data-did='${id}']`), d2, { timeout: 5000 });
   await owner.page.locator(`[data-did='${d2}'] button:has-text('Ship it for launch')`).click();
-  await owner.page.locator(`[data-did='${d2}'] button:has-text('Undo')`).click();
-  await owner.page.waitForFunction((id) => {
-    const el = document.querySelector(`[data-did='${id}']`);
-    return el && !/Decided by/.test(el.textContent || "");
-  }, d2, { timeout: 5000 });
-  await sleep(13000);
+  await owner.page.locator(`[data-did='${d2}'] [data-testid=would-be-told]`).waitFor({ timeout: 5000 });
+  await owner.page.locator(`[data-did='${d2}'] button:has-text('Ship it for launch')`).click();
+  await owner.page.waitForFunction((id) => !document.querySelector(`[data-did='${id}'] [data-testid=would-be-told]`), d2, { timeout: 5000 });
+  await sleep(3000);
   const afterUndo = await rest(clientToken, `client_updates?select=decision_id&table_id=eq.${tableId}`);
   const reopened = await rest(ownerToken, `decisions?select=status&id=eq.${d2}`);
-  check("undone decision never reaches the client", afterUndo.body.every((u) => u.decision_id !== d2), JSON.stringify(afterUndo.body));
-  check("undone decision is open again", reopened.body[0]?.status === "open", JSON.stringify(reopened.body));
+  check("a decision that was never sent never reaches the client", afterUndo.body.every((u) => u.decision_id !== d2), JSON.stringify(afterUndo.body));
+  check("and is still open", reopened.body[0]?.status === "open", JSON.stringify(reopened.body));
 
   // The client wall, straight against the database with the client's own token.
   const backRoom = ["chats", "messages", "decisions", "decision_options", "activity"];
@@ -139,7 +145,7 @@ try {
   check("owner cannot delete or rewrite the log", (del.body.length ?? 0) === 0 && (upd.body.length ?? 0) === 0 && !actions.includes("rewritten"),
     JSON.stringify({ del: del.status, upd: upd.status }));
   check("the log recorded every step", ["table.started", "member.joined", "chat.created", "decision.created", "decision.decided",
-    "decision.delivered", "decision.undone"].every((a) => actions.includes(a)), JSON.stringify(actions));
+    "decision.delivered"].every((a) => actions.includes(a)), JSON.stringify(actions));
 
   if (process.env.SCREENSHOTS) {
     await dev.page.setViewportSize({ width: 1440, height: 860 });

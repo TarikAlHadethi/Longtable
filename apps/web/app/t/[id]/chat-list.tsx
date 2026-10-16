@@ -78,8 +78,7 @@ export function ChatList({ chats, activeId, waiting, canDelete, onOpen, onCreate
             <>
               <button className={`${styles.chat} ${c.id === activeId ? styles.chatActive : ""}`} onClick={() => onOpen(c.id)}
                 onDoubleClick={() => { if (c.id === activeId) startRename(c); }} title={c.id === activeId ? "Double-click to rename" : undefined}>
-                <span className={styles.chatName}>{c.name}</span>
-                {waiting.has(c.id) && <span className={styles.chatDot} />}
+                <span className={styles.chatName}><span className={styles.chatHash} aria-hidden="true">#</span>{c.name}</span>
               </button>
               <button className={styles.chatMore} aria-label={`More for ${c.name}`} aria-haspopup="menu" aria-expanded={menu === c.id} data-chat-menu
                 onClick={() => setMenu(menu === c.id ? null : c.id)}>

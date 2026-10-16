@@ -24,7 +24,6 @@
   color-scheme: light;
   --font-ui: var(--font-hanken), system-ui, sans-serif;
   --font-voice: var(--font-voice-face), Georgia, serif;
-  --font-mono: ui-monospace, monospace;
 }
 
 /* The dark theme: the same tokens, turned down. Colours written in the stylesheets carry their own dark partner
@@ -165,7 +164,7 @@ button { font: inherit; }
 .panel h1 { margin: 0; font-size: 23px; letter-spacing: -0.01em; }
 
 .code-block {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 0.82em;
   line-height: 1.5;
   margin: 0.4em 0;
@@ -177,7 +176,7 @@ button { font: inherit; }
 }
 
 .inline-code {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 0.86em;
   padding: 1px 5px;
   border-radius: 5px;

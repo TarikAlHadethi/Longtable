@@ -14,7 +14,7 @@ export function AuthShell({ title, lead, children }: { title: string; lead?: Rea
           {lead && <p className={`${s.lead} rise`} style={{ "--i": 1 } as React.CSSProperties}>{lead}</p>}
           <div className={`${s.body} rise`} style={{ "--i": 2 } as React.CSSProperties}>{children}</div>
         </div>
-        <div className={s.foot}><Link href="/privacy">Privacy</Link><Link href="/demo">See the demo</Link></div>
+        <div className={s.foot}><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/demo">See the demo</Link></div>
       </main>
 
       <aside className={s.right} aria-hidden="true">

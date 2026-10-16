@@ -25,10 +25,10 @@ const TOLD = "Good news: patients will be able to pick their hygienist when they
 const STEPS = [
   "Elena, the client, asks for something in her own words, from her own page.",
   "It lands in the team's chat as a client card. Maya asks the table how big it is.",
-  "Each connected Claude reads the code on its own person's computer and gives a view in the back room.",
+  "Each connected AI reads the code and gives a view in the back room.",
   "One answer comes back, with the files it read and how the views were settled.",
-  "Maya turns it into a decision, with the exact words Elena will be told for each option.",
-  "One tap decides it. There is a short window to undo before Elena hears anything.",
+  "Maya turns it into a decision, with the exact words Elena would be told for each option.",
+  "Maya picks an option, looks over what Elena would be told, changes it if she likes, and sends it.",
   "Elena hears the decision, in those words, on her page. She never sees the team's side.",
 ];
 
@@ -108,7 +108,7 @@ export function Demo() {
             )}
             {step >= 3 && (
               <div className={`${room.message} ${room.aiMessage}`}>
-                <div className={`${room.messageAvatar} ${room.aiAvatar}`} style={{ borderColor: PEOPLE.maya.color }}><Mark size={18} /></div>
+                <div className={room.aiAvatar}><Mark size={22} /></div>
                 <div className={room.messageBody}>
                   <div className={room.messageMeta}>
                     <span className={room.messageName}>The table</span><span>· one answer from 3 Claudes, written by Maya&apos;s Claude</span>
@@ -123,22 +123,29 @@ export function Demo() {
               </div>
             )}
             {step >= 4 && (
-              <div className={`${room.card} ${step >= 5 ? room.cardDecided : ""}`}>
+              <div className={`${room.card} ${step >= 6 ? room.cardDecided : ""}`}>
                 <div className={room.cardOrigin}><span className={room.cardChat}># General</span><span>· requested by Elena Ruiz</span></div>
                 <div className={room.cardTitle}>Hygienist choice: launch or first update?</div>
                 <div className={room.options}>
                   <div className={`${room.option} ${step >= 5 ? room.optionChosen : ""}`}><span>Ship it for launch</span><span className={room.optionTag}>Recommended</span></div>
-                  <div className={`${room.option} ${step >= 5 ? room.optionFaded : ""}`}><span>First update after launch</span></div>
-                  <div className={`${room.option} ${step >= 5 ? room.optionFaded : ""}`}><span>Ask Elena first</span></div>
+                  <div className={`${room.option} ${step >= 6 ? room.optionFaded : ""}`}><span>First update after launch</span></div>
+                  <div className={`${room.option} ${step >= 6 ? room.optionFaded : ""}`}><span>Ask Elena first</span></div>
                 </div>
-                <div className={room.clientWords}>
-                  <div className={room.clientWordsLabel}>{step >= 6 ? "Elena Ruiz was told" : "Elena Ruiz will be told"}</div>
-                  <div className={room.clientWordsText}>{TOLD}</div>
-                </div>
-                {step >= 5 && (
-                  <div className={room.after}>
-                    <div className={room.afterText}>Decided by Maya · {step >= 6 ? "Elena Ruiz has been told" : "Elena Ruiz is told in 8 s"}</div>
+                {step === 5 && (
+                  <div className={`${room.clientWords} ${room.clientWordsEdit}`}>
+                    <div className={room.clientWordsLabel}>Elena Ruiz would be told</div>
+                    <div className={room.clientWordsText}>{TOLD}</div>
+                    <div className={room.sendRow}><span className="btn">Send</span></div>
                   </div>
+                )}
+                {step >= 6 && (
+                  <>
+                    <div className={room.clientWords}>
+                      <div className={room.clientWordsLabel}>Elena Ruiz was told</div>
+                      <div className={room.clientWordsText}>{TOLD}</div>
+                    </div>
+                    <div className={room.after}><div className={room.afterText}>Decided by Maya · Elena Ruiz has been told</div></div>
+                  </>
                 )}
               </div>
             )}

@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { Check } from "@/components/icons";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -68,6 +70,7 @@ export function SignInForm({ next }: { next: string }) {
         </div>
         {error && <div className="error">{error}</div>}
         <button className="btn" disabled={busy || !email.trim()}>{busy ? "Sending…" : "Send me a code"}</button>
+        <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>By continuing you agree to the <Link href="/terms">terms</Link> and the <Link href="/privacy">privacy page</Link>.</p>
       </form>
     );
   }

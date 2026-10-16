@@ -104,6 +104,7 @@ try {
 
   const d1 = (await rest(ownerToken, `decisions?select=id,request_id&table_id=eq.${tableId}`)).body.find((x) => x.request_id === reqId).id;
   await owner.page.locator(`[data-did='${d1}'] button:has-text('Ship it for launch')`).click();
+  await owner.page.click(`[data-did='${d1}'] [data-testid=send-decision]`);
   await page.waitForFunction((id) => document.querySelector(`[data-testid=panel-request][data-id='${id}']`)?.getAttribute("data-state") === "decided", reqId, { timeout: 40000 }).catch(() => {});
   await snap(page, "decided-she-is-told-in-the-teams-chosen-words", true);
 
@@ -128,6 +129,7 @@ try {
   const d2 = await (async () => { for (;;) { const d = (await rest(ownerToken, `decisions?select=id,request_id&table_id=eq.${tableId}`)).body.find((x) => x.request_id === req2); if (d) return d.id; await sleep(300); } })();
   await owner.page.waitForSelector(`[data-did='${d2}']`);
   await owner.page.locator(`[data-did='${d2}'] button:has-text('Ask Elena Ruiz first')`).click();
+  await owner.page.click(`[data-did='${d2}'] [data-testid=send-decision]`);
   await page.waitForSelector("[data-testid=replies] button:has-text('At launch')", { timeout: 40000 });
   await snap(page, "a-question-for-her-with-answers-to-tap", true);
   await page.click("[data-testid=replies] button:has-text('At launch')");
