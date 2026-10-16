@@ -18,7 +18,7 @@ import { AttachButtons, AttachTray, Files, dropHandlers, useAttach } from "./att
 import room from "./room.module.css";
 import styles from "./client.module.css";
 import { firstName } from "@/lib/names";
-import { ClientPanel, ClientWelcome, Suggestions, type Overview } from "./client-panel";
+import { ClientPanel, ClientWelcome, type Overview } from "./client-panel";
 
 
 // A change in the client's own copy, as their page is given it: their words, where it stands, what they were told in
@@ -374,7 +374,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
         <div ref={chatRef} className={styles.scroll} data-testid="client-chat" data-with={sandbox?.on ? "copy" : mine ? "assistant" : "team"}>
           <div className={styles.col}>
             {feed.length === 0 && !sandbox?.on && !mine && overview && (
-              <ClientWelcome first={first} tableName={table.name} team={overview.team} onAsk={(w, send) => { if (locked) return; if (send) say(w); else { setDraft(w); requestAnimationFrame(() => { grow(); inputRef.current?.focus(); }); } }} />
+              <ClientWelcome first={first} tableName={table.name} team={overview.team} />
             )}
             {feed.length === 0 && (sandbox?.on || mine || !overview) && (
               <div className={styles.empty} data-testid="chat-head">
@@ -460,11 +460,10 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
 
         <div className={styles.foot}>
           <div className={styles.col}>
-            {!locked && feed.length > 0 && !sandbox?.on && <Suggestions small onAsk={(w, send) => { if (send) say(w); else { setDraft(w); requestAnimationFrame(() => { grow(); inputRef.current?.focus(); }); } }} />}
             {!locked && <AttachTray a={attach} />}
             <form className={room.composer} onSubmit={(e) => { e.preventDefault(); if (!locked) say(); }} {...(locked ? {} : dropHandlers(attach))}>
               <textarea ref={inputRef} className={room.input} rows={1} value={draft} disabled={locked} maxLength={4000}
-                placeholder={locked ? "Only they can write here" : sandbox?.on ? "Say what you want changed" : "Ask for something, in your own words"} aria-label="Ask the team"
+                placeholder={locked ? "Only they can write here" : sandbox?.on ? "Say what you want changed" : "Write a message"} aria-label="Ask the team"
                 onChange={(e) => { setDraft(e.target.value); grow(); }}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (!locked) say(); } }} />
               {!locked && <AttachButtons a={attach} disabled={busy} />}

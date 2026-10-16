@@ -45,7 +45,7 @@ try {
   // The client lands on their own page, never the team's room.
   await elena.page.waitForSelector("[data-testid=client-chat]");
   const firstLook = (await textOf(elena.page)).toLowerCase();
-  check("the client gets their own page", ["this is where you talk to the team", "what's done so far?"].every((w) => firstLook.includes(w))
+  check("the client gets their own page", firstLook.includes("this is where you talk to the team") && !firstLook.includes("what's done so far?")
     && !["ask the table", "inbox", "general"].some((w) => firstLook.includes(w)), firstLook.slice(0, 300));
 
   const [ownerToken, devToken, elenaToken, priyaToken] = await Promise.all([owner, dev, elena, priya].map((p) => accessToken(p.context)));

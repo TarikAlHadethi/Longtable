@@ -123,16 +123,6 @@
 .welcomeFaces .face:first-child { margin-left: 0; }
 .welcomeTitle { margin: 6px 0 0; font-family: var(--font-voice); font-weight: 500; font-size: 30px; letter-spacing: -0.01em; animation: lt-rise 0.45s var(--ease-out) backwards; animation-delay: 120ms; }
 .welcomeLead { margin: 0; font-size: 16px; line-height: 1.55; color: var(--muted); text-wrap: pretty; animation: lt-rise 0.45s var(--ease-out) backwards; animation-delay: 200ms; }
-.suggest { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 8px; }
-.suggestSmall { justify-content: flex-start; margin: 0 0 2px; }
-.chip {
-  border: 1px solid var(--line); background: var(--card); color: var(--ink-2); border-radius: 20px; padding: 7px 13px; font: inherit; font-size: 14px;
-  cursor: pointer; transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.12s var(--ease-out), color 0.15s ease;
-  animation: lt-rise 0.35s var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * 60ms + 260ms);
-}
-.suggestSmall .chip { padding: 4px 11px; font-size: 13px; animation-delay: calc(var(--i, 0) * 50ms); }
-.chip:hover { border-color: var(--line-strong); color: var(--ink); }
-.chip:active { transform: scale(0.96); }
 
 @keyframes cl-side { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
 
@@ -144,7 +134,7 @@
   .panelButton { display: inline-flex; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .panel, .card, .asks li, .workItem, .face, .welcomeTitle, .welcomeLead, .chip, .workOn { animation: none; }
+  .panel, .card, .asks li, .workItem, .face, .welcomeTitle, .welcomeLead, .workOn { animation: none; }
 }
 
 /* On a phone the top bar keeps each button on one line. */

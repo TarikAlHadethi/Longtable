@@ -60,8 +60,9 @@ export function ClientPanel({ overview, tableName, open, onClose }: {
   );
 }
 
-// The first thing a client sees with nothing said yet: the team behind the project, and a few things to ask.
-export function ClientWelcome({ first, tableName, team, onAsk }: { first: string; tableName: string; team: Overview["team"]; onAsk: (words: string, send: boolean) => void }) {
+// The first thing a client sees with nothing said yet: the team behind the project. No ready-made questions (his word,
+// 17 Oct 2026: gone for good).
+export function ClientWelcome({ first, tableName, team }: { first: string; tableName: string; team: Overview["team"] }) {
   return (
     <div className={styles.welcome} data-testid="chat-head">
       <div className={styles.welcomeFaces}>
@@ -71,23 +72,6 @@ export function ClientWelcome({ first, tableName, team, onAsk }: { first: string
       </div>
       <h1 className={styles.welcomeTitle}>Hi {first}</h1>
       <p className={styles.welcomeLead}>This is where you talk to the team building {tableName}. Ask where things stand, or for anything new, in your own words.</p>
-      <Suggestions onAsk={onAsk} />
-    </div>
-  );
-}
-
-// Quick things a client can ask, one press away.
-export function Suggestions({ onAsk, small = false }: { onAsk: (words: string, send: boolean) => void; small?: boolean }) {
-  const list: [string, string, boolean][] = [
-    ["What's done so far?", "What's done so far?", true],
-    ["What's being worked on?", "What's being worked on right now?", true],
-    ["I'd like a change", "I'd like ", false],
-  ];
-  return (
-    <div className={`${styles.suggest} ${small ? styles.suggestSmall : ""}`} data-testid="suggestions">
-      {list.map(([label, words, send], i) => (
-        <button key={label} type="button" className={styles.chip} style={{ "--i": i } as React.CSSProperties} onClick={() => onAsk(words, send)}>{label}</button>
-      ))}
     </div>
   );
 }
