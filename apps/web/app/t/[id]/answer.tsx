@@ -6,12 +6,13 @@ import { Inline, Prose } from "@/lib/inline";
 import { Time } from "@/components/time";
 import { AI_NAME, AiLogo } from "@/components/ai-logo";
 import { kindOfModel } from "./table-view";
-import type { Member, Message } from "./types";
+import type { Member, Message, Page } from "./types";
+import { PageCard } from "./page-window";
 import styles from "./room.module.css";
 
 // An answer from the table: one AI's, or one combined from several. Sources are the files it read; "How they got
 // here" opens the back-room views and how they were settled.
-export function Answer({ m, members, views, again }: { m: Message; members: Map<string, Member>; views: Message[]; again?: boolean }) {
+export function Answer({ m, members, views, again, pages = [], onOpenPage }: { m: Message; members: Map<string, Member>; views: Message[]; again?: boolean; pages?: Page[]; onOpenPage?: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   const who = members.get(m.member_id);
   const name = who?.display_name ?? "Someone";
@@ -49,6 +50,7 @@ export function Answer({ m, members, views, again }: { m: Message; members: Map<
           <span className={styles.messageName}>{combined || quick ? "The table" : `${name}'s ${ai}`}</span>
         </div>
         <div className={`${styles.messageText} ${styles.aiText}`}><Prose text={m.body} /></div>
+        {pages.map((p) => <PageCard key={p.id} page={p} onOpen={() => onOpenPage?.(p.id)} />)}
         {/* The small print: when, what it read, where a change went. There when you point at the answer. */}
         <div className={styles.aiFoot} data-open={open || undefined}>
           <span><Time iso={m.created_at} /></span>
