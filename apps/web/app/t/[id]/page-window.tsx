@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import { useEscape } from "@/components/use-escape";
 import { Face } from "@/components/face";
 import { Time } from "@/components/time";
@@ -74,6 +74,53 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
   const [naming, setNaming] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const newest = n === page.version;
+  // Where everyone else on this page points, and who is writing a comment, as the table's cursor channel says.
+  const [pointers, setPointers] = useState<Record<string, { path: number[]; fx: number; fy: number; at: number }>>({});
+  const [writing, setWriting] = useState<Record<string, number>>({});
+  const [lit, setLit] = useState<string | null>(null);
+  const cursorChannel = useRef<RealtimeChannel | null>(null);
+  // The room hands a new map of people on each redraw: read through a ref, so the channel is not joined again for it.
+  const membersRef = useRef(members);
+  membersRef.current = members;
+  const lastPoint = useRef(0);
+  const lastTyped = useRef(0);
+  useEffect(() => {
+    let gone = false;
+    let ch: RealtimeChannel | null = null;
+    (async () => {
+      await supabase.realtime.setAuth();
+      if (gone) return;
+      ch = supabase.channel(`cursor:${page.table_id}`, { config: { private: true, broadcast: { self: false } } });
+      ch.on("broadcast", { event: "point" }, ({ payload }) => {
+        const p = payload as { m?: string; page?: string; path?: number[] | null; fx?: number; fy?: number };
+        if (!p?.m || p.page !== page.id || p.m === me.id || !membersRef.current.has(p.m)) return;
+        const who = p.m;
+        setPointers((prev) => {
+          const next = { ...prev };
+          if (!Array.isArray(p.path)) delete next[who];
+          else next[who] = { path: p.path.slice(0, 40).map((x) => Math.max(0, Math.floor(Number(x) || 0))), fx: Number(p.fx) || 0, fy: Number(p.fy) || 0, at: Date.now() };
+          return next;
+        });
+      }).on("broadcast", { event: "writing" }, ({ payload }) => {
+        const p = payload as { m?: string; page?: string };
+        if (!p?.m || p.page !== page.id || p.m === me.id || !membersRef.current.has(p.m)) return;
+        setWriting((prev) => ({ ...prev, [p.m as string]: Date.now() }));
+      }).subscribe();
+      cursorChannel.current = ch;
+    })();
+    // Someone who stopped saying where they are has gone: their cursor and their line fade after a while.
+    const prune = setInterval(() => {
+      const now = Date.now();
+      setPointers((prev) => (Object.values(prev).some((c) => now - c.at > 15000) ? Object.fromEntries(Object.entries(prev).filter(([, c]) => now - c.at <= 15000)) : prev));
+      setWriting((prev) => (Object.values(prev).some((t) => now - t > 4000) ? Object.fromEntries(Object.entries(prev).filter(([, t]) => now - t <= 4000)) : prev));
+    }, 1000);
+    return () => {
+      gone = true;
+      clearInterval(prune);
+      if (ch) { ch.send({ type: "broadcast", event: "point", payload: { m: me.id, page: page.id, path: null } }).catch(() => {}); supabase.removeChannel(ch); }
+      cursorChannel.current = null;
+    };
+  }, [supabase, page.table_id, page.id, me.id]);
 
   // A new version arriving moves the window to it, unless someone is looking at an older one on purpose.
   const lastSeen = useRef(page.version);
@@ -109,6 +156,15 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
       if (!win || e.source !== win || !d || d.lt !== key) return;
       const answer = (value: unknown, error?: string) => win.postMessage({ lt: key, id: d.id, value, error }, "*");
       if (d.op === "picked" && typeof d.a === "string") { setPicked(d.a.slice(0, 300)); setSide(true); return; }
+      if (d.op === "pointer") {
+        const now = Date.now();
+        const where = d.a && typeof d.a === "object" ? (d.a as { path?: number[]; fx?: number; fy?: number }) : null;
+        if (where && now - lastPoint.current < 50) return;
+        lastPoint.current = now;
+        cursorChannel.current?.send({ type: "broadcast", event: "point", payload: where ? { m: me.id, page: page.id, path: where.path, fx: where.fx, fy: where.fy } : { m: me.id, page: page.id, path: null } }).catch(() => {});
+        return;
+      }
+      if (d.op === "mark" && typeof d.a === "string") { setSide(true); setLit(d.a); document.querySelector(`[data-cid="${d.a}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }); return; }
       const a = (typeof d.a === "object" && d.a) || {};
       if (d.op === "get") return answer(valuesRef.current.find((v) => v.key === a.key)?.value ?? null);
       if (d.op === "all") return answer(Object.fromEntries(valuesRef.current.map((v) => [v.key, v.value])));
@@ -119,7 +175,7 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [key, supabase, page.id]);
+  }, [key, supabase, page.id, me.id]);
 
   // Someone else changing a value reaches the page while it is open.
   const told = useRef(new Map<string, string>());
@@ -132,6 +188,21 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
     }
   }, [values, key, me.id]);
 
+  const cursorList = useMemo(() => Object.entries(pointers).map(([id, c]) => {
+    const w = members.get(id);
+    return { id, name: firstName(w?.display_name ?? "Someone"), color: w?.color ?? "#555", path: c.path, fx: c.fx, fy: c.fy };
+  }), [pointers, members]);
+  const markList = useMemo(() => comments.filter((c) => !c.parent_id && !c.deleted_at && !c.resolved_at && c.anchor).map((c) => ({ id: c.id, text: c.anchor })), [comments]);
+  const toFrame = (msg: Record<string, unknown>) => frame.current?.contentWindow?.postMessage({ lt: key, ...msg }, "*");
+  useEffect(() => { toFrame({ op: "cursors", list: cursorList }); });
+  useEffect(() => { toFrame({ op: "marks", list: markList }); }, [markList, html]);
+  useEffect(() => { toFrame({ op: "focus", id: lit }); }, [lit]);
+  const sayWriting = () => {
+    const now = Date.now();
+    if (now - lastTyped.current < 2000) return;
+    lastTyped.current = now;
+    cursorChannel.current?.send({ type: "broadcast", event: "writing", payload: { m: me.id, page: page.id } }).catch(() => {});
+  };
   const mine = page.made_by === me.id;
   const name = (id: string | null) => (id ? members.get(id)?.display_name ?? "Someone" : "Someone");
   const madeBy = (v: PageVersion) => (v.by_ai ? `${firstName(name(v.made_by))}'s AI` : firstName(name(v.made_by)));
@@ -173,7 +244,8 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
     const who = c.member_id ? members.get(c.member_id) : undefined;
     const replies = live.filter((r) => r.parent_id === c.id);
     return (
-      <div key={c.id} className={`${s.comment} ${c.resolved_at ? s.resolved : ""}`} data-testid="page-comment">
+      <div key={c.id} data-cid={c.id} className={`${s.comment} ${c.resolved_at ? s.resolved : ""} ${lit === c.id ? s.lit : ""}`} data-testid="page-comment"
+        onMouseEnter={() => c.anchor && setLit(c.id)} onMouseLeave={() => setLit((cur) => (cur === c.id ? null : cur))}>
         <div className={s.commentHead}>
           <span className={s.face} style={{ background: who?.color }}><Face who={who} /></span>
           <b>{c.deleted_at ? "Taken away" : firstName(who?.display_name ?? "Someone")}</b>
@@ -241,7 +313,8 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
         <div className={s.body}>
           <div className={s.stage}>
             {doc === null ? <div className={s.loading}>Opening…</div>
-              : <iframe ref={frame} className={s.frame} title={page.title} sandbox={FRAME_SANDBOX} srcDoc={doc} referrerPolicy="no-referrer" data-testid="page-frame" />}
+              : <iframe ref={frame} className={s.frame} title={page.title} sandbox={FRAME_SANDBOX} srcDoc={doc} referrerPolicy="no-referrer" data-testid="page-frame"
+                  onLoad={() => { toFrame({ op: "marks", list: markList }); toFrame({ op: "cursors", list: cursorList }); }} />}
           </div>
           {side && (
             <aside className={s.side} aria-label="Comments">
@@ -253,11 +326,14 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
                 )}
                 {showResolved && resolved.map((c) => comment(c))}
               </div>
+              {Object.keys(writing).length > 0 && (
+                <div className={s.writing} data-testid="page-writing">{Object.keys(writing).map((id) => firstName(name(id))).join(", ")} {Object.keys(writing).length > 1 ? "are" : "is"} writing a comment<span className={s.dots}><i /><i /><i /></span></div>
+              )}
               <form className={s.compose} onSubmit={(e) => { e.preventDefault(); send(); }}>
                 {replyTo && <div className={s.replying}>Replying <button type="button" onClick={() => setReplyTo(null)}>Cancel</button></div>}
                 {!replyTo && picked && <div className={s.anchor}>{picked} <button type="button" className={s.unpick} onClick={() => setPicked("")} aria-label="Comment on the whole page instead">×</button></div>}
                 <textarea className="field" rows={3} maxLength={4000} value={draft} placeholder={replyTo ? "Your reply" : picked ? "About these words" : "About this page"}
-                  onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); } }} data-testid="page-comment-box" />
+                  onChange={(e) => { setDraft(e.target.value); if (e.target.value.trim()) sayWriting(); }} onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); } }} data-testid="page-comment-box" />
                 <div className={s.composeRow}>
                   {!replyTo && (
                     <label className={s.askAi}><input type="checkbox" checked={toAi} onChange={(e) => setToAi(e.target.checked)} data-testid="page-to-ai" /> Ask the AIs to change it</label>

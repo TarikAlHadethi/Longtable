@@ -116,3 +116,13 @@
 @media (prefers-reduced-motion: reduce) {
   .card, .window, .side, .comment, .row, .back, .frame, .anchor, .count, .viewers .face, .list { animation: none; }
 }
+
+/* Live: the comment whose words are lit in the page, and who is writing one. */
+.lit { background: var(--paper); box-shadow: -10px 0 0 var(--paper), 10px 0 0 var(--paper); border-radius: 4px; transition: background-color 0.2s ease; }
+.writing { padding: 6px 14px; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 4px; animation: lt-rise 0.2s var(--ease-out) both; }
+.dots { display: inline-flex; gap: 2px; margin-left: 2px; }
+.dots i { width: 3px; height: 3px; border-radius: 50%; background: currentColor; animation: lt-blink 1.2s ease-in-out infinite; }
+.dots i:nth-child(2) { animation-delay: 0.2s; }
+.dots i:nth-child(3) { animation-delay: 0.4s; }
+@keyframes lt-blink { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .dots i, .writing { animation: none; } }
