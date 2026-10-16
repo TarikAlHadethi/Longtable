@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Mark } from "@/components/mark";
+import { Mark, WorkingMark } from "@/components/mark";
 import room from "../t/[id]/room.module.css";
 import client from "../t/[id]/client.module.css";
 import styles from "./demo.module.css";
@@ -154,7 +154,7 @@ export function Demo() {
               <div className={client.mine}><div className={room.bubble} data-bubble="rose">{ASK}</div></div>
               <div className={client.back}>
                 <div className={client.from}>
-                  {step < 6 && <span className={client.forming} aria-hidden="true"><Mark size={18} /></span>}
+                  {step < 6 && <span className={client.forming} aria-hidden="true"><WorkingMark size={18} /></span>}
                   <span className={client.fromName}>The team</span>
                 </div>
                 {step >= 6

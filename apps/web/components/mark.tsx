@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
 // The Longtable mark: a table with three seats on each side, drawn to the brand's proportions.
 const CLAY = "oklch(0.62 0.09 30)";
 const SLATE = "oklch(0.62 0.09 250)";
@@ -35,4 +39,15 @@ export function Wordmark({ size = 16 }: { size?: number }) {
       <span style={{ fontWeight: 600, fontSize: size, letterSpacing: "-0.01em" }}>Longtable</span>
     </span>
   );
+}
+
+// While something is being worked out (the table thinking): the mark's own opening animation, the very same one, at
+// whatever size it is drawn, played again and again for as long as the work goes on.
+export function WorkingMark({ size = 18 }: { size?: number }) {
+  const [round, setRound] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setRound((r) => r + 1), 1800);
+    return () => clearInterval(t);
+  }, []);
+  return <Mark key={round} size={size} live />;
 }

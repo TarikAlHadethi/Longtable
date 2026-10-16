@@ -75,7 +75,7 @@
 
 /* The answer forming: the table's mark at work, and a word on what is happening, as a reply forms in Claude. */
 .fromTag { font-size: 13px; color: var(--faint); }
-.forming { display: inline-grid; place-items: center; animation: cl-work 1.6s ease-in-out infinite; }
+.forming { display: inline-grid; place-items: center; }
 .formingLine { font-size: 15.5px; color: var(--muted); display: inline-flex; align-items: baseline; gap: 2px; animation: lt-fade 0.3s ease both;
   background: linear-gradient(90deg, var(--muted) 0%, var(--ink) 50%, var(--muted) 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
   animation: cl-shine 2.2s linear infinite; }
@@ -83,7 +83,6 @@
 .formingDots i { width: 4px; height: 4px; border-radius: 50%; background: var(--muted); animation: cl-dot 1.2s ease-in-out infinite; }
 .formingDots i:nth-child(2) { animation-delay: 0.15s; }
 .formingDots i:nth-child(3) { animation-delay: 0.3s; }
-@keyframes cl-work { 0%, 100% { transform: rotate(0deg) scale(1); opacity: 1; } 50% { transform: rotate(-8deg) scale(0.9); opacity: 0.7; } }
 @keyframes cl-shine { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 @keyframes cl-dot { 0%, 80%, 100% { opacity: 0.25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-2px); } }
 @media (prefers-reduced-motion: reduce) { .forming, .formingLine, .formingDots i { animation: none; } .formingLine { color: var(--muted); background: none; } }

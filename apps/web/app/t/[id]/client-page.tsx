@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { AI_NAME, AiLogo } from "@/components/ai-logo";
 import { Arrow } from "@/components/icons";
-import { Mark } from "@/components/mark";
+import { Mark, WorkingMark } from "@/components/mark";
 import { downloadExport } from "@/lib/download";
 import { browserClient } from "@/lib/supabase/browser";
 import { ConnectModal } from "./connect-modal";
@@ -445,7 +445,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
               <div className={styles.turn}>
                 <div className={styles.back}>
                   <div className={styles.from}>
-                    <span className={styles.forming} aria-hidden="true"><Mark size={18} /></span>
+                    <span className={styles.forming} aria-hidden="true"><WorkingMark size={18} /></span>
                     <span className={styles.fromName}>{deskBusy || !mine ? "The team" : "Your assistant"}</span>
                   </div>
                   <div className={styles.formingLine} data-testid="thinking" data-stage={waitingOn ? "waiting" : stage}>
