@@ -89,7 +89,7 @@ export function AiWindow({ me, person, conn, commands, on, busy, onSpeed, onClos
             </div>
           </div>
         )}
-        {mine && live && conn?.kind === "claude" && (
+        {mine && live && (
           <div className={s.block}>
             <h3 className={s.h2}>How it works here</h3>
             <div className={s.fact}>
@@ -101,11 +101,11 @@ export function AiWindow({ me, person, conn, commands, on, busy, onSpeed, onClos
                 </select>
               </b>
             </div>
-            <div className={s.switches}>
+            {conn?.kind === "claude" && <div className={s.switches}>
               <Switch on={!!live.fast} onChange={(v) => onSpeed(live.id, { fast: v })} testid="opt-fast"
                 title="Fast mode"
                 about={live.fast && live.limits?.fast !== "on" && live.limits?.fast_why ? fastWhy(live.limits.fast_why) : "Answers come faster on the same model, at a higher cost to your plan. Only some accounts allow it; this says so after its next answer."} />
-            </div>
+            </div>}
           </div>
         )}
         {!mine && live && (

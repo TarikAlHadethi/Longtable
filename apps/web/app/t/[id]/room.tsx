@@ -36,7 +36,9 @@ import {
 } from "./types";
 import styles from "./room.module.css";
 import { firstName } from "@/lib/names";
-import { EFFORT_LEVELS, SLASH, slashEntry } from "@/lib/slash.mjs";
+import { CODEX_NAMES, EFFORT_LEVELS, SLASH, slashEntry } from "@/lib/slash.mjs";
+// Names both Claude Code and Codex have: shown for a Claude too.
+const CLAUDE_ALSO: Record<string, true> = { model: true, status: true, effort: true, usage: true, rename: true, color: true, compact: true, mcp: true };
 
 const byTime = <T extends { created_at: string }>(a: T, b: T) => a.created_at.localeCompare(b.created_at);
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -627,7 +629,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     const have = new Set(own.map((c) => c.name.toLowerCase()));
     const told = myCommands.filter((c) => c.kind === "builtin" && !c.about).map((c) => c.name);
     // Claude Code's own names, from this person's connection, and the ones the table knows even before it says.
-    const rest = [...new Set([...(myConnection.kind === "claude" ? Object.keys(SLASH) : []), ...told])].filter((n) => !have.has(n.toLowerCase()))
+    const rest = [...new Set([...(myConnection.kind === "claude" ? Object.keys(SLASH).filter((n) => !CODEX_NAMES.includes(n) || n in CLAUDE_ALSO) : CODEX_NAMES), ...told])].filter((n) => !have.has(n.toLowerCase()))
       .map((name) => ({ name, about: slashEntry(name, false).about, kind: "builtin" as const }));
     return [...own, ...rest];
   }, [myConnection, myCommands]);
@@ -680,6 +682,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       return true;
     }
     if (e.act === "fast") {
+      if (myConnection.kind !== "claude") { setNotice("Fast mode is Claude's; ChatGPT has no such mode. /effort works for both."); return true; }
       const word = args.toLowerCase();
       const on = word === "on" ? true : word === "off" ? false : !myConnection.fast;
       setSpeed(myConnection.id, { fast: on }).then((ok) => ok && setNotice(on ? "Fast mode is on for your Claude here, if your account allows it (its window says)." : "Fast mode is off for your Claude here."));

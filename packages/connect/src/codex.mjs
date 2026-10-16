@@ -64,7 +64,11 @@ const OFF = ["shell_tool", "unified_exec", "apps", "plugins", "multi_agent", "im
 
 // Answer one job, locked down: an empty folder, read-only, no tools, nothing saved, none of the person's own
 // settings or rules. The prompt goes in through stdin; the reply comes back shaped by the schema.
-export function askCodex({ codex, prompt, schema, model, timeoutMs = 3 * 60 * 1000 }) {
+// How hard ChatGPT thinks, from the person's "/effort" at the table: Codex's own reasoning effort. Its levels stop at
+// xhigh, so max asks for that.
+export const CODEX_EFFORT = { low: "low", medium: "medium", high: "high", xhigh: "xhigh", max: "xhigh" };
+
+export function askCodex({ codex, prompt, schema, model, effort = null, timeoutMs = 3 * 60 * 1000 }) {
   const work = mkdtempSync(join(tmpdir(), "longtable-codex-"));
   const schemaFile = join(work, "schema.json");
   const lastFile = join(work, "last.json");
@@ -76,6 +80,7 @@ export function askCodex({ codex, prompt, schema, model, timeoutMs = 3 * 60 * 10
     "--output-schema", schemaFile, "-o", lastFile, "-c", 'web_search="disabled"'];
   for (const f of OFF) args.push("--disable", f);
   if (model) args.push("-m", model);
+  if (CODEX_EFFORT[effort]) args.push("-c", `model_reasoning_effort="${CODEX_EFFORT[effort]}"`);
   args.push("-");
   return new Promise((resolve, reject) => {
     const started = Date.now();

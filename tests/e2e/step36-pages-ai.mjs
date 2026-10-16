@@ -1,7 +1,8 @@
 // Pages on the real model (Haiku, the saved sign-in): asked for one, a Claude at the table makes a page; asked a plain
 // question, it makes none; sent a comment, it changes the page as a new version.
 //
-//   node --experimental-websocket tests/e2e/step36-pages-ai.mjs
+//   node --experimental-websocket tests/e2e/step36-pages-ai.mjs           (her AI is Claude)
+//   AI=codex node --experimental-websocket tests/e2e/step36-pages-ai.mjs  (her AI is ChatGPT, with the saved sign-in)
 
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -42,12 +43,13 @@ try {
   const tok = await accessToken(owner.context);
   await page.click("[data-testid=me-menu]");
   await page.click("button:has-text('Connect my AI')");
-  await page.click("[data-testid=pick-claude]");
+  const ai = process.env.AI === "codex" ? "codex" : "claude";
+  await page.click(`[data-testid=pick-${ai}]`);
   await page.click("text=It is only on my computer");
   const message = await page.locator("[data-testid=connect-message]").textContent();
-  const [, code, app] = message.match(/connect ([0-9A-F]{20}) --app (\S+)/);
-  const env = { ...process.env, LONGTABLE_HOME: dir, LONGTABLE_MODEL: "haiku" };
-  const r = spawnSync(process.execPath, [bin, "connect", code, "--app", app, "--repo", project, "--no-autostart", "--no-run"], { env, encoding: "utf8" });
+  const [, code, codexFlag, app] = message.match(/connect ([0-9A-F]{20})( --ai codex)? --app (\S+)/);
+  const env = { ...process.env, LONGTABLE_HOME: dir, LONGTABLE_MODEL: "haiku", ...(ai === "codex" ? { LONGTABLE_CODEX_HOME: join(homedir(), ".longtable", "codex") } : {}) };
+  const r = spawnSync(process.execPath, [bin, "connect", code, ...(codexFlag ? ["--ai", "codex"] : []), "--app", app, "--repo", project, "--no-autostart", "--no-run"], { env, encoding: "utf8" });
   if (r.status !== 0) throw new Error(r.stderr || r.stdout);
   await page.locator("[role=dialog] button").last().click();
   runner = spawn(process.execPath, [bin, "run"], { env, stdio: "ignore", windowsHide: true });

@@ -22,14 +22,18 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
 
-  # The connection promises Node 20 and later, so its checks run on both.
+  # The connection promises Node 20 and later, and runs on Windows, Mac and Linux: its checks run on all of them.
   unit:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22]
+        include:
+          - { os: ubuntu-latest, node: 20 }
+          - { os: ubuntu-latest, node: 22 }
+          - { os: macos-latest, node: 22 }
+          - { os: windows-latest, node: 22 }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -47,6 +51,30 @@ jobs:
       - run: node tests/e2e/unit-update.mjs
       - run: node tests/e2e/unit-connection.mjs
       - run: node tests/e2e/chaos-connect.mjs
+
+  # The connection starting at login and starting again after an update, for real, on a Mac (launchd) and on Linux
+  # (systemd). These machines are thrown away afterwards; the test refuses to run anywhere else.
+  startup:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: A user session for systemd (Linux only)
+        if: runner.os == 'Linux'
+        run: |
+          sudo loginctl enable-linger "$USER"
+          for i in $(seq 1 20); do [ -S "/run/user/$(id -u)/bus" ] && break; sleep 1; done
+          echo "XDG_RUNTIME_DIR=/run/user/$(id -u)" >> "$GITHUB_ENV"
+          echo "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus" >> "$GITHUB_ENV"
+      - run: node tests/e2e/os-autostart.mjs
 
   # The connection's chaos checks over many more seeded random inputs (a few minutes). No AI, no network.
   chaos:

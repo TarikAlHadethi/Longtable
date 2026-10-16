@@ -184,7 +184,8 @@ try {
   check("with nothing typed after it, a built-in command says so instead of leaving a hole", loadCommand({ kind: "claude", folder: project }, "/code-review").body.includes("(nothing more was typed)"));
   check("a built-in command is not described to the AI as something its person wrote", /ran the command \/security-review/.test(commandPrompt("Maya", built)) && !/written on their own computer/.test(commandPrompt("Maya", built)));
   check("a plugin's command is read like any other of theirs", loadCommand({ kind: "claude", folder: project }, "/helper:plan the launch")?.body === "Plan: the launch");
-  check("a ChatGPT seat is offered none of Claude's", scanCommands({ kind: "codex", folder: project }).every((c) => c.kind === "prompt"));
+  check("a ChatGPT seat is offered none of Claude's own, only its prompts and the table's built-in ones", scanCommands({ kind: "codex", folder: project }).every((c) => c.kind === "prompt" || c.kind === "skill" || c.kind === "builtin")
+    && scanCommands({ kind: "codex", folder: project }).some((c) => c.name === "review" && c.kind === "builtin") && !scanCommands({ kind: "codex", folder: project }).some((c) => c.name === "helper:plan"));
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {

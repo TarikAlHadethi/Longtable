@@ -53,7 +53,19 @@ export const SLASH = {
   "design-sync": { act: "say", words: "Design systems live in Claude on the web. Here, /design makes a design as a page in the project's own look.", about: "In Claude on the web" },
   "design-consent": { act: "say", words: ON_YOUR_COMPUTER, about: "On your own computer" },
   "design-revoke": { act: "say", words: ON_YOUR_COMPUTER, about: "On your own computer" },
+  // Codex's own (for a person whose AI here is ChatGPT).
+  new: { act: "open", where: "new-chat", about: "Start a new chat" },
+  approvals: { act: "say", words: "Your AI at the table asks nobody's approval and runs nothing: it reads, and when it does work, it changes files on a branch the team looks over.", about: "Not needed here" },
+  diff: { act: "say", words: "What an AI changed is on its task's branch, named in the Work panel. Ask your AI what changed, or open the branch on GitHub.", about: "On the task's branch" },
+  mention: { act: "say", words: "Paste the path in your message and your AI opens it on your computer.", about: "Paste the path instead" },
+  undo: { act: "say", words: "A change at the table is on its own branch and never reaches the main one by itself: leave the branch out, or ask your AI to undo it.", about: "Changes stay on their branch" },
+  logout: { act: "say", words: "Disconnect your AI from its window here.", about: "Disconnect in your AI's window" },
+  quit: { act: "say", words: "Nothing to quit here.", about: "Nothing to quit here" },
+  exit: { act: "say", words: "Nothing to quit here.", about: "Nothing to quit here" },
 };
+
+// What Codex itself has, for a person whose AI here is ChatGPT: the names its own "/" list shows.
+export const CODEX_NAMES = ["model", "status", "effort", "usage", "new", "rename", "color", "compact", "mcp", "approvals", "diff", "mention", "undo", "logout", "quit", "exit"];
 
 // What a command does here. Anything the person's connection holds words for runs; a name nobody here knows says so.
 export function slashEntry(name, runnable) {

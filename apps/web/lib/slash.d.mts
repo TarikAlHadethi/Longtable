@@ -7,6 +7,7 @@ export type SlashAct =
   | { act: "say"; words: string };
 export type SlashEntry = SlashAct & { about: string };
 export const SLASH: Record<string, SlashEntry>;
+export const CODEX_NAMES: string[];
 export function slashEntry(name: string, runnable: boolean): SlashEntry;
 export const EFFORT_LEVELS: readonly ["low", "medium", "high", "xhigh", "max"];
 export function fastWhy(why?: string | null): string;

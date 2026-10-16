@@ -156,7 +156,6 @@ export function scanCommands(seat) {
         } catch {}
       }
     }
-    for (const [name, b] of Object.entries(BUILTIN)) add(name, b.about, "builtin", null);
   } else {
     const dir = join(codexHome(), "prompts");
     for (const file of walk(dir, 0)) {
@@ -165,7 +164,19 @@ export function scanCommands(seat) {
         add(basename(file).slice(0, -3), f.description || firstLine(f.body), "prompt", file);
       } catch {}
     }
+    // Codex's skills, the same shape as Claude's: a folder with a SKILL.md.
+    let skills = [];
+    try { skills = readdirSync(join(codexHome(), "skills"), { withFileTypes: true }).filter((e) => e.isDirectory()); } catch {}
+    for (const e of skills) {
+      const file = join(codexHome(), "skills", e.name, "SKILL.md");
+      try {
+        const f = front(readFileSync(file, "utf8"));
+        add(f.name || e.name, f.description || firstLine(f.body), "skill", file);
+      } catch {}
+    }
   }
+  // The table's own versions of the commands every Claude Code has: a person on ChatGPT gets them too.
+  for (const [name, b] of Object.entries(BUILTIN)) add(name, b.about, "builtin", null);
   const all = [...found.values()];
   const builtin = all.filter((c) => c.kind === "builtin");
   return [...all.filter((c) => c.kind !== "builtin").slice(0, 150 - builtin.length), ...builtin];
