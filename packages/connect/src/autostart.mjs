@@ -38,6 +38,10 @@ export function installCopy(binPath) {
   return join(app, "bin", "longtable.mjs");
 }
 
+// A path as XML text, and as one double-quoted argument in a systemd line.
+export const xml = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+export const unit = (s) => String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+
 // Whether a connection wrote ~/.longtable/runner.pid since `since`, waiting up to `ms` for it.
 export function wroteNoteSince(since, ms) {
   const pause = new Int32Array(new SharedArrayBuffer(4));
@@ -101,18 +105,23 @@ export function enableAutostart(nodePath, binPath) {
   }
   if (process.platform === "darwin") {
     mkdirSync(join(homedir(), "Library", "LaunchAgents"), { recursive: true });
+    // Restarted only when it stops in a failure: a connection with nothing to run stops cleanly, and KeepAlive true
+    // used to start it again for ever. Paths are written as XML text, so a folder with & or < in its name reads right.
     writeFileSync(agentFile(), `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>Label</key><string>chat.longtable.connection</string>
-<key>ProgramArguments</key><array><string>${nodePath}</string><string>${binPath}</string><string>run</string></array>
-<key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
+<key>ProgramArguments</key><array><string>${xml(nodePath)}</string><string>${xml(binPath)}</string><string>run</string></array>
+<key>RunAtLoad</key><true/><key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
 </dict></plist>
 `);
-    return { started: false, where: agentFile() };
+    // Loaded now, so it runs from the first minute and launchd knows to stop it on disconnect.
+    const loaded = spawnSync("launchctl", ["bootstrap", `gui/${process.getuid?.() ?? ""}`, agentFile()], { stdio: "ignore" });
+    return { started: loaded.status === 0 && wroteNoteSince(Date.now() - 1000, 15000), where: agentFile() };
   }
   mkdirSync(join(homedir(), ".config", "systemd", "user"), { recursive: true });
-  writeFileSync(unitFile(), `[Unit]\nDescription=Longtable connection\n\n[Service]\nExecStart=${nodePath} ${binPath} run\nRestart=always\n\n[Install]\nWantedBy=default.target\n`);
+  // Each path in quotes, so one with a space in it is one argument; restarted only after a failure.
+  writeFileSync(unitFile(), `[Unit]\nDescription=Longtable connection\n\n[Service]\nExecStart="${unit(nodePath)}" "${unit(binPath)}" run\nRestart=on-failure\n\n[Install]\nWantedBy=default.target\n`);
   // Writing the unit is not enough: it has to be switched on to come back after a restart.
   spawnSync("systemctl", ["--user", "daemon-reload"], { stdio: "ignore" });
   const on = spawnSync("systemctl", ["--user", "enable", "--now", "longtable.service"], { stdio: "ignore" });
@@ -124,7 +133,9 @@ export function disableAutostart() {
     removeTask(TASK);
     rmSync(join(home, "start.vbs"), { force: true });
   }
-  // On Linux the service is switched off before its file goes, or it would keep bringing the connection back.
+  // The service is switched off before its file goes, or it would keep bringing the connection back: on Linux by
+  // systemd, on a Mac by launchd, which went on starting it from memory after the file was deleted.
   if (process.platform === "linux" && existsSync(unitFile())) spawnSync("systemctl", ["--user", "disable", "--now", "longtable.service"], { stdio: "ignore" });
+  if (process.platform === "darwin") spawnSync("launchctl", ["bootout", `gui/${process.getuid?.() ?? ""}/chat.longtable.connection`], { stdio: "ignore" });
   for (const f of [legacyStartup(), agentFile(), unitFile()]) if (existsSync(f)) rmSync(f, { force: true });
 }

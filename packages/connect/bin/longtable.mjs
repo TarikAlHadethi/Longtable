@@ -162,7 +162,10 @@ function disconnect() {
 
 try {
   if (command === "connect") await connect();
-  else if (command === "run") await runLoop();
+  else if (command === "run") {
+    if (!readConfig().connections?.length) { log("run: not connected to any table, so nothing to do"); process.exit(0); }
+    await runLoop();
+  }
   else if (command === "status") await status();
   else if (command === "disconnect") disconnect();
   else say("Usage: longtable connect <code> | run | status | disconnect");

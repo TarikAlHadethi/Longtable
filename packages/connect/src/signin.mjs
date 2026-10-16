@@ -72,6 +72,9 @@ export function signIn(claude, { title = "Connect your Claude" } = {}) {
     let state = { state: "starting", message: "Starting Claude's sign-in…" };
     let finished = false;
     let pressedEnter = false;
+    // Tokens already checked. One read while Claude was still printing it is only part of it: that one is set aside
+    // and the screen watched for the rest, where before the whole sign-in ended on the first bad read.
+    const tried = new Set();
     const screen = new Terminal({ cols: 400, rows: 200, allowProposedApi: true, scrollback: 2000 });
     const screenText = () => {
       const b = screen.buffer.active;
@@ -98,17 +101,24 @@ export function signIn(claude, { title = "Connect your Claude" } = {}) {
     function look() {
       if (finished) return;
       const text = screenText();
-      const token = text.match(/sk-ant-oat\d{2}-[A-Za-z0-9_-]{20,}/);
-      if (token) {
+      // A token counts once something follows it on the screen: until then Claude may still be printing it.
+      const token = text.match(/sk-ant-oat\d{2}-[A-Za-z0-9_-]{20,}(?=\s)/);
+      if (token && !tried.has(token[0])) {
+        tried.add(token[0]);
+        const was = state;
         state = { state: "working", url: state.url, message: "Approved. Checking the sign-in works…" };
-        try { term.kill(); } catch {}
         const good = pickWorkingToken(claude, token[0]);
         if (good) {
+          try { term.kill(); } catch {}
           saveSecret("claude-token", good);
           log(`saved a working Claude sign-in of ${good.length} characters`);
           finish(true, "Connected. Your Claude can now answer at the table, quietly, on your own plan.");
-        } else {
+        } else if (tried.size >= 3) {
+          try { term.kill(); } catch {}
           finish(false, "Claude approved, but the sign-in didn't work. Close this page and press Connect again.");
+        } else {
+          log(`a sign-in read from the screen did not work (${tried.size} of 3); watching for the rest of it`);
+          state = was;
         }
         return;
       }

@@ -20,10 +20,10 @@ const { keepTrack, stopAll } = await import("../../packages/connect/src/claude.m
 const { codexLimits } = await import("../../packages/connect/src/codex.mjs");
 const { cleanNames, endConnection, oneName } = await import("../../packages/connect/src/run.mjs");
 const { forgetCopies, gitCanJoin } = await import("../../packages/connect/src/repo.mjs");
-const { loadCommand, scanCommands } = await import("../../packages/connect/src/extras.mjs");
+const { loadCommand, scanCommands, shareable } = await import("../../packages/connect/src/extras.mjs");
 const { packCode } = await import("../../packages/connect/src/pack.mjs");
 const { layPointed, pointedPaths } = await import("../../packages/connect/src/pointed.mjs");
-const { writeStarter, wroteNoteSince } = await import("../../packages/connect/src/autostart.mjs");
+const { unit, writeStarter, wroteNoteSince, xml } = await import("../../packages/connect/src/autostart.mjs");
 
 const results = {};
 const check = (name, ok, detail) => { results[name] = ok ? "pass" : `FAIL ${typeof detail === "string" ? detail : JSON.stringify(detail ?? "")}`.slice(0, 500); };
@@ -136,6 +136,22 @@ try {
   const laid = layPointed(work, pointedPaths(`"${inner}"`), { reading: false });
   const copiedTo = laid.copied[0]?.at;
   check("a folder pointed at inside node_modules comes with its files, not empty", !!copiedTo && existsSync(join(copiedTo, "index.js")), laid);
+
+  // ---- The last of the sweep's list (17 Oct 2026)
+  // C16: start-up files with paths that have spaces or & in them.
+  check("a Mac start-up path is written as XML text", xml("/Users/Ann & Bo/<node>") === "/Users/Ann &amp; Bo/&lt;node&gt;");
+  check("a Linux start-up path is one quoted argument, its quotes and backslashes kept", unit('/home/a b/"x"\\y') === '/home/a b/\\"x\\"\\\\y');
+  // C12: sharing a pointed folder shares its text files of any kind, read where it is or copied.
+  const spot = join(scratch, "spot");
+  mkdirSync(join(spot, "src"), { recursive: true });
+  writeFileSync(join(spot, "README.md"), "# Spot\n");
+  writeFileSync(join(spot, "src", "form.ts"), "export const form = 1;\n");
+  writeFileSync(join(spot, "src", "data.json"), '{"a":1}\n');
+  writeFileSync(join(spot, "logo.png"), Buffer.from([137, 80, 78, 71, 0, 0]));
+  const sharedInPlace = shareable({ files: [], copied: [], dirs: [spot] }).map((f) => f.name);
+  check("a folder read where it is shares its text files, code and data included, and not its pictures", sharedInPlace.some((n) => n.endsWith("form.ts")) && sharedInPlace.some((n) => n.endsWith("data.json")) && sharedInPlace.some((n) => n.endsWith("README.md")) && !sharedInPlace.some((n) => n.endsWith("logo.png")), sharedInPlace);
+  const sharedCopy = shareable({ files: [], copied: [{ path: "C:/project", at: spot }], dirs: [spot] }).map((f) => f.name);
+  check("a copied folder's files are shared once, under the path the person wrote", sharedCopy.length === 3 && sharedCopy.every((n) => n.startsWith("C:/project")), sharedCopy);
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {
