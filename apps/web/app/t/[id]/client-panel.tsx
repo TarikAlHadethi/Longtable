@@ -19,7 +19,6 @@ export function ClientPanel({ overview, tableName, open, onClose }: {
   open: boolean;
   onClose: () => void;
 }) {
-  const aiOn = overview.team.some((p) => p.ai_on);
   return (
     <aside className={`${styles.panel} ${open ? styles.panelOpen : ""}`} aria-label="Your project" data-testid="client-panel">
       <div className={styles.panelHead}>
@@ -37,7 +36,6 @@ export function ClientPanel({ overview, tableName, open, onClose }: {
             </div>
           ))}
         </div>
-        <p className={styles.cardNote} data-testid="team-ai">{aiOn ? "The team's AIs are on: you hear back in moments." : "The team's AIs are off right now. Anything you ask is answered as soon as one is on."}</p>
       </section>
 
       {overview.work.length > 0 && (
