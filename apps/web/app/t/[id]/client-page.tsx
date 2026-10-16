@@ -85,6 +85,9 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   // Beside the conversation: their team, their requests and where each stands, and what is being built.
   const [overview, setOverview] = useState<Overview | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
+  // Nothing stands in for the page before its first read: a placeholder line used to flash and then be swapped for the
+  // welcome (his words, 17 Oct 2026: "flashes a default screen and then puts u in").
+  const [ready, setReady] = useState(false);
   const readOverview = useCallback(async () => {
     if (viewer && !viewer.acting) return;
     const { data, error } = await supabase.rpc("client_overview", { t: table.id });
@@ -92,7 +95,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
     else setOverview(data as Overview);
   }, [supabase, table.id, !!viewer, !!viewer?.acting]);
   const reload = useCallback(async () => {
-    readOverview();
+    const overviewRead = readOverview();
     const { data: still, error: stillError } = await supabase.from("members").select("id").eq("id", me.id).is("removed_at", null).maybeSingle();
     if (!stillError && !still && !viewer) { setGone(true); return; }
     const [{ data: r }, { data: up }, { data: ln }, { data: cn }, { data: jb }] = await Promise.all([
@@ -122,6 +125,8 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
       const { data: sb } = await supabase.rpc("client_sandbox", { t: table.id });
       if (sb) setSandbox(sb as Sandbox);
     }
+    await overviewRead;
+    setReady(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, table.id, me.id, putUpdates, putLines, !!viewer, readOverview]);
 
@@ -373,10 +378,10 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
       <main className={styles.thread}>
         <div ref={chatRef} className={styles.scroll} data-testid="client-chat" data-with={sandbox?.on ? "copy" : mine ? "assistant" : "team"}>
           <div className={styles.col}>
-            {feed.length === 0 && !sandbox?.on && !mine && overview && (
+            {ready && feed.length === 0 && !sandbox?.on && !mine && overview && (
               <ClientWelcome first={first} tableName={table.name} team={overview.team} />
             )}
-            {feed.length === 0 && (sandbox?.on || mine || !overview) && (
+            {ready && feed.length === 0 && (sandbox?.on || mine || !overview) && (
               <div className={styles.empty} data-testid="chat-head">
                 {sandbox?.on ? `Say what you would like changed in ${table.name}. It is built in your own copy for you to try, and the team decides what goes into the real thing.`
                   : mine ? `Ask where anything stands, or for something new. Your ${AI_NAME[mine.kind]} answers what it can and passes the rest to the team.`

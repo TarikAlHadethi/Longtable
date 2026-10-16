@@ -25,16 +25,18 @@ export async function RoomPage({ id, wanted, view, side, sandbox }: { id: string
   }
 
   // A read that failed is a fault, not a table that is not there: it used to show "not found" to the table's own team.
-  const { data: table, error: tableError } = await supabase.from("tables").select("id, name").eq("id", id).maybeSingle();
+  // Read at once, not one after another: every read crosses to the database, and a refresh waited on each in turn.
+  const [{ data: table, error: tableError }, { data: rows, error: rowsError }] = await Promise.all([
+    supabase.from("tables").select("id, name").eq("id", id).maybeSingle(),
+    supabase
+      .from("members")
+      .select("id, user_id, display_name, role, color, created_at, avatar, name_color, status, bubble, tasks_cleared_at, test")
+      .eq("table_id", id)
+      .is("removed_at", null)
+      .order("created_at"),
+  ]);
   if (tableError) throw new Error("The table could not be read just now.");
   if (!table) notFound();
-
-  const { data: rows, error: rowsError } = await supabase
-    .from("members")
-    .select("id, user_id, display_name, role, color, created_at, avatar, name_color, status, bubble, tasks_cleared_at, test")
-    .eq("table_id", id)
-    .is("removed_at", null)
-    .order("created_at");
   if (rowsError) throw new Error("The table's people could not be read just now.");
   const members = (rows ?? []) as MemberRow[];
   const mine = members.find((m) => m.user_id === user.id);
@@ -64,7 +66,8 @@ export async function RoomPage({ id, wanted, view, side, sandbox }: { id: string
     );
   }
 
-  const [{ data: chats }, { data: recent }, { data: decisions }, { data: jobs }, { data: connections }, { data: notes }, { data: requests }] = await Promise.all([
+  const [{ data: chats }, { data: recent }, { data: decisions }, { data: jobs }, { data: connections }, { data: notes }, { data: requests },
+    { data: tableAi }, { data: boxes }, { data: boxSet }, { data: changes }, { data: tasks }] = await Promise.all([
     supabase.from("chats").select("id, name, about, is_general, created_at, created_by").eq("table_id", id).order("created_at"),
     supabase.from("messages").select(MESSAGE_COLUMNS).eq("table_id", id).order("created_at", { ascending: false }).limit(300),
     supabase.from("decisions").select(DECISION_COLUMNS).eq("table_id", id).order("created_at", { ascending: false }).limit(100),
@@ -72,12 +75,12 @@ export async function RoomPage({ id, wanted, view, side, sandbox }: { id: string
     supabase.from("connections").select(CONNECTION_COLUMNS).eq("table_id", id).order("created_at", { ascending: false }).limit(60),
     supabase.from("notes").select(NOTE_COLUMNS).eq("table_id", id),
     supabase.from("requests").select(REQUEST_COLUMNS).eq("table_id", id).order("created_at", { ascending: false }).limit(200),
+    supabase.from("table_ai").select("model").eq("table_id", id).maybeSingle(),
+    supabase.from("sandboxes").select(SANDBOX_COLUMNS).eq("table_id", id),
+    supabase.from("table_sandbox").select("preview_url, cap, paths").eq("table_id", id).maybeSingle(),
+    supabase.from("sandbox_changes").select(CHANGE_COLUMNS).eq("table_id", id).order("created_at", { ascending: false }).limit(120),
+    supabase.from("tasks").select(TASK_COLUMNS).eq("table_id", id).order("created_at", { ascending: false }).limit(40),
   ]);
-  const { data: tableAi } = await supabase.from("table_ai").select("model").eq("table_id", id).maybeSingle();
-  const { data: boxes } = await supabase.from("sandboxes").select(SANDBOX_COLUMNS).eq("table_id", id);
-  const { data: boxSet } = await supabase.from("table_sandbox").select("preview_url, cap, paths").eq("table_id", id).maybeSingle();
-  const { data: changes } = await supabase.from("sandbox_changes").select(CHANGE_COLUMNS).eq("table_id", id).order("created_at", { ascending: false }).limit(120);
-  const { data: tasks } = await supabase.from("tasks").select(TASK_COLUMNS).eq("table_id", id).order("created_at", { ascending: false }).limit(40);
   const chatList = (chats ?? []) as Chat[];
   const general = chatList.find((c) => c.is_general) ?? chatList[0];
   // No chat asked for: the room opens on the table itself. "?c=general" is a short way to ask for the first chat.
