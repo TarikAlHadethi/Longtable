@@ -180,3 +180,20 @@ begin
 end;
 $function$
 ;
+
+-- A list belongs to the connection that sent it. When a connection ends, by Disconnect, by connecting again (a
+-- different Claude sign-in or computer makes a new connection and ends the old one) or by the person being taken
+-- off the table, its list goes with it; the new connection starts empty and sends its own.
+create function public.forget_commands_on_end()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  if new.revoked_at is not null then
+    new.commands := '[]'::jsonb;
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.forget_commands_on_end() from public, anon, authenticated;
+create trigger connections_forget_commands before insert or update on public.connections
+  for each row execute function public.forget_commands_on_end();
+update public.connections set commands = '[]'::jsonb where revoked_at is not null and commands <> '[]'::jsonb;

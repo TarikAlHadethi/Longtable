@@ -105,6 +105,23 @@ try {
     if (!samsJob) await sleep(400);
   }
   check("Sam typing Maya's command runs nothing of hers", !!samsJob && !samsJob.command && !JSON.stringify(samsJob).includes(SECRET_LINE), samsJob?.command);
+
+  // A list belongs to its connection: connecting again (another Claude sign-in) starts empty, Disconnect empties it.
+  const oldDevice = device.maya;
+  const code = (await rpc(tok.maya, "start_pairing", { t: tableId, ai_kind: "claude" })).body;
+  device.maya = (await anon("pair_connection", { code, device_label: "another account" })).body.token;
+  await anon("runner_hello", { token: device.maya });
+  const afterReconnect = (await rpc(tok.maya, "my_commands", { t: tableId })).body;
+  check("connecting again starts with no commands", Array.isArray(afterReconnect) && afterReconnect.length === 0, afterReconnect);
+  check("the ended connection keeps none of them", sql(`select count(*) from public.connections where table_id = '${tableId}' and revoked_at is not null and commands <> '[]'::jsonb`) === "0");
+  const stale = await anon("runner_commands", { token: oldDevice, list: [{ name: "ship-clinic", about: SECRET_LINE, kind: "command" }] });
+  check("the old connection cannot put its list back", stale.status >= 400 && (await rpc(tok.maya, "my_commands", { t: tableId })).body.length === 0, stale);
+  await anon("runner_commands", { token: device.maya, list: [{ name: "fresh-one", about: "From the new sign-in", kind: "command" }] });
+  check("the new connection's own list shows", (await rpc(tok.maya, "my_commands", { t: tableId })).body.some((c) => c.name === "fresh-one"));
+  const connId = sql(`select id from public.connections where table_id = '${tableId}' and member_id = (select id from public.members where table_id = '${tableId}' and display_name = 'Maya Stone') and revoked_at is null`);
+  await rpc(tok.maya, "disconnect", { conn: connId });
+  const afterDisconnect = (await rpc(tok.maya, "my_commands", { t: tableId })).body;
+  check("Disconnect empties the list", Array.isArray(afterDisconnect) && afterDisconnect.length === 0 && sql(`select commands::text from public.connections where id = '${connId}'`) === "[]", afterDisconnect);
 } catch (e) {
   results.error = String(e?.stack || e).slice(0, 900);
 } finally {
