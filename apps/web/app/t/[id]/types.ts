@@ -6,7 +6,9 @@ export const MEMBER_COLUMNS = "id, display_name, role, color, created_at, avatar
 export type SandboxRow = { member_id: string; mode: "chat" | "sandbox"; branch: string; url: string | null; opened_at?: string | null; checked_at?: string | null; open_ok?: boolean | null };
 export const SANDBOX_COLUMNS = "member_id, mode, branch, url, opened_at, checked_at, open_ok";
 
-export type Chat = { id: string; name: string; about: string; is_general: boolean; created_at: string; created_by?: string | null };
+export type Chat = { id: string; name: string; about: string; is_general: boolean; created_at: string; created_by?: string | null;
+  // On this screen only: a chat just named, shown at once while the table makes it, and the key it keeps after.
+  pending?: boolean; local_key?: string };
 
 export type Message = {
   id: string;

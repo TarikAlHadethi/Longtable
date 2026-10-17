@@ -23,6 +23,7 @@ export function ChatList({ chats, activeId, waiting, canDelete, onOpen, onCreate
   const [editing, setEditing] = useState<string | null>(null);
   const [menu, setMenu] = useState<string | null>(null);
   const [sure, setSure] = useState(false);
+  const [leaving, setLeaving] = useState<string | null>(null);
   const [error, setError] = useState("");
   const list = useRef<HTMLDivElement>(null);
 
@@ -53,9 +54,13 @@ export function ChatList({ chats, activeId, waiting, canDelete, onOpen, onCreate
     const problem = await onCreate(name);
     if (problem) setError(problem);
   }
+  // The row folds away at once while the table deletes it; if that fails, it comes back with the reason.
   async function remove(c: Chat) {
     setMenu(null);
-    const problem = await onDelete(c.id);
+    setError("");
+    setLeaving(c.id);
+    const [problem] = await Promise.all([onDelete(c.id), new Promise((r) => setTimeout(r, 260))]);
+    setLeaving(null);
     if (problem) setError(problem);
   }
 
@@ -69,27 +74,38 @@ export function ChatList({ chats, activeId, waiting, canDelete, onOpen, onCreate
         </button>
       </div>
       {[...chats].sort((a, b) => Number(b.is_general) - Number(a.is_general) || a.created_at.localeCompare(b.created_at)).map((c) => (
-        <div key={c.id} className={`${styles.chatRow} ${c.id === activeId ? styles.chatRowOn : ""} ${menu === c.id ? styles.chatRowMenu : ""}`} data-chat={c.name}>
+        <div key={c.local_key ?? c.id} className={`${styles.chatRow} ${c.id === activeId ? styles.chatRowOn : ""} ${menu === c.id ? styles.chatRowMenu : ""} ${leaving === c.id ? styles.chatRowOut : ""} ${c.pending ? styles.chatRowPending : ""}`} data-chat={c.name}>
           {editing === c.id ? (
             <input className={`field ${styles.chatEdit}`} autoFocus maxLength={60} value={draft} aria-label="The chat's name"
               onChange={(e) => setDraft(e.target.value)} onFocus={(e) => e.target.select()} onBlur={() => finishRename(c)}
               onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditing(null); }} />
           ) : (
             <>
-              <button className={`${styles.chat} ${c.id === activeId ? styles.chatActive : ""}`} onClick={() => onOpen(c.id)}
+              <button className={`${styles.chat} ${c.id === activeId ? styles.chatActive : ""}`} onClick={() => { if (!c.pending) onOpen(c.id); }}
                 onDoubleClick={() => { if (c.id === activeId) startRename(c); }} title={c.id === activeId ? "Double-click to rename" : undefined}>
                 <span className={styles.chatName}><span className={styles.chatHash} aria-hidden="true">#</span>{c.name}</span>
               </button>
-              <button className={styles.chatMore} aria-label={`More for ${c.name}`} aria-haspopup="menu" aria-expanded={menu === c.id} data-chat-menu
+              {!c.pending && <button className={styles.chatMore} aria-label={`More for ${c.name}`} aria-haspopup="menu" aria-expanded={menu === c.id} data-chat-menu
                 onClick={() => setMenu(menu === c.id ? null : c.id)}>
                 <Dots size={16} />
-              </button>
+              </button>}
               {menu === c.id && (
                 <div className={styles.chatMenu} role="menu" data-chat-menu>
-                  <button role="menuitem" className={styles.meItem} onClick={() => startRename(c)}><Pencil size={15} />Rename</button>
-                  {canDelete(c) && (sure
-                    ? <button role="menuitem" className={`${styles.meItem} ${styles.danger}`} onClick={() => remove(c)}><Trash size={15} />Delete it and everything in it</button>
-                    : <button role="menuitem" className={`${styles.meItem} ${styles.danger}`} onClick={() => setSure(true)}><Trash size={15} />Delete</button>)}
+                  {sure ? (
+                    // One quiet question before anything goes: what will be deleted, and two plain choices.
+                    <div className={styles.chatSure} data-testid="delete-chat-sure">
+                      <div className={styles.chatSureText}>Delete <b># {c.name}</b>?</div>
+                      <div className={styles.chatSureRow}>
+                        <button className="btn btn-quiet" onClick={() => setSure(false)}>Cancel</button>
+                        <button className={`btn ${styles.chatSureDelete}`} onClick={() => remove(c)}>Delete</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <button role="menuitem" className={styles.meItem} onClick={() => startRename(c)}><Pencil size={15} />Rename</button>
+                      {canDelete(c) && <button role="menuitem" className={`${styles.meItem} ${styles.danger}`} onClick={() => setSure(true)}><Trash size={15} />Delete</button>}
+                    </>
+                  )}
                 </div>
               )}
             </>

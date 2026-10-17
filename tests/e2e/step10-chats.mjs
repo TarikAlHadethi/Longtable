@@ -58,7 +58,9 @@ try {
   await p.hover("[data-chat='Launch day']");
   await p.click("[data-chat='Launch day'] button[aria-haspopup=menu]");
   await p.click("[role=menu] >> text=Delete");
-  await p.click("[role=menu] >> text=Delete it and everything in it");
+  const sure = await p.textContent("[data-testid=delete-chat-sure]");
+  check("deleting asks a short question naming the chat", /Delete # Launch day\?/.test(sure) && !/everything in it/.test(sure), sure);
+  await p.click("[data-testid=delete-chat-sure] button:has-text('Delete')");
   await p.waitForFunction(() => !document.querySelector("[data-chat='Launch day']"));
   await dev.page.waitForFunction(() => !document.querySelector("[data-chat='Launch day']"), null, { timeout: 8000 })
     .then(() => check("deleting asks once more, then it is gone for everyone", true), () => check("deleting asks once more, then it is gone for everyone", false));

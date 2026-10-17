@@ -706,12 +706,20 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, revoked_at: new Date().toISOString() } : c)));
   }
 
+  // A new chat shows in the list the moment it is named (his words, 17 Oct 2026: it disappeared and reappeared, "too
+  // slow and unresponsive"), and becomes the real one, in the same place, when the table has made it.
   async function makeChat(name: string) {
+    const local = `new-${Math.random().toString(36).slice(2)}`;
+    const at = new Date().toISOString();
+    setChats((prev) => [...prev, { id: local, local_key: local, name, about: "", is_general: false, created_at: at, created_by: self.id, pending: true }]);
     const { data, error } = await supabase.rpc("create_chat", { t: table.id, chat_name: name, chat_about: "" });
-    if (error || !data) return error?.message ?? "The chat was not made. Try again.";
-    const { data: row } = await supabase.from("chats").select("id, name, about, is_general, created_at, created_by").eq("id", data).single();
-    if (row) setChats((prev) => [...prev.filter((c) => c.id !== (row as Chat).id), row as Chat].sort(byTime));
-    openChat(data as string);
+    if (error || !data) {
+      setChats((prev) => prev.filter((c) => c.id !== local));
+      return error?.message ?? "The chat was not made. Try again.";
+    }
+    const id = data as string;
+    setChats((prev) => prev.filter((c) => c.id !== id).map((c) => (c.id === local ? { ...c, id, pending: false } : c)).sort(byTime));
+    openChat(id);
     return null;
   }
 
