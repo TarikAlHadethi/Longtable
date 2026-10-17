@@ -2,8 +2,8 @@
 
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
-// Shows something designed for a wide screen exactly as it looks there, scaled down to fit a narrower one (his words,
-// 17 Oct 2026: "a sized down version of the desktop to the phone"). Wide enough, it is left exactly as it is.
+// Shows something designed for a wide screen exactly as it looks there, scaled down to fit a narrower one (the desktop
+// picture, sized down for a phone). Wide enough, it is left exactly as it is.
 // It is drawn at its full width and shrunk as a picture (a transform), never re-laid out, so every browser shows the
 // same thing: iPhone Safari lays CSS zoom out differently and squeezed the text.
 export function Fit({ width, children }: { width: number; children: ReactNode }) {

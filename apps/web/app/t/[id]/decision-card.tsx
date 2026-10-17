@@ -7,8 +7,7 @@ import styles from "./room.module.css";
 
 // A decision card: the question and its options. Picking one shows what the client would be told (or the question they
 // would be asked, with the answers they can tap), in words the team can change, and Send sends it at once. Nothing is
-// decided until Send (his words, 17 Oct 2026: "it shouldn't just be decided... the text should be editable, and there
-// should be a send"). A decision that tells nobody has Decide in place of Send.
+// decided until Send. A decision that tells nobody has Decide in place of Send.
 export function DecisionCard({ decision, chatName, members, clientName, now, onOpenChat, onChange }: {
   decision: Decision;
   chatName: string;

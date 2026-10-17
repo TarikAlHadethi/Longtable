@@ -1,5 +1,5 @@
--- Everything behind "/" (16 Oct 2026, his words: "people who are used to claude code [should] have EVERYTHING they
--- normally use or could use right there and ready").
+-- Everything behind "/" (16 Oct 2026): people used to Claude Code should find everything they normally use, or
+-- could use, right there and ready.
 --
 -- Every command Claude Code has now shows at the table, each doing its nearest real thing: run by the person's Claude
 -- in Longtable's own words, opening a Longtable screen, changing a setting of their AI, or saying in a line what it

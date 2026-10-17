@@ -1,5 +1,4 @@
-// The connection keeps itself up to date, so nobody ever has to disconnect and connect again for a new version (his
-// words, 17 Oct 2026: having to was "project killer level bad").
+// The connection keeps itself up to date, so nobody ever has to disconnect and connect again for a new version.
 //
 // Longtable says which version every connection should run (`runner_release`); the connection never takes whatever
 // is newest on npm, so a version reaches people only when Longtable says so, and a version somebody else published

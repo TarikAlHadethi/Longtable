@@ -1,5 +1,5 @@
--- The connection keeps itself up to date (17 Oct 2026, his words: everyone having to disconnect and connect again
--- after an update is "project killer level bad").
+-- The connection keeps itself up to date (17 Oct 2026): nobody should have to disconnect and connect again
+-- after an update.
 --
 -- Longtable says which version of the connection every computer should run; each connection asks now and then
 -- (`runner_release`, with its own device token) and, when it is newer than itself, fetches exactly that version from

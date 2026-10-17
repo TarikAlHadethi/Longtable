@@ -1,4 +1,4 @@
--- Step 6: the operator's page. Whoever runs a Longtable (Tarik, for longtable.chat) sees how it is doing in counts
+-- Step 6: the operator's page. Whoever runs a Longtable sees how it is doing in counts
 -- only: no names, no messages, no table titles. Operators are listed by email in a table nobody can read or write
 -- through the API; the deployer adds them with SQL, so no address is ever in this repo:
 --   insert into public.operators (email) values ('them@example.com');

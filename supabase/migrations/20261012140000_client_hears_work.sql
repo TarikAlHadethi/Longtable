@@ -1,4 +1,4 @@
--- A client's assistant may say what is finished and what is under way (his word, 12 Oct 2026): the titles of the
+-- A client's assistant may say what is finished and what is under way (12 Oct 2026): the titles of the
 -- work the team's AIs took on, and whether each is done. Also: for_team was true for every client job.
 
 CREATE OR REPLACE FUNCTION public.client_job_payload(j jobs)

@@ -1,6 +1,6 @@
--- A client is always answered (17 Oct 2026, his recording: no "They have your message. Their answer will show
--- here" any more, "the AI should automatically reply"; the table answers by itself when it can and asks the team's
--- AIs only when it must; and a setting for which AI answers each client).
+-- A client is always answered (17 Oct 2026: no "They have your message. Their answer will show here" any more, an
+-- AI always replies; the table answers by itself when it can and asks the team's AIs only when it must; and a
+-- setting for which AI answers each client).
 --
 -- * A client with no copy is always answered by an AI. Who: their own assistant when they connected one and the
 --   owner lets it answer (the default), otherwise the team's assistant. With no team AI on, their words wait
@@ -557,8 +557,8 @@ AS $function$
 $function$
 ;
 
--- What a client's page shows beside the conversation (his word: the client side felt "empty and soulless"; a
--- client should feel in control, without becoming a contributor): the team's faces, whether the team's AIs are on,
+-- What a client's page shows beside the conversation (so the client side does not feel empty; a client should
+-- feel in control, without becoming a contributor): the team's faces, whether the team's AIs are on,
 -- their own requests and where each stands, and the work under way they may hear of. Only that client's own things,
 -- the same work titles their assistant may already tell them, never the team's talk.
 create function public.client_overview(t uuid)

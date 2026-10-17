@@ -75,7 +75,7 @@ for (let i = 0; i < 5005; i++) writeFileSync(join(bigDir, `f${i}.txt`), "x");
 writeFileSync(join(bigDir, "deep", "server.pem"), "x\n");
 const tooBig = layPointed(work, pointedPaths(`"${bigDir}"`), { reading: true });
 check("reading: a folder over 5,000 files with a key somewhere inside is not opened at all, and the AI is told why", tooBig.dirs.length === 0 && tooBig.copied.length === 0 && tooBig.skipped.length === 1 && /key/.test(tooBig.skipped[0].why), tooBig);
-// A whole project with a .env.local in it (his case): comes as a filtered copy, kept between jobs, without the .env.
+// A whole project with a .env.local in it: comes as a filtered copy, kept between jobs, without the .env.
 const project = join(root, "whole-project");
 mkdirSync(join(project, "src"), { recursive: true });
 mkdirSync(join(project, "node_modules", "lib"), { recursive: true });

@@ -3,7 +3,7 @@
 // stop the way a self-update does, sees the system start it again, then takes it all away.
 //
 // It replaces this computer's own Longtable start-up entry and ~/.longtable/app, so it runs only on a throwaway
-// machine: GitHub's check machines (CI=true). Windows is checked on Tarik's PC instead (Task Scheduler there needs a
+// machine: GitHub's check machines (CI=true). Windows is checked by hand instead (Task Scheduler there needs a
 // signed-in desktop, which a check machine does not have).
 //
 //   CI=true node tests/e2e/os-autostart.mjs

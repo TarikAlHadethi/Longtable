@@ -44,7 +44,7 @@ for (const path of tracked) {
 }
 check("no tracked file holds an em dash", dashed.length === 0, dashed.slice(0, 20));
 
-// One menu for the whole product (his rule, 17 Oct 2026): a screen never shows the browser's own dropdown. Every
+// One menu for the whole product: a screen never shows the browser's own dropdown. Every
 // choice goes through components/select.tsx (or the model picker), which keeps a hidden <select> of its own.
 const plain = [];
 for (const path of tracked) {
@@ -55,8 +55,7 @@ for (const path of tracked) {
 }
 check("every dropdown is the product's own menu, never the browser's", plain.length === 0, plain);
 
-// No code-style typeface anywhere on the site (his rule, 17 Oct 2026: "I don't want to see this font ever used again"):
-// file names, branches and code are set in the product's own face.
+// No code-style typeface anywhere on the site: file names, branches and code are set in the product's own face.
 const mono = [];
 for (const path of tracked) {
   if (!/^apps\/web\/.*\.(css|tsx|ts|mjs)$/.test(path)) continue;

@@ -1,4 +1,4 @@
--- Handouts (17 Oct 2026, his word: a name "not so boring like Pages" for everything the AIs make, that breaks no
+-- Handouts (17 Oct 2026: a livelier name than Pages for everything the AIs make, that breaks no
 -- one's trademark). What the table's AIs make is called a handout on every screen; the tables keep their names.
 -- A comment sent to the AIs now says so. And every connection is asked to move to 0.1.21, the first version to
 -- arrive by itself.

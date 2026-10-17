@@ -1,4 +1,4 @@
--- The access sweep (18 Oct 2026, his words: "should xyz be able to see or use or access abc" on everything).
+-- The access sweep (18 Oct 2026): should each person or AI be able to see, use or reach each thing, on everything.
 --
 -- Four reviews read every table, function, channel, storage rule, screen and job payload. Nothing let anyone in from
 -- outside a table. What they found and this fixes:

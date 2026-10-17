@@ -417,8 +417,8 @@ export function heardFromClaude(init) {
   claudeSays.fastWhy = init.fastWhy || null;
 }
 
-// How every reply a client reads is written: like Claude in a chat, never one long block (his words, 17 Oct 2026: "big
-// block of text looks like too much... more like how claude talks"). The client page draws it as paragraphs and lists.
+// How every reply a client reads is written: like Claude in a chat, never one long block, since a big
+// block of text reads as too much. The client page draws it as paragraphs and lists.
 const CLIENT_STYLE = "Write the way Claude writes in a chat: open with the answer itself in one plain sentence, then only what matters to them. Several things go as a short list, one per line starting with \"- \", a few words each; anything else as short paragraphs of one to three sentences with a blank line between them. Plain words, no headings, no jargon, no filler, and never one long block. Never repeat secrets or anything shaped like a key.";
 
 // When the team's assistant cannot answer from what it has, it may ask for a deeper look: a team Claude that can read

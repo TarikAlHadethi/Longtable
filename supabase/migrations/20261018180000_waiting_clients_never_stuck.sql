@@ -4,7 +4,7 @@
 -- taken.
 --
 -- And the connection 0.1.23: the client's assistant looks into the project when asked where it stands, instead of
--- saying it does not know (his words: "when i ask it where sams is, it doesnt know").
+-- saying it does not know.
 
 create or replace function public.answer_waiting_clients()
 returns integer language plpgsql security definer set search_path = '' as $$

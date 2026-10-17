@@ -211,8 +211,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const liveAI = new Set(connections.filter((c) => !c.revoked_at).map((c) => c.member_id));
   const myConnection = connections.find((c) => !c.revoked_at && c.member_id === me.id);
   // What to call a person's AI: Claude or ChatGPT once it is connected, their AI before that.
-  // Under each person in the sidebar: their AI, connected (a green dot) or not (a grey one), as in his picture of 17 Oct
-  // 2026. Nothing for someone who never connected one.
+  // Under each person in the sidebar: their AI, connected (a green dot) or not (a grey one). Nothing for someone who
+  // never connected one.
   const aiState = (id: string) => {
     const mine = connections.filter((x) => !x.revoked_at && x.member_id === id).sort((a, b) => Number(b.kind === "claude") - Number(a.kind === "claude"));
     const on = mine.find((x) => !!x.last_seen && Date.now() - new Date(x.last_seen).getTime() < 90000);
@@ -713,8 +713,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, revoked_at: new Date().toISOString() } : c)));
   }
 
-  // A new chat shows in the list the moment it is named (his words, 17 Oct 2026: it disappeared and reappeared, "too
-  // slow and unresponsive"), and becomes the real one, in the same place, when the table has made it.
+  // A new chat shows in the list the moment it is named, and becomes the real one, in the same place, when the table
+  // has made it.
   async function makeChat(name: string) {
     const local = `new-${Math.random().toString(36).slice(2)}`;
     const at = new Date().toISOString();
@@ -779,7 +779,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     setSandboxOf(id); setPersonId(null); setDrawerOpen(false); setInboxOpen(false); setView("sandbox");
     window.history.pushState(null, "", `/t/${table.id}?sandbox=${id}`);
   }
-  // The panel on the right is always there beside a chat (his word, 11 Oct): work when there is some, and a quiet
+  // The panel on the right is always there beside a chat: work when there is some, and a quiet
   // line when there is none.
   const noSide = view === "settings" || view === "logs" || view === "sandbox";
   async function clearTasks() {

@@ -14,13 +14,13 @@ const results = {};
 const check = (name, ok, detail) => { results[name] = ok ? "pass" : `FAIL ${JSON.stringify(detail ?? "").slice(0, 400)}`; };
 
 // Made-up, all of it. None of these may ever be sent.
-const MESSAGE = "Daniel wants the price list by Friday";
-const EMAIL = "daniel.fake@example.test";
+const MESSAGE = "Elena wants the price list by Friday";
+const EMAIL = "elena.fake@example.test";
 const FILE = "booking screen final.png";
-const USER = "tariqfake";
+const USER = "mayafake";
 const KEY = "sk-ant-api03-" + "Zq7Xw2Pv9Lm4Kj8Hn3Bt6Rc1Yd5Fs0Ga"; // scan:fake
 const TABLE = "3f2b9c1e-7a4d-4e8b-9c2f-1a2b3c4d5e6f";
-const SECRETS = [MESSAGE, "price list", EMAIL, "daniel.fake", FILE, "booking screen", USER, KEY, TABLE, "Zq7Xw2Pv9Lm4"];
+const SECRETS = [MESSAGE, "price list", EMAIL, "elena.fake", FILE, "booking screen", USER, KEY, TABLE, "Zq7Xw2Pv9Lm4"];
 
 const sent = [];
 const transport = () => ({ send: async (envelope) => { sent.push(serializeEnvelope(envelope)); return {}; }, flush: async () => true });
@@ -62,7 +62,7 @@ await Sentry.flush(2000);
 const all = sent.join("\n");
 check("errors reach the send step", sent.length >= 5, sent.length);
 const report = (type) => sent.find((s) => s.includes(`"type":"${type}"`)) || "";
-check("an error built from a person's words goes out as its kind and place only", /"value":"message withheld"/.test(report("PersonalError")) && /unit-report\.mjs/.test(report("PersonalError")) && !/uploaded|booking|Daniel|tariqfake/i.test(report("PersonalError")), report("PersonalError").slice(0, 300));
+check("an error built from a person's words goes out as its kind and place only", /"value":"message withheld"/.test(report("PersonalError")) && /unit-report\.mjs/.test(report("PersonalError")) && !/uploaded|booking|Elena|mayafake/i.test(report("PersonalError")), report("PersonalError").slice(0, 300));
 check("a storage refusal with no code goes out without its sentence", /"value":"database error"/.test(report("StorageError")) && !/may not read/.test(report("StorageError")), report("StorageError").slice(0, 300));
 check("a PostgREST refusal goes out as its code, without its details or hint", /database error PGRST116/.test(all) && !/Results contain/.test(all));
 const leaks = SECRETS.filter((s) => all.toLowerCase().includes(s.toLowerCase()));
@@ -76,7 +76,7 @@ check("a database refusal goes out as its code only", /database error P0001/.tes
 check("breadcrumbs keep where they went and what came back, never what was typed", /"\/rest\/v1\/rpc\/client_say"/.test(all) && /"status_code":400/.test(all) && /\[data-testid=attach-remove\]/.test(all) && !/typing:/.test(all) && /"\/join\/:token"/.test(all));
 
 // The pieces, one at a time.
-check("text: quoted words, emails, keys, local folders and file names are taken out", scrubText(`"${MESSAGE}" ${EMAIL} ${KEY} C:\\Users\\${USER}\\x ${FILE}`).match(/daniel|price|sk-ant|tariqfake|\.png/i) === null, scrubText(`"${MESSAGE}" ${EMAIL} ${KEY} C:\\Users\\${USER}\\x ${FILE}`));
+check("text: quoted words, emails, keys, local folders and file names are taken out", scrubText(`"${MESSAGE}" ${EMAIL} ${KEY} C:\\Users\\${USER}\\x ${FILE}`).match(/elena|price|sk-ant|mayafake|\.png/i) === null, scrubText(`"${MESSAGE}" ${EMAIL} ${KEY} C:\\Users\\${USER}\\x ${FILE}`));
 check("text: a sign-in inside an address is taken out", !scrubText("https://maya:hunter2@example.test/x").includes("hunter2"));
 check("text: a long error is cut to 300 characters", scrubText("x ".repeat(400)).length <= 301);
 check("text: a long plain function name in a stack trace is kept", scrubText("renderTheWholeClientPageNow") === "renderTheWholeClientPageNow");

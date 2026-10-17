@@ -102,8 +102,8 @@ export function pointedPaths(text) {
 }
 
 const FILE_CAP = 40 * 1024 * 1024;
-// A folder that cannot be read where it is comes as a filtered copy, kept between jobs, up to this size (his choice,
-// 16 Oct 2026; it was 400 files and 30 MB, so most whole projects were refused).
+// A folder that cannot be read where it is comes as a filtered copy, kept between jobs, up to this size (it was
+// 400 files and 30 MB, so most whole projects were refused).
 const DIR_FILES = 5000;
 const DIR_BYTES = 300 * 1024 * 1024;
 // How much is in a folder, stopping as soon as it is clearly too much to bring along.

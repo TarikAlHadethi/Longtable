@@ -11,27 +11,27 @@ import { KINDS, listenPrompt, listenSystem } from "../../packages/connect/src/ru
 
 const empty = join(homedir(), ".longtable", "empty");
 mkdirSync(empty, { recursive: true });
-const solo = [{ name: "Tariq", role: "owner", ai: "claude" }];
-const duo = [...solo, { name: "Faisal", role: "developer", ai: "claude" }];
-const withClient = [...solo, { name: "Daniel Chedid", role: "client", ai: null }];
-const base = { table_name: "SAMS", chat_name: "General", asker: "Tariq", tasks: [], history: [], requests: [] };
+const solo = [{ name: "Maya", role: "owner", ai: "claude" }];
+const duo = [...solo, { name: "Sam", role: "developer", ai: "claude" }];
+const withClient = [...solo, { name: "Elena Ruiz", role: "client", ai: null }];
+const base = { table_name: "Fernhill booking", chat_name: "General", asker: "Maya", tasks: [], history: [], requests: [] };
 const cases = [
-  ["look", { ...base, people: solo, question: "anything daniel wants from me?" }],
-  ["look", { ...base, people: solo, question: "yo does daniel want anything" }],
-  ["look", { ...base, people: withClient, requests: [{ from: "Daniel Chedid", title: "Bigger photos on the kit page", status: "asked" }], question: "what does daniel want" }],
-  ["look", { ...base, people: solo, question: "whats left to do before the february rollout" }],
+  ["look", { ...base, people: solo, question: "anything elena wants from me?" }],
+  ["look", { ...base, people: solo, question: "yo does elena want anything" }],
+  ["look", { ...base, people: withClient, requests: [{ from: "Elena Ruiz", title: "Bigger photos on the booking page", status: "asked" }], question: "what does elena want" }],
+  ["look", { ...base, people: solo, question: "whats left to do before the march launch" }],
   ["look", { ...base, people: solo, question: "what were we working on last" }],
-  ["look", { ...base, people: solo, question: "how does the handover code get checked?" }],
+  ["look", { ...base, people: solo, question: "how does the reminder text get sent?" }],
   ["reply", { ...base, people: duo, question: "who's here right now" }],
   ["reply", { ...base, people: solo, question: "hey table" }],
-  ["reply", { ...base, people: solo, tasks: [{ id: "1", title: "Fix the login redirect", status: "working", asked_by: "Tariq", chat: "General" }], question: "is anything being worked on?" }],
-  ["silent", { ...base, people: duo, question: "faisal did you eat yet" }],
+  ["reply", { ...base, people: solo, tasks: [{ id: "1", title: "Fix the login redirect", status: "working", asked_by: "Maya", chat: "General" }], question: "is anything being worked on?" }],
+  ["silent", { ...base, people: duo, question: "sam did you eat yet" }],
   ["silent", { ...base, people: duo, question: "lmao true" }],
-  ["silent", { ...base, asker: "Faisal", people: duo, question: "Tariq can you send me the figma link later? I need it for the meeting tomorrow" }],
-  ["silent", { ...base, people: duo, question: "faisal can you review my PR when you get a sec" }],
-  ["look", { ...base, people: duo, question: "what did faisal change in the booking flow last week" }],
-  ["work", { ...base, people: solo, question: "make the booking button green on the kit page" }],
-  ["work", { ...base, people: solo, history: [{ name: "Tariq", by_ai: true, body: "I can move the search box above the list if you want." }], question: "yes do it" }],
+  ["silent", { ...base, asker: "Sam", people: duo, question: "Maya can you send me the figma link later? I need it for the meeting tomorrow" }],
+  ["silent", { ...base, people: duo, question: "sam can you review my PR when you get a sec" }],
+  ["look", { ...base, people: duo, question: "what did sam change in the booking flow last week" }],
+  ["work", { ...base, people: solo, question: "make the book button green on the booking page" }],
+  ["work", { ...base, people: solo, history: [{ name: "Maya", by_ai: true, body: "I can move the search box above the list if you want." }], question: "yes do it" }],
 ];
 let bad = 0;
 for (let round = 0; round < 2; round++) {

@@ -40,8 +40,8 @@ try {
   await owner.page.fill("textarea[aria-label^='What Dr. Ruiz will be told for option 2']", words2);
   await owner.page.click("button:has-text('Start the poll')");
 
-  // The developer is in another chat. Chats are listed with a "#" and no dot beside them (his picture, 17 Oct 2026); they
-  // open the chat with the poll and decide there.
+  // The developer is in another chat. Chats are listed with a "#" and no dot beside them; they open the chat with the
+  // poll and decide there.
   await dev.page.waitForFunction(() => [...document.querySelectorAll("aside[aria-label=Menu] [data-chat]")].some((el) => /^#\s*Booking flow/.test(el.textContent?.trim() || "")), null, { timeout: 5000 })
     .then(() => check("chats are listed with a # and no dot", true), () => check("chats are listed with a # and no dot", false));
   await dev.page.click("aside[aria-label=Menu] >> text=Booking flow");

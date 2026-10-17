@@ -5,7 +5,7 @@ import { firstName } from "@/lib/names";
 import styles from "./client.module.css";
 
 // What a client's page shows beside the conversation, from client_overview: their team, and the work under way they
-// may hear of. No states anywhere (his word, 17 Oct 2026: no "What you asked", never "With the team").
+// may hear of. No states anywhere: no "What you asked", never "With the team".
 export type Overview = {
   team: { name: string; color: string | null; avatar: string | null; role: string; ai_on: boolean }[];
   requests: { id: string; title: string; status: string; at: string }[];
@@ -58,8 +58,7 @@ export function ClientPanel({ overview, tableName, open, onClose }: {
   );
 }
 
-// The first thing a client sees with nothing said yet: the team behind the project. No ready-made questions (his word,
-// 17 Oct 2026: gone for good).
+// The first thing a client sees with nothing said yet: the team behind the project. No ready-made questions.
 export function ClientWelcome({ first, tableName, team }: { first: string; tableName: string; team: Overview["team"] }) {
   return (
     <div className={styles.welcome} data-testid="chat-head">

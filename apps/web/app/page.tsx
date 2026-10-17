@@ -55,7 +55,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         </section>
 
         <div className={`${s.stage} rise`} style={i(6)}><Fit width={1120}><Stage /></Fit></div>
-        {/* The table as a team sees it, right under the live picture (his word, 17 Oct 2026). */}
+        {/* The table as a team sees it, right under the live picture. */}
         <div id="table" className={s.tableShow}><Fit width={1120}><LandingTable /></Fit></div>
 
         <section id="how" className={s.section}>

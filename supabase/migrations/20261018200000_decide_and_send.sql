@@ -1,6 +1,6 @@
--- A decision is picked, its words looked over and changed if need be, then sent (17 Oct 2026, his recording: "it
--- shouldn't just be decided... it should show what Elena would be told, but the text should be editable, and there
--- should be a send"; and on when she hears it: at once). Pressing an option no longer decides on its own, and there is
+-- A decision is picked, its words looked over and changed if need be, then sent (17 Oct 2026): the team sees what
+-- the client would be told, can edit the text, and sends it; the client hears it at once. Pressing an option no
+-- longer decides on its own, and there is
 -- no undo window any more: Send is the confirming step.
 --
 -- decide_and_send(d, choice, words): the team picks `choice`; when the decision tells a client, `words` (the option's

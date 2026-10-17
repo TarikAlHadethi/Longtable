@@ -1,44 +1,86 @@
 # Longtable
 
-One live room where a small software team, their AIs and their client work together.
+**One live room where a small software team, the AIs each of them brings, and their client work together.**
 
-- **The team** talks in chats, asks the table, and decides things on cards with an undo window.
-- **Each person's own AI** sits at the table on that person's own plan: Claude Code for the team, Claude Code or Codex
-  for the client. When someone asks the table, the AIs that are connected each give a view, and one writes the answer,
-  with the files it read and how the views were settled.
-- **The client** gets their own page: what they asked for, where each request stands, and the team's decisions in
-  words written for them. They never see the team's side, and the database enforces it, not just the page.
+[longtable.chat](https://longtable.chat) · [Try the demo](https://longtable.chat/demo) · MIT licensed
 
-Try the demo at **longtable.chat/demo**: a made-up dental clinic's team and their client, with recorded answers.
+> **Status: early.** Live at longtable.chat and used by a real team. The background connection is at v0.1.x
+> (npm package `longtable`) and updates itself. Expect rough edges, and please open an issue when you find one.
 
-## How the AIs join
+![The team's room and the client's page, side by side](docs/screenshot.png)
 
-Nobody types a command and nobody hands over an API key. **Connect my Claude** (or **Connect my assistant** for a
-client) opens the person's own Claude or Codex with a setup message already written. They read it and press Send.
-Their AI sets up a small background connection on their own computer, which signs in once in the browser and then
-starts with the computer. When the table needs that person's AI, the connection runs it there, on their own plan:
+## What it does
 
-- **Team members' AIs** read a clean, read-only copy of the project's latest main, kept on their own computer. They
-  cannot run commands or change files.
-- **A client's AI** gets no code and no tools at all, only that client's own requests and what they were told. It
-  answers what it can and passes anything new to the team.
+- **The team** talks in chats. Anyone can ask the table, and the AIs that are connected each give a view; one writes a
+  single answer, with the files it read and how the views were settled. Ask for a change and the AIs make it on a
+  branch of its own, look over each other's work, and say what to check.
+- **Each person's own AI** sits at the table on that person's own plan: Claude Code or Codex, running on their own
+  computer. Nobody hands over an API key, and nobody types a command to connect.
+- **Decisions** are cards with options. Pick one and you see the exact words the client would be told; change them if
+  you like, then send.
+- **The client** gets a page of their own: they ask in their own words and are always answered, by the team's
+  assistant or their own AI. They never see the team's side, and the database enforces that, not just the page.
+- **Handouts**: plans, mockups and charts the AIs make for the team, with versions, comments and live cursors.
 
-Longtable itself never stores code or anyone's AI sign-in. See [THREAT-MODEL.md](THREAT-MODEL.md) for what is
-protected, how, and the test that proves each part.
+## How it fits together
 
-## What is in it
+```mermaid
+flowchart LR
+  subgraph Browser
+    T[Team room]
+    C[Client page]
+  end
+  subgraph Vercel
+    N[Next.js 16 app]
+  end
+  subgraph Supabase
+    DB[(Postgres<br/>row level security<br/>RPC functions, pg_cron)]
+    RT[Realtime channels]
+  end
+  subgraph "Each person's computer"
+    R[Connection<br/>npm: longtable]
+    A[Claude Code / Codex<br/>headless, locked down]
+    W[Clean copy of the repo]
+  end
+  T --> N
+  C --> N
+  N --> DB
+  T <--> RT
+  C <--> RT
+  R -- claims jobs, posts answers --> DB
+  R --> A
+  A --> W
+  W -- branch push --> G[(The team's Git host)]
+```
 
-- Sign-in by emailed code, tables, invite links, people taken off at once
-- Chats, live updates and presence, an append-only activity log
-- Decision cards with recommended options, an undo window, and the exact words the client will be told
-- Ask the table: views from every connected AI, one combined answer with sources and "How they got here"
-- The client's page, "ask the client first" questions with answers to tap, and the client's own AI
-- Settings, a Usage page with each AI's real plan limits, GitHub events in the chat, a counts-only operator page
-- A privacy page, Download everything and Delete the table
+- **The browser** talks to Postgres through Supabase with the person's own session. Every table has row level security,
+  and every change goes through a function that checks who is asking. Live updates arrive on private channels.
+- **The connection** (`packages/connect`) is a small Node program on each person's computer. It holds a revocable device
+  token, claims jobs for its seat from a queue in Postgres, and runs that person's Claude Code or Codex headless: read
+  and search only, or file edits confined to a work folder with no `.git` in it. It never runs commands. Changes land
+  as one commit on a `longtable/...` branch, never the default branch.
+- **Longtable never stores code** or anyone's AI sign-in. Anything shaped like a key is hidden before an answer is saved.
+
+## How it's tested
+
+Testing is the part of this project with the most care in it.
+
+- **CI on every push** (`.github/workflows/checks.yml`): type checks, the house rules, and the unit suites on Ubuntu
+  (Node 20 and 22), macOS and Windows. A separate job proves the connection starts with the computer on a real Mac
+  (launchd) and real Linux (systemd), restarts after an update, and is removed cleanly.
+- **Chaos tests**: `chaos-connect` throws hundreds of thousands of random inputs at the connection on every push and
+  checks around sixty "always true" rules after each step; `chaos-db` plays random sequences against the database with
+  two people acting at once and time jumping ahead.
+- **A weekly database suite** (`database.yml`) starts a fresh Supabase inside the job and runs every browser and
+  database suite: the client wall, one table never reading another, invites, decisions, handouts, the access sweep.
+- **Real-model suites** run the connection against real Claude Code and Codex: answers with sources, work on a branch,
+  hand-offs between two AIs, planted instructions that must change nothing, and keys that must never reach the room.
+- **[THREAT-MODEL.md](THREAT-MODEL.md)** lists each threat, the control, and the test that proves it.
+- Commits are scanned for anything shaped like a key before they are made.
 
 ## Running it yourself
 
-You need Node 22, Docker, and Chrome for the tests.
+You need Node 22, Docker, and Chrome for the browser tests.
 
 ```bash
 npm install
@@ -46,20 +88,23 @@ npm run db:start
 npm run dev
 ```
 
-The app is at http://localhost:3000. Sign-in codes arrive in the local mail catcher at http://127.0.0.1:54324.
+The app is at http://localhost:3000, and sign-in codes arrive in the local mail catcher at http://127.0.0.1:54324.
 Copy `apps/web/.env.example` to `apps/web/.env.local` and fill it from `npx supabase status`.
 
-Tests: `npm run test:e2e` drives real Chrome through every step (the AI steps need Claude Code signed in on the
-computer). `tests/evals` holds behaviour checks on the AIs themselves:
-`python -m pytest tests/evals -q`.
+- `node tests/e2e/<suite>.mjs` runs one suite; the unit suites need no database and no AI.
+- The real-model suites need Claude Code (or Codex) signed in on the computer.
+- To be the operator of your own Longtable, add your email in SQL:
+  `insert into public.operators (email) values ('you@example.com');`
 
-To be an operator of your own Longtable, add your email in SQL:
-`insert into public.operators (email) values ('you@example.com');`
+## Repository
 
-## Stack
-
-Next.js 16 and React 19, Supabase (Postgres with row level security, realtime, pg_cron), and a small Node program
-for the background connection that runs Claude Code or Codex locked down.
+| Path | What is there |
+| --- | --- |
+| `apps/web` | The Next.js app: the room, the client page, settings, the opening page and demo |
+| `packages/connect` | The background connection, published to npm as `longtable` |
+| `supabase/migrations` | The schema, row level security and every server function |
+| `tests/e2e` | Browser, database, chaos and real-model suites |
+| `tests/evals` | Behaviour checks on the AIs themselves (pytest) |
 
 ## License
 

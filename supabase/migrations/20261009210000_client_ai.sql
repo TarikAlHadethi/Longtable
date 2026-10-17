@@ -1,6 +1,6 @@
 -- Step 5, the client's own AI. A client connects their own Claude or Codex, on their own plan. It answers what it
 -- can from that client's own requests and what they were told, and passes the rest on to the team as a request;
--- when unsure, it passes it on (Tarik's decision, 9 Oct). It never sees the team side or the code: its jobs carry
+-- when unsure, it passes it on. It never sees the team side or the code: its jobs carry
 -- only that client's own rows, and the connection runs them in an empty folder with every tool off. If it is off,
 -- fails, or takes too long, the client's words go to the team anyway, so nothing they say is lost.
 

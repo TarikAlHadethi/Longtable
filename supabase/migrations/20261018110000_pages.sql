@@ -1,4 +1,4 @@
--- Pages (18 Oct 2026, his words: artifacts are "very very veryyy important", with everything they do).
+-- Pages: what the AIs at a table make for the team, with versions, comments and everything around them (18 Oct 2026).
 --
 -- A Claude at the table can make a page: a whole HTML document (a report, a mockup, a chart, a dashboard, a small
 -- tool) that opens inside Longtable in a locked frame. The team sees it in the chat it was asked in, as with any

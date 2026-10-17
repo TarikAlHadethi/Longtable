@@ -1,5 +1,5 @@
--- Live cursors on pages (16 Oct 2026, his words: "named live cursors when someone hovers on the artifact... like on a
--- shared google doc").
+-- Live cursors on pages (16 Oct 2026): a named pointer for each person looking at a page, as in a shared
+-- document.
 --
 -- Each table has one more channel, `cursor:<table>`, where the team's open pages say where each person's pointer is
 -- and who is writing a comment. Only the team of that table may listen or send there; a client, someone removed or

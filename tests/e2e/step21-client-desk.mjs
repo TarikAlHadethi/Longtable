@@ -121,8 +121,7 @@ try {
   results.deep = deep;
   const looked = sql(`select count(*) from public.jobs where table_id = '${owner.tableId}' and kind = 'client' and stage = 1 and status = 'done'`);
   check("a question only the code can answer is looked up by a team AI, and answered plainly", looked !== "0" && /hello/i.test(deep) && !/greet\.js|export const/i.test(deep), { looked, deep });
-  // Where the project stands as a whole (his words, 17 Oct 2026: "when i ask it where sams is, it doesnt know"): looked up,
-  // never "I don't know".
+  // Where the project stands as a whole: looked up, never "I don't know".
   const before = Number(sql(`select count(*) from public.jobs where table_id = '${owner.tableId}' and kind = 'client' and stage = 1`));
   const where = await next("where is greeter at?");
   results.where = where;

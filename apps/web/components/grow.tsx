@@ -3,7 +3,7 @@
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
 // A box that eases to its content's new height whenever the content changes (a step swapping for the next, a note
-// appearing), instead of jumping. Nothing is static (his rule): use it wherever what is inside changes size.
+// appearing), instead of jumping. Nothing is static: use it wherever what is inside changes size.
 export function Grow({ children, className }: { children: ReactNode; className?: string }) {
   const inner = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<number | null>(null);

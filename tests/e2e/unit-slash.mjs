@@ -19,7 +19,7 @@ const { SLASH, slashEntry, EFFORT_LEVELS, fastWhy } = await import("../../apps/w
 const results = {};
 const check = (name, ok, detail) => { results[name] = ok ? "pass" : `FAIL ${JSON.stringify(detail ?? "").slice(0, 400)}`; };
 
-// What Claude Code 2.1.296 reported of itself on Tarik's computer, 16 Oct 2026 (the init event's slash_commands).
+// What Claude Code 2.1.296 reported of itself on a Windows computer, 16 Oct 2026 (the init event's slash_commands).
 const CLAUDE_CODE = ["deep-research", "design", "design-sync", "dataviz", "update-config", "verify", "debug", "code-review", "simplify", "batch",
   "fewer-permission-prompts", "doctor", "loop", "schedule", "claude-api", "workflow-authoring", "run", "run-skill-generator", "plugin-authoring",
   "advisor", "agents", "auto-mode-setup", "autocompact", "clear", "color", "compact", "config", "output-style", "context", "effort", "fast", "focus",

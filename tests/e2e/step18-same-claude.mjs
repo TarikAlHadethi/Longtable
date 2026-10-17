@@ -96,7 +96,7 @@ try {
     return lastAi();
   };
 
-  // The question he asked for real. Nothing in the repository or the chat answers it; only what her Claude knows does.
+  // A question asked for real. Nothing in the repository or the chat answers it; only what her Claude knows does.
   const a1 = await ask("does dana want anything from me?", 1);
   results.a1 = a1.slice(0, 700);
   const js = await jobs();

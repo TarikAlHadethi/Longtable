@@ -87,7 +87,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   const [overview, setOverview] = useState<Overview | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   // Nothing stands in for the page before its first read: a placeholder line used to flash and then be swapped for the
-  // welcome (his words, 17 Oct 2026: "flashes a default screen and then puts u in").
+  // welcome.
   const [ready, setReady] = useState(false);
   const readOverview = useCallback(async () => {
     if (viewer && !viewer.acting) return;

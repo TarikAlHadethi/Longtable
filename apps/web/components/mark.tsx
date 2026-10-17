@@ -41,7 +41,7 @@ export function Wordmark({ size = 16 }: { size?: number }) {
   );
 }
 
-// While something is being worked out (the table thinking): the Longtable loader from his design file, the very same
+// While something is being worked out (the table thinking): the Longtable loader from the design file, the very same
 // animation (the six seats ride round the table clockwise, keeping their spacing, 1.5 s moving, 1 s resting), only
 // scaled so its 32 by 20 box fits `size` wide.
 const SEAT_COLOURS = [HEATHER, SLATE, CLAY, HEATHER, SAGE, CLAY];

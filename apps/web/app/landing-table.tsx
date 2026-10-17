@@ -5,10 +5,9 @@ import { useRouter } from "next/navigation";
 import { TableView } from "./t/[id]/table-view";
 import type { Chat, Connection, Member } from "./t/[id]/types";
 
-// The table's home, as a team sees it, on the opening page (his words, 17 Oct 2026: "exactly like this, but with more
-// members... five members connect to the table with three clients"; then "animated... the same hover animations... be
-// able to change the models just for fun... only 1 disconnect, preferably jonah"). It is the real table view with a
-// made-up team and no database behind it: the models can be changed for show, and nothing is saved.
+// The table's home, as a team sees it, on the opening page: five team members and three clients, with the same hover
+// animations as the real thing and one AI disconnected (Jonah's). It is the real table view with a made-up team and no
+// database behind it: the models can be changed for show, and nothing is saved.
 const PEOPLE: Member[] = [
   { id: "m1", display_name: "Maya", role: "owner", color: "oklch(0.62 0.12 30)" },
   { id: "m2", display_name: "Sam", role: "developer", color: "oklch(0.6 0.1 250)" },

@@ -1,4 +1,4 @@
--- Design decisions of 16 Oct 2026 (group 4), the database half. Each was his choice from a short list.
+-- Design decisions of 16 Oct 2026 (group 4), the database half. Each was chosen from a short list.
 --
 -- Files go with what they belong to: the owner may remove any file of their table from storage, and anyone their own
 -- (the screens do it just before a table, or the test client, is deleted). Storage itself refuses deletes from SQL.

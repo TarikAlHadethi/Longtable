@@ -384,7 +384,7 @@
 .person { isolation: isolate; }
 .presence { position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--paper); background: var(--faint); }
 .presenceOn { background: var(--online); }
-/* The owner's crown, where Tarik fitted it: its centre 0.453 of a radius left of the picture's centre and 1.005 above,
+/* The owner's crown, fitted by hand: its centre 0.453 of a radius left of the picture's centre and 1.005 above,
    0.54 of the picture wide, tilted 24 degrees, behind the picture. All in units of the picture, so it holds at any size. */
 .crown {
   --r: 15px; position: absolute; z-index: -1; --w: calc(var(--r) * 1.08); width: var(--w); height: calc(var(--w) * 20 / 24);
