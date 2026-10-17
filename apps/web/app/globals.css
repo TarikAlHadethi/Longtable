@@ -79,7 +79,8 @@ body { zoom: var(--zoom); }
 .face-img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
 
 
-html { height: 100%; }
+/* Phones never enlarge text by themselves (iPhone Safari does, in narrow columns): the layout already sizes it. */
+html { height: 100%; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 html, body {
   transition: background-color 0.25s ease, color 0.25s ease;
   margin: 0;
