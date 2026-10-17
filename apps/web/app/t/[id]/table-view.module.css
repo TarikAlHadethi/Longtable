@@ -17,6 +17,10 @@
 .tree { margin: 0 auto; width: calc(var(--cols) * 236px); max-width: max(100%, calc(var(--cols) * 176px)); flex-shrink: 0; display: flex; flex-direction: column; align-items: center; }
 .row { position: relative; z-index: 1; width: 100%; display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); }
 .col { display: flex; flex-direction: column; align-items: center; padding: 0 9px; min-width: 0; animation: tv-rise 0.55s var(--ease-out) both; animation-delay: calc(var(--i) * 110ms + 0.5s); }
+/* Each column rises in on a layer of its own, so a column with a model menu open is lifted above its neighbours, or
+   the next card would cover the menu. */
+.col { position: relative; }
+.col:has([aria-expanded="true"]) { z-index: 20; }
 
 .person { display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; isolation: isolate; }
 .avatar {
