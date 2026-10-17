@@ -91,12 +91,9 @@ export function Demo() {
               </div>
             )}
             {step >= 1 && (
-              <div className={room.message}>
-                <Avatar who="maya" />
-                <div className={room.messageBody}>
-                  <div className={room.messageMeta}><span className={room.messageName}>Maya</span><span>10:44 am</span></div>
-                  <div className={room.messageText}>{QUESTION}</div>
-                </div>
+              // The demo is Maya's screen: her own words on the right, as yours are in the real room.
+              <div className={`${room.say} ${room.sayMine}`}>
+                <div className={room.bubble} data-bubble="rose">{QUESTION}</div>
               </div>
             )}
             {step === 2 && (

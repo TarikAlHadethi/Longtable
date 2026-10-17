@@ -65,6 +65,8 @@
 .meta { font-size: 12.5px; color: var(--muted); margin-bottom: 3px; }
 .meta b { color: var(--ink); font-weight: 560; margin-right: 5px; font-size: 14px; }
 .text { font-size: 15px; line-height: 1.5; }
+.mine { justify-content: flex-end; }
+.mineBubble { max-width: 78%; font-size: 15px; line-height: 1.5; background: light-dark(oklch(0.94 0.03 30), oklch(0.3 0.03 30)); padding: 8px 13px; border-radius: 14px 14px 4px 14px; }
 .clientBubble { background: light-dark(oklch(0.955 0.015 120), oklch(0.254 0.015 120)); padding: 8px 12px; border-radius: 4px 12px 12px 12px; display: inline-block; }
 .pill, .status {
   display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 560; padding: 2px 9px; border-radius: 999px;

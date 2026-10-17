@@ -127,9 +127,9 @@ export function Stage() {
                 </div>
               )}
               {step >= 3 && (
-                <div className={s.msg}>
-                  <Face letter="M" color={VIEWS[2].color} />
-                  <div><div className={s.meta}><b>Maya</b> asked the table · 10:44 am</div><div className={s.text}>{QUESTION}</div></div>
+                // The picture is Maya's screen: her own words sit on the right, as yours do in the real room.
+                <div className={`${s.msg} ${s.mine}`}>
+                  <div className={s.mineBubble}>{QUESTION}</div>
                 </div>
               )}
               {(step === 3 || step === 4) && (
