@@ -3,6 +3,7 @@ import { Mark } from "@/components/mark";
 import { Reveal } from "@/components/reveal";
 import { Stage } from "./stage";
 import { LandingTable } from "./landing-table";
+import { Fit } from "@/components/fit";
 import { AiLogo } from "@/components/ai-logo";
 import { serverClient } from "@/lib/supabase/server";
 import s from "./landing.module.css";
@@ -53,9 +54,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           <div className={`${s.small} rise`} style={i(4)}>No passwords. Sign in with a code sent to your email.</div>
         </section>
 
-        <div className={`${s.stage} rise`} style={i(6)}><Stage /></div>
+        <div className={`${s.stage} rise`} style={i(6)}><Fit width={1120}><Stage /></Fit></div>
         {/* The table as a team sees it, right under the live picture (his word, 17 Oct 2026). */}
-        <div id="table" className={s.tableShow}><LandingTable /></div>
+        <div id="table" className={s.tableShow}><Fit width={1120}><LandingTable /></Fit></div>
 
         <section id="how" className={s.section}>
           <Reveal><div className={s.eyebrow}>How it works</div><h2 className={s.h2}>Three steps, no setup guide.</h2></Reveal>

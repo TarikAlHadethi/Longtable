@@ -111,7 +111,7 @@ export function TableView({ table, me, members, connections, jobs, online, messa
                         <AiLogo kind={seat.conn.kind} size={26} />
                         <span className={`${s.dot} ${isBusy ? s.dotBusy : ""}`} title={!seat.on ? "Disconnected" : isBusy ? "Working" : "Connected"} />
                       </div>
-                      <div className={s.aiName}>{AI_NAME[seat.conn.kind]}{plan ? ` ${plan}` : ""}{seat.on ? "" : " · disconnected"}</div>
+                      <div className={s.aiName}>{AI_NAME[seat.conn.kind]}{plan ? ` ${plan}` : ""}</div>
                       {isBusy ? <div className={s.model}>Reading the code…</div>
                         : <span onClick={(e) => e.stopPropagation()}><ModelPick kind={seat.conn.kind} value={seat.conn.model_choice ?? ""} text={modelText(seat.conn)} reported={seat.conn.limits?.models}
                             className={s.model} canPick={(mine || pickAny) && seat.on && !!onModel} onPick={(model) => onModel?.(seat.conn.id, model)} /></span>}

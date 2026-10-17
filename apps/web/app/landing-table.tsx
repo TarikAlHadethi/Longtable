@@ -28,11 +28,6 @@ const OFF = "m4";
 const CLAUDES = ["opus", "sonnet", "haiku"];
 const CHATS: Chat[] = [{ id: "general", name: "General", about: "", is_general: true, created_at: "2026-10-01T09:00:00Z" }];
 const nothing = () => {};
-// Where all five do not fit (a phone, either way up), the table is drawn smaller to fit the screen whole, never
-// scrolled sideways; where even that would be too small to read, it keeps three of the team (Jonah's disconnected seat
-// among them). Wide screens get all five at full size, as before.
-const FEW = new Set(["m1", "m2", "m4", "c1", "c2", "c3"]);
-const COL = 176, PAD = 48;
 
 export function LandingTable() {
   const router = useRouter();
@@ -42,16 +37,13 @@ export function LandingTable() {
   const [now, setNow] = useState(0);
   const [models, setModels] = useState<Record<string, string>>(() => Object.fromEntries(AIS.map(([m, , model], i) => [`a${i}`, model])));
   const [tableModel, setTableModel] = useState("claude-sonnet-5-5");
-  const [width, setWidth] = useState(0);
 
   useEffect(() => {
     const el = spot.current;
     if (!el) return;
     const io = new IntersectionObserver((seen) => { if (seen.some((e) => e.isIntersecting)) { setShown(true); io.disconnect(); } }, { threshold: 0.15 });
     io.observe(el);
-    const ro = new ResizeObserver(() => setWidth(el.clientWidth));
-    ro.observe(el);
-    return () => { io.disconnect(); ro.disconnect(); };
+    return () => io.disconnect();
   }, []);
   // The seats that are on keep checking in, so they never go quiet while the page is open.
   useEffect(() => {
@@ -68,21 +60,14 @@ export function LandingTable() {
       limits: { model, models: kind === "claude" ? CLAUDES : undefined } as Connection["limits"] };
   });
 
-  const full = 5 * COL + PAD;
-  const few = width > 0 && width / full < 0.7;
-  const people = few ? PEOPLE.filter((p) => FEW.has(p.id)) : PEOPLE;
-  const team = people.filter((p) => p.role !== "client").length;
-  const zoom = width > 0 ? Math.min(1, width / (team * COL + PAD)) : 1;
-  const narrow = zoom < 1;
   return (
-    <div ref={spot} style={{ width: "100%", minHeight: narrow ? 300 : 560 }}>
+    // On a phone it is the same picture, scaled down to fit (Fit, on the opening page).
+    <div ref={spot} style={{ width: "100%", minHeight: 560, display: "flex" }}>
       {shown && now > 0 && (
-        <div style={{ display: "flex", width: "100%", zoom }}>
-        <TableView table={{ id: "demo", name: "Fernhill Dental booking" }} me={PEOPLE[0]} members={people} connections={connections.filter((c) => people.some((p) => p.id === c.member_id))} jobs={[]}
+        <TableView table={{ id: "demo", name: "Fernhill Dental booking" }} me={PEOPLE[0]} members={PEOPLE} connections={connections} jobs={[]}
           online={new Set(["m1", "m2", "m3", "m5", "c1"])} messages={[]} chats={CHATS} onOpenChat={() => router.push("/demo")} onConnect={nothing}
           tableModel={tableModel} onTableModel={setTableModel} onModel={(conn, model) => setModels((m) => ({ ...m, [conn]: model }))} pickAny
           onPerson={nothing} onAi={nothing} onTable={nothing} />
-        </div>
       )}
     </div>
   );

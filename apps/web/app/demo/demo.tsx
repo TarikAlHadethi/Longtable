@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Mark, WorkingMark } from "@/components/mark";
+import { Fit } from "@/components/fit";
 import room from "../t/[id]/room.module.css";
 import client from "../t/[id]/client.module.css";
 import styles from "./demo.module.css";
@@ -74,6 +75,7 @@ export function Demo() {
         <button className={view === "client" ? styles.tabOn : styles.tab} onClick={() => setView("client")}>Elena&apos;s page</button>
       </div>
 
+      <Fit width={1100}>
       <div className={styles.panes}>
         <section className={`${styles.pane} ${view === "team" ? styles.paneOn : ""}`} aria-label="The team's room">
           <div className={room.threadHead}>
@@ -169,6 +171,7 @@ export function Demo() {
           </div>
         </section>
       </div>
+      </Fit>
     </div>
   );
 }
