@@ -39,7 +39,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
       <main className={s.main}>
         <section className={s.hero}>
           {deleted && <div className={`${s.notice} rise`} role="status">Your table and everything in it was deleted.</div>}
-          <div className={`${s.badge} rise`} style={i(0)}><Mark size={18} live /> Works with your own Claude Code or Codex. No API keys.</div>
           <h1 className={`${s.title} rise`} style={i(1)}>
             Your team, their AIs and your client, <span className={s.accent}>at one table.</span>
           </h1>

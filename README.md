@@ -7,7 +7,7 @@
 > **Status: early.** Live at longtable.chat and used by a real team. The background connection is at v0.1.x
 > (npm package `longtable`) and updates itself. Expect rough edges, and please open an issue when you find one.
 
-![The team's room and the client's page, side by side](docs/screenshot.png)
+![A table: five people, the AI each one brought, and their clients](docs/table.gif)
 
 ## What it does
 
