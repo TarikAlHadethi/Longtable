@@ -74,7 +74,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
               <h3>Everyone connects their own AI</h3>
               <p>One button. It runs on your computer, on your own plan, reading your copy of the code.</p>
               <div className={s.mini}>
-                <div className={s.logosMini}><AiLogo kind="claude" size={36} /><AiLogo kind="codex" size={36} /></div>
+                <div className={s.logosMini}><AiLogo kind="claude" size={58} /><AiLogo kind="codex" size={58} /></div>
               </div>
             </Reveal>
             <Reveal className={s.step} delay={220}>
@@ -104,42 +104,19 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
               </div>
             </Reveal>
             <Reveal className={s.tile} delay={100}>
-              <h3>It reads the real code</h3>
-              <p>Answers name the files they read and the commit they read them at.</p>
-              <div className={s.files}><span>StaffPicker.tsx</span><span>availability.ts</span><span>reminders.ts</span><em>read main @ 4f2c9a1</em></div>
-            </Reveal>
-            <Reveal className={s.tile}>
-              <h3>Decisions in your words</h3>
-              <p>Pick an option and see exactly what the client would be told. Change the words if you like, then send.</p>
-              <div className={s.sendMini}><span>Good news: you can pick your hygienist at launch.</span><b>Send</b></div>
-            </Reveal>
-            <Reveal className={s.tile} delay={100}>
               <h3>The AIs do the work</h3>
               <p>Ask for a change in the chat. Your AIs make it on a branch of its own, look over each other&apos;s work, and tell you what to check.</p>
               <div className={s.files}><span>longtable/hygienist-choice</span><em>3 files changed · looked over by 2 AIs</em></div>
             </Reveal>
-            <Reveal className={s.tile} delay={200}>
+            <Reveal className={s.tile}>
               <h3>Handouts</h3>
               <p>Plans, mockups and charts the AIs make for the team, with versions, comments and everyone&apos;s cursor on the page.</p>
               <div className={s.handout}><b>Launch plan</b><span>Version 3 · 2 comments</span><i>Sam</i></div>
             </Reveal>
-            <Reveal className={s.tile}>
+            <Reveal className={`${s.tile} ${s.wide}`} delay={100}>
               <h3>The client is always answered</h3>
               <p>A client&apos;s question gets a reply in moments. When it needs the code, the table checks it first; anything new goes to the team.</p>
               <div className={s.chatMini}><span>Where are we on reminders?</span><b>They are built and with the team to check.</b></div>
-            </Reveal>
-            <Reveal className={s.tile} delay={100}>
-              <h3>A page just for the client</h3>
-              <p>They ask in their own words and hear decisions in words written for them. They never see the team&apos;s room.</p>
-              <div className={s.two}><span>needs a role filter in the availability query</span><b>You will be able to pick your hygienist.</b></div>
-            </Reveal>
-            <Reveal className={s.tile} delay={200}>
-              <h3>Usage in the open</h3>
-              <p>See how much of each person&apos;s own plan is left, so nobody is surprised mid-week.</p>
-              <div className={s.meters}>
-                <div><span>This session</span><i><b style={{ width: "42%" }} /></i><em>42%</em></div>
-                <div><span>This week</span><i><b style={{ width: "18%" }} /></i><em>18%</em></div>
-              </div>
             </Reveal>
             <Reveal className={`${s.tile} ${s.full} ${s.dark}`}>
               <h3>Your code stays on your computers</h3>
