@@ -66,7 +66,7 @@ export function LandingTable() {
       {shown && now > 0 && (
         <TableView table={{ id: "demo", name: "Fernhill Dental booking" }} me={PEOPLE[0]} members={PEOPLE} connections={connections} jobs={[]}
           online={new Set(["m1", "m2", "m3", "m5", "c1"])} messages={[]} chats={CHATS} onOpenChat={() => router.push("/demo")} onConnect={nothing}
-          tableModel={tableModel} onTableModel={setTableModel} onModel={(conn, model) => setModels((m) => ({ ...m, [conn]: model }))} pickAny
+          tableModel={tableModel} onTableModel={setTableModel} onModel={(conn, model) => setModels((m) => ({ ...m, [conn]: model }))} showcase
           onPerson={nothing} onAi={nothing} onTable={nothing} />
       )}
     </div>

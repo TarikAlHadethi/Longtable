@@ -66,9 +66,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
               <h3>Start a table</h3>
               <p>Name what you are working on. Invite your team and your client with a link.</p>
               <div className={s.mini}>
-                <div className={s.miniRow}><span className={s.miniFace} style={{ background: "oklch(0.62 0.12 30)" }}>M</span>Maya<em>owner</em></div>
-                <div className={s.miniRow}><span className={s.miniFace} style={{ background: "oklch(0.6 0.1 250)" }}>S</span>Sam<em>developer</em></div>
-                <div className={s.miniRow}><span className={s.miniFace} style={{ background: "oklch(0.6 0.1 310)" }}>E</span>Elena<em>client</em></div>
+                <div className={s.inviteMini}><span>longtable.chat/join/fernhill</span><b>Copy link</b></div>
               </div>
             </Reveal>
             <Reveal className={s.step} delay={110}>
@@ -76,8 +74,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
               <h3>Everyone connects their own AI</h3>
               <p>One button. It runs on your computer, on your own plan, reading your copy of the code.</p>
               <div className={s.mini}>
-                <div className={s.connect}><span className={s.connectDot} />Claude connected<em>on this computer</em></div>
-                <div className={s.connect}><span className={s.connectDot} />Codex connected<em>on this computer</em></div>
+                <div className={s.logosMini}><AiLogo kind="claude" size={36} /><AiLogo kind="codex" size={36} /></div>
               </div>
             </Reveal>
             <Reveal className={s.step} delay={220}>
@@ -85,8 +82,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
               <h3>Ask, decide, tell the client</h3>
               <p>The table answers with its sources. Pick a decision, check the words the client would be told, and send.</p>
               <div className={s.mini}>
-                <div className={s.decide}><span>Ship it for launch</span><b>✓</b></div>
-                <div className={s.sendMini}><span>Good news: you can pick your hygienist at launch.</span><b>Send</b></div>
+                <div className={s.toldMini}>Good news: you can pick your hygienist at launch.</div>
+                <div className={s.toldNote}>Sent to Elena</div>
               </div>
             </Reveal>
           </div>

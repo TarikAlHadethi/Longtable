@@ -148,3 +148,7 @@ button.client.open { border: 1px solid var(--line); background: light-dark(oklch
 .person.open { border-radius: 16px; padding: 6px 10px; margin: -6px -10px; transition: background-color 0.15s ease; }
 .person.open:hover, button.client.open:hover { background: var(--hover); }
 .open:focus-visible { outline: 2px solid oklch(0.58 0.08 170 / 0.5); outline-offset: 3px; }
+
+/* The opening page's picture: the desktop layout at every size, never a scroll area of its own. */
+.wrap.showcase { overflow: visible; flex: none; padding: 44px 0 48px; gap: 26px; }
+.showcase .scroller { overflow: visible; padding: 16px 24px 56px; }

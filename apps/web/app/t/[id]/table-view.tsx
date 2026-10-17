@@ -20,7 +20,7 @@ const QUIET_MS = 75 * 1000;
 
 // The table's home: who is at the table, the AI each person brought and the model it is running, and how they all
 // meet at the table. Everything hangs from one centred column, so the people always sit squarely over the table.
-export function TableView({ table, me, members, connections, jobs, online, messages, chats, onOpenChat, onConnect, onInvite, onModel, tableModel, onTableModel, onPerson, onAi, onTable, pickAny = false }: {
+export function TableView({ table, me, members, connections, jobs, online, messages, chats, onOpenChat, onConnect, onInvite, onModel, tableModel, onTableModel, onPerson, onAi, onTable, showcase = false }: {
   table: { id: string; name: string };
   me: Member;
   members: Member[];
@@ -39,8 +39,9 @@ export function TableView({ table, me, members, connections, jobs, online, messa
   onPerson: (id: string) => void;
   onAi: (member: string) => void;
   onTable: () => void;
-  // The opening page's picture of a table: anyone's model can be changed there, for show.
-  pickAny?: boolean;
+  // The opening page's picture of a table: anyone's model can be changed there, for show, and it never scrolls inside
+  // itself or changes its layout on a small screen (the page scales it down whole).
+  showcase?: boolean;
 }) {
   const keyOpen = (go: () => void) => (e: React.KeyboardEvent) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); go(); } };
   // A clock, so a seat goes quiet by itself when its computer is switched off.
@@ -79,7 +80,7 @@ export function TableView({ table, me, members, connections, jobs, online, messa
   const general = [...chats].sort((a, b) => Number(b.is_general) - Number(a.is_general))[0];
 
   return (
-    <div className={s.wrap} data-testid="table-home">
+    <div className={`${s.wrap} ${showcase ? s.showcase : ""}`} data-testid="table-home">
       <div className={s.top}>
         <Mark size={60} live />
         <div className={s.word}>Longtable</div>
@@ -114,7 +115,7 @@ export function TableView({ table, me, members, connections, jobs, online, messa
                       <div className={s.aiName}>{AI_NAME[seat.conn.kind]}{plan ? ` ${plan}` : ""}</div>
                       {isBusy ? <div className={s.model}>Reading the code…</div>
                         : <span onClick={(e) => e.stopPropagation()}><ModelPick kind={seat.conn.kind} value={seat.conn.model_choice ?? ""} text={modelText(seat.conn)} reported={seat.conn.limits?.models}
-                            className={s.model} canPick={(mine || pickAny) && seat.on && !!onModel} onPick={(model) => onModel?.(seat.conn.id, model)} /></span>}
+                            className={s.model} canPick={(mine || showcase) && seat.on && !!onModel} onPick={(model) => onModel?.(seat.conn.id, model)} /></span>}
                       {mine && seat.removed && <button className={s.again} onClick={(e) => { e.stopPropagation(); onConnect(); }}>Connect again</button>}
                     </div>
                   ) : mine ? (
