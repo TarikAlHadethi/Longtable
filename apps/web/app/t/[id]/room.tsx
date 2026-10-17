@@ -356,7 +356,14 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       } else if (name === "chats") {
         const c = record as unknown as Chat;
         if ((record as { deleted?: boolean }).deleted) return dropRef.current(c.id);
-        setChats((prev) => [...prev.filter((x) => x.id !== c.id), c].sort(byTime));
+        // The chat this person just named arrives here too, often before their own call returns: it takes the place of the
+        // row already showing, keeping its key, so the list never shows it twice or redraws it.
+        setChats((prev) => {
+          const kept = prev.find((x) => x.id === c.id) ?? prev.find((x) => x.pending && x.name === c.name && x.created_by === c.created_by);
+          const rest = prev.filter((x) => x !== kept && x.id !== c.id);
+          // Still "being made" until this person's own call opens it, so the highlight never jumps back meanwhile.
+          return [...rest, { ...c, local_key: kept?.local_key, pending: kept?.pending ?? false }].sort(byTime);
+        });
       } else if (name === "pages") {
         const p = record as unknown as Page & { deleted?: boolean };
         if (p.deleted) { setPages((prev) => prev.filter((x) => x.id !== p.id)); setOpenPage((cur) => (cur === p.id ? null : cur)); return; }
@@ -714,11 +721,11 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     setChats((prev) => [...prev, { id: local, local_key: local, name, about: "", is_general: false, created_at: at, created_by: self.id, pending: true }]);
     const { data, error } = await supabase.rpc("create_chat", { t: table.id, chat_name: name, chat_about: "" });
     if (error || !data) {
-      setChats((prev) => prev.filter((c) => c.id !== local));
+      setChats((prev) => prev.filter((c) => c.local_key !== local));
       return error?.message ?? "The chat was not made. Try again.";
     }
     const id = data as string;
-    setChats((prev) => prev.filter((c) => c.id !== id).map((c) => (c.id === local ? { ...c, id, pending: false } : c)).sort(byTime));
+    setChats((prev) => prev.filter((c) => c.id !== id || c.local_key === local).map((c) => (c.local_key === local ? { ...c, id, pending: false } : c)).sort(byTime));
     openChat(id);
     return null;
   }

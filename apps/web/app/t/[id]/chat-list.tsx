@@ -26,6 +26,8 @@ export function ChatList({ chats, activeId, waiting, canDelete, onOpen, onCreate
   const [leaving, setLeaving] = useState<string | null>(null);
   const [error, setError] = useState("");
   const list = useRef<HTMLDivElement>(null);
+  // While a new chat is being made it is the one shown as open, so the highlight moves once, straight to it.
+  const making = chats.some((c) => c.pending);
 
   useEffect(() => {
     if (!menu) return;
@@ -74,14 +76,14 @@ export function ChatList({ chats, activeId, waiting, canDelete, onOpen, onCreate
         </button>
       </div>
       {[...chats].sort((a, b) => Number(b.is_general) - Number(a.is_general) || a.created_at.localeCompare(b.created_at)).map((c) => (
-        <div key={c.local_key ?? c.id} className={`${styles.chatRow} ${c.id === activeId ? styles.chatRowOn : ""} ${menu === c.id ? styles.chatRowMenu : ""} ${leaving === c.id ? styles.chatRowOut : ""} ${c.pending ? styles.chatRowPending : ""}`} data-chat={c.name}>
+        <div key={c.local_key ?? c.id} className={`${styles.chatRow} ${c.id === activeId ? styles.chatRowOn : ""} ${menu === c.id ? styles.chatRowMenu : ""} ${leaving === c.id ? styles.chatRowOut : ""} ${c.local_key ? styles.chatRowMade : ""} ${c.pending ? styles.chatRowPending : ""}`} data-chat={c.name}>
           {editing === c.id ? (
             <input className={`field ${styles.chatEdit}`} autoFocus maxLength={60} value={draft} aria-label="The chat's name"
               onChange={(e) => setDraft(e.target.value)} onFocus={(e) => e.target.select()} onBlur={() => finishRename(c)}
               onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditing(null); }} />
           ) : (
             <>
-              <button className={`${styles.chat} ${c.id === activeId ? styles.chatActive : ""}`} onClick={() => { if (!c.pending) onOpen(c.id); }}
+              <button className={`${styles.chat} ${(c.id === activeId && !making) || c.pending ? styles.chatActive : ""}`} onClick={() => { if (!c.pending) onOpen(c.id); }}
                 onDoubleClick={() => { if (c.id === activeId) startRename(c); }} title={c.id === activeId ? "Double-click to rename" : undefined}>
                 <span className={styles.chatName}><span className={styles.chatHash} aria-hidden="true">#</span>{c.name}</span>
               </button>
