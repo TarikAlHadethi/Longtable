@@ -105,6 +105,13 @@
 .clientStem { width: 2px; height: 26px; margin: 8px 0; background: var(--line); border-radius: 1px; animation: tv-fade 0.5s ease 1.05s both; }
 .clients { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; animation: tv-rise 0.5s var(--ease-out) 1.1s both; }
 .client { display: flex; align-items: center; gap: 10px; text-align: left; border: 1px solid var(--line); background: light-dark(oklch(0.97 0.012 120), oklch(0.25 0.012 120)); border-radius: 999px; padding: 7px 16px 7px 7px; }
+/* A new table's first steps: the clients' pills, a little smaller; a step to do wears the invite seat's dashed ring. */
+.steps { display: grid; grid-template-columns: repeat(2, auto); gap: 8px; }
+.steps .client { padding: 5px 14px 5px 5px; }
+.steps .clientAvatar { width: 24px; height: 24px; font-size: 12.5px; }
+.steps .client b { font-size: 14px; }
+.stepTodo { background: transparent; border: 2px dashed var(--line-dashed); color: var(--muted); }
+.stepDone { opacity: 0.6; cursor: default; }
 .clientAvatar { width: 30px; height: 30px; border-radius: 50%; color: white; font-size: 14px; font-weight: 560; display: inline-flex; align-items: center; justify-content: center; }
 .client b { display: block; font-size: 14.5px; font-weight: 560; }
 .client span { font-size: 13px; color: var(--muted); }

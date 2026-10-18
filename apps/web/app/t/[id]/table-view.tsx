@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { AI_NAME, AiLogo, type AiKind } from "@/components/ai-logo";
 import { Face } from "@/components/face";
-import { Arrow, Crown, Plus } from "@/components/icons";
+import { Arrow, Check, Crown, Plus } from "@/components/icons";
 import { Mark } from "@/components/mark";
 import { ModelPick, prettyModel } from "./model-pick";
 import type { Chat, Connection, Job, Member, Message } from "./types";
@@ -78,6 +78,16 @@ export function TableView({ table, me, members, connections, jobs, online, messa
   const modelText = (c: Connection) => prettyModel(c.model_choice) ?? (c.kind === "claude" ? "Opus 5.5" : prettyModel(c.limits?.model) ?? "Connected");
   const tableText = (c: Connection) => prettyModel(tableModel) ?? (c.kind === "claude" ? "Sonnet 5.5" : prettyModel(c.limits?.model) ?? "");
   const general = [...chats].sort((a, b) => Number(b.is_general) - Number(a.is_general))[0];
+  // A new table's first steps, for its owner: each ticks itself from what really happened, and the row goes once all
+  // four are done.
+  const mySeat = seatOf(me.id);
+  const steps = [
+    { label: "Connect your AI", done: !!mySeat && !mySeat.removed, go: onConnect },
+    { label: "Invite your team", done: team.length > 1, go: onInvite },
+    { label: "Invite a client", done: clients.some((c) => !c.test), go: onInvite },
+    { label: "Ask a question", done: !!last, go: general ? () => onOpenChat(general.id) : undefined },
+  ];
+  const showSteps = !showcase && me.role === "owner" && steps.some((x) => !x.done);
 
   return (
     <div className={`${s.wrap} ${showcase ? s.showcase : ""}`} data-testid="table-home">
@@ -86,6 +96,18 @@ export function TableView({ table, me, members, connections, jobs, online, messa
         <div className={s.word}>Longtable</div>
         <div className={s.project}>{table.name}</div>
       </div>
+
+      {showSteps && (
+        <div className={`${s.clients} ${s.steps}`} data-testid="first-steps" aria-label="First steps">
+          {steps.map((x, n) => (
+            <button type="button" key={x.label} className={`${s.client} ${s.open} ${x.done ? s.stepDone : ""}`} disabled={x.done || !x.go}
+              onClick={x.go} data-done={x.done}>
+              <span className={`${s.clientAvatar} ${x.done ? "" : s.stepTodo}`} style={x.done ? { background: "var(--online)" } : undefined}>{x.done ? <Check size={14} /> : n + 1}</span>
+              <div><b>{x.label}</b></div>
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className={s.scroller}>
         <div className={s.tree} style={{ "--cols": cols } as React.CSSProperties}>

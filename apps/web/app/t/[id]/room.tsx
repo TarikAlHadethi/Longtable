@@ -1151,6 +1151,12 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
             <div className={styles.composerTools}>
               <button className={styles.toolLink} onClick={() => { setAskingFor(null); setAsking(true); }}>Make a poll</button>
               {notice && <span className={styles.notice} role="status">{notice}</span>}
+              {/* When this person's own AI cannot answer here, say why, with the one fix. */}
+              {!notice && self.role !== "client" && (() => {
+                if (!myConnection) return <span className={styles.notice} data-testid="ai-status">Your AI is not connected. <button className={styles.toolLink} onClick={() => setConnectOpen(true)}>Connect your AI</button></span>;
+                const quiet = !myConnection.last_seen || Date.now() - new Date(myConnection.last_seen).getTime() > 90000;
+                return quiet ? <span className={styles.notice} data-testid="ai-status">Your computer&apos;s connection is off. It rejoins by itself once your computer is awake.</span> : null;
+              })()}
             </div>
           </div>
         </main>
