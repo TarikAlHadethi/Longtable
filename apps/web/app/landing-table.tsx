@@ -28,10 +28,7 @@ const CLAUDES = ["opus", "sonnet", "haiku"];
 const CHATS: Chat[] = [{ id: "general", name: "General", about: "", is_general: true, created_at: "2026-10-01T09:00:00Z" }];
 const nothing = () => {};
 
-// A smaller table (three AIs, two clients), shown under the real one for now.
-const SMALL = new Set(["m1", "m2", "m3", "c1", "c2"]);
-
-export function LandingTable({ small = false }: { small?: boolean }) {
+export function LandingTable() {
   const router = useRouter();
   const spot = useRef<HTMLDivElement>(null);
   // Drawn when it scrolls into view, so it sets itself out in front of the reader, the way the real one does.
@@ -66,7 +63,7 @@ export function LandingTable({ small = false }: { small?: boolean }) {
     // On a phone it is the same picture, scaled down to fit (Fit, on the opening page).
     <div ref={spot} style={{ width: "100%", minHeight: 560, display: "flex" }}>
       {shown && now > 0 && (
-        <TableView table={{ id: "demo", name: "Fernhill Dental booking" }} me={PEOPLE[0]} members={small ? PEOPLE.filter((x) => SMALL.has(x.id)) : PEOPLE} connections={small ? connections.filter((c) => SMALL.has(c.member_id)) : connections} jobs={[]}
+        <TableView table={{ id: "demo", name: "Fernhill Dental booking" }} me={PEOPLE[0]} members={PEOPLE} connections={connections} jobs={[]}
           online={new Set(["m1", "m2", "m3", "m5", "c1"])} messages={[]} chats={CHATS} onOpenChat={() => router.push("/demo")} onConnect={nothing}
           tableModel={tableModel} onTableModel={setTableModel} onModel={(conn, model) => setModels((m) => ({ ...m, [conn]: model }))} showcase
           onPerson={nothing} onAi={nothing} onTable={nothing} />

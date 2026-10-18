@@ -57,8 +57,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         <div className={`${s.stage} rise`} style={i(6)}><Fit width={1120}><Stage /></Fit></div>
         {/* The table as a team sees it, right under the live picture. */}
         <div id="table" className={s.tableShow}><Fit width={1120}><LandingTable /></Fit></div>
-        {/* Temporary: the same table with three AIs and two clients. */}
-        <div id="table-small" className={s.tableShow}><Fit width={1120}><LandingTable small /></Fit></div>
 
         <section id="how" className={s.section}>
           <Reveal><div className={s.eyebrow}>How it works</div><h2 className={s.h2}>Three steps, no setup guide.</h2></Reveal>
