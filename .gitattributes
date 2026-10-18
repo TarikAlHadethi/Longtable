@@ -3,3 +3,6 @@
 *.jpg binary
 *.ico binary
 *.woff2 binary
+# Test suites and probes count as documentation in GitHub's language bar, not as the product's code.
+tests/** linguist-documentation
+probes/** linguist-documentation
