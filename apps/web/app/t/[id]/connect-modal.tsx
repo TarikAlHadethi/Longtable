@@ -83,6 +83,9 @@ export function ConnectModal({ tableId, tableName, audience = "team", connected,
           : `Connect my ${name} to my team's Longtable table "${tableName}". Please run this${repo ? "" : " in this folder"} and keep it running in the background:`,
         `${command} connect ${code}${kind === "codex" ? " --ai codex" : ""}${repo ? ` --repo ${repo}` : ""}${appFlag}`,
         ...(kind === "codex" ? ["If Codex's command-line tool is missing, install it first with npm install -g @openai/codex."] : []),
+        // Claude Desktop keeps its own copy of Claude Code to itself on Windows, so the background connection needs one
+        // installed outside the app.
+        ...(kind === "claude" ? ["If Claude Code isn't installed outside the Claude app (no claude command), install it first with Anthropic's installer: irm https://claude.ai/install.ps1 | iex on Windows, or curl -fsSL https://claude.ai/install.sh | bash on Mac and Linux."] : []),
         audience === "client"
           ? `It lets my ${name} answer me there on my own plan. It gets no code and changes no files.`
           : `It answers my team's questions on my own plan, from its own copy of the committed code. Only its answers leave this computer, and it never changes my files.`,
