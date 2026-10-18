@@ -64,7 +64,7 @@ try {
   // In development Next.js draws its own badge over this corner, so the click is sent to the button itself.
   await p.dispatchEvent("[data-testid=bug]", "click");
   await p.fill("#bug-text", "The crown is crooked on purpose, but this is a test report.");
-  await p.click("form[aria-label='Report a bug'] button:has-text('Send')");
+  await p.click("form[aria-label='Early access feedback'] button:has-text('Send')");
   await p.waitForFunction(() => document.body.innerText.includes("Sent. Thank you."));
   const peek = await rest(await accessToken(owner.context), "bug_reports?select=body");
   const asOperator = await rpc(await accessToken(owner.context), "operator_bugs", {});

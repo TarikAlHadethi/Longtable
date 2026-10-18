@@ -75,7 +75,8 @@ export function LogsPanel({ table, members }: { table: { id: string; name: strin
   );
 }
 
-// The little bug, bottom left: say what went wrong, and it goes to whoever runs this Longtable.
+// The little bug, bottom left: early access feedback (what went wrong, or what would help), straight to the people
+// running this Longtable.
 export function BugButton({ tableId, place }: { tableId: string; place: string }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
@@ -95,17 +96,17 @@ export function BugButton({ tableId, place }: { tableId: string; place: string }
 
   return (
     <div className={s.bug}>
-      <button className={`${s.bugButton} ${open ? s.bugOn : ""}`} aria-label="Report a bug" title="Report a bug" aria-expanded={open}
+      <button className={`${s.bugButton} ${open ? s.bugOn : ""}`} aria-label="Early access feedback" title="Early access feedback" aria-expanded={open}
         data-testid="bug" onClick={() => { setOpen(!open); setError(""); }}>
         <Bug size={17} />
       </button>
       {open && (
-        <form className={s.bugCard} onSubmit={send} aria-label="Report a bug">
+        <form className={s.bugCard} onSubmit={send} aria-label="Early access feedback">
           {state === "sent" ? <div className={s.bugSent}>Sent. Thank you.</div> : (
             <>
-              <label className={s.bugTitle} htmlFor="bug-text">What went wrong?</label>
+              <label className={s.bugTitle} htmlFor="bug-text">Early access: what went wrong, or what would help?</label>
               <textarea id="bug-text" className="field" rows={4} maxLength={4000} autoFocus value={text} onChange={(e) => setText(e.target.value)} />
-              <div className="note">Goes to whoever runs this Longtable, word for word. Leave out anything private.</div>
+              <div className="note">Goes straight to the people running Longtable, word for word. Leave out anything private.</div>
               {error && <div className="error">{error}</div>}
               <div className={s.row}>
                 <button className="btn" disabled={state === "sending" || !text.trim()}>{state === "sending" ? "Sending…" : "Send"}</button>
