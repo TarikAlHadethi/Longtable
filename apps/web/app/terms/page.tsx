@@ -17,6 +17,17 @@ export default function Terms() {
         </p>
       </Section>
 
+      <Section title="Free during early access">
+        <p style={p}>
+          Longtable is free while it is in early access. Every table started during early access stays free for life: the
+          people at it never pay for that table, including for features added later, for as long as Longtable is offered.
+        </p>
+        <p style={p}>
+          Early access ends on a date announced on longtable.chat at least 30 days ahead. Tables started after it may be on a
+          paid plan; tables started before it stay free. The open-source code is free to run yourself, always.
+        </p>
+      </Section>
+
       <Section title="Your account and your table">
         <p style={p}>
           Keep your email account safe: signing in uses a code sent to it. The owner of a table decides who is at it, what each person can
