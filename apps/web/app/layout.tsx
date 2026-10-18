@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { DM_Sans, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
+import { Visits } from "@/components/visits";
 
 // Sturdy, warm letters: a plain sans for the product and a calm book serif for an AI speaking.
 const hanken = DM_Sans({ subsets: ["latin"], variable: "--font-hanken", display: "swap" });
@@ -22,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* The chosen theme goes on before the first paint, so a dark page never flashes light. */}
         <script dangerouslySetInnerHTML={{ __html: THEME }} />
       </head>
-      <body>{children}</body>
+      <body>{children}<Visits /></body>
     </html>
   );
 }

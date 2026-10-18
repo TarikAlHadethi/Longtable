@@ -62,6 +62,15 @@ export default function Privacy() {
         </p>
       </Section>
 
+      <Section title="Counting visits">
+        <p style={p}>
+          To see how many people use the website and how fast its pages load, it counts visits with Vercel Web Analytics and
+          Speed Insights. They use no cookies and keep no personal data. What is sent is the kind of page (for example
+          /t/:id, never a table&apos;s or a chat&apos;s own address), how long it took to load, the site you came from, your
+          country, and your browser and device type. It is used only to understand how the site is used and how fast it is.
+        </p>
+      </Section>
+
       <Section title="Whoever runs this Longtable">
         <p style={p}>
           Their page shows counts only, never names, messages or table titles, plus any bug report you send them, as you wrote it. Like any hosted service, though, the database itself
