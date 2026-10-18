@@ -7,7 +7,15 @@ export const metadata = { title: "Privacy · Longtable" };
 export default function Privacy() {
   const p = { margin: 0 } as const;
   return (
-    <DocPage title="Privacy" updated="17 October 2026">
+    <DocPage title="Privacy" updated="18 October 2026" note="This page is written in plain words and will be reviewed by a lawyer before paid plans launch.">
+      <Section title="Who is responsible">
+        <p style={p}>
+          Clarus LLC, a company licensed in the Sharjah Media City (Shams) free zone, United Arab Emirates, runs the hosted service
+          at longtable.chat and is responsible for the personal data it handles. You can reach us at <a href="mailto:hello@longtable.chat">hello@longtable.chat</a>. If you run your own
+          copy of the open-source code, you are responsible for the data in it.
+        </p>
+      </Section>
+
       <Section title="What Longtable keeps">
         <p style={p}>
           Your email address, so you can sign in with a code, and the email of anyone you invite, if you type one. The tables you are at, and what is said and decided in them: messages,
@@ -71,11 +79,46 @@ export default function Privacy() {
         </p>
       </Section>
 
-      <Section title="Whoever runs this Longtable">
+      <Section title="What Clarus LLC can see">
         <p style={p}>
-          Their page shows counts only, never names, messages or table titles, plus any bug report you send them, as you wrote it. Like any hosted service, though, the database itself
-          is not end-to-end encrypted, so the person who runs the server could read it. Longtable is open source, so you can run your own.
+          Our operator page shows counts only, never names, messages or table titles, plus any feedback you send us, as you wrote
+          it. Like any hosted service, though, the database itself is not end-to-end encrypted, so we could read it. We do not
+          sell your data or use it to train any model. Longtable is open source, so you can run your own.
         </p>
+      </Section>
+
+      <Section title="Why we use it">
+        <p style={p}>
+          To run the service you signed up for: your account, your tables and what happens in them. To keep it working and make it
+          better: error reports and visit counts, which carry no personal data. To send an invite: the email address you typed.
+        </p>
+      </Section>
+
+      <Section title="Where it is kept, and who helps">
+        <p style={p}>
+          Supabase keeps the database and attached files, in Frankfurt (EU). Vercel serves the website, from Frankfurt, and counts
+          visits. Sentry receives error reports, stored in the EU. name.com forwards mail sent to our address. These companies may
+          be based outside the UAE and the EU; where they handle data there, it is under their data protection terms.
+        </p>
+      </Section>
+
+      <Section title="How long it is kept">
+        <p style={p}>
+          What is in a table is kept while the table exists. When its owner deletes it, everything in it goes, the log too, though
+          copies can remain in our providers&apos; backups for a short time. Your account stays until you ask us to delete it. Error
+          reports and visit counts are kept only for our providers&apos; standard periods.
+        </p>
+      </Section>
+
+      <Section title="Your rights">
+        <p style={p}>
+          Under the UAE Personal Data Protection Law (Federal Decree-Law No. 45 of 2021) and, if you are in the EU, the GDPR, you
+          can ask to see the personal data we hold about you, correct it, delete it, limit or object to how it is used, and get a
+          copy to take elsewhere (Download everything does this for your tables). Write to us and we will answer within a month.
+          You can also complain to a data protection authority: in the UAE, the UAE Data Office; in the EU, the authority in your
+          country.
+        </p>
+        <p style={p}>Longtable is not meant for anyone under 16.</p>
       </Section>
 
       <Section title="Taking it with you, or away">
@@ -87,7 +130,7 @@ export default function Privacy() {
       </Section>
 
       <Section title="Questions">
-        <p style={p}>Write to <a href="mailto:hello@longtable.chat">hello@longtable.chat</a> about your data or this page.</p>
+        <p style={p}>Write to Clarus LLC at <a href="mailto:hello@longtable.chat">hello@longtable.chat</a> about your data or this page.</p>
       </Section>
     </DocPage>
   );

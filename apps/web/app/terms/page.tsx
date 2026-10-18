@@ -7,13 +7,21 @@ export const metadata = { title: "Terms · Longtable" };
 export default function Terms() {
   const p = { margin: 0 } as const;
   return (
-    <DocPage title="Terms of use" updated="17 October 2026">
+    <DocPage title="Terms of use" updated="18 October 2026" note="This page is written in plain words and will be reviewed by a lawyer before paid plans launch.">
       <p style={p}>By starting a table, joining one, or connecting an AI to one, you agree to these terms. If you do not agree, do not use Longtable.</p>
 
       <Section title="What Longtable is">
         <p style={p}>
           A shared room where a software team, the AIs each of them brings, and their client talk, decide and work together. Each AI runs on
           its own person&apos;s computer and plan. Longtable carries the conversation; it does not run the AIs for you.
+        </p>
+      </Section>
+
+      <Section title="Who runs it">
+        <p style={p}>
+          The hosted service at longtable.chat is run by Clarus LLC, a company licensed in the Sharjah Media City (Shams) free
+          zone, United Arab Emirates. In these terms, &quot;we&quot; means Clarus LLC. Longtable&apos;s source code is open source
+          under the MIT licence, held by Tarik Al Hadethi; these terms cover the hosted service, not the code.
         </p>
       </Section>
 
@@ -71,7 +79,7 @@ export default function Terms() {
           you can download everything from your table at any time.
         </p>
         <p style={p}>
-          As far as the law allows, whoever runs Longtable is not liable for indirect or consequential losses, or for lost data, profits or
+          As far as the law allows, Clarus LLC is not liable for indirect or consequential losses, or for lost data, profits or
           work, arising from your use of it or of the AIs connected to it.
         </p>
       </Section>
@@ -83,12 +91,19 @@ export default function Terms() {
         </p>
       </Section>
 
+      <Section title="Governing law">
+        <p style={p}>
+          These terms are governed by the laws of the United Arab Emirates as applied in the Emirate of Sharjah. Nothing in them
+          takes away any right you have under the law where you live that cannot be given up by agreement.
+        </p>
+      </Section>
+
       <Section title="Changes">
         <p style={p}>We may update these terms. The date at the top says when; using Longtable after a change means you accept it.</p>
       </Section>
 
       <Section title="Questions">
-        <p style={p}>Write to <a href="mailto:hello@longtable.chat">hello@longtable.chat</a>, or use the bug and feedback button inside any table.</p>
+        <p style={p}>Write to Clarus LLC at <a href="mailto:hello@longtable.chat">hello@longtable.chat</a>, or use the early access feedback button inside any table.</p>
       </Section>
     </DocPage>
   );
