@@ -143,7 +143,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
             </details>
             <details className={s.faqItem}>
               <summary>What can my client see?</summary>
-              <p>Only their own requests, what they were told, and who is on the team. Never the team&apos;s chats, the code, or other clients. When the team&apos;s assistant answers them, the team can read every word of it.</p>
+              <p>Only their own requests, what they were told, and who is on the team. Never the team&apos;s chats, the code, or other clients. The assistant that answers them never promises a date, a price or a new feature: anything new goes to the team first. When the team&apos;s assistant answers, the team can read every word of it.</p>
             </details>
             <details className={s.faqItem}>
               <summary>What if everyone&apos;s computer is off?</summary>
