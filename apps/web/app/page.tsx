@@ -26,6 +26,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           <a href="#how">How it works</a>
           <a href="#inside">What is inside</a>
           <Link href="/demo">Demo</Link>
+          <a href="https://github.com/TarikAlHadethi/Longtable">GitHub</a>
         </nav>
         <span className={s.spacer} />
         {user ? <Link href="/start" className="btn" data-testid="my-tables">Your tables</Link> : (
@@ -50,7 +51,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
             <Link className={`btn ${s.big}`} href="/start">Start a table <span className={s.arrow}>→</span></Link>
             <Link className={`btn btn-quiet ${s.big}`} href="/demo"><span className={s.play} />Start demo</Link>
           </div>
-          <div className={`${s.small} rise`} style={i(4)}>No passwords. Sign in with a code sent to your email.</div>
+          <div className={`${s.small} rise`} style={i(4)}>Free during early access, and free for life for teams that join now. No passwords.</div>
         </section>
 
         <div className={`${s.stage} rise`} style={i(6)}><Fit width={1120}><Stage /></Fit></div>
@@ -125,6 +126,44 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           </div>
         </section>
 
+        <section id="faq" className={s.section}>
+          <Reveal><div className={s.eyebrow}>Questions</div><h2 className={s.h2}>Before you pull up a chair.</h2></Reveal>
+          <Reveal className={s.faq}>
+            <details className={s.faqItem}>
+              <summary>What does it cost?</summary>
+              <p>Nothing during early access, and every table started during early access stays free for life. Later there will be a paid plan per table, still free for one person and one client, and the open-source code is always free to run yourself. The <Link href="/terms">terms</Link> say exactly what is covered.</p>
+            </details>
+            <details className={s.faqItem}>
+              <summary>Which AIs does it work with?</summary>
+              <p>Claude Code on a Claude Pro or Max plan, or Codex on a ChatGPT plan, each on your own plan: no API keys. Press Connect, your Claude or ChatGPT app opens with a message ready, press Send, then approve once in your browser. On Linux it connects through Claude Code in VS Code or the terminal.</p>
+            </details>
+            <details className={s.faqItem}>
+              <summary>What leaves my computer?</summary>
+              <p>Your code never does. Each AI reads its own copy of the project on its own computer, and only its answers come to the table, with anything shaped like a key hidden. Your AI sign-in stays on your computer. The <Link href="/privacy">privacy page</Link> has the details.</p>
+            </details>
+            <details className={s.faqItem}>
+              <summary>What can my client see?</summary>
+              <p>Only their own requests, what they were told, and who is on the team. Never the team&apos;s chats, the code, or other clients. When the team&apos;s assistant answers them, the team can read every word of it.</p>
+            </details>
+            <details className={s.faqItem}>
+              <summary>What if everyone&apos;s computer is off?</summary>
+              <p>Nothing is lost. A client&apos;s message reaches the team straight away, and it is answered the moment a teammate&apos;s AI is back.</p>
+            </details>
+            <details className={s.faqItem}>
+              <summary>Is it just for teams?</summary>
+              <p>No. One developer and one client works from day one: one connected AI runs the table and answers your client.</p>
+            </details>
+            <details className={s.faqItem}>
+              <summary>Why not Slack and Claude?</summary>
+              <p>Here everyone&apos;s AI gives one answer, with the files it read; your client sits at the same table but only ever sees their side; and nobody pastes code or keys anywhere.</p>
+            </details>
+            <details className={s.faqItem}>
+              <summary>How do I delete everything?</summary>
+              <p>Anyone can download what is theirs. The owner can download the whole table and delete it for everyone, for good, from Settings, under Your data. Disconnecting your AI removes the connection from your computer.</p>
+            </details>
+          </Reveal>
+        </section>
+
         <Reveal className={s.cta}>
           <Mark size={56} ink="var(--on-night)" />
           <h2>Pull up a chair.</h2>
@@ -140,6 +179,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         <span className={s.brand}><Mark size={20} /> Longtable</span>
         <span className={s.spacer} />
         <Link href="/demo">Demo</Link>
+        <a href="https://github.com/TarikAlHadethi/Longtable">Open source, MIT</a>
         <Link href="/privacy">Privacy</Link>
         <Link href="/terms">Terms</Link>
         <Link href="/security">Security</Link>

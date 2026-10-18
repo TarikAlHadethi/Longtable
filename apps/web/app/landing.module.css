@@ -145,6 +145,16 @@
 .ghost { background: transparent; color: var(--on-night); border: 1px solid OKLCH(0.98 0.004 80 / 0.3); }
 .ghost:hover { background: OKLCH(0.98 0.004 80 / 0.1); color: var(--on-night); }
 
+/* Questions: the tiles' type, one thin line between each, opening the way every details element does. */
+.faq { max-width: 820px; border-top: 1px solid var(--line); }
+.faqItem { border-bottom: 1px solid var(--line); }
+.faqItem summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 2px; font-size: 19px; font-weight: 560; letter-spacing: -0.01em; }
+.faqItem summary::-webkit-details-marker { display: none; }
+.faqItem summary::after { content: "+"; font-weight: 400; font-size: 22px; color: var(--muted); transition: transform 0.25s var(--ease-out); }
+.faqItem[open] summary::after { transform: rotate(45deg); }
+.faqItem summary:hover { color: var(--link); }
+.faqItem p { margin: 0; padding: 0 2px 20px; font-size: 15.5px; line-height: 1.55; color: var(--muted); max-width: 680px; }
+.faqItem p a { color: var(--link); }
 .foot { position: relative; z-index: 1; max-width: 1160px; margin: 0 auto; padding: 40px 20px 36px; display: flex; align-items: center; gap: 6px; }
 .foot .brand { font-size: 16px; }
 
