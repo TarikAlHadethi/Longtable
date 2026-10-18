@@ -54,7 +54,7 @@ export default function Security() {
       </Section>
 
       <Section title="Found a problem?">
-        <p style={p}>Please tell us through the bug and feedback button inside any table, and do not share the details publicly until it is fixed.</p>
+        <p style={p}>Please report it privately through the repository&apos;s Security tab on GitHub (Report a vulnerability) or to <a href="mailto:hello@longtable.chat">hello@longtable.chat</a>, and do not share the details publicly until it is fixed.</p>
       </Section>
     </DocPage>
   );

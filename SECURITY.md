@@ -8,6 +8,7 @@ welcome and taken seriously.
 Please **do not open a public issue** for a security problem. Report it privately instead:
 
 - On GitHub: the repository's **Security** tab, then **Report a vulnerability**. Only the maintainers see it.
+- By email: hello@longtable.chat.
 
 Include what you found, how to reproduce it, and what it lets someone do. You will get a reply as soon as possible,
 and credit in the fix if you want it.

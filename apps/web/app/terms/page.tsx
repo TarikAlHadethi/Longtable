@@ -77,7 +77,7 @@ export default function Terms() {
       </Section>
 
       <Section title="Questions">
-        <p style={p}>Use the bug and feedback button inside any table to reach whoever runs this Longtable.</p>
+        <p style={p}>Write to <a href="mailto:hello@longtable.chat">hello@longtable.chat</a>, or use the bug and feedback button inside any table.</p>
       </Section>
     </DocPage>
   );

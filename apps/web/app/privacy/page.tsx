@@ -85,6 +85,10 @@ export default function Privacy() {
           ends their access at once.
         </p>
       </Section>
+
+      <Section title="Questions">
+        <p style={p}>Write to <a href="mailto:hello@longtable.chat">hello@longtable.chat</a> about your data or this page.</p>
+      </Section>
     </DocPage>
   );
 }
