@@ -62,24 +62,29 @@ function atLen(L: number): [number, number] {
 }
 const ease = (u: number) => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
 
+// Two beats bring the seats back to where they started, so those 5 seconds are worked out once, as keyframes, and
+// handed to the browser to play on a loop: nothing runs in the page per frame, however many marks are showing.
+const LOOP = 2 * (MOVE + PAUSE);
+const STEPS = 48;
+const FRAMES: [number, number][][] = HOME.map((home) => {
+  const out: [number, number][] = [];
+  for (let b = 0; b < 2; b++) for (let i = 0; i <= STEPS; i++) out.push([(b * (MOVE + PAUSE) + (i / STEPS) * MOVE) / LOOP, b + ease(i / STEPS)]);
+  return out.map(([at, p]) => [at, home - (p * PER) / 2]);
+});
+
 export function WorkingMark({ size = 18 }: { size?: number }) {
   const z = size / 32;
   const seats = useRef<(HTMLSpanElement | null)[]>([]);
   useEffect(() => {
-    let raf = 0;
-    const t0 = performance.now();
-    const tick = (now: number) => {
-      const e = now - t0, beat = MOVE + PAUSE, n = Math.floor(e / beat), r = e % beat;
-      const p = n + (r < MOVE ? ease(r / MOVE) : 1);
-      seats.current.forEach((el, k) => {
-        if (!el) return;
-        const [x, y] = atLen(HOME[k] - (p * PER) / 2);
-        el.style.transform = `translate(${x * z}px,${y * z}px)`;
-      });
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const runs = seats.current.map((el, k) => {
+      if (!el || !el.animate) return null;
+      const frames = FRAMES[k].map(([offset, L]) => { const [x, y] = atLen(L); return { offset, transform: `translate(${x * z}px,${y * z}px)` }; });
+      const [x, y] = atLen(HOME[k] - PER);
+      frames.push({ offset: 1, transform: `translate(${x * z}px,${y * z}px)` });
+      return el.animate(frames, { duration: LOOP, iterations: Infinity });
+    });
+    return () => runs.forEach((r) => r?.cancel());
   }, [z]);
   const W = 32 * z, H = 20 * z, d = 4 * z;
   return (

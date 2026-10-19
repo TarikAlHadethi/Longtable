@@ -101,8 +101,11 @@ export function AiWindow({ me, person, conn, commands, on, busy, onSpeed, onClos
             <div className={s.fact}>
               <span>Effort</span>
               <b>
-                <Select id="opt-effort" label="Effort" value={live.effort ?? ""} onChange={(v) => onSpeed(live.id, { effort: v })}
-                  options={[{ value: "", label: "Usual" }, ...EFFORT_LEVELS.map((l) => ({ value: l, label: l === "xhigh" ? "Extra high" : l.charAt(0).toUpperCase() + l.slice(1) }))]} />
+                {/* Medium unless they pick another; the menu wide enough for every level on one line. */}
+                <span className={s.effortPick}>
+                  <Select id="opt-effort" label="Effort" value={live.effort ?? "medium"} onChange={(v) => onSpeed(live.id, { effort: v })}
+                    options={EFFORT_LEVELS.map((l) => ({ value: l, label: l === "xhigh" ? "Extra high" : l.charAt(0).toUpperCase() + l.slice(1) }))} />
+                </span>
               </b>
             </div>
             {conn?.kind === "claude" && <div className={s.switches}>

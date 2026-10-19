@@ -5,7 +5,7 @@ import { Crown } from "@/components/icons";
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import { AI_NAME } from "@/components/ai-logo";
+import { AI_NAME, AiLogo } from "@/components/ai-logo";
 import { Mark, WorkingMark } from "@/components/mark";
 import { browserClient } from "@/lib/supabase/browser";
 import { Inline } from "@/lib/inline";
@@ -534,6 +534,19 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     return map;
   }, [messages]);
 
+  // The back room: the AIs on this chat's request, working or waiting, and those whose part is already in (with the
+  // first words of what they said) while the rest of their round goes on. A recent failure stays a while to be read.
+  const seenJobs = useRef(new Map<string, Job>());
+  const onRequest = working.filter((j) => j.kind !== "listen" && (j.status !== "failed" || Date.now() - new Date(j.created_at).getTime() < 15 * 60 * 1000));
+  for (const j of onRequest) seenJobs.current.set(j.id, j);
+  const liveRounds = new Set(onRequest.filter((j) => j.status !== "failed").map((j) => j.round).filter(Boolean));
+  const backRoom: { j: Job; done: Message | true | null }[] = [
+    ...[...seenJobs.current.values()]
+      .filter((j) => j.chat_id === chat?.id && j.round && liveRounds.has(j.round) && !onRequest.some((l) => l.id === j.id) && j.kind !== "combine" && j.kind !== "plan")
+      .map((j) => ({ j, done: (viewsByRound.get(j.round as string) ?? []).find((v) => v.member_id === j.member_id && (v.meta?.part ?? "view") === (j.kind === "view" ? "view" : j.kind)) ?? (true as const) })),
+    ...onRequest.map((j) => ({ j, done: null })),
+  ].sort((a, b) => a.j.created_at.localeCompare(b.j.created_at));
+
   // Stay at the bottom while new things arrive, unless someone scrolled up to read. And when the chat comes into
   // view: while another page of the room is showing, the chat is not laid out, so there was no bottom to go to.
   useEffect(() => {
@@ -740,7 +753,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       const level = args.toLowerCase();
       if (!level) { setAiOf(me.id); return true; }
       if (!(EFFORT_LEVELS as readonly string[]).includes(level) && level !== "default") { setNotice("Effort is low, medium, high, xhigh or max (or default)."); return true; }
-      setSpeed(myConnection.id, { effort: level === "default" ? "" : level }).then((ok) => ok && setNotice(level === "default" ? "Your Claude thinks as hard as its model usually does." : `Your Claude now works at ${level} effort here.`));
+      setSpeed(myConnection.id, { effort: level === "default" ? "" : level }).then((ok) => ok && setNotice(level === "default" ? "Your Claude is back to medium effort here." : `Your Claude now works at ${level} effort here.`));
       return true;
     }
     if (e.act === "fast") {
@@ -1142,34 +1155,55 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               })}
               {thinking && (
                 <div className={`${styles.message} ${styles.aiMessage}`} data-testid="thinking">
-                  <div className={styles.aiAvatar} aria-hidden="true"><WorkingMark size={22} /></div>
+                  <div className={styles.aiAvatar} aria-hidden="true"><WorkingMark size={27} /></div>
                   <div className={styles.messageBody}>
                     <div className={styles.messageMeta}><span className={styles.messageName}>The table</span></div>
                     <div className={styles.formingLine}>Thinking<span className={styles.formingDots}><i /><i /><i /></span></div>
                   </div>
                 </div>
               )}
-              {working.filter((j) => j.kind !== "listen" && (j.status !== "failed" || Date.now() - new Date(j.created_at).getTime() < 15 * 60 * 1000)).map((j) => {
-                // Long work says what it is on and for how long, and anyone on the team can stop it.
-                const mins = j.status === "running" && j.started_at ? Math.floor((Date.now() - new Date(j.started_at).getTime()) / 60000) : 0;
-                const doing = j.status === "running" && (j.kind === "work" || j.kind === "answer") ? `${j.progress ? `, ${j.progress}` : ""}${mins >= 1 ? ` · ${elapsed(mins)}` : ""}` : "";
-                const stoppable = j.status !== "failed" && (j.kind === "work" || j.kind === "answer" || j.kind === "look");
-                const name = `${byId.get(j.member_id)?.display_name ?? "Someone"}'s ${aiWord(j.member_id)}`;
-                const text = j.status === "failed" ? `${name} couldn't finish: ${j.error ?? "it gave up"}`
-                  : j.kind === "combine" ? (j.status === "waiting" ? `${name} writes the answer once the views are in` : `${name} is writing the answer…`)
-                  : j.kind === "work" ? (j.status === "waiting" ? `${name} starts once the others have had their say` : j.status === "queued" ? `${name} has this next` : (j.stage ?? 0) > 0 ? `${name} is fixing what the others found…` : `${name} is doing the work…`)
-                  : j.kind === "review" ? (j.status === "running" ? `${name} is looking it over…` : `Waiting for ${name} to look it over`)
-                  : j.kind === "view" ? (j.status === "running" ? `${name} is giving its view…` : `Waiting for ${name}'s view`)
-                  : j.kind === "intro" ? `${name} is reading the project…`
-                  : j.kind === "answer" && j.status === "running" ? `${name} is on it…`
-                  : j.status === "running" ? `${name} is reading the code…` : `Waiting for ${name}`;
-                return (
-                  <div key={j.id} className={`${styles.working} ${j.status === "failed" ? styles.workingFailed : ""}`} data-testid="working">
-                    {j.status !== "failed" && <span className={styles.workingMark} aria-hidden="true"><WorkingMark size={18} /></span>}{text.replace(/…$/, doing ? "" : "…")}{doing}
-                    {stoppable && <button type="button" className={styles.toolLink} data-testid="stop-job" onClick={() => stopJob(j.id)}>Stop</button>}
-                  </div>
-                );
-              })}
+              {backRoom.length > 0 && (
+                // The back room: each AI on this request, what it is on right now, and a tick when its part is in.
+                <div className={styles.backRoom} data-testid="back-room">
+                  <div className={styles.backTitle}>The back room</div>
+                  {backRoom.map(({ j, done }, i) => {
+                    const ai = aiWord(j.member_id);
+                    const name = `${byId.get(j.member_id)?.display_name ?? "Someone"}'s ${ai}`;
+                    const kind = connections.find((c) => !c.revoked_at && c.member_id === j.member_id)?.kind ?? "claude";
+                    const mins = !done && j.status === "running" && j.started_at ? Math.floor((Date.now() - new Date(j.started_at).getTime()) / 60000) : 0;
+                    const stoppable = !done && j.status !== "failed" && (j.kind === "work" || j.kind === "answer" || j.kind === "look");
+                    // What it is on: the verb, then the file or search in a chip ("reading" src/booking/StaffPicker.tsx).
+                    const [verb, ...rest] = (j.progress ?? "").split(" ");
+                    const on = rest.join(" ");
+                    const said = done && done !== true ? (done.body.split(/(?<=[.!?])\s/)[0] ?? "").slice(0, 160) : "";
+                    const waiting = j.kind === "combine" ? (j.status === "waiting" ? "writes the answer once the others are in" : "writing the answer")
+                      : j.kind === "work" ? (j.status === "waiting" ? "starts once the others have had their say" : j.status === "queued" ? "has this next" : (j.stage ?? 0) > 0 ? "fixing what the others found" : "doing the work")
+                      : j.kind === "review" ? (j.status === "running" ? "looking it over" : "will look it over")
+                      : j.kind === "view" ? (j.status === "running" ? "giving its view" : "will give its view")
+                      : j.kind === "intro" ? "reading the project"
+                      : j.status === "running" ? "reading the code" : "waiting for its computer";
+                    return (
+                      <div key={j.id} className={styles.brRow} style={{ "--i": i } as React.CSSProperties} data-testid="working" data-done={done ? true : undefined}>
+                        <span className={styles.brAi}><AiLogo kind={kind} size={16} /></span>
+                        <div className={styles.brBody}>
+                          <div className={styles.brWho}><b>{name}</b>{mins >= 1 && <span>{elapsed(mins)}</span>}
+                            {stoppable && <button type="button" className={styles.toolLink} data-testid="stop-job" onClick={() => stopJob(j.id)}>Stop</button>}
+                          </div>
+                          {done ? (said && <div className={styles.brText}>{said}</div>)
+                            : j.status === "failed" ? <div className={`${styles.brText} ${styles.workingFailed}`}>Couldn&apos;t finish: {j.error ?? "it gave up"}</div>
+                            : j.status === "running" ? (
+                              <div className={styles.brReading} key={j.progress ?? ""}><span className={styles.brSpin} />
+                                {j.progress && on ? <>{verb} <code>{on}</code></> : (j.progress || waiting)}
+                              </div>
+                            )
+                            : <div className={styles.brWaiting}>{waiting}</div>}
+                        </div>
+                        {done && <span className={styles.brTick} aria-label="done">✓</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 

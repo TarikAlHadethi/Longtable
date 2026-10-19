@@ -591,3 +591,33 @@
 .held.clientSay .clientTools { display: none; }
 .follow.clientSay .clientRow, .follow.say .bubble { margin-top: 0; }
 .unseen { visibility: hidden; }
+
+/* Every answer is the table's: set on a soft card, as on the opening page. */
+.tableAnswer { background: light-dark(oklch(0.972 0.01 170), oklch(0.199 0.01 170)); margin: 0 -14px; padding: 12px 14px 6px; border-radius: 14px; }
+
+/* The back room, as on the opening page: each AI on the request, what it is on now, a tick when its part is in. */
+.backRoom {
+  margin-left: 40px; border: 1px dashed var(--line-dashed); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
+  background: light-dark(oklch(0.985 0.004 80), oklch(0.209 0.004 80)); animation: lt-rise 0.32s var(--ease-out) both;
+}
+.backTitle { font-size: 12px; font-weight: 560; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); }
+.brRow { display: flex; align-items: flex-start; gap: 9px; animation: lt-rise 0.32s var(--ease-out) both; animation-delay: calc(var(--i) * 60ms); }
+.brAi { width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.brBody { flex: 1; min-width: 0; }
+.brWho { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.brWho b { color: var(--ink); font-weight: 560; }
+.brReading { display: flex; align-items: center; gap: 7px; font-size: 13.5px; color: var(--ink-2); margin-top: 2px; min-width: 0; animation: lt-fade 0.18s ease both; }
+.brReading code { font-family: var(--font-ui); font-size: 12px; background: var(--chip); padding: 1px 5px; border-radius: 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.brWaiting { font-size: 13.5px; color: var(--muted); margin-top: 2px; }
+.brText { font-size: 14px; line-height: 1.45; margin-top: 2px; animation: lt-rise 0.4s var(--ease-out) both; }
+.brTick { color: light-dark(oklch(0.5 0.1 150), oklch(0.78 0.1 150)); font-weight: 620; animation: br-pop 0.4s var(--ease-spring) both; }
+.brSpin { flex: none; width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--line-strong); border-top-color: var(--sage); animation: br-spin 0.7s linear infinite; }
+@keyframes br-pop { from { opacity: 0; transform: scale(0.4); } to { opacity: 1; transform: none; } }
+@keyframes br-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .brSpin { animation-duration: 2s; } }
+.tableAnswer .aiText > :last-child { margin-bottom: 0; }
+/* On the card the small print takes no room until it is wanted, then slides open. */
+@media (hover: hover) {
+  .tableAnswer .aiFoot { max-height: 0; margin-top: 0; overflow: hidden; transition: opacity 0.18s ease, transform 0.22s var(--ease-out), max-height 0.24s var(--ease-out), margin-top 0.24s var(--ease-out); }
+  .tableAnswer:hover .aiFoot, .tableAnswer:focus-within .aiFoot, .tableAnswer .aiFoot[data-open] { max-height: 120px; margin-top: 6px; }
+}

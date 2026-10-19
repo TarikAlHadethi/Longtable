@@ -10,8 +10,8 @@ import type { Member, Message, Page } from "./types";
 import { PageCard } from "./page-window";
 import styles from "./room.module.css";
 
-// An answer from the table: one AI's, or one combined from several. Sources are the files it read; "How they got
-// here" opens the back-room views and how they were settled.
+// An answer from the table: one AI's, or one combined from several. Every answer speaks as the table; whose AI wrote
+// it is in the small print. Sources are the files it read; "How they got here" opens the back-room views.
 export function Answer({ m, members, views, again, follows = false, pages = [], onOpenPage }: { m: Message; members: Map<string, Member>; views: Message[]; again?: boolean; follows?: boolean; pages?: Page[]; onOpenPage?: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   const who = members.get(m.member_id);
@@ -20,6 +20,7 @@ export function Answer({ m, members, views, again, follows = false, pages = [], 
   const combined = !!m.meta?.round;
   // The table speaking for itself: its quick word, with no code read and nobody's own AI behind it.
   const quick = m.meta?.part === "reply";
+  const byOne = !combined && !quick;
   const sources = m.meta?.sources ?? [];
   // Whose AI it is: Claude or ChatGPT, read from the model that wrote it.
   const ai = AI_NAME[kindOfModel(m.meta?.model)];
@@ -41,14 +42,14 @@ export function Answer({ m, members, views, again, follows = false, pages = [], 
   const changed = read.startsWith("changed ");
 
   return (
-    <div className={`${styles.message} ${styles.aiMessage} ${follows ? styles.follow : ""}`} data-mid={m.id} data-ai="true" data-follows={follows || undefined}>
+    <div className={`${styles.message} ${styles.aiMessage} ${styles.tableAnswer} ${follows ? styles.follow : ""}`} data-mid={m.id} data-ai="true" data-follows={follows || undefined}>
       <div className={`${styles.aiAvatar} ${follows ? styles.unseen : ""}`} aria-hidden={follows || undefined}>
-        {combined || quick ? <Mark size={22} /> : <AiLogo kind={kindOfModel(m.meta?.model)} size={22} />}
+        <Mark size={22} />
       </div>
       <div className={styles.messageBody}>
         {!follows && (
           <div className={styles.messageMeta}>
-            <span className={styles.messageName}>{combined || quick ? "The table" : `${name}'s ${ai}`}</span>
+            <span className={styles.messageName}>The table</span>
           </div>
         )}
         <div className={`${styles.messageText} ${styles.aiText}`}><Prose text={m.body} /></div>
@@ -56,6 +57,7 @@ export function Answer({ m, members, views, again, follows = false, pages = [], 
         {/* The small print: when, what it read, where a change went. There when you point at the answer. */}
         <div className={styles.aiFoot} data-open={open || undefined}>
           <span><Time iso={m.created_at} /></span>
+          {byOne && <span>by {name}&apos;s {ai}</span>}
           {combined && <span>one answer from {parts.length + 1} {many}, written by {name}&apos;s {ai}</span>}
           {changed && <span>{read}</span>}
           {sources.length > 0 && (

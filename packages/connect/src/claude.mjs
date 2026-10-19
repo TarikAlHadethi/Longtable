@@ -162,11 +162,14 @@ export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,
         for (const part of e.message?.content || []) {
           if (part.type !== "tool_use") continue;
           const where = String(part.input?.file_path || part.input?.path || "");
-          const file = where.split(/[/\\]/).pop();
+          // The path inside the project when it is in it (src/booking/StaffPicker.tsx), else the file's name alone.
+          const inside = where && where.toLowerCase().startsWith(String(cwd).toLowerCase()) ? where.slice(String(cwd).length).replace(/^[/\\]+/, "").replace(/\\/g, "/") : "";
+          const file = inside && inside.length <= 80 ? inside : where.split(/[/\\]/).pop();
           if (/[/\\]\.longtable-yours([/\\]|$)/.test(where) || /^\.longtable-yours([/\\]|$)/.test(where)) onNote("reading what it knows");
           // A command is named by its program only: the rest of a command line can hold a secret.
           else if (part.name === "Bash") onNote(`running ${String(part.input?.command || "").trim().split(/\s+/)[0].replace(/[^A-Za-z0-9._-]/g, "").slice(0, 30) || "a command"}`);
-          else onNote(part.name === "Edit" || part.name === "Write" ? `editing ${file}` : part.name === "Read" ? `reading ${file}` : "searching the code");
+          else onNote(part.name === "Edit" || part.name === "Write" ? `editing ${file}` : part.name === "Read" ? `reading ${file}`
+            : (part.name === "Grep" || part.name === "Glob") && part.input?.pattern ? `searching for ${String(part.input.pattern).replace(/\s+/g, " ").slice(0, 40)}` : "searching the code");
         }
       }
     });

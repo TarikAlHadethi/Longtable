@@ -534,7 +534,7 @@ async function workPacked(rpc, seat, engines, job, copy) {
   // One of their own prompts or skills, or one of the table's, when their message runs one: the same as on Claude.
   const cmd = job.command?.mine ? loadCommand(seat, job.question) : null;
   const prompt = `${cmd ? commandPrompt(job.me, cmd) : ""}${buildPrompt(job)}\n\n<<<CODE\n${inert(pack.text)}\nCODE>>>${PAGE_KINDS.has(job.kind) ? pagesPrompt(job) : ""}`;
-  const result = await askCodex({ codex: engines.codex, prompt: `${systemFor({ ...job, packed: true })}\n\n${prompt}`, schema, model: seat.model || undefined, effort: job.effort || null, timeoutMs: 5 * 60 * 1000 });
+  const result = await askCodex({ codex: engines.codex, prompt: `${systemFor({ ...job, packed: true })}\n\n${prompt}`, schema, model: seat.model || undefined, effort: job.effort || "medium", timeoutMs: 5 * 60 * 1000 });
   if (result.tools.length) throw new Error(`Codex tried to use tools (${result.tools.join(", ")}); its answer was dropped`);
   const s = result.structured_output || {};
   const text = job.kind === "view" || job.kind === "review" ? s.view : job.kind === "intro" ? `${s.knows}\n\nI can check: ${s.can_check}` : s.answer;
@@ -683,11 +683,14 @@ async function workSandbox(rpc, seat, engines, job) {
     told = Date.now();
     try { if ((await rpc("runner_beat", { token: seat.token, job: job.job_id, note })) === false) control.kill?.(); } catch (e) { if (/connection was removed/i.test(e.message)) control.kill?.(); }
   };
+  // The newest note reaches the room within a second, and the room is told at most once a second.
+  let pending = null;
+  const soon = () => { if (!pending) pending = setTimeout(() => { pending = null; tell(); }, Math.max(0, 1000 - (Date.now() - told))); };
   const beat = setInterval(tell, 20000);
   try {
     // A change in a copy is a short piece of work: ten minutes and sixty steps, on the team's plan.
     const result = await ask({ claude: engines.claude, cwd: opened.dir, edit: true, long: false, control,
-      onNote: (n) => { if (n !== note) { note = n; if (Date.now() - told > 4000) tell(); } },
+      onNote: (n) => { if (n !== note) { note = n; soon(); } },
       prompt: sandboxPrompt(job), system: sandboxSystem(job), schema: KINDS.sandbox.schema, model: seat.model || process.env.LONGTABLE_MODEL });
     if (result.is_error) throw new Error(result.result || "Claude Code reported an error");
     const s = result.structured_output || {};
@@ -842,6 +845,9 @@ async function work(rpc, seat, engines, raw) {
       told = Date.now();
       try { if ((await rpc("runner_beat", { token: seat.token, job: job.job_id, note })) === false) control.kill?.(); } catch (e) { if (/connection was removed/i.test(e.message)) control.kill?.(); }
     };
+    // The newest note reaches the room within a second, and the room is told at most once a second.
+    let pending = null;
+    const soon = () => { if (!pending) pending = setTimeout(() => { pending = null; tell(); }, Math.max(0, 1000 - (Date.now() - told))); };
     beat = setInterval(tell, 20000);
     const dir = opened ? opened.dir : copy.dir;
     // And the whole of it beside the code, to read when the question needs it. Never in a folder that is committed
@@ -879,8 +885,7 @@ async function work(rpc, seat, engines, raw) {
       cwd: dir,
       edit: doing,
       long: doing,
-      // What it is doing reaches the room within a few seconds of changing, and no more often than that.
-      onNote: (n) => { if (n !== note) { note = n; if (Date.now() - told > 4000) tell(); } },
+      onNote: (n) => { if (n !== note) { note = n; soon(); } },
       control,
       prompt: yours(job) + (cmd ? commandPrompt(job.me, cmd) : "") + (doing ? `${buildPrompt(job)}\n\n${full ? FULL_DOING(branch) : DOING(branch)}` : buildPrompt(job) + (full ? `\n\n${FULL_READING}` : "")) + fromSandbox(seat, job)
         + materialsPrompt(job.materials) + attachedPrompt(attached, dir) + (PAGE_KINDS.has(job.kind) ? pagesPrompt(job) : "")
@@ -889,7 +894,7 @@ async function work(rpc, seat, engines, raw) {
       addDirs: laid ? laid.dirs : [],
       schema: KINDS[job.kind].schema,
       model: seat.model || process.env.LONGTABLE_MODEL,
-      effort: job.effort || null,
+      effort: job.effort || "medium",
       fast: job.fast === true,
     }).catch((e) => {
       // Only short jobs have a time limit now; if one that was changing files hits it, what it changed still lands.

@@ -70,9 +70,9 @@ try {
   check("the window has effort and fast mode", (await page.locator("#opt-effort").count()) === 1 && (await page.locator("[data-testid=opt-fast]").count()) === 1);
   // Our own menu, not the browser's: open it and pick.
   await page.click("[data-testid=ai-window] button[aria-haspopup=listbox]");
-  await page.click("[data-testid=ai-window] [role=option]:has-text('Medium')");
+  await page.click("[data-testid=ai-window] [role=option]:has(span:text-is('High'))");
   await sleep(800);
-  check("effort chosen in the window is kept", sql(`select effort from public.connections where id = '${connId}'`) === "medium");
+  check("effort chosen in the window is kept", sql(`select effort from public.connections where id = '${connId}'`) === "high");
   await page.click("[data-testid=ai-window] button:has-text('Close')");
 
   // Settings by typing.
