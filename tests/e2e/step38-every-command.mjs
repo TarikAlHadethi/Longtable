@@ -96,7 +96,7 @@ try {
   await box.press("Enter");
   await page.waitForSelector("[data-testid=ai-window]");
   await sleep(1500);
-  check("when her account does not allow fast mode, the window says so plainly", /usage credits|organization/.test(await page.textContent("[data-testid=ai-window]")));
+  check("when her account does not allow fast mode, the window does not offer it", (await page.locator("[data-testid=ai-window] [data-testid=opt-fast]").count()) === 0);
   await page.click("[data-testid=ai-window] button:has-text('Close')");
 
   // Chats.

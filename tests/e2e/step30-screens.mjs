@@ -73,6 +73,7 @@ try {
   await p.goto(`${APP}/t/${tableId}/settings`);
   await p.waitForSelector("form[aria-label='The table'] button:has-text('Save'):not([disabled])", { timeout: 15000 });
   check("read properly, the settings can be saved", true);
+  await p.click("[role=tab]:has-text('People')");
   await p.locator("button:has-text('Take off the table')").last().click();
   check("a short name keeps its title in Settings", (await p.locator("button:has-text('Take Dr. Ruiz off')").count()) === 1, await p.locator("button:has-text('Take')").allTextContents());
 
@@ -80,8 +81,7 @@ try {
   const doomed = (await rpc(token, "create_chat", { t: tableId, chat_name: `gone-${run}` })).body;
   await p.goto(`${APP}/t/${tableId}?c=${doomed}`);
   await p.waitForSelector("textarea");
-  await p.click("[data-testid=me-menu]");
-  await p.click("a:has-text('Table settings')");
+  await p.click("[data-testid=gear]");
   await p.waitForURL(/\/settings$/);
   await rpc(token, "delete_chat", { c: doomed });
   await sleep(3000);

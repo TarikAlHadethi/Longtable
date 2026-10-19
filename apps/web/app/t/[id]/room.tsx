@@ -1,7 +1,7 @@
 "use client";
 
 import { Face } from "@/components/face";
-import { Crown } from "@/components/icons";
+import { Crown, Gear } from "@/components/icons";
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
@@ -36,6 +36,7 @@ import {
   APPROVAL_COLUMNS, type Approval,
 } from "./types";
 import { ApprovalCards } from "./approvals";
+import { ModePick } from "./mode-pick";
 import styles from "./room.module.css";
 import { firstName } from "@/lib/names";
 import { CODEX_NAMES, EFFORT_LEVELS, SLASH, slashEntry } from "@/lib/slash.mjs";
@@ -135,6 +136,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   }, [supabase, table.id]);
   useEffect(() => { readCommands(); }, [readCommands]);
   // What this person's own full Claude Code is waiting for them to allow. Only they can read it (row level security).
+  const [setTab, setSetTab] = useState<"general" | "people" | "clients">("general");
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const readApprovals = useCallback(async () => {
     const { data, error } = await supabase.from("approvals").select(APPROVAL_COLUMNS).eq("table_id", table.id).eq("status", "waiting").order("created_at");
@@ -650,6 +652,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (attach.pending.length) return sendFiles();
     const body = draft.trim();
     if (!body || !chat) return;
+    // A poll (what a client is told, or a question to the team) is made from "/poll", not from a button.
+    if (/^\/poll\s*$/i.test(body)) { setDraft(""); requestAnimationFrame(grow); setAskingFor(null); setAsking(true); return; }
     if (body.startsWith("/") && doSlash(body)) { setDraft(""); requestAnimationFrame(grow); return; }
     setDraft("");
     requestAnimationFrame(grow);
@@ -678,6 +682,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (attach.pending.length) return sendFiles(true);
     const body = draft.trim();
     if (!body || !chat) return;
+    // A poll (what a client is told, or a question to the team) is made from "/poll", not from a button.
+    if (/^\/poll\s*$/i.test(body)) { setDraft(""); requestAnimationFrame(grow); setAskingFor(null); setAsking(true); return; }
     if (body.startsWith("/") && doSlash(body)) { setDraft(""); requestAnimationFrame(grow); return; }
     setDraft("");
     setNotice("");
@@ -766,6 +772,13 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     return false;
   }
 
+  // How their own full Claude Code asks before acting, picked under the box as in Claude Code.
+  async function setMode(id: string, mode: string) {
+    const was = connections.find((c) => c.id === id)?.mode ?? null;
+    setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, mode } : c)));
+    const { error } = await supabase.rpc("set_ai_mode", { conn: id, mode });
+    if (error) { setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, mode: was } : c))); didNotTake("The mode did not change. Try again."); }
+  }
   async function setSpeed(id: string, patch: { effort?: string; fast?: boolean }) {
     const before = connections.find((c) => c.id === id);
     setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, ...(patch.effort !== undefined ? { effort: patch.effort || null } : {}), ...(patch.fast !== undefined ? { fast: patch.fast } : {}) } : c)));
@@ -990,7 +1003,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           {view === "table" ? "Usage" : "Work"}
         </button>}
         <ProfileMenu me={self} tableId={table.id} onInvite={self.role === "owner" ? () => setInviting(true) : undefined}
-          onMe={() => openPerson(me.id, true)} onSettings={() => go("settings", `${base}/settings`)} onLogs={() => go("logs", `${base}/activity`)}
+          onMe={() => openPerson(me.id, true)} onSettings={() => (myConnection ? setAiOf(me.id) : openPerson(me.id, true))}
           ai={myConnection?.kind ?? null} onConnect={() => setConnectOpen(true)} onDisconnect={() => myConnection && disconnect(myConnection.id)} />
       </header>
 
@@ -1044,7 +1057,12 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           </div>
           {/* On a phone the top bar has no room, so the same button lives in the menu. */}
           {(clients.length > 0 || self.role === "owner") && <button className={`btn btn-quiet ${styles.clientSideMenu}`} onClick={() => { setDrawerOpen(false); go("client", `${base}?side=client`); }}>Client side</button>}
-          <BugButton tableId={table.id} place={view} />
+          {/* Everything about the table, in one place: its settings for the owner, the logs for everyone else. */}
+          <div className={styles.sideFoot}>
+            <button className={styles.gear} aria-label={self.role === "owner" ? "Table settings" : "Logs"} title={self.role === "owner" ? "Table settings" : "Logs"} data-testid="gear"
+              onClick={() => { setDrawerOpen(false); if (self.role === "owner") { setSetTab("general"); go("settings", `${base}/settings`); } else go("logs", `${base}/activity`); }}><Gear size={17} /></button>
+            <BugButton tableId={table.id} place={view} />
+          </div>
           <ApprovalCards items={approvals} ai={myConnection?.kind === "codex" ? "ChatGPT" : "Claude"}
             onAnswer={async (a, allow, always) => {
               setApprovals((prev) => prev.filter((x) => x.id !== a.id));
@@ -1079,13 +1097,16 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 <h1 className={styles.setTitle}>{self.role === "owner" ? "Settings" : "Logs"}</h1>
                 {self.role === "owner" && (
                   <div className={styles.seg} role="tablist">
-                    <button role="tab" aria-selected={view === "settings"} className={view === "settings" ? styles.segOn : ""} onClick={() => go("settings", `${base}/settings`)}>The table</button>
+                    {(["general", "people", "clients"] as const).map((t) => (
+                      <button key={t} role="tab" aria-selected={view === "settings" && setTab === t} className={view === "settings" && setTab === t ? styles.segOn : ""}
+                        onClick={() => { setSetTab(t); go("settings", `${base}/settings`); }}>{t === "general" ? "General" : t === "people" ? "People" : "Clients"}</button>
+                    ))}
                     <button role="tab" aria-selected={view === "logs"} className={view === "logs" ? styles.segOn : ""} onClick={() => go("logs", `${base}/activity`)}>Logs</button>
                   </div>
                 )}
               </div>
               {view === "settings" && self.role === "owner"
-                ? <SettingsForm table={{ id: table.id, name: tableName }} me={me.id} people={members} chats={chats} data={settings} onData={setSettings}
+                ? <SettingsForm part={setTab} table={{ id: table.id, name: tableName }} me={me.id} people={members} chats={chats} data={settings} onData={setSettings}
                     onRenamed={setTableName} onRemoved={(id) => setMembers((prev) => prev.filter((m) => m.id !== id))} />
                 : <LogsPanel table={table} members={members} />}
             </div>
@@ -1252,7 +1273,9 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               <button className="btn" disabled={(!draft.trim() && attach.pending.length === 0) || attach.busy || attach.recording}>Send</button>
             </form>
             <div className={styles.composerTools}>
-              <button className={styles.toolLink} onClick={() => { setAskingFor(null); setAsking(true); }}>Make a poll</button>
+              {myConnection?.kind === "claude" && myConnection.full_claude && (
+                <ModePick value={myConnection.mode ?? "manual"} onPick={(m) => setMode(myConnection.id, m)} />
+              )}
               {notice && <span className={styles.notice} role="status">{notice}</span>}
               {/* When this person's own AI cannot answer here, say why, with the one fix. */}
               {!notice && self.role !== "client" && (() => {

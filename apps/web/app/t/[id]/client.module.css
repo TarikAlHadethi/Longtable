@@ -13,7 +13,7 @@
 .private { align-self: center; font-size: 13.5px; color: var(--faint); padding: 6px 0; text-align: center; }
 
 .thread { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 28px 20px 20px; }
+.scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 28px 20px 56px; }
 .col { width: 100%; max-width: 680px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
 .foot { flex-shrink: 0; padding: 0 20px 18px; }
 .foot .col { gap: 6px; max-width: 780px; }

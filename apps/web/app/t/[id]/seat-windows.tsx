@@ -10,7 +10,7 @@ import type { Command, Connection, Member } from "./types";
 import room from "./room.module.css";
 import s from "./panels.module.css";
 import { firstName } from "@/lib/names";
-import { EFFORT_LEVELS, fastWhy } from "@/lib/slash.mjs";
+import { EFFORT_LEVELS } from "@/lib/slash.mjs";
 import { Select } from "@/components/select";
 
 const prettyPlan = (plan?: string | null) => (plan ? `${plan.charAt(0).toUpperCase()}${plan.slice(1)}`.replace(/_/g, " ") : null);
@@ -83,14 +83,14 @@ export function AiWindow({ me, person, conn, commands, on, busy, onSpeed, onClos
             <div className={s.switches}>
               <Switch on={open} onChange={(v) => onOptions(live.id, { open_paths: v })} testid="opt-open"
                 title="Open what I point at"
-                about="Reads a file or folder you name in your own message. Never keys or passwords, and it changes nothing." />
+                about="Reads a file or folder you name. Never keys." />
               <Switch on={open && share} disabled={!open} onChange={(v) => onOptions(live.id, { share_paths: v })} testid="opt-share"
                 title="Share it with the other AIs"
-                about="Your teammates' AIs see it too, for that request. Text only, secrets hidden, never the client." />
+                about="Your teammates' AIs see what it opened." />
               {conn?.kind === "claude" && (
                 <Switch on={!!live.full_claude} onChange={(v) => onOptions(live.id, { full_claude: v })} testid="opt-full"
                   title="Run as my full Claude Code"
-                  about="Your own settings, rules and tools, commands and tests included, in its own copy of your project. Anything your rules don't allow asks you here first." />
+                  about="Runs commands and tests. Asks you first." />
               )}
             </div>
           </div>
@@ -108,10 +108,10 @@ export function AiWindow({ me, person, conn, commands, on, busy, onSpeed, onClos
                 </span>
               </b>
             </div>
-            {conn?.kind === "claude" && <div className={s.switches}>
+            {/* Fast mode only where their account can use it: a switch that can never work is not offered. */}
+            {conn?.kind === "claude" && !(live.limits?.fast_why && live.limits?.fast !== "on") && <div className={s.switches}>
               <Switch on={!!live.fast} onChange={(v) => onSpeed(live.id, { fast: v })} testid="opt-fast"
-                title="Fast mode"
-                about={live.fast && live.limits?.fast !== "on" && live.limits?.fast_why ? fastWhy(live.limits.fast_why) : "Faster answers, at a higher cost to your plan."} />
+                title="Fast mode" about="Faster, costs more of your plan." />
             </div>}
           </div>
         )}

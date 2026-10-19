@@ -11,7 +11,7 @@ import { accessToken, API, APP, inviteLink, join, KEY, launch, rest, rpc, sleep,
 // A poll about a client's request is made from under the box (17 Oct 2026: no poll link and no status pill under a
 // client's message any more): open it, then pick the request in its menu.
 async function pollFor(page, title) {
-  await page.click("button:has-text('Make a poll') >> nth=-1");
+  await page.locator("textarea").first().fill("/poll"); await page.locator("textarea").first().press("Enter");
   await page.waitForSelector("form[aria-label='Make a poll']");
   await page.click("form[aria-label='Make a poll'] button[aria-haspopup=listbox]");
   await page.click(`form[aria-label='Make a poll'] [role=option]:has-text(${JSON.stringify(title)})`);

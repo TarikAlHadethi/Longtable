@@ -2,18 +2,21 @@
    Centring has one source: .tree is a centred column, the people's row holds only the people in equal columns, and
    the wires and the table sit under that same row. Nothing else is in the row's flow, so nothing can push it aside. */
 .wrap {
-  flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; gap: 26px; padding: 44px 0 48px;
+  flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 16px 0 16px;
   background:
     radial-gradient(700px 320px at 50% 0, light-dark(oklch(0.95 0.03 170 / 0.7), oklch(0.3 0.04 170 / 0.5)), transparent 70%),
     var(--paper);
 }
 .wrap > * { flex-shrink: 0; }
-.top { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; padding: 0 20px; }
-.word { font-size: 28px; font-weight: 560; letter-spacing: -0.03em; margin-top: 4px; animation: tv-rise 0.5s var(--ease-out) 0.45s both; }
-.project { font-family: var(--font-voice); font-size: 19px; color: var(--muted); animation: tv-rise 0.5s var(--ease-out) 0.55s both; }
+/* Everything on the table, scaled as one so it fits the window (see TableView). */
+.fit { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.showcase .fit { gap: 26px; }
+.top { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; padding: 0 20px; }
+.word { font-size: 22px; font-weight: 560; letter-spacing: -0.03em; margin-top: 0; animation: tv-rise 0.5s var(--ease-out) 0.45s both; }
+.project { font-family: var(--font-voice); font-size: 17px; color: var(--muted); animation: tv-rise 0.5s var(--ease-out) 0.55s both; }
 
 /* Room on every side for shadows and the invite seat; scrolls sideways only when the team is wider than the page. */
-.scroller { position: relative; z-index: 2; width: 100%; display: flex; padding: 16px 24px 56px; margin-bottom: -30px; scrollbar-width: thin; }
+.scroller { position: relative; z-index: 2; width: 100%; display: flex; padding: 14px 24px 12px; scrollbar-width: thin; }
 .tree { margin: 0 auto; width: calc(var(--cols) * 236px); max-width: max(100%, calc(var(--cols) * 176px)); flex-shrink: 0; display: flex; flex-direction: column; align-items: center; }
 .row { position: relative; z-index: 1; width: 100%; display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); }
 .col { display: flex; flex-direction: column; align-items: center; padding: 0 9px; min-width: 0; animation: tv-rise 0.55s var(--ease-out) both; animation-delay: calc(var(--i) * 110ms + 0.5s); }
@@ -21,6 +24,8 @@
    the next card would cover the menu. */
 .col { position: relative; }
 .col:has([aria-expanded="true"]) { z-index: 20; }
+/* The row sits beside the table, so with a menu open the whole row comes above the table card. */
+.row:has([aria-expanded="true"]) { z-index: 21; }
 
 .person { display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; isolation: isolate; }
 .avatar {
@@ -79,7 +84,7 @@
 
 /* AI to the table: one smooth line. Faint until an AI is connected; then it takes its maker's colour and a light
    runs along it toward the table, faster while that AI is working. */
-.funnel { position: relative; z-index: 0; width: 100%; height: 104px; display: block; overflow: visible; animation: tv-fade 0.6s ease 0.85s both; }
+.funnel { position: relative; z-index: 0; width: 100%; height: 58px; display: block; overflow: visible; animation: tv-fade 0.6s ease 0.85s both; }
 .wire, .wireOff, .pulse { fill: none; stroke-linecap: round; }
 .wireOff { stroke: var(--line-strong); stroke-width: 2; }
 .wire { stroke: var(--tone); stroke-width: 3; opacity: 0.45; }
@@ -92,7 +97,7 @@
 /* The table: its name, the mark dead centre, and the model that last answered. */
 .table {
   position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; background: var(--card);
-  border: 1px solid var(--line-strong); border-radius: 26px; padding: 22px 16px 24px; width: 248px; max-width: 100%;
+  border: 1px solid var(--line-strong); border-radius: 26px; padding: 16px 16px 18px; width: 248px; max-width: 100%;
   box-shadow: 0 16px 44px oklch(0.2 0.01 70 / 0.1); animation: tv-rise 0.6s var(--ease-out) 0.9s both; transition: border-color 0.3s ease;
 }
 /* The table rises in on its own layer too: with its model menu open it sits above the clients and the line to them. */
@@ -102,16 +107,23 @@
 .tableTitle { font-size: 14px; font-weight: 560; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 .tableModel { font-size: 20px; font-weight: 560; letter-spacing: -0.015em; animation: tv-swap 0.4s var(--ease-out) both; }
 
-.clientStem { width: 2px; height: 26px; margin: 8px 0; background: var(--line); border-radius: 1px; animation: tv-fade 0.5s ease 1.05s both; }
+.clientStem { width: 2px; height: 20px; margin: 6px 0; background: var(--line); border-radius: 1px; animation: tv-fade 0.5s ease 1.05s both; }
 .clients { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; animation: tv-rise 0.5s var(--ease-out) 1.1s both; }
 .client { display: flex; align-items: center; gap: 10px; text-align: left; border: 1px solid var(--line); background: light-dark(oklch(0.97 0.012 120), oklch(0.25 0.012 120)); border-radius: 999px; padding: 7px 16px 7px 7px; }
 /* A new table's first steps: the clients' pills, a little smaller; a step to do wears the invite seat's dashed ring. */
-.steps { display: grid; grid-template-columns: repeat(2, auto); gap: 8px; }
+.steps { display: grid; grid-template-columns: repeat(4, auto); gap: 8px; }
+@media (max-width: 1100px) { .steps { grid-template-columns: repeat(2, auto); } }
 .steps .client { padding: 5px 14px 5px 5px; }
 .steps .clientAvatar { width: 24px; height: 24px; font-size: 12.5px; }
 .steps .client b { font-size: 14px; }
 .stepTodo { background: transparent; border: 2px dashed var(--line-dashed); color: var(--muted); }
-.stepDone { opacity: 0.6; cursor: default; }
+/* A step that is done keeps its pill; only its words go quiet. */
+.stepDone { cursor: default; }
+.stepDone b { color: var(--muted); font-weight: 500; }
+/* The pill's quiet text colour must never reach the number or tick in its circle. */
+.client .clientAvatar { color: white; font-size: 14px; }
+.steps .client .clientAvatar { font-size: 12.5px; }
+.stepTodo.clientAvatar { color: var(--muted); }
 .clientAvatar { width: 30px; height: 30px; border-radius: 50%; color: white; font-size: 14px; font-weight: 560; display: inline-flex; align-items: center; justify-content: center; }
 .client b { display: block; font-size: 14.5px; font-weight: 560; }
 .client span { font-size: 13px; color: var(--muted); }
@@ -152,7 +164,7 @@
 .open { cursor: pointer; font: inherit; color: inherit; }
 button.open { background: none; border: 0; padding: 0; }
 button.client.open { border: 1px solid var(--line); background: light-dark(oklch(0.97 0.012 120), oklch(0.25 0.012 120)); padding: 7px 16px 7px 7px; }
-.person.open { border-radius: 16px; padding: 6px 10px; margin: -6px -10px; transition: background-color 0.15s ease; }
+.person.open { border-radius: 18px; padding: 18px 16px 8px; margin: -18px -16px -8px; transition: background-color 0.15s ease; }
 .person.open:hover, button.client.open:hover { background: var(--hover); }
 .open:focus-visible { outline: 2px solid oklch(0.58 0.08 170 / 0.5); outline-offset: 3px; }
 

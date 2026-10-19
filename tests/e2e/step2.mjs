@@ -29,7 +29,7 @@ try {
   check("new chat reaches the developer live", true);
 
   // Make a poll through the form, with the words the client will be told.
-  await owner.page.click("button:has-text('Make a poll')");
+  await owner.page.locator("textarea").first().fill("/poll"); await owner.page.locator("textarea").first().press("Enter");
   await owner.page.fill("#d-title", "Reminder channel for launch");
   await owner.page.fill("#d-context", "About a day of work.");
   await owner.page.fill("input[aria-label='Option 1']", "Text, email as fallback");

@@ -534,8 +534,8 @@
 /* Two arrivals in a row share the rule between them. */
 .joined + .joined { margin-top: -19px; border-top: 0; }
 /* The small print under an AI's answer, in the same letters as everything else, shown when you point at the answer. */
-.aiFoot { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 6px; font-size: 12.5px; line-height: 1.4; color: var(--faint); opacity: 0; transform: translateY(-3px); transition: opacity 0.18s ease, transform 0.22s var(--ease-out); }
-.aiMessage:hover .aiFoot, .aiMessage:focus-within .aiFoot, .aiFoot[data-open] { opacity: 1; transform: none; }
+.aiFoot { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 6px; font-size: 12.5px; line-height: 1.4; color: var(--faint); opacity: 0; transition: opacity 0.2s ease; }
+.aiMessage:hover .aiFoot, .aiMessage:focus-within .aiFoot, .aiFoot[data-open] { opacity: 1; }
 @media (hover: none) { .aiFoot { opacity: 1; transform: none; } }
 .footSources { overflow-wrap: anywhere; }
 .footSources span + span::before { content: ", "; }
@@ -592,9 +592,6 @@
 .follow.clientSay .clientRow, .follow.say .bubble { margin-top: 0; }
 .unseen { visibility: hidden; }
 
-/* Every answer is the table's: set on a soft card, as on the opening page. */
-.tableAnswer { background: light-dark(oklch(0.972 0.01 170), oklch(0.199 0.01 170)); margin: 0 -14px; padding: 12px 14px 6px; border-radius: 14px; }
-
 /* The back room, as on the opening page: each AI on the request, what it is on now, a tick when its part is in. */
 .backRoom {
   margin-left: 40px; border: 1px dashed var(--line-dashed); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
@@ -615,9 +612,24 @@
 @keyframes br-pop { from { opacity: 0; transform: scale(0.4); } to { opacity: 1; transform: none; } }
 @keyframes br-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .brSpin { animation-duration: 2s; } }
-.tableAnswer .aiText > :last-child { margin-bottom: 0; }
-/* On the card the small print takes no room until it is wanted, then slides open. */
-@media (hover: hover) {
-  .tableAnswer .aiFoot { max-height: 0; margin-top: 0; overflow: hidden; transition: opacity 0.18s ease, transform 0.22s var(--ease-out), max-height 0.24s var(--ease-out), margin-top 0.24s var(--ease-out); }
-  .tableAnswer:hover .aiFoot, .tableAnswer:focus-within .aiFoot, .tableAnswer .aiFoot[data-open] { max-height: 120px; margin-top: 6px; }
-}
+
+/* How your full Claude Code asks, under the message box: the mode's name and a small chevron, its menu above. */
+.modePick { position: relative; display: inline-flex; }
+.modePick > .toolLink { display: inline-flex; align-items: center; gap: 7px; }
+.modeChevron { width: 6px; height: 6px; margin-top: -3px; border-right: 1.8px solid currentColor; border-bottom: 1.8px solid currentColor; transform: rotate(45deg); transition: transform 0.18s var(--ease-out); }
+.modeChevronOpen { transform: translateY(3px) rotate(225deg); }
+.modeMenu { right: auto; width: 360px; }
+.modeMenu .modeItem { min-height: 54px; padding-top: 8px; padding-bottom: 8px; }
+.modeItem > span { display: flex; flex-direction: column; gap: 1px; }
+.modeItem b { font-weight: 560; font-size: 15px; }
+.modeItem small { font-size: 12.5px; color: var(--muted); font-weight: 400; white-space: nowrap; }
+
+/* The sidebar's foot: the table's settings and the feedback button, side by side at the bottom left. */
+.sideFoot { margin-top: auto; display: flex; align-items: flex-end; gap: 2px; }
+.sideFoot > * { margin-top: 0; }
+.gear { width: 34px; height: 34px; margin-bottom: -6px; border-radius: 10px; border: 1px solid transparent; background: transparent; color: var(--faint); display: grid; place-items: center; cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease, transform 0.15s var(--ease-out); }
+.gear:hover { background: var(--card); color: var(--ink); border-color: var(--line-strong); }
+.gear:active { transform: scale(0.9); }
+.gear svg { transition: transform 0.4s var(--ease-out); }
+.gear:hover svg { transform: rotate(45deg); }

@@ -42,7 +42,7 @@ export function Answer({ m, members, views, again, follows = false, pages = [], 
   const changed = read.startsWith("changed ");
 
   return (
-    <div className={`${styles.message} ${styles.aiMessage} ${styles.tableAnswer} ${follows ? styles.follow : ""}`} data-mid={m.id} data-ai="true" data-follows={follows || undefined}>
+    <div className={`${styles.message} ${styles.aiMessage} ${follows ? styles.follow : ""}`} data-mid={m.id} data-ai="true" data-follows={follows || undefined}>
       <div className={`${styles.aiAvatar} ${follows ? styles.unseen : ""}`} aria-hidden={follows || undefined}>
         <Mark size={22} />
       </div>

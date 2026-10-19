@@ -60,7 +60,7 @@ try {
   await page.click("div[role=dialog] button >> text=/Done|Close/");
   await page.waitForSelector("[data-testid=table-home] [data-seat-ai=claude]", { timeout: 15000 }).then(() => check("their Claude takes its place in the tree", true))
     .catch(() => check("their Claude takes its place in the tree", false));
-  await page.click("[data-testid=table-home] button:has-text('Open General')");
+  await page.click("[data-chat='General'] > button >> nth=0");
 
   // Its first message introduces the project, then the first question.
   await page.waitForSelector("[data-ai='intro']", { timeout: 120000 }).then(() => check("their Claude introduces the project first", true))

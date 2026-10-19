@@ -33,9 +33,10 @@ export async function loadSettings(supabase: Db, tableId: string): Promise<Setti
 
 // Settings in plain words: the table, who writes the final answer, GitHub, your data, and the people at the table.
 // It opens inside the room at once and fills in the table's own settings a moment later.
-export function SettingsForm({ table, me, people, chats, data, onData, onRenamed, onRemoved }: {
+export function SettingsForm({ table, me, people, chats, data, onData, onRenamed, onRemoved, part = "general" }: {
   table: { id: string; name: string };
   me: string;
+  part?: "general" | "people" | "clients";
   people: Person[];
   chats: { id: string; name: string; is_general: boolean }[];
   data: SettingsData | null;
@@ -180,6 +181,7 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
         {error && <div className={`error ${styles.wide}`} role="alert">{error}</div>}
 
         <div className={styles.col}>
+        {part === "general" && <>
         <form className={styles.card} onSubmit={saveTable} aria-label="The table">
           <div className={styles.cardTitle}>The table</div>
           <label className="label" htmlFor="s-name">Name</label>
@@ -208,9 +210,11 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
           </div>
         </form>
 
-        {clients.length > 0 && (
+        </>}
+        {part === "clients" && (
           <section className={styles.card} aria-label="Clients" data-testid="clients-settings">
             <div className={styles.cardTitle}>Clients</div>
+            {clients.length === 0 && <div className="note">No clients at this table yet. Invite one from your picture's menu.</div>}
             <div className="note">Who answers each client. The table answers from what the team has done and decided, and asks the team&apos;s AIs when it has to.</div>
             {clients.map((c) => (
               <div key={c.id} className={styles.clientRow} data-client={c.display_name}>
@@ -222,9 +226,30 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
             ))}
           </section>
         )}
-
+        {part === "people" && <>
+        <section className={styles.card} aria-label="People">
+          <div className={styles.cardTitle}>People</div>
+          {people.map((p) => (
+            <div key={p.id} className={styles.person} data-person={p.display_name}>
+              <span className={styles.dot} style={{ background: p.color }} />
+              <span className={styles.personName}>{p.display_name}{p.id === me ? " (you)" : ""}</span>
+              <span className={styles.role}>{ROLE[p.role]}</span>
+              {p.role !== "owner" && (confirming === p.id ? (
+                <>
+                  <button className="btn" onClick={() => remove(p.id)}>Take {firstName(p.display_name)} off</button>
+                  <button className="btn btn-quiet" onClick={() => setConfirming(null)}>Keep</button>
+                </>
+              ) : (
+                <button className="btn btn-quiet" onClick={() => setConfirming(p.id)}>Take off the table</button>
+              ))}
+            </div>
+          ))}
+          <div className="note">Taking someone off ends their access at once and disconnects their AI. Their messages stay.</div>
+        </section>
+        </>}
         </div>
         <div className={styles.col}>
+        {part === "general" && <>
         <section className={styles.card} aria-label="GitHub">
           <div className={styles.cardTitle}>GitHub</div>
           <div className="note">Pushes to main, merged pull requests and failed CI runs show up in General. Longtable never keeps any code.</div>
@@ -267,25 +292,7 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
           )}
         </section>
 
-        <section className={styles.card} aria-label="People">
-          <div className={styles.cardTitle}>People</div>
-          {people.map((p) => (
-            <div key={p.id} className={styles.person} data-person={p.display_name}>
-              <span className={styles.dot} style={{ background: p.color }} />
-              <span className={styles.personName}>{p.display_name}{p.id === me ? " (you)" : ""}</span>
-              <span className={styles.role}>{ROLE[p.role]}</span>
-              {p.role !== "owner" && (confirming === p.id ? (
-                <>
-                  <button className="btn" onClick={() => remove(p.id)}>Take {firstName(p.display_name)} off</button>
-                  <button className="btn btn-quiet" onClick={() => setConfirming(null)}>Keep</button>
-                </>
-              ) : (
-                <button className="btn btn-quiet" onClick={() => setConfirming(p.id)}>Take off the table</button>
-              ))}
-            </div>
-          ))}
-          <div className="note">Taking someone off ends their access at once and disconnects their AI. Their messages stay.</div>
-        </section>
+        </>}
         </div>
     </div>
   );

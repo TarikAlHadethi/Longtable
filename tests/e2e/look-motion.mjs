@@ -161,7 +161,8 @@ try {
   await sleep(700);
   await p.hover("[data-ai='true']");
   await sleep(450);
-  check("the small print under an answer eases into place when pointed at", await p.evaluate(() => { const f = document.querySelector("[data-ai='true'] [class*=aiFoot]"); if (!f) return true; const s = getComputedStyle(f); return s.opacity === "1" && /transform/.test(s.transitionProperty); }));
+  // It fades in where it stays, under the answer, without moving.
+  check("the small print under an answer fades in when pointed at", await p.evaluate(() => { const f = document.querySelector("[data-ai='true'] [class*=aiFoot]"); if (!f) return true; const s = getComputedStyle(f); return s.opacity === "1" && /opacity/.test(s.transitionProperty) && !/transform/.test(s.transitionProperty); }));
   await p.screenshot({ path: `${out}/motion-answer-hover.png` });
 
   // The windows.
@@ -188,7 +189,7 @@ try {
   await p.click("[data-testid=table-window] button:has-text('Close')");
 
   // Dark, and a phone, with things waiting by the box.
-  await p.click("[data-testid=table-home] button:has-text('Open General')");
+  await p.click("[data-chat='General'] > button >> nth=0");
   await p.waitForSelector("[data-testid=attach-button]");
   await p.setInputFiles("[data-testid=attach-input]", [png, note]);
   await p.fill("textarea", "/re");

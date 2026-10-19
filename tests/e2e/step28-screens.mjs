@@ -33,14 +33,13 @@ try {
   await p.goto(`${APP}/t/${table}`);
   await p.waitForSelector("[data-testid=table-home]");
   await sleep(1500);
-  await p.click("[data-testid=table-home] button:has-text('Open General')");
+  await p.click("[data-chat='General'] > button >> nth=0");
   await sleep(1200);
   const fromEnd = await p.evaluate(() => { const el = document.querySelector("[data-testid=messages]"); return el.scrollHeight - el.scrollTop - el.clientHeight; });
   check("a chat opened from the table's home is at its newest message, not its oldest", fromEnd < 80, fromEnd);
 
   // ---- the Connect window names the table as it is called now
-  await p.click("[data-testid=me-menu]");
-  await p.click("a:has-text('Table settings')");
+  await p.click("[data-testid=gear]");
   await p.waitForURL(/\/settings$/);
   await p.fill("#s-name", "Fernhill booking");
   await p.click("form[aria-label='The table'] button:has-text('Save')");

@@ -824,7 +824,10 @@ async function work(rpc, seat, engines, raw) {
     // A view for the back room only reads, and so does anything asked while no code is connected.
     // With several AIs, one of them does the work, the others look it over on its branch, and the table's answer
     // reports it; none of those last two change anything.
-    const doing = !!seat.source && (job.kind === "work" || (job.kind === "answer" && !job.worker));
+    // In plan mode their person wants the plan first: it reads and proposes, and nothing is changed. Their mode is for
+    // their own requests to their full Claude Code, as it is for Claude Code at home.
+    const planning = job.full === true && job.mode === "plan";
+    const doing = !!seat.source && !planning && (job.kind === "work" || (job.kind === "answer" && !job.worker));
     const onBranch = !!seat.source && !!job.work_read && (job.kind === "review" || job.kind === "combine");
     const branch = doing || onBranch ? job.branch || workBranch(job.chat_name) : null;
     // Their full Claude Code, when they turned it on: in a git worktree of their own repository, with their own
@@ -880,14 +883,14 @@ async function work(rpc, seat, engines, raw) {
     if (cmd) log(`job ${job.job_id}: running their /${cmd.name}`);
     if (full) { fullRun = await fullSetup(rpc, seat, job); log(`job ${job.job_id}: running as their full Claude Code in ${opened.dir}`); }
     const result = await ask({
-      full: fullRun ? { mcp: fullRun.mcp, allow: fullRun.allow, project: fullRun.project } : null,
+      full: fullRun ? { mcp: fullRun.mcp, allow: fullRun.allow, project: fullRun.project, mode: job.mode || null } : null,
       claude,
       cwd: dir,
       edit: doing,
       long: doing,
       onNote: (n) => { if (n !== note) { note = n; soon(); } },
       control,
-      prompt: yours(job) + (cmd ? commandPrompt(job.me, cmd) : "") + (doing ? `${buildPrompt(job)}\n\n${full ? FULL_DOING(branch) : DOING(branch)}` : buildPrompt(job) + (full ? `\n\n${FULL_READING}` : "")) + fromSandbox(seat, job)
+      prompt: yours(job) + (cmd ? commandPrompt(job.me, cmd) : "") + (doing ? `${buildPrompt(job)}\n\n${full ? FULL_DOING(branch) : DOING(branch)}` : buildPrompt(job) + (full ? `\n\n${FULL_READING}` : "") + (planning && ["work", "answer"].includes(job.kind) ? `\n\n${PLANNING}` : "")) + fromSandbox(seat, job)
         + materialsPrompt(job.materials) + attachedPrompt(attached, dir) + (PAGE_KINDS.has(job.kind) ? pagesPrompt(job) : "")
         + (job.command && !job.command.mine ? `${NL}${NL}${job.asker}'s message runs their own AI's command /${job.command.name}${job.command.about ? ` (${job.command.about})` : ""}. Their own AI has its instructions; you do not. Help with what it is for.` : ""),
       system: [systemFor({ ...job, doing, full }), ...(laid ? pointedSystem(job.me, laid, dir) : [])].join(NL),
@@ -974,6 +977,9 @@ async function work(rpc, seat, engines, raw) {
 // What a full Claude Code run needs: a key for this one job (the approval server asks with that, never with the
 // device token), the MCP config that starts the approval server, kept in a file of the connection's own and removed
 // when the job ends, and the person's "always allow" answers for this table.
+// Plan mode, as in Claude Code: the plan first, nothing changed.
+const PLANNING = "Your person has you in plan mode: read what you need, then answer with the plan, what you would change, where and why, step by step. Change nothing and run nothing that changes anything. They will say when to go ahead.";
+
 async function fullSetup(rpc, seat, job) {
   const key = await rpc("runner_job_key", { token: seat.token, job: job.job_id });
   const always = join(home, "allow", `${safeTable(seat.table_id)}.json`);

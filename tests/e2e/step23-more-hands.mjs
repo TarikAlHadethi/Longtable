@@ -108,8 +108,8 @@ try {
   await p.click("[data-testid=person-window] button:has-text('Close')");
 
   // Attaching: a picture and a file on one message. Everyone on the team sees them.
-  await p.click("[data-testid=table-home] button:has-text('Open General')");
-  await dev.page.click("[data-testid=table-home] button:has-text('Open General')");
+  await p.click("[data-chat='General'] > button >> nth=0");
+  await dev.page.click("[data-chat='General'] > button >> nth=0");
   const ais = () => p.locator("[data-ai='true']").count();
   await p.setInputFiles("[data-testid=attach-input]", [png, note]);
   await p.waitForSelector("[data-testid=attach-tray]");

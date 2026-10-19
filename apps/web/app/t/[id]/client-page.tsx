@@ -72,6 +72,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   // What they attach goes into the folder of whoever is really signed in: themselves, or the owner trying their side.
   const attach = useAttach(supabase, table.id, viewer?.uploader ?? me.id);
   const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState<{ body: string; at: string } | null>(null);
   const [error, setError] = useState("");
   const [gone, setGone] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
@@ -199,7 +200,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   const waitingOn = !!lastLine && lastLine.who === "client" && !!lastLine.by_table && !!lastLine.waiting;
   const deskBusy = !!lastLine && lastLine.who === "client" && !!lastLine.by_table && (waitingOn || (!lastLine.request_id && Date.now() - new Date(lastLine.created_at).getTime() < 300000));
   const open = jobs.filter((j) => j.kind === "client" && (j.status === "queued" || j.status === "running"));
-  const thinking = deskBusy || open.length > 0;
+  const thinking = !!sent || deskBusy || open.length > 0;
   // How far along: a deeper look means the table asked one of the team's AIs, which reads the project.
   const stage = open.some((j) => (j as { stage?: number }).stage === 1) ? 1 : 0;
   const building = !!sandbox?.changes.some((c) => c.status === "working");
@@ -224,6 +225,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
     | { kind: "request"; id: string; created_at: string; r: Request }
     | { kind: "change"; id: string; created_at: string; c: Change }
     | { kind: "line"; id: string; created_at: string; me: boolean; own: boolean; desk?: boolean; text: string; question?: ClientUpdate };
+  // What they just sent shows at once, and the answer starts forming under it, before the server has said a word.
   const feed = useMemo(() => {
     const passed = new Set((sandbox?.changes ?? []).map((c) => c.request_id).filter(Boolean));
     const items: Item[] = [
@@ -235,8 +237,9 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
       // What every client was told, with no request of theirs behind it.
       ...updates.filter((u) => !u.request_id).map((u): Item => ({ kind: "line", id: `u-${u.id}`, created_at: u.created_at, me: false, own: false, text: u.body, question: u.replies?.length ? u : undefined })),
     ];
+    if (sent) items.push({ kind: "line", id: "sent", created_at: sent.at, me: true, own: true, desk: true, text: sent.body });
     return items.sort(byTime);
-  }, [requests, lines, updates, sandbox]);
+  }, [requests, lines, updates, sandbox, sent]);
   const told = (requestId: string) => updates.filter((u) => u.request_id === requestId && !isAck(u)).sort(byTime);
 
   useEffect(() => {
@@ -272,9 +275,12 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
     setError("");
     const files = await attach.upload();
     if (!files) return setBusy(false);
+    if (body) { setSent({ body, at: new Date().toISOString() }); setDraft(""); requestAnimationFrame(grow); }
     const { data, error } = await supabase.rpc("client_say", { t: table.id, body, files });
     setBusy(false);
     if (error) {
+      setSent(null);
+      setDraft(body);
       // What was uploaded for a message that was refused is not left in storage.
       if (files.length) await supabase.storage.from("attachments").remove(files.map((f) => f.path)).catch(() => {});
       return setError(sentence(error.message));
@@ -286,6 +292,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
     const why = (data as { why?: string } | null)?.why;
     setNotice(why === "asleep" ? "Your copy cannot be changed right now, so this went to the team instead." : why === "full" ? "That is all the changes your copy takes in a day, so this went to the team instead." : "");
     await reload();
+    setSent(null);
   }
 
   async function disconnect() {

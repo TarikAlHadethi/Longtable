@@ -18,7 +18,7 @@ const waitStatus = (page, id, testid, words, timeout = 5000) => page.waitForFunc
 // A poll about a client's request is made from under the box (17 Oct 2026: no poll link and no status pill under a
 // client's message any more): open it, then pick the request in its menu.
 async function pollFor(page, title) {
-  await page.click("button:has-text('Make a poll') >> nth=-1");
+  await page.locator("textarea").first().fill("/poll"); await page.locator("textarea").first().press("Enter");
   await page.waitForSelector("form[aria-label='Make a poll']");
   await page.click("form[aria-label='Make a poll'] button[aria-haspopup=listbox]");
   await page.click(`form[aria-label='Make a poll'] [role=option]:has-text(${JSON.stringify(title)})`);
@@ -113,7 +113,7 @@ try {
 
   // Her page moves to Being decided, live; the team's card follows and the button goes.
   check("she sees it being decided, live", await waitReq(ownerToken, reqId, "being decided") && await waitReq(ownerToken, reqId, "being decided", 20000));
-  await owner.page.click("button:has-text('Make a poll') >> nth=-1");
+  await owner.page.locator("textarea").first().fill("/poll"); await owner.page.locator("textarea").first().press("Enter");
   await owner.page.click("form[aria-label='Make a poll'] button[aria-haspopup=listbox]").catch(() => {});
   const offered = await owner.page.locator("form[aria-label='Make a poll'] [role=option]").allTextContents().catch(() => []);
   await owner.page.keyboard.press("Escape");
@@ -215,7 +215,9 @@ try {
   await elena.page.fill("[aria-label='Ask the team']", ask3);
   await elena.page.press("[aria-label='Ask the team']", "Enter");
   await elena.page.waitForFunction((t) => document.body.innerText.includes(t), ask3, { timeout: 5000 });
-  const req3 = (await rest(elenaToken, `requests?select=id,body&table_id=eq.${tableId}`)).body.find((r) => r.body === ask3)?.id;
+  // Her words show at once; the request itself lands a moment later.
+  let req3;
+  for (let i = 0; i < 40 && !req3; i++) { req3 = (await rest(elenaToken, `requests?select=id,body&table_id=eq.${tableId}`)).body.find((r) => r.body === ask3)?.id; if (!req3) await sleep(250); }
   await dev.page.waitForSelector(`[data-request='${req3}']`, { timeout: 5000 });
   await pollFor(dev.page, (await rest(ownerToken, `requests?select=title&id=eq.${req3}`)).body[0].title);
   await dev.page.fill("#d-title", "Waiting list: launch or later?");
@@ -293,7 +295,8 @@ try {
   await elena.page.fill("[aria-label='Ask the team']", ask2);
   await elena.page.press("[aria-label='Ask the team']", "Enter");
   await elena.page.waitForFunction((t) => document.body.innerText.includes(t), ask2, { timeout: 5000 });
-  const req2 = (await rest(elenaToken, `requests?select=id,body&table_id=eq.${tableId}`)).body.find((r) => r.body === ask2)?.id;
+  let req2;
+  for (let i = 0; i < 40 && !req2; i++) { req2 = (await rest(elenaToken, `requests?select=id,body&table_id=eq.${tableId}`)).body.find((r) => r.body === ask2)?.id; if (!req2) await sleep(250); }
   await rpc(devToken, "create_decision", { c: generalId, title: "Prices on the booking page", context: "", origin: "requested by Elena Ruiz",
     affects_client: true, request: req2, options: [{ label: "Show prices", recommended: true, client_words: "Prices will show on the booking page." },
       { label: "Not yet", recommended: false, client_words: "Prices come in a later update." }] });

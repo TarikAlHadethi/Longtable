@@ -29,10 +29,9 @@ try {
   check("clicking a person opens their window, with when they joined", /Sam/.test(sam) && /Developer/.test(sam) && /Joined\s*\d{1,2} \w+ 20\d\d/.test(sam), sam.slice(0, 200));
   await p.click("[data-testid=person-window] button:has-text('Close')");
 
-  await p.click("[data-testid=me-menu]");
-  await p.click("a:has-text('Table settings')");
+  await p.click("[data-testid=gear]");
   await p.waitForSelector("form[aria-label='The table']");
-  check("Settings opens inside the room, from the picture menu, at its own address", p.url().endsWith("/settings") && await p.isVisible("aside[aria-label=Menu]"), p.url());
+  check("Settings opens inside the room, from the gear, at its own address", p.url().endsWith("/settings") && await p.isVisible("aside[aria-label=Menu]"), p.url());
   check("and it has no Inbox beside it", (await p.locator("aside[aria-label=Inbox]").count()) === 0);
 
   await p.click("[role=tab]:has-text('Logs')");
@@ -95,9 +94,9 @@ try {
   await p.click("[data-testid=person-window] button:has-text('Make Sam the owner')");
   await dev.page.waitForFunction(() => !!document.querySelector("aside[aria-label=Menu] [data-member='Sam'] svg"), null, { timeout: 10000 }).catch(() => {});
   await dev.page.click("[data-testid=me-menu]");
-  check("the owner hands the table to a developer, who gets Table settings at once", (await dev.page.locator("a:has-text('Table settings')").count()) === 1);
+  check("the owner hands the table to a developer, who gets Table settings at once", (await dev.page.locator("[data-testid=gear][aria-label='Table settings']").count()) === 1);
   await p.click("[data-testid=me-menu]");
-  check("and the old owner no longer has it", (await p.locator("a:has-text('Table settings')").count()) === 0);
+  check("and the old owner no longer has it", (await p.locator("[data-testid=gear][aria-label='Table settings']").count()) === 0);
   const again = await rpc(await accessToken(owner.context), "transfer_ownership", { m: owner.tableId });
   check("someone who is not the owner cannot hand it over", again.status >= 400);
   const owners = (await rest(await accessToken(dev.context), `members?select=role&table_id=eq.${owner.tableId}&role=eq.owner`)).body;

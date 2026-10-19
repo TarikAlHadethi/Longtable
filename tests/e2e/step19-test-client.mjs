@@ -29,7 +29,9 @@ try {
   await p.press("[aria-label='Ask the team']", "Enter");
   await p.waitForFunction(() => document.querySelector("[data-testid=client-chat]")?.textContent.includes("Can the title be bigger?"), null, { timeout: 15000 });
   check("what the owner asks as the test client shows on the client's side", true);
-  const reqs = await rest(devToken, `requests?select=id,body,member_id&table_id=eq.${owner.tableId}`);
+  // The words show at once; the request lands a moment later.
+  let reqs = { body: [] };
+  for (let i = 0; i < 40 && !reqs.body?.length; i++) { reqs = await rest(devToken, `requests?select=id,body,member_id&table_id=eq.${owner.tableId}`); if (!reqs.body?.length) await new Promise((r) => setTimeout(r, 250)); }
   check("and it reaches the team as a client's request", reqs.body.length === 1 && /title be bigger/.test(reqs.body[0].body), reqs.body);
   await dev.page.waitForFunction(() => !!document.querySelector("aside[aria-label=Menu] [data-member='Test client']"), null, { timeout: 15000 });
   check("the team sees the test client in People, marked as one", /Test client/.test(await dev.page.textContent("aside[aria-label=Menu]")));

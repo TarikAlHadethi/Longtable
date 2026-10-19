@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AI_NAME, AiLogo, type AiKind } from "@/components/ai-logo";
 import { Face } from "@/components/face";
-import { Arrow, Check, Crown, Plus } from "@/components/icons";
+import { Check, Crown, Plus } from "@/components/icons";
 import { Mark } from "@/components/mark";
 import { ModelPick, prettyModel } from "./model-pick";
 import type { Chat, Connection, Job, Member, Message } from "./types";
@@ -89,10 +89,33 @@ export function TableView({ table, me, members, connections, jobs, online, messa
   ];
   const showSteps = !showcase && me.role === "owner" && steps.some((x) => !x.done);
 
+  // The whole table fits the window: it scales itself down a little rather than scroll, and only a very large team
+  // (past 68%) scrolls.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const fitRef = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState(1);
+  const fitNow = useRef(1);
+  useLayoutEffect(() => {
+    const w = wrapRef.current, inner = fitRef.current;
+    if (showcase || !w || !inner || typeof ResizeObserver === "undefined") return;
+    const measure = () => {
+      const pad = parseFloat(getComputedStyle(w).paddingTop) + parseFloat(getComputedStyle(w).paddingBottom);
+      const natural = inner.getBoundingClientRect().height / fitNow.current;
+      const f = Math.max(0.68, Math.min(1, (w.clientHeight - pad) / natural));
+      if (Math.abs(f - fitNow.current) > 0.01) { fitNow.current = f; setFit(f); }
+    };
+    const ro = new ResizeObserver(measure);
+    ro.observe(w);
+    ro.observe(inner);
+    measure();
+    return () => ro.disconnect();
+  }, [showcase]);
+
   return (
-    <div className={`${s.wrap} ${showcase ? s.showcase : ""}`} data-testid="table-home">
+    <div className={`${s.wrap} ${showcase ? s.showcase : ""}`} data-testid="table-home" ref={wrapRef}>
+      <div className={s.fit} ref={fitRef} style={showcase ? undefined : { zoom: fit }}>
       <div className={s.top}>
-        <Mark size={60} live />
+        <Mark size={40} live />
         <div className={s.word}>Longtable</div>
         <div className={s.project}>{table.name}</div>
       </div>
@@ -181,7 +204,7 @@ export function TableView({ table, me, members, connections, jobs, online, messa
 
           <div className={`${s.table} ${s.open} ${anyBusy ? s.tableBusy : ""}`} role="button" tabIndex={0} onClick={onTable} onKeyDown={keyOpen(onTable)} data-testid="table-card">
             <div className={s.tableTitle}>The Table</div>
-            <Mark size={64} />
+            <Mark size={52} />
             {anyBusy ? <div className={s.tableModel}>Working on an answer…</div>
               : writer ? <span onClick={(e) => e.stopPropagation()}><ModelPick kind={writer.seat!.conn.kind} value={tableModel ?? ""} reported={writer.seat!.conn.limits?.models} centre testid="table-model"
                   text={`${AI_NAME[writer.seat!.conn.kind]} ${tableText(writer.seat!.conn)}`.trim()}
@@ -206,11 +229,6 @@ export function TableView({ table, me, members, connections, jobs, online, messa
         </div>
       </div>
 
-      <div className={s.actions}>
-        {general && <button className="btn" onClick={() => onOpenChat(general.id)}>Open {general.name} <Arrow size={16} /></button>}
-        {chats.filter((c) => c.id !== general?.id).slice(0, 4).map((c) => (
-          <button key={c.id} className="btn btn-quiet" onClick={() => onOpenChat(c.id)}>{c.name}</button>
-        ))}
       </div>
     </div>
   );

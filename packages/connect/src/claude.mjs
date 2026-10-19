@@ -113,7 +113,9 @@ export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,
   // Streamed output carries the plan's usage limits (a rate_limit_event) as well as the result.
   const args = full
     ? ["-p", "--output-format", "stream-json", "--verbose", "--no-session-persistence",
-      "--permission-mode", edit ? "acceptEdits" : "default", "--permission-prompt-tool", "mcp__longtable__approve",
+      // Their own choice of how it asks (manual, accept edits, auto, plan), else as before: edits go ahead in work.
+      "--permission-mode", full.mode === "plan" ? "plan" : full.mode === "auto" ? "auto" : full.mode === "manual" ? "default" : full.mode === "acceptEdits" || edit ? "acceptEdits" : "default",
+      "--permission-prompt-tool", "mcp__longtable__approve",
       "--mcp-config", full.mcp, "--max-turns", edit ? (long ? "10000" : "200") : "60"]
     : ["-p", "--output-format", "stream-json", "--verbose", "--no-session-persistence", "--restricted", "--permission-mode", edit ? "acceptEdits" : "dontAsk",
       "--strict-mcp-config", "--max-turns", edit ? (long ? "10000" : "60") : tools ? "25" : "4", "--tools", tools];
@@ -122,7 +124,8 @@ export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,
     // their own folder (full.project), never from the branch being worked on, which other people's AIs push to.
     args.push("--setting-sources", "user");
     // Only the connection pushes, and only the task's branch: their Claude never pushes itself, whatever their rules.
-    args.push("--disallowedTools", "Bash(git push:*)", "Bash(git push)", ...(edit ? [] : ["Edit", "Write", "NotebookEdit"]));
+    // In plan mode the plan is its answer here: there is no plan to approve, so it never asks to leave plan mode.
+    args.push("--disallowedTools", "Bash(git push:*)", "Bash(git push)", ...(edit ? [] : ["Edit", "Write", "NotebookEdit"]), ...(full.mode === "plan" ? ["ExitPlanMode"] : []));
     if (full.allow?.length) args.push("--allowedTools", ...full.allow);
   }
   if (system) args.push("--append-system-prompt", system);

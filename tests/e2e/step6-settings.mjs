@@ -41,8 +41,7 @@ try {
   await owner.page.fill("input[aria-label='Name the new chat']", "Client asks");
   await owner.page.press("input[aria-label='Name the new chat']", "Enter");
   await owner.page.waitForFunction(() => document.body.innerText.includes("Client asks"));
-  await owner.page.click("[data-testid=me-menu]");
-  await owner.page.click("a:has-text('Table settings')");
+  await owner.page.click("[data-testid=gear]");
   await owner.page.waitForURL(/\/settings$/);
   await owner.page.fill("#s-name", "Fernhill booking");
   await owner.page.selectOption("#s-requests", { label: "Client asks" });
@@ -84,6 +83,7 @@ try {
   await sam.goto(`${APP}/t/${tableId}?c=general`);
   await sam.waitForFunction(() => !document.body.innerText.includes("Connecting"), null, { timeout: 10000 });
   await owner.page.goto(`${APP}/t/${tableId}/settings`);
+  await owner.page.click("[role=tab]:has-text('People')");
   await owner.page.click("[data-person='Sam Lee'] button:has-text('Take off the table')");
   await owner.page.click("[data-person='Sam Lee'] button:has-text('Take Sam off')");
   const closed = await sam.waitForFunction(() => document.body.innerText.includes("no longer at this table"), null, { timeout: 10000 })

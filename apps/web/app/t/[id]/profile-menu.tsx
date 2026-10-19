@@ -66,14 +66,8 @@ export function ProfileMenu({ me, tableId, onInvite, ai, aiWord, onConnect, onDi
             {onMe && <span className={styles.mePencil}><Pencil size={15} /></span>}
           </button>
           {onInvite && <button role="menuitem" className={styles.meItem} onClick={() => { setOpen(false); onInvite(); }}><Plus size={16} />Invite people</button>}
-          {me.role === "owner" && (
-            <a role="menuitem" className={styles.meItem} href={`/t/${tableId}/settings`}
-              onClick={(e) => { if (onSettings) { e.preventDefault(); setOpen(false); onSettings(); } }}><Gear size={16} />Table settings</a>
-          )}
-          {me.role === "developer" && (
-            <a role="menuitem" className={styles.meItem} href={`/t/${tableId}/activity`}
-              onClick={(e) => { if (onLogs) { e.preventDefault(); setOpen(false); onLogs(); } }}><Gear size={16} />Logs</a>
-          )}
+          {/* Their own settings: their AI and how it works. The table's are behind the gear at the bottom left. */}
+          {onSettings && <button role="menuitem" className={styles.meItem} onClick={() => { setOpen(false); onSettings(); }} data-testid="my-settings"><Gear size={16} />Settings</button>}
           {onConnect && !ai && <button role="menuitem" className={styles.meItem} onClick={() => { setOpen(false); onConnect(); }}><Plug size={16} />Connect my {aiWord ?? "AI"}</button>}
           {onDisconnect && ai && <button role="menuitem" className={styles.meItem} onClick={() => { setOpen(false); onDisconnect(); }}><Plug size={16} />Disconnect my {AI_NAME[ai]}</button>}
           {onDownload && <button role="menuitem" className={styles.meItem} onClick={() => { setOpen(false); onDownload(); }}><Gear size={16} />Download what&apos;s mine</button>}
