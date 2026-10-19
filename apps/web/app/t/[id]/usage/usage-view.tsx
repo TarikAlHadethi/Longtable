@@ -26,7 +26,6 @@ const ROLE = { owner: "Owner", developer: "Developer", client: "Client" } as con
 // "Resets in 1 h 05 min", or the day and time when it is more than a day away. Drawn in the reader's time zone.
 function resets(iso: string, now: number) {
   const ms = new Date(iso).getTime() - now;
-  if (ms <= 0) return "Resets now";
   if (ms < 24 * 3600 * 1000) {
     const h = Math.floor(ms / 3600000);
     const m = Math.floor((ms % 3600000) / 60000);
@@ -56,7 +55,8 @@ export function UsageView({ table, cards }: { table: { id: string; name: string 
         <p className="note" style={{ margin: 0 }}>Each AI runs on its owner&apos;s own plan. Limits are what that AI last reported, after its last piece of work.</p>
         {cards.map((c) => {
           const on = !!c.lastSeen && here && now - new Date(c.lastSeen).getTime() < 60000;
-          const windows = c.limits?.windows ?? [];
+          // A window past its reset time has started again; its next reset shows after the AI's next answer.
+          const windows = (c.limits?.windows ?? []).map((w) => here && w.resets && Date.parse(w.resets) <= now ? { ...w, used: 0, resets: null } : w);
           const top = Math.max(0, ...windows.map((w) => w.used));
           const status = !c.ai.length ? ["Not connected", styles.pillOff]
             : c.limits?.status === "limited" || top >= 100 ? ["At a limit", styles.pillLimit]

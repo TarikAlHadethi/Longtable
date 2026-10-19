@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { AI_NAME } from "@/components/ai-logo";
-import { Mark } from "@/components/mark";
+import { Mark, WorkingMark } from "@/components/mark";
 import { browserClient } from "@/lib/supabase/browser";
 import { Inline } from "@/lib/inline";
 import { AttachButtons, AttachTray, Files, dropHandlers, useAttach } from "./attach";
@@ -243,6 +243,36 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const aiWord = (id: string) => { const c = connections.find((x) => !x.revoked_at && x.member_id === id); return c ? AI_NAME[c.kind] : "AI"; };
   const working = jobs.filter((j) => j.chat_id === chat?.id && ["queued", "running", "waiting", "failed"].includes(j.status))
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
+
+  // The table thinking, from the moment someone says something it will hear until its reply or an AI's own work
+  // line takes over, so a reply on its way is never a blank. "Will hear" is the server's own free check
+  // (listen_now), mirrored: anything said straight after an AI spoke, or a message shaped like a question or a request.
+  // Like the server, only what was said since the table last listened counts.
+  const heardFor = useRef<{ id: string; at: string } | null>(null);
+  const [, setBeat] = useState(0);
+  const said = useMemo(() => {
+    const ms = messages.filter((m) => m.chat_id === chat?.id && (m.kind === "chat" || m.kind === "answer" || !m.kind) && m.state !== "failed").sort(byTime);
+    let i = ms.length;
+    while (i > 0 && !ms[i - 1].by_ai) i--;
+    const heard = heardFor.current?.at;
+    const run = ms.slice(i).filter((m) => !heard || m.created_at > heard);
+    if (!run.length) return null;
+    const prev = ms[i - 1];
+    const afterAi = !!prev && Date.parse(run[0].created_at) - Date.parse(prev.created_at) < 15 * 60 * 1000;
+    const strong = run.some((m) => m.body.length >= 40 || /\?|@|(ai|ais|claude|chatgpt|gpt|codex|table|longtable)/i.test(m.body)
+      || /^\s*(can|could|would|will|please|pls|make|add|fix|change|update|remove|delete|build|write|check|look|why|how|what|where|when|which|who|should|is|are|does|do|did|implement|create|refactor|rename|move|review|explain|tell|show|find|lets|let's|try|use|set|put|run|test|ship|revert|undo)/i.test(m.body));
+    return afterAi || strong ? run[run.length - 1] : null;
+  }, [messages, chat?.id]);
+  const listening = working.some((j) => j.kind === "listen" && (j.status === "queued" || j.status === "running"));
+  if (listening && said) heardFor.current = { id: said.id, at: said.created_at };
+  const aisOn = connections.some((c) => !c.revoked_at && byId.get(c.member_id)?.role !== "client" && !!c.last_seen && Date.now() - new Date(c.last_seen).getTime() < 90000);
+  const saidFresh = !!said && heardFor.current?.id !== said.id && Date.now() - Date.parse(said.created_at) < 15000;
+  const thinking = aisOn && !working.some((j) => j.kind !== "listen" && j.status !== "failed") && (listening || saidFresh);
+  useEffect(() => {
+    if (!saidFresh || !said) return;
+    const t = setTimeout(() => setBeat((b) => b + 1), Math.max(0, Date.parse(said.created_at) + 15000 - Date.now()) + 50);
+    return () => clearTimeout(t);
+  }, [saidFresh, said]);
 
   const refreshMembers = useCallback(async () => {
     const { data } = await supabase.from("members").select(MEMBER_COLUMNS).eq("table_id", table.id).is("removed_at", null).order("created_at");
@@ -1110,6 +1140,15 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                   </div>
                 );
               })}
+              {thinking && (
+                <div className={`${styles.message} ${styles.aiMessage}`} data-testid="thinking">
+                  <div className={styles.aiAvatar} aria-hidden="true"><WorkingMark size={22} /></div>
+                  <div className={styles.messageBody}>
+                    <div className={styles.messageMeta}><span className={styles.messageName}>The table</span></div>
+                    <div className={styles.formingLine}>Thinking<span className={styles.formingDots}><i /><i /><i /></span></div>
+                  </div>
+                </div>
+              )}
               {working.filter((j) => j.kind !== "listen" && (j.status !== "failed" || Date.now() - new Date(j.created_at).getTime() < 15 * 60 * 1000)).map((j) => {
                 // Long work says what it is on and for how long, and anyone on the team can stop it.
                 const mins = j.status === "running" && j.started_at ? Math.floor((Date.now() - new Date(j.started_at).getTime()) / 60000) : 0;
@@ -1126,7 +1165,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                   : j.status === "running" ? `${name} is reading the code…` : `Waiting for ${name}`;
                 return (
                   <div key={j.id} className={`${styles.working} ${j.status === "failed" ? styles.workingFailed : ""}`} data-testid="working">
-                    {j.status !== "failed" && <span className={styles.workingDot} />}{text.replace(/…$/, doing ? "" : "…")}{doing}
+                    {j.status !== "failed" && <span className={styles.workingMark} aria-hidden="true"><WorkingMark size={18} /></span>}{text.replace(/…$/, doing ? "" : "…")}{doing}
                     {stoppable && <button type="button" className={styles.toolLink} data-testid="stop-job" onClick={() => stopJob(j.id)}>Stop</button>}
                   </div>
                 );

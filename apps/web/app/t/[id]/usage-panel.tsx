@@ -10,7 +10,6 @@ import styles from "./room.module.css";
 // "in 1 h 05 min", or the day when it is more than a day away. Drawn in the reader's own time zone.
 function resets(iso: string, now: number) {
   const ms = new Date(iso).getTime() - now;
-  if (ms <= 0) return "resets now";
   if (ms < 24 * 3600 * 1000) {
     const h = Math.floor(ms / 3600000);
     const m = Math.floor((ms % 3600000) / 60000);
@@ -36,7 +35,9 @@ export function UsagePanel({ members, connections, bare = false }: { members: Me
     <>
       {team.map((m, i) => {
         const conn = connections.find((c) => c.member_id === m.id && !c.revoked_at);
-        const windows = conn?.limits?.windows ?? [];
+        // A window whose reset time has passed has started again: its old share is gone, and its next reset is only
+        // known after the AI's next answer.
+        const windows = (conn?.limits?.windows ?? []).map((w) => here && w.resets && Date.parse(w.resets) <= now ? { ...w, used: 0, resets: null } : w);
         const model = prettyModel(conn?.model_choice) ?? (conn?.kind === "claude" ? "Opus 5.5" : prettyModel(conn?.limits?.model));
         return (
           <section key={m.id} className={`${styles.use} ${conn ? "" : styles.useOff}`} style={{ animationDelay: `${i * 60}ms` }} data-usage={m.display_name}>

@@ -733,6 +733,7 @@ async function workListen(rpc, seat, engines, job) {
   let s;
   let model;
   let usage;
+  let limits = null;
   if (seat.kind === "codex") {
     const result = await askCodex({ codex: engines.codex, prompt: `${listenSystem(job)}${NL}${NL}${listenPrompt(job)}`, schema });
     s = result.tools.length ? { act: "silent", reply: "" } : result.structured_output;
@@ -747,12 +748,16 @@ async function workListen(rpc, seat, engines, job) {
     s = result.structured_output;
     model = Object.keys(result.modelUsage || {})[0] || "haiku";
     usage = { input: result.usage?.input_tokens, output: result.usage?.output_tokens, wall_ms: result.wall_ms, cost_usd_equivalent: result.total_cost_usd };
+    limits = result.limits;
   }
   const act = ["silent", "reply", "look", "work"].includes(s?.act) ? s.act : "silent";
   const label = /^T(\d+)$/.exec(String(s?.task || "").trim());
   const task = label ? (job.tasks || [])[Number(label[1]) - 1]?.id || "" : "";
   await rpc("runner_finish", { token: seat.token, job: job.job_id, answer: act === "reply" ? String(s.reply || "") : "", info: { act, model, usage, task, title: String(s?.title || "").slice(0, 80) } });
   log(`listen job ${job.job_id}: ${act}`);
+  // The plan's use moves with every message heard, not only with bigger jobs, so Usage stays current. The person's
+  // own model is kept: the listener runs on its own small one.
+  if (limits) await report(rpc, seat, { ai: "claude", ...limits, models: ["opus", "sonnet", "haiku"] }, null);
 }
 
 // People's and tables' names come from the table like any other words, and go into the AI's own instructions: a

@@ -272,6 +272,18 @@
 .working { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); padding-left: 40px; }
 .workingFailed { color: var(--danger); }
 .workingDot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--sage); animation: pulse 1.2s ease-in-out infinite; }
+.workingMark { flex: none; display: inline-grid; place-items: center; }
+/* A reply forming: the word shines across while the table's mark goes round, as a reply forms in Claude. */
+.formingLine { font-size: 15.5px; display: inline-flex; align-items: baseline; gap: 2px; padding-top: 2px;
+  background: linear-gradient(90deg, var(--muted) 0%, var(--ink) 50%, var(--muted) 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: lt-shine 2.2s linear infinite; }
+.formingDots { display: inline-flex; gap: 3px; margin-left: 3px; }
+.formingDots i { width: 4px; height: 4px; border-radius: 50%; background: var(--muted); animation: lt-dot 1.2s ease-in-out infinite; }
+.formingDots i:nth-child(2) { animation-delay: 0.15s; }
+.formingDots i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes lt-shine { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@keyframes lt-dot { 0%, 80%, 100% { opacity: 0.25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-2px); } }
+@media (prefers-reduced-motion: reduce) { .formingLine, .formingDots i { animation: none; } .formingLine { color: var(--muted); background: none; } }
 @keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
 .notice { font-size: 14px; color: var(--muted); }
 /* What did not go through, over everything for a few seconds. */
