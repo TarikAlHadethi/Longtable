@@ -56,6 +56,10 @@ the code as it is (last brought up to date 17 Oct 2026); update it with every ch
 | A person's commands are seen by others | Only names and one line each leave the computer; only their own AI is told what a command is for; the list is forgotten when the connection ends | step 33 |
 | An AI repeats a secret | `hide_secrets` (server) and `hideSecrets` (connection) replace anything key-shaped before it is stored or shared | step 3, step 29, unit-prompts |
 | A forged update reaches people's computers | The connection takes only the exact version the table names, newer than its own, from the npm registry at the registry's own path, checked against its sha512 integrity, unpacked to an allow-list of files | unit-update, step 40 |
+| Full Claude Code mode (a person turns it on for their own AI) runs commands someone else wanted | Off until its person turns it on, and only they can; it applies only to their own requests, never a teammate's or a client's; every command their own Claude Code settings do not already allow becomes a request only they see and answer (ten minutes, then a no); `git push` is always refused; the connection commits and pushes to a `longtable/...` branch with hooks off | step 41, step 42, unit-approve |
+| A request is approved without its person seeing it whole | Shown whole or refused (over 2,000 characters is a no); keys hidden; "always allow" only ever adds that one plain command, never a tool or a pattern, and rules written into its file by anything else are dropped | unit-approve, step 41 |
+| The branch being worked on changes the person's settings | Their settings come from their own computer (user settings, and their project's settings read from their own folder), never from the branch other AIs push to; hooks in the branch never run | step 42 |
+| Requests bury their person | Five waiting per job, twenty per connection, sixty an hour; a job's key asks only about that job and dies when it ends | step 41 |
 | A client's own copy reaches past the front end | A guard on the person's computer refuses changes to build, server, sign-in, database and test files and reads every changed file whole; the owner ticks that previews hold no real data or keys before giving a copy | unit-prompts, sim-rounds, step 17 |
 
 ### Files, handouts and the browser
@@ -90,6 +94,11 @@ Client messages (30 an hour, 60 with a copy), new tables (10 a day), connect cod
 - **A different Claude account on the same computer** reuses the connection's saved sign-in until it signs in again.
 - **Windows sign-in start.** The connection starts from Task Scheduler; a start at Windows sign-in has not been seen
   end to end.
+- **Full Claude Code mode is the person's own Claude Code**, so an allowed command runs as them, on their computer,
+  with what they can reach. On Mac and Linux it runs in Claude Code's sandbox; Windows has none, so there the
+  person's own judgement on each request is the wall. A command they allow can read the job's own approval key and
+  the connection's Claude sign-in from its environment: the key only asks that person about that job, and the
+  sign-in only makes model requests on their own plan.
 - **Rate limits** do not yet cover team messages or asks of the table.
 - **The server is trusted.** Whoever runs a Longtable can read every table's rows. The operator page shows counts only,
   but the database is not end-to-end encrypted, by design: the server reads messages to hide keys, route a client's

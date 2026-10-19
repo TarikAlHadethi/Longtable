@@ -51,6 +51,15 @@ export function childEnv(token, apiKey) {
   return env;
 }
 
+// A full Claude Code run gets the person's own environment, as their Claude Code at home would (their PATH, their git
+// and their tools), with the connection's own sign-in: never an API key or another account from whatever started it.
+export function fullEnv(token) {
+  const env = { ...process.env };
+  for (const k of Object.keys(env)) if (/^(ANTHROPIC_|CLAUDE_CODE_OAUTH_TOKEN$|CLAUDE_CODE_USE_|OPENAI_API_KEY$|LT_)/.test(k)) delete env[k];
+  if (token) env.CLAUDE_CODE_OAUTH_TOKEN = token;
+  return env;
+}
+
 // A token only counts once a one-word request goes through with it.
 export function tokenWorks(claude, token) {
   const r = spawnSync(claude, ["-p", "Reply with the word OK", "--output-format", "json", "--model", "haiku",
@@ -88,26 +97,49 @@ export function stopAll() {
 // that is how a person's own AI does work they asked for, in the connection's copy.
 export const EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
 
-export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,Grep,Glob", edit = false, long = false, onNote, control, apiKey, timeoutMs = 4 * 60 * 1000, addDirs = [], effort = null, fast = false }) {
+// With `full`, the person runs their AI as their full Claude Code: their own settings, rules, hooks, MCP servers,
+// skills and commands, every built-in tool including Bash, and Claude Code's own permission prompts sent to Longtable
+// through the approval server (`full.mcp`, the MCP config that starts it), where the person allows or denies each one.
+// Their "always allow" answers come back as `full.allow`. On Mac and Linux, commands also run in Claude Code's sandbox.
+// A job that only reads may not change files (`edit` false).
+export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,Grep,Glob", edit = false, long = false, onNote, control, apiKey, timeoutMs = 4 * 60 * 1000, addDirs = [], effort = null, fast = false, full = null }) {
   // Work a person asked for takes as long as it takes: no time limit, and steps to match. It ends when it is done,
   // when someone presses Stop, or when the connection itself goes away.
   if (edit) { tools = "Read,Grep,Glob,Edit,Write"; timeoutMs = long ? 0 : 10 * 60 * 1000; }
+  // A full run can wait on the person's answers, so a short job gets longer than a locked one.
+  if (full && !edit) timeoutMs = Math.max(timeoutMs, 15 * 60 * 1000);
   const token = apiKey ? null : loadSecret("claude-token");
   if (!token && !apiKey) return Promise.reject(new Error("This connection has no Claude sign-in yet. Run connect again."));
   // Streamed output carries the plan's usage limits (a rate_limit_event) as well as the result.
-  const args = ["-p", "--output-format", "stream-json", "--verbose", "--no-session-persistence", "--restricted", "--permission-mode", edit ? "acceptEdits" : "dontAsk",
-    "--strict-mcp-config", "--max-turns", edit ? (long ? "10000" : "60") : tools ? "25" : "4", "--tools", tools];
+  const args = full
+    ? ["-p", "--output-format", "stream-json", "--verbose", "--no-session-persistence",
+      "--permission-mode", edit ? "acceptEdits" : "default", "--permission-prompt-tool", "mcp__longtable__approve",
+      "--mcp-config", full.mcp, "--max-turns", edit ? (long ? "10000" : "200") : "60"]
+    : ["-p", "--output-format", "stream-json", "--verbose", "--no-session-persistence", "--restricted", "--permission-mode", edit ? "acceptEdits" : "dontAsk",
+      "--strict-mcp-config", "--max-turns", edit ? (long ? "10000" : "60") : tools ? "25" : "4", "--tools", tools];
+  if (full) {
+    // Their own settings come from their own computer: their user settings, and their project's settings read from
+    // their own folder (full.project), never from the branch being worked on, which other people's AIs push to.
+    args.push("--setting-sources", "user");
+    // Only the connection pushes, and only the task's branch: their Claude never pushes itself, whatever their rules.
+    args.push("--disallowedTools", "Bash(git push:*)", "Bash(git push)", ...(edit ? [] : ["Edit", "Write", "NotebookEdit"]));
+    if (full.allow?.length) args.push("--allowedTools", ...full.allow);
+  }
   if (system) args.push("--append-system-prompt", system);
   if (schema) args.push("--json-schema", JSON.stringify(schema));
   if (model) args.push("--model", model);
   // How hard it thinks, and fast mode: the person's own choices for their AI ("/effort", "/fast" at the table).
   if (EFFORTS.has(effort)) args.push("--effort", effort);
-  if (fast) args.push("--settings", JSON.stringify({ fastMode: true }));
+  // On Mac and Linux commands also run in Claude Code's sandbox, and still ask: the sandbox alone never stands in for
+  // the person's answer.
+  const settings = { ...(full?.project || {}), ...(fast ? { fastMode: true } : {}),
+    ...(full && process.platform !== "win32" ? { sandbox: { ...(full?.project?.sandbox || {}), enabled: true, autoAllowBashIfSandboxed: false } } : {}) };
+  if (Object.keys(settings).length) args.push("--settings", JSON.stringify(settings));
   // Folders beside the working one that this job may read: only ever ones the connection chose.
   for (const d of addDirs) args.push("--add-dir", d);
   return new Promise((resolve, reject) => {
     const started = Date.now();
-    const child = spawn(claude, args, { cwd, env: childEnv(token, apiKey), windowsHide: true });
+    const child = spawn(claude, args, { cwd, env: full ? fullEnv(token) : childEnv(token, apiKey), windowsHide: true });
     keepTrack(child);
     // Only the result and the plan's limits are kept: work with no time limit would otherwise hold every file it ever
     // read in memory.
@@ -132,6 +164,8 @@ export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,
           const where = String(part.input?.file_path || part.input?.path || "");
           const file = where.split(/[/\\]/).pop();
           if (/[/\\]\.longtable-yours([/\\]|$)/.test(where) || /^\.longtable-yours([/\\]|$)/.test(where)) onNote("reading what it knows");
+          // A command is named by its program only: the rest of a command line can hold a secret.
+          else if (part.name === "Bash") onNote(`running ${String(part.input?.command || "").trim().split(/\s+/)[0].replace(/[^A-Za-z0-9._-]/g, "").slice(0, 30) || "a command"}`);
           else onNote(part.name === "Edit" || part.name === "Write" ? `editing ${file}` : part.name === "Read" ? `reading ${file}` : "searching the code");
         }
       }

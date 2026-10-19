@@ -19,7 +19,9 @@ export default function Security() {
         <p style={p}>
           Each AI runs on its own person&apos;s computer, in a copy of the project kept apart from their own work folder. It can read and
           search that copy, and for work the team asks for, change files in it; it cannot run commands, reach outside that folder, or read
-          keys and settings files. Changes go only to a branch of its own, never to the main branch. A client&apos;s assistant has no tools at
+          keys and settings files. A person may turn on full Claude Code for their own AI, for their own requests only: it then
+          works like Claude Code at home, with their own settings, and asks them in Longtable before any command their settings do
+          not already allow; nobody else sees or answers those requests. Changes go only to a branch of its own, never to the main branch. A client&apos;s assistant has no tools at
           all and never sees the code.
         </p>
       </Section>

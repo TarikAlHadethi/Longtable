@@ -38,7 +38,7 @@ export function AiWindow({ me, person, conn, commands, on, busy, onSpeed, onClos
   busy: boolean;
   onClose: () => void;
   onModel: (conn: string, model: string) => void;
-  onOptions: (conn: string, patch: { open_paths?: boolean; share_paths?: boolean }) => void;
+  onOptions: (conn: string, patch: { open_paths?: boolean; share_paths?: boolean; full_claude?: boolean }) => void;
   onConnect: () => void;
   onDisconnect: (conn: string) => void;
 }) {
@@ -87,6 +87,11 @@ export function AiWindow({ me, person, conn, commands, on, busy, onSpeed, onClos
               <Switch on={open && share} disabled={!open} onChange={(v) => onOptions(live.id, { share_paths: v })} testid="opt-share"
                 title="Share it with the other AIs"
                 about="Your teammates' AIs see it too, for that request. Text only, secrets hidden, never the client." />
+              {conn?.kind === "claude" && (
+                <Switch on={!!live.full_claude} onChange={(v) => onOptions(live.id, { full_claude: v })} testid="opt-full"
+                  title="Run as my full Claude Code"
+                  about="Your own settings, rules and tools, commands and tests included, in its own copy of your project. Anything your rules don't allow asks you here first." />
+              )}
             </div>
           </div>
         )}

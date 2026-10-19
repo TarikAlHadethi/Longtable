@@ -10,6 +10,8 @@ export async function fetchConfig(app) {
 export function client({ supabaseUrl, publishableKey }) {
   // Where Longtable's own storage is, so an attachment is only ever fetched from there.
   rpc.base = supabaseUrl;
+  // And the public key, so a helper it starts (the approval server of a full Claude Code run) can reach Longtable too.
+  rpc.key = publishableKey;
   return rpc;
   async function rpc(fn, args) {
     const res = await fetch(`${supabaseUrl}/rest/v1/rpc/${fn}`, {

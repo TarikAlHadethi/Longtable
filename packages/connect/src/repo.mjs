@@ -1,7 +1,7 @@
 // The connection's own clean copy of the team's code: the latest main, never the person's work folder.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { home, log } from "./store.mjs";
 
@@ -133,7 +133,7 @@ export function forgetCopies(tableIds) {
   for (const t of tableIds) {
     let safe;
     try { safe = safeTable(t); } catch { continue; }
-    for (const place of ["copies", "work", "look"]) gone(join(home, place, safe));
+    for (const place of ["copies", "work", "look", "trees"]) gone(join(home, place, safe));
   }
   gone(join(home, "pointed"));
 }
@@ -293,4 +293,126 @@ export function landWork(tableId, work, branch, message, who) {
   // Nothing could be pushed. Keep the commit findable on this computer, so the work is not lost with the folder.
   try { git(["--git-dir", p.G, "update-ref", `refs/longtable/${branch.slice(10)}`, commit]); } catch {}
   return { files, commit: commit.slice(0, 7), pushed: false, branch };
+}
+
+// ---- Full Claude Code: a git worktree of the person's own repository ----
+//
+// When a person runs their AI at the table as their full Claude Code, it works the way Claude Code's own --worktree
+// does: a second checkout of their repository, on the task's branch, in a folder of the connection's. Their own
+// working folder is never touched. When the folder they connected from is not a git repository, the connection's
+// clean copy is the repository instead. Files their repository lists in .worktreeinclude (Claude Code's own list of
+// untracked files a worktree needs) are copied in, as Claude Code does.
+
+const tgit = (cwd, args) => execFileSync("git", ["-c", "core.quotePath=false", ...args], { cwd, env: quiet, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], timeout: 120000 }).toString().trim();
+
+// The person's own repository, when the folder they connected from is one.
+export function realRepo(seat) {
+  const folder = seat?.folder;
+  if (!folder) return null;
+  try { return existsSync(join(folder, ".git")) ? resolve(folder) : null; } catch { return null; }
+}
+
+function originDefault(repo) {
+  try { return tgit(repo, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]); } catch {}
+  for (const b of ["origin/main", "origin/master"]) { try { tgit(repo, ["rev-parse", "--verify", "--quiet", b]); return b; } catch {} }
+  return "HEAD";
+}
+
+// Only files git ignores are copied, as Claude Code does: something tracked is already in the worktree, and something
+// untracked but not ignored would otherwise be committed with the work.
+function copyIncluded(repo, dir) {
+  let list;
+  try { list = readFileSync(join(repo, ".worktreeinclude"), "utf8"); } catch { return 0; }
+  let n = 0;
+  for (const raw of list.split(/\r?\n/)) {
+    const p = raw.trim();
+    if (!p || p.startsWith("#") || p.includes("..") || /^([A-Za-z]:|[\\/])/.test(p)) continue;
+    try { tgit(repo, ["check-ignore", "--quiet", p]); } catch { continue; }
+    const from = join(repo, p);
+    const to = join(dir, p);
+    try { if (existsSync(from) && !existsSync(to)) { cpSync(from, to, { recursive: true }); n++; } } catch {}
+  }
+  return n;
+}
+
+// Opens (or reopens) the worktree for a job. `branch` is the task's branch for work, or the branch to read for a
+// review; with no branch it reads the default one. Work on a branch that already exists picks up where it left off.
+// A job that only reads gets a worktree of its own (`job`), removed when it ends, so two jobs never share one.
+export function openTree(seat, branch, { doing = false, job = "read" } = {}) {
+  const table = safeTable(seat.table_id);
+  if (branch) safeBranch(branch);
+  if (doing && !branch) throw new Error("work needs a branch of its own");
+  const repo = realRepo(seat) || join(home, "copies", table);
+  const dir = doing ? join(home, "trees", table, `work-${branch.slice("longtable/".length)}`)
+    : join(home, "trees", table, `read-${String(job).replace(/[^A-Za-z0-9-]/g, "").slice(0, 36) || "job"}`);
+  try { tgit(repo, ["fetch", "--quiet", "origin"]); } catch (e) { log(`fetch before a worktree failed: ${String(e.message).split(/\r?\n/)[0]}`); }
+  let onRemote = false;
+  if (branch) { try { tgit(repo, ["rev-parse", "--verify", "--quiet", `origin/${branch}`]); onRemote = true; } catch {} }
+  const base = onRemote ? `origin/${branch}` : originDefault(repo);
+  const fresh = !existsSync(join(dir, ".git"));
+  if (fresh) {
+    mkdirSync(join(home, "trees", table), { recursive: true });
+    // A worktree of ours whose folder is gone is let go by name; the person's own worktrees are never touched.
+    try { tgit(repo, ["worktree", "remove", "--force", dir]); } catch {}
+    if (doing) {
+      // Their own local branch of the same name is never reset over work that is not on the server.
+      let local = null;
+      try { local = tgit(repo, ["rev-parse", "--verify", "--quiet", `refs/heads/${branch}`]); } catch {}
+      if (local) {
+        try { tgit(repo, ["merge-base", "--is-ancestor", local, base]); }
+        catch { throw new Error(`a branch named ${branch} on this computer has work that is not on the server, so it was left as it is`); }
+      }
+    }
+    tgit(repo, ["worktree", "add", "--quiet", ...(doing ? ["-B", branch, dir, base] : ["--detach", dir, base])]);
+  } else if (doing && onRemote) {
+    // Work picked up again starts from what is on the server (another AI's part may have landed there since), unless
+    // this computer holds commits the server does not have yet.
+    try { tgit(dir, ["merge-base", "--is-ancestor", "HEAD", base]); tgit(dir, ["reset", "--quiet", "--hard", base]); } catch {}
+    tgit(dir, ["clean", "-qfd", "-e", ".longtable-yours"]);
+  }
+  // What is laid beside the code for the AI is never committed, in every worktree of this repository.
+  const common = resolve(dir, tgit(dir, ["rev-parse", "--git-common-dir"]));
+  mkdirSync(join(common, "info"), { recursive: true });
+  const exclude = join(common, "info", "exclude");
+  const now = existsSync(exclude) ? readFileSync(exclude, "utf8") : "";
+  const NL = String.fromCharCode(10);
+  if (!now.split(/\r?\n/).includes(".longtable-yours/")) writeFileSync(exclude, `${now}${now && !now.endsWith(NL) ? NL : ""}.longtable-yours/${NL}`);
+  if (fresh && realRepo(seat)) copyIncluded(repo, dir);
+  return { dir, repo, base: tgit(dir, ["rev-parse", "HEAD"]), continued: onRemote, tree: true };
+}
+
+// What changed in the worktree since it was opened, committed or not.
+export function treeChanges(tree) {
+  try {
+    const committed = tgit(tree.dir, ["diff", "--name-only", tree.base, "HEAD"]).split(/\r?\n/).filter(Boolean);
+    const open = tgit(tree.dir, ["status", "--porcelain"]).split(/\r?\n/).filter(Boolean).map((l) => l.slice(3));
+    return [...new Set([...committed, ...open])].filter((f) => !f.startsWith(".longtable-yours"));
+  } catch { return []; }
+}
+
+// Lands a worktree's work: whatever is left uncommitted becomes one commit (Claude may have made its own along the
+// way, which stay as they are), and the branch is pushed with the person's own git sign-in. Only ever to the task's
+// longtable/ branch, and never with force.
+export function landTree(tree, branch, message, who) {
+  safeBranch(branch);
+  // The connection's own commit and push run no hooks: a hook on the branch is code other people's AIs can write.
+  const noHooks = join(home, "no-hooks");
+  mkdirSync(noHooks, { recursive: true });
+  const land = (args) => tgit(tree.dir, ["-c", `core.hooksPath=${noHooks}`, ...args]);
+  if (land(["status", "--porcelain"])) {
+    land(["add", "-A"]);
+    land(["commit", "--quiet", "--no-verify", "-m", `${message}${String.fromCharCode(10, 10)}Asked at the table by ${who}.`]);
+  }
+  const files = land(["diff", "--name-only", tree.base, "HEAD"]).split(/\r?\n/).filter(Boolean);
+  if (!files.length) return null;
+  const commit = land(["rev-parse", "--short", "HEAD"]);
+  let pushed = false;
+  try { land(["push", "--quiet", "--no-verify", "origin", `HEAD:refs/heads/${branch}`]); pushed = true; } catch (e) { log(`push of ${branch} failed: ${String(e.message).split(/\r?\n/)[0]}`); }
+  return { files, commit, branch, pushed };
+}
+
+// A job's reading worktree goes when the job ends.
+export function closeTree(tree) {
+  if (!tree?.tree || !/[\\/]read-[^\\/]+$/.test(tree.dir)) return;
+  try { tgit(tree.repo, ["worktree", "remove", "--force", tree.dir]); } catch (e) { log(`could not remove a reading worktree: ${String(e.message).split(/\r?\n/)[0]}`); }
 }

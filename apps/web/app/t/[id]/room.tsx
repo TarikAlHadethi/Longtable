@@ -33,7 +33,9 @@ import {
   type Chat, type Command, type Connection, type Decision, type Job, type Member, type Message, type Note, type Request,
   CHANGE_COLUMNS, type SandboxChange, SANDBOX_COLUMNS, type SandboxRow, TASK_COLUMNS, type Task,
   PAGE_COLUMNS, PAGE_COMMENT_COLUMNS, PAGE_VERSION_COLUMNS, type Page, type PageComment, type PageValue, type PageVersion,
+  APPROVAL_COLUMNS, type Approval,
 } from "./types";
+import { ApprovalCards } from "./approvals";
 import styles from "./room.module.css";
 import { firstName } from "@/lib/names";
 import { CODEX_NAMES, EFFORT_LEVELS, SLASH, slashEntry } from "@/lib/slash.mjs";
@@ -132,6 +134,25 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     else setMyCommands((data as Command[] | null) ?? []);
   }, [supabase, table.id]);
   useEffect(() => { readCommands(); }, [readCommands]);
+  // What this person's own full Claude Code is waiting for them to allow. Only they can read it (row level security).
+  const [approvals, setApprovals] = useState<Approval[]>([]);
+  const readApprovals = useCallback(async () => {
+    const { data, error } = await supabase.from("approvals").select(APPROVAL_COLUMNS).eq("table_id", table.id).eq("status", "waiting").order("created_at");
+    if (error) console.warn("[approvals] could not be read:", error.code);
+    else setApprovals((data as Approval[] | null) ?? []);
+  }, [supabase, table.id]);
+  useEffect(() => { readApprovals(); }, [readApprovals]);
+  // While something waits, look again now and then: a request expires after ten minutes, and a live push can be lost.
+  useEffect(() => {
+    if (!approvals.length) return;
+    const t = setInterval(readApprovals, 8000);
+    return () => clearInterval(t);
+  }, [approvals.length, readApprovals]);
+  // The tab says so too, so a request is seen from another tab.
+  useEffect(() => {
+    const base = document.title.replace(/^\(\d+\) /, "");
+    document.title = approvals.length ? `(${approvals.length}) ${base}` : base;
+  }, [approvals.length]);
   // The pages the table's AIs made, what each version was, what people said on them, what tools on them keep, and
   // which ones this person pinned. The team's alone: a client never reads any of it.
   const [pages, setPages] = useState<Page[]>([]);
@@ -348,6 +369,9 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         const c = record as unknown as Connection;
         setConnections((prev) => [...prev.filter((x) => x.id !== c.id), { ...prev.find((x) => x.id === c.id), ...c }]);
         if (c.member_id === me.id) readCommands();
+      } else if (name === "approvals") {
+        // Only an id and whose it is come over the team's channel; the request itself is read by its person alone.
+        if ((record as { member_id?: string }).member_id === me.id) readApprovals();
       } else if (name === "table_ai") {
         setTableModel(((record as { model?: string | null }).model) ?? null);
       } else if (name === "requests") {
@@ -978,6 +1002,12 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           {/* On a phone the top bar has no room, so the same button lives in the menu. */}
           {(clients.length > 0 || self.role === "owner") && <button className={`btn btn-quiet ${styles.clientSideMenu}`} onClick={() => { setDrawerOpen(false); go("client", `${base}?side=client`); }}>Client side</button>}
           <BugButton tableId={table.id} place={view} />
+          <ApprovalCards items={approvals} ai={myConnection?.kind === "codex" ? "ChatGPT" : "Claude"}
+            onAnswer={async (a, allow, always) => {
+              setApprovals((prev) => prev.filter((x) => x.id !== a.id));
+              const { error } = await supabase.rpc("decide_approval", { a: a.id, allow, always_allow: always });
+              if (error) { didNotTake("That answer did not reach your Claude. Try again."); readApprovals(); }
+            }} />
         </aside>
 
         {view === "table" && (
@@ -1203,9 +1233,11 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
             onOptions={async (id, patch) => {
               const before = connections.find((c) => c.id === id);
               setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
-              const { error } = await supabase.rpc("set_connection_options", { conn: id, open: patch.open_paths ?? null, share: patch.share_paths ?? null });
+              const { error } = patch.full_claude !== undefined
+                ? await supabase.rpc("set_full_claude", { conn: id, full_on: patch.full_claude })
+                : await supabase.rpc("set_connection_options", { conn: id, open: patch.open_paths ?? null, share: patch.share_paths ?? null });
               if (error && before) {
-                setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, open_paths: before.open_paths, share_paths: before.share_paths } : c)));
+                setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, open_paths: before.open_paths, share_paths: before.share_paths, full_claude: before.full_claude } : c)));
                 didNotTake("That switch was not changed. Try again.");
               }
             }} />

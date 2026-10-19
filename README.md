@@ -57,8 +57,10 @@ flowchart LR
   and every change goes through a function that checks who is asking. Live updates arrive on private channels.
 - **The connection** (`packages/connect`) is a small Node program on each person's computer. It holds a revocable device
   token, claims jobs for its seat from a queue in Postgres, and runs that person's Claude Code or Codex headless: read
-  and search only, or file edits confined to a work folder with no `.git` in it. It never runs commands. Changes land
-  as one commit on a `longtable/...` branch, never the default branch.
+  and search only, or file edits confined to a work folder with no `.git` in it, with no commands. A person may turn on
+  full Claude Code for their own AI: their own settings, tools and commands in a worktree of their repository, every
+  command their settings do not already allow asked of them in Longtable first. Either way changes land as one commit
+  on a `longtable/...` branch, never the default branch.
 - **Longtable never stores code** or anyone's AI sign-in. Anything shaped like a key is hidden before an answer is saved.
 
 ## How it's tested
