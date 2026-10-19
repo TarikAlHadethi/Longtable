@@ -87,9 +87,9 @@ try {
   await dev.page.waitForFunction((id) => /has been told/.test(document.querySelector(`[data-did='${id}']`)?.textContent || ""), d1, { timeout: 5000 });
   check("card says the client has been told", true);
 
-  // Too late to undo once it has gone out, even straight through the database.
+  // The old undo window is closed to people: even straight through the database, undo is refused, sent or not.
   const lateUndo = await rpc(devToken, "undo_decision", { d: d1 });
-  check("undo after delivery is refused", lateUndo.status >= 400 && /too late/.test(JSON.stringify(lateUndo.body)), JSON.stringify(lateUndo));
+  check("undo through the old window is refused", lateUndo.status >= 400 && /permission denied/.test(JSON.stringify(lateUndo.body)), JSON.stringify(lateUndo));
 
   // A second decision, picked and picked again to let it go: nothing is decided and the client never hears it.
   const made = await rpc(ownerToken, "create_decision", {
