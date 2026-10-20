@@ -24,11 +24,19 @@ export function findClaude() {
   const native = join(homedir(), ".local", "bin", exe);
   if (existsSync(native)) return native;
   if (isWindows) {
-    const root = join(process.env.APPDATA || "", "Claude", "claude-code");
-    if (existsSync(root)) {
-      const versions = readdirSync(root).filter((v) => /^\d+\.\d+\.\d+$/.test(v)).sort(byVersionDesc);
+    // The Claude app's own copy: where the app sees it, and where Windows really keeps it for a packaged app, which
+    // is what a connection started outside the app sees.
+    const roots = [join(process.env.APPDATA || "", "Claude", "claude-code")];
+    const packages = join(process.env.LOCALAPPDATA || "", "Packages");
+    try { for (const d of readdirSync(packages)) if (/^Claude_/i.test(d)) roots.push(join(packages, d, "LocalCache", "Roaming", "Claude", "claude-code")); } catch {}
+    for (const root of roots) {
+      if (!existsSync(root)) continue;
+      let versions = [];
+      try { versions = readdirSync(root).filter((v) => /^\d+\.\d+\.\d+$/.test(v)).sort(byVersionDesc); } catch {}
       for (const v of versions) {
-        for (const h of readdirSync(join(root, v))) {
+        let builds = [];
+        try { builds = readdirSync(join(root, v)); } catch {}
+        for (const h of builds) {
           const p = join(root, v, h, exe);
           if (existsSync(p)) return p;
         }
@@ -36,6 +44,17 @@ export function findClaude() {
     }
   }
   return null;
+}
+
+// Claude Code from Anthropic's own installer, for a computer that has none the connection can run (only the
+// Claude app's, kept to itself, or none at all). It is the documented way to install it; what it prints is shown.
+export function installClaude() {
+  const cmd = isWindows
+    ? ["powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "irm https://claude.ai/install.ps1 | iex"]]
+    : ["bash", ["-c", "curl -fsSL https://claude.ai/install.sh | bash"]];
+  const r = spawnSync(cmd[0], cmd[1], { stdio: "inherit", windowsHide: true, timeout: 10 * 60 * 1000 });
+  if (r.error) log(`installing Claude Code failed to start: ${r.error.message}`);
+  return findClaude();
 }
 
 // A clean environment: only what the operating system needs, plus the connection's own sign-in.

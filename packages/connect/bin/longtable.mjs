@@ -15,7 +15,7 @@ import { rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { client, fetchConfig } from "../src/api.mjs";
-import { claudeVersion, findClaude, tokenWorks } from "../src/claude.mjs";
+import { claudeVersion, findClaude, installClaude, tokenWorks } from "../src/claude.mjs";
 import { codexSignIn, codexSignedIn, codexVersion, findCodex } from "../src/codex.mjs";
 import { disableAutostart, enableAutostart } from "../src/autostart.mjs";
 import { forgetCopies, freshCopy, gitCanJoin, resolveSource } from "../src/repo.mjs";
@@ -40,8 +40,15 @@ async function connect() {
   const ai = option("ai") || "claude";
   if (!["claude", "codex"].includes(ai)) throw new Error("--ai is claude or codex.");
   // Check the AI is here before the one-use code is spent.
-  const claude = ai === "claude" ? findClaude() : null;
+  let claude = ai === "claude" ? findClaude() : null;
   const codex = ai === "codex" ? findCodex() : null;
+  // No Claude Code this connection can run: it is installed now with Anthropic's own installer, so connecting never
+  // stops on a step someone skipped. --no-install leaves it to the person.
+  if (ai === "claude" && !claude && !args.includes("--no-install")) {
+    say("Claude Code isn't on this computer yet, outside the Claude app. Installing it with Anthropic's installer (claude.ai/install), one moment.");
+    claude = installClaude();
+    if (claude) say("Claude Code is installed.");
+  }
   if (ai === "claude" && !claude) throw new Error("Claude Code isn't installed on this computer. Install it from claude.com/claude-code, then press Connect again.");
   if (ai === "codex" && !codex) throw new Error("Codex's command-line tool isn't installed on this computer. Install it with npm install -g @openai/codex, then press Connect again.");
 

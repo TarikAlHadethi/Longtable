@@ -152,6 +152,21 @@ try {
   check("a folder read where it is shares its text files, code and data included, and not its pictures", sharedInPlace.some((n) => n.endsWith("form.ts")) && sharedInPlace.some((n) => n.endsWith("data.json")) && sharedInPlace.some((n) => n.endsWith("README.md")) && !sharedInPlace.some((n) => n.endsWith("logo.png")), sharedInPlace);
   const sharedCopy = shareable({ files: [], copied: [{ path: "C:/project", at: spot }], dirs: [spot] }).map((f) => f.name);
   check("a copied folder's files are shared once, under the path the person wrote", sharedCopy.length === 3 && sharedCopy.every((n) => n.startsWith("C:/project")), sharedCopy);
+
+  // ---- finding Claude Code: the Claude app's own copy, also where Windows really keeps it for the packaged app
+  if (process.platform === "win32") {
+    const fake = mkdtempSync(join(tmpdir(), "longtable-find-"));
+    const at = join(fake, "Packages", "Claude_abc123", "LocalCache", "Roaming", "Claude", "claude-code", "2.1.300", "deadbeef");
+    mkdirSync(at, { recursive: true });
+    writeFileSync(join(at, "claude.exe"), "");
+    const keep = { PATH: process.env.PATH, APPDATA: process.env.APPDATA, LOCALAPPDATA: process.env.LOCALAPPDATA, USERPROFILE: process.env.USERPROFILE };
+    Object.assign(process.env, { PATH: "", APPDATA: join(fake, "none"), LOCALAPPDATA: fake, USERPROFILE: fake });
+    const { findClaude } = await import("../../packages/connect/src/claude.mjs");
+    const found = findClaude();
+    Object.assign(process.env, keep);
+    check("the Claude app's own copy of Claude Code is found where Windows keeps it for the packaged app", found === join(at, "claude.exe"), found);
+    rmSync(fake, { recursive: true, force: true });
+  }
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {
