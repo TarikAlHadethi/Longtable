@@ -56,9 +56,9 @@ the code as it is (last brought up to date 17 Oct 2026); update it with every ch
 | A person's commands are seen by others | Only names and one line each leave the computer; only their own AI is told what a command is for; the list is forgotten when the connection ends | step 33 |
 | An AI repeats a secret | `hide_secrets` (server) and `hideSecrets` (connection) replace anything key-shaped before it is stored or shared | step 3, step 29, unit-prompts |
 | A forged update reaches people's computers | The connection takes only the exact version the table names, newer than its own, from the npm registry at the registry's own path, checked against its sha512 integrity, unpacked to an allow-list of files | unit-update, step 40 |
-| Full Claude Code mode (a person turns it on for their own AI) runs commands someone else wanted | Off until its person turns it on, and only they can; it applies only to their own requests, never a teammate's or a client's; every command their own Claude Code settings do not already allow becomes a request only they see and answer (ten minutes, then a no); `git push` is always refused; the connection commits and pushes to a `longtable/...` branch with hooks off | step 41, step 42, unit-approve |
+| Full Claude Code mode (a person turns it on for their own AI) runs commands someone else wanted | Off until its person turns it on, and only they can; it applies only to their own requests, never a teammate's or a client's; every command their own Claude Code settings do not already allow becomes a request only they see and answer (ten minutes, then a no); git itself refuses every push from the commands it runs (every push address is rewritten to one git cannot reach, however the command is written) and its hooks point at an empty folder; the connection alone commits and pushes, to a `longtable/...` branch with hooks off, putting two parts together or side by side | step 41, step 42, unit-approve, unit-land |
 | A request is approved without its person seeing it whole | Shown whole or refused (over 2,000 characters is a no); keys hidden; "always allow" only ever adds that one plain command, never a tool or a pattern, and rules written into its file by anything else are dropped | unit-approve, step 41 |
-| The branch being worked on changes the person's settings | Their settings come from their own computer (user settings, and their project's settings read from their own folder), never from the branch other AIs push to; hooks in the branch never run | step 42 |
+| The branch being worked on changes the person's settings | Their settings come from their own computer (user settings, and their project's settings read from their own folder, without its hooks or its switch for loading the folder's MCP servers), never from the branch other AIs push to; no hook in the branch runs | step 42 |
 | Requests bury their person | Five waiting per job, twenty per connection, sixty an hour; a job's key asks only about that job and dies when it ends | step 41 |
 | A client's own copy reaches past the front end | A guard on the person's computer refuses changes to build, server, sign-in, database and test files and reads every changed file whole; the owner ticks that previews hold no real data or keys before giving a copy | unit-prompts, sim-rounds, step 17 |
 
@@ -99,6 +99,12 @@ Client messages (30 an hour, 60 with a copy), new tables (10 a day), connect cod
   person's own judgement on each request is the wall. A command they allow can read the job's own approval key and
   the connection's Claude sign-in from its environment: the key only asks that person about that job, and the
   sign-in only makes model requests on their own plan.
+- **In full Claude Code mode, other people's words still reach a Claude that can run commands.** It is told that only
+  its own person decides what it runs, and everything from others is fenced as information, but a teammate's message,
+  a client's words in the history, another AI's view or a handout could still talk it into a command that the
+  person's own rules allow, or that auto mode judges safe. On Mac and Linux the sandbox limits what such a command can
+  reach; on Windows the person's own rules and answers are the only wall. Manual mode asks about every command their
+  rules do not already allow.
 - **Rate limits** do not yet cover team messages or asks of the table.
 - **The server is trusted.** Whoever runs a Longtable can read every table's rows. The operator page shows counts only,
   but the database is not end-to-end encrypted, by design: the server reads messages to hide keys, route a client's

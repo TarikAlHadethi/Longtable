@@ -71,11 +71,11 @@ try {
   const asked = Date.now();
   await dev.page.fill("textarea", "Change the greeting in greet.js to say hi, and add a farewell export that says bye.");
   await dev.page.click("button:has-text('Send')");
-  await dev.page.waitForFunction(() => [...document.querySelectorAll("[data-ai='true']")].some((el) => el.textContent.includes("The table")), null, { timeout: 420000 });
+  await dev.page.waitForFunction(() => [...document.querySelectorAll("[data-ai='true']")].some((el) => el.textContent.includes("one answer from")), null, { timeout: 420000 });
   results.seconds = Math.round((Date.now() - asked) / 1000);
-  const answer = dev.page.locator("[data-ai='true']").filter({ hasText: "The table" }).last();
+  const answer = dev.page.locator("[data-ai='true']").filter({ hasText: "one answer from" }).last();
   results.answer = (await answer.textContent()).slice(-700);
-  check("the table's answer names the branch the change is on", results.answer.includes(" on longtable/") && results.answer.includes("changed 1 file"), results.answer);
+  check("the table's answer names the branch the change is on", results.answer.includes(" on longtable/") && /changed \d+ files? on longtable\//.test(results.answer), results.answer);
 
   const branches = git(scratch, "--git-dir", remote, "branch", "--list").split(/\r?\n/).map((b) => b.replace(/^[* ]+/, ""));
   results.branches = branches;

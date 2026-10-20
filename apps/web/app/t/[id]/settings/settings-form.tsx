@@ -78,10 +78,13 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
   // What is saved here is kept by the room too, so coming back shows it as it was left: only what was really saved.
   // Each card keeps its own fields; a change typed into the other card and never saved is not kept as if it were.
   const kept = useRef<Extra | null>(data?.extra ?? null);
+  const dataRef = useRef(data);
+  dataRef.current = data;
   const keep = (patch: Partial<Extra>, hub: Github = github) => {
     if (!kept.current) return;
     kept.current = { ...kept.current, ...patch };
-    onData({ extra: kept.current, github: hub });
+    // Everything else the room holds (who answers clients, their copies) is kept as it is, never dropped.
+    onData({ ...(dataRef.current ?? { extra: null, github: null }), extra: kept.current, github: hub });
   };
   const setGithub = (g: Github) => { setGithubState(g); keep({}, g); };
 
@@ -206,7 +209,7 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
 
         </>}
         {part === "clients" && <ClientSettings tableId={table.id} me={me} people={people} answerers={answerers} setAnswerer={setAnswerer} savedFor={saved} focus={focus} onRemoved={onRemoved}
-          copies={data?.copies ?? null} onCopies={(c) => data && onData({ ...data, copies: c })} />}
+          copies={data ? data.copies ?? null : undefined} onCopies={(c) => data && onData({ ...data, copies: c })} />}
         {part === "people" && <PeopleSettings tableId={table.id} me={me} mainOwner={mainOwner} myRole={myRole} people={people} focus={focus}
           onChanged={(id, patch) => onChanged?.(id, patch)} onRemoved={onRemoved} />}
         </div>
@@ -239,8 +242,9 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
         <section className={styles.card} aria-label="Your data">
           <div className={styles.cardTitle}>Your data</div>
           <div className="note">Everything this table holds, as one file: people, chats, messages, decisions, requests, what clients were told and the log. Never anyone&apos;s sign-in, and never a client&apos;s private chat with their own AI.</div>
-          <div className={styles.actions}><button className="btn btn-quiet" onClick={download}>Download everything</button></div>
-          {!deleting ? (
+          {/* Downloading everything is an owner's; deleting the table is the main owner's alone. */}
+          {myRole === "owner" && <div className={styles.actions}><button className="btn btn-quiet" onClick={download}>Download everything</button></div>}
+          {me !== mainOwner && mainOwner !== null ? null : !deleting ? (
             <div className={styles.actions}><button className="btn btn-quiet" onClick={() => setDeleting(true)}>Delete this table</button></div>
           ) : (
             <form onSubmit={deleteTable} className={styles.card} style={{ borderColor: "oklch(0.75 0.1 30)" }} aria-label="Delete this table">

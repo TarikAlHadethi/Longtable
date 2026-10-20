@@ -66,9 +66,9 @@ try {
   const asked = Date.now();
   await owner.page.fill("textarea", "Where is the 10-second undo window enforced, and could a client get around it to hear a decision early?");
   await owner.page.press("textarea", "Control+Enter");
-  await owner.page.waitForFunction(() => [...document.querySelectorAll("[data-ai='true']")].some((el) => el.textContent.includes("The table")), null, { timeout: 240000 });
+  await owner.page.waitForFunction(() => [...document.querySelectorAll("[data-ai='true']")].some((el) => el.textContent.includes("one answer from")), null, { timeout: 240000 });
   results.answerSeconds = Math.round((Date.now() - asked) / 100) / 10;
-  const answer = owner.page.locator("[data-ai='true']").filter({ hasText: "The table" }).last();
+  const answer = owner.page.locator("[data-ai='true']").filter({ hasText: "one answer from" }).last();
   results.answer = (await answer.textContent()).slice(-900);
   check("one combined answer, written by Maya's Claude", /one answer from 2 Claudes, written by Maya/.test(results.answer), results.answer);
 

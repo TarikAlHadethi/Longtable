@@ -1,10 +1,10 @@
 // Claude Code on this computer: where it is, its own sign-in for the connection, and a locked-down answer.
 
 import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, join } from "node:path";
-import { loadSecret, log } from "./store.mjs";
+import { home, loadSecret, log } from "./store.mjs";
 
 const isWindows = process.platform === "win32";
 const exe = isWindows ? "claude.exe" : "claude";
@@ -57,6 +57,16 @@ export function fullEnv(token) {
   const env = { ...process.env };
   for (const k of Object.keys(env)) if (/^(ANTHROPIC_|CLAUDE_CODE_OAUTH_TOKEN$|CLAUDE_CODE_USE_|OPENAI_API_KEY$|LT_)/.test(k)) delete env[k];
   if (token) env.CLAUDE_CODE_OAUTH_TOKEN = token;
+  // Git itself refuses every push from the commands this Claude runs, however the command is written (git -C, -c,
+  // an alias, a script): every push address is rewritten to one no git can reach. Only the connection pushes, and
+  // only the task's longtable/ branch. Git hooks point at an empty folder, so a hook from the branch never runs.
+  const noHooks = join(home, "no-hooks");
+  try { mkdirSync(noHooks, { recursive: true }); } catch {}
+  env.GIT_CONFIG_COUNT = "2";
+  env.GIT_CONFIG_KEY_0 = "url.longtable-no-push://refused/.pushInsteadOf";
+  env.GIT_CONFIG_VALUE_0 = "";
+  env.GIT_CONFIG_KEY_1 = "core.hooksPath";
+  env.GIT_CONFIG_VALUE_1 = noHooks;
   return env;
 }
 

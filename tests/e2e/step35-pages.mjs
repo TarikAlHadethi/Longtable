@@ -122,6 +122,15 @@ try {
   await page.click("[data-testid=page-comment-send]");
   await sleep(1500);
   check("a comment written in the window is kept", sql(`select count(*) from public.page_comments where page_id = '${pageId}' and body = 'Looks right now'`) === "1");
+  // A page's own script can read the frame's key from any message the room sends it. It must still never save a
+  // version in the viewer's name: what it sends back is taken only after the viewer pressed Save.
+  const versionsBefore = sql(`select count(*) from public.page_versions where page_id = '${pageId}'`);
+  await inside.evaluate(() => new Promise((done) => {
+    addEventListener("message", (e) => { if (e.data && e.data.lt) parent.postMessage({ lt: e.data.lt, op: "html", a: "<p>forged by the page</p>" }, "*"); done(); }, { once: true });
+  }));
+  await page.mouse.move(400, 300); await page.mouse.move(420, 320);
+  await sleep(2000);
+  check("a handout cannot save a version by itself in the viewer's name", sql(`select count(*) from public.page_versions where page_id = '${pageId}'`) === versionsBefore);
   await page.click("[data-testid=page-window] button[aria-label=Close]");
   check("the sidebar's Handouts section has it", (await page.textContent("[data-testid=handouts]")).includes("Launch plan"));
   check("the owner deletes it, versions and comments with it", (await rpc(tok.maya, "delete_page", { p: pageId })).status < 300

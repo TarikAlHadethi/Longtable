@@ -108,8 +108,8 @@ try {
   const animals = ts.find((t) => has(t.branch, "docs/animals.md"));
   check("each change is on its own task's branch and not on the other's", !!colors && !!animals && colors.id !== animals.id && !has(colors.branch, "docs/animals.md") && !has(animals.branch, "docs/colors.md"), branches);
   check("the default branch has neither", !has("main", "docs/colors.md") && !has("main", "docs/animals.md"));
-  await owner.page.waitForFunction(() => [...document.querySelectorAll("[data-ai='true']")].filter((el) => el.textContent.includes("The table")).length >= 2, null, { timeout: 30000 }).catch(() => {});
-  check("there are two answers in the chat, one for each", (await owner.page.locator("[data-ai='true']").filter({ hasText: "The table" }).count()) === 2);
+  await owner.page.waitForFunction(() => [...document.querySelectorAll("[data-ai='true']")].filter((el) => el.textContent.includes("one answer from")).length >= 2, null, { timeout: 30000 }).catch(() => {});
+  check("there are two answers in the chat, one for each", (await owner.page.locator("[data-ai='true']").filter({ hasText: "one answer from" }).count()) === 2);
 
   // A follow-up to one of them goes back onto that task's branch.
   if (colors) {

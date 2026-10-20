@@ -21,7 +21,7 @@ const QUIET_MS = 75 * 1000;
 // The table's home: who is at the table, the AI each person brought and the model it is running, and how they all
 // meet at the table. Everything hangs from one centred column, so the people always sit squarely over the table.
 export function TableView({ table, me, members, connections, jobs, online, messages, chats, onOpenChat, onConnect, onInvite, onModel, tableModel, onTableModel, onPerson, onAi, onTable, showcase = false }: {
-  table: { id: string; name: string };
+  table: { id: string; name: string; main_owner?: string | null };
   me: Member;
   members: Member[];
   connections: Connection[];
@@ -68,8 +68,8 @@ export function TableView({ table, me, members, connections, jobs, online, messa
   const cols = team.length + (onInvite ? 1 : 0) || 1;
   const onSeats = seats.filter((x) => x.seat?.on);
   const anyBusy = team.some((m) => busy(m.id));
-  // The table speaks through the owner's AI when it is on, else the first one that is.
-  const writer = onSeats.find((x) => x.m.role === "owner") ?? onSeats[0];
+  // The table speaks through the main owner's AI when it is on, else another owner's, else the first one that is.
+  const writer = onSeats.find((x) => x.m.id === table.main_owner) ?? onSeats.find((x) => x.m.role === "owner") ?? onSeats[0];
   const last = [...messages].reverse().find((m) => m.by_ai && (m.kind === "answer" || !m.kind));
   const lastModel = prettyModel(last?.meta?.model);
   // A person's AI: what they picked, else what it last ran.

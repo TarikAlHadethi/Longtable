@@ -76,9 +76,9 @@ try {
   await dev.page.waitForSelector("[data-testid=work-task]", { timeout: 120000 });
   results.panelWhileWorking = (await dev.page.locator("[data-testid=work-panel]").textContent()).slice(0, 300);
   check("the work panel opens with the task once work starts", (await dev.page.locator("[data-testid=work-task]").count()) === 1, results.panelWhileWorking);
-  await dev.page.waitForFunction(() => [...document.querySelectorAll("[data-ai='true']")].some((el) => el.textContent.includes("The table")), null, { timeout: 600000 });
+  await dev.page.waitForFunction(() => [...document.querySelectorAll("[data-ai='true']")].some((el) => el.textContent.includes("one answer from")), null, { timeout: 600000 });
   results.seconds = Math.round((Date.now() - asked) / 1000);
-  results.answer = (await dev.page.locator("[data-ai='true']").filter({ hasText: "The table" }).last().textContent()).slice(0, 500);
+  results.answer = (await dev.page.locator("[data-ai='true']").filter({ hasText: "one answer from" }).last().textContent()).slice(0, 500);
 
   const token = await accessToken(owner.context);
   const jobs = (await rest(token, `jobs?select=kind,status,stage,member_id,brief,outcome&table_id=eq.${owner.tableId}&order=created_at`)).body;

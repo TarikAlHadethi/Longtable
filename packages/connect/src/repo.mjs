@@ -128,7 +128,7 @@ export function gitCanJoin(said) {
 // Everything the connection keeps of these tables' code on this computer: the clean copies, the work and reading
 // folders, and the kept copies of folders a person pointed at. Done after the connection has stopped; a file still
 // held for a moment is tried again.
-export function forgetCopies(tableIds) {
+export function forgetCopies(tableIds, folders = []) {
   const gone = (p) => { try { rmSync(p, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch (e) { log(`could not remove ${p}: ${e.message}`); } };
   for (const t of tableIds) {
     let safe;
@@ -136,6 +136,8 @@ export function forgetCopies(tableIds) {
     for (const place of ["copies", "work", "look", "trees"]) gone(join(home, place, safe));
   }
   gone(join(home, "pointed"));
+  // The person's own repositories forget the worktrees full Claude Code made in them, now their folders are gone.
+  for (const f of folders) { try { if (existsSync(join(f, ".git"))) execFileSync("git", ["-C", f, "worktree", "prune"], { windowsHide: true, stdio: "ignore" }); } catch {} }
 }
 
 export function openWork(tableId, branch, name = "work", { refresh = false } = {}) {
@@ -407,8 +409,24 @@ export function landTree(tree, branch, message, who) {
   if (!files.length) return null;
   const commit = land(["rev-parse", "--short", "HEAD"]);
   let pushed = false;
-  try { land(["push", "--quiet", "--no-verify", "origin", `HEAD:refs/heads/${branch}`]); pushed = true; } catch (e) { log(`push of ${branch} failed: ${String(e.message).split(/\r?\n/)[0]}`); }
-  return { files, commit, branch, pushed };
+  let landed = branch;
+  const push = (to) => land(["push", "--quiet", "--no-verify", "origin", `HEAD:refs/heads/${to}`]);
+  try { push(branch); pushed = true; } catch (e) {
+    log(`push of ${branch} failed: ${String(e.message).split(/\r?\n/)[0]}`);
+    // Another part landed on the branch first (two people's work on one task): put the two together and try again;
+    // when they touch the same lines, this part goes on a branch of its own beside it, as the other work does.
+    try {
+      land(["fetch", "--quiet", "origin", branch]);
+      land(["merge", "--quiet", "--no-edit", "--no-verify", "FETCH_HEAD"]);
+      push(branch);
+      pushed = true;
+    } catch {
+      try { land(["merge", "--abort"]); } catch {}
+      const side = `${branch}-${String(who || "part").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`.slice(0, 100);
+      try { safeBranch(side); push(side); pushed = true; landed = side; } catch (e2) { log(`push of ${side} failed: ${String(e2.message).split(/\r?\n/)[0]}`); }
+    }
+  }
+  return { files, commit: pushed ? land(["rev-parse", "--short", "HEAD"]) : commit, branch: landed, pushed, apart: landed !== branch };
 }
 
 // A job's reading worktree goes when the job ends.

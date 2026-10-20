@@ -93,8 +93,9 @@ try {
   await owner.page.waitForFunction(() => document.querySelectorAll("[data-ai='intro']").length >= 2, null, { timeout: 180000 }).catch(() => {});
   await owner.page.fill("textarea", "In one or two sentences: how does a connection keep its copy of the code up to date?");
   await owner.page.press("textarea", "Control+Enter");
-  await owner.page.waitForFunction(() => [...document.querySelectorAll("[data-ai='true']")].some((el) => el.textContent.includes("The table")), null, { timeout: 300000 });
-  const both = await owner.page.locator("[data-ai='true']").filter({ hasText: "The table" }).last().textContent();
+  // Every answer speaks as the table; the one written from both AIs says so in its small print.
+  await owner.page.waitForFunction(() => [...document.querySelectorAll("[data-ai='true']")].some((el) => el.textContent.includes("one answer from")), null, { timeout: 300000 });
+  const both = await owner.page.locator("[data-ai='true']").filter({ hasText: "one answer from" }).last().textContent();
   results.both = both.slice(0, 400);
   check("one answer from both AIs", /one answer from 2 AIs, written by Maya's Claude/.test(both), both);
 } finally {

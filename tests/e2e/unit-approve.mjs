@@ -19,6 +19,8 @@ const NL = String.fromCharCode(10);
 // What the person is shown.
 check("a command is shown whole", describe("Bash", { command: "npm test -- --watch=false" }) === "npm test -- --watch=false");
 check("any other tool shows its whole input, not just a path", /force/.test(describe("mcp__gh__push", { path: "README", branch: "main", force: true }) || ""));
+check("leaving the sandbox or running on in the background is shown, never hidden behind the command", /outside the sandbox/.test(describe("Bash", { command: "npm test", dangerouslyDisableSandbox: true }) || "") && /background/.test(describe("Bash", { command: "npm run dev", run_in_background: true }) || ""));
+check("and is never offered as always allow", ruleFor("Bash", { command: "npm test", dangerouslyDisableSandbox: true }) === null && ruleFor("Bash", { command: "npm run dev", run_in_background: true }) === null);
 check("a request too long to show in full is refused, never cut", describe("Bash", { command: "x".repeat(SHOW_MAX + 1) }) === null);
 
 // What "always allow" may add.

@@ -26,7 +26,12 @@ export const SHOW_MAX = 2000;
 export function describe(tool, input) {
   const i = input && typeof input === "object" ? input : {};
   let text = "";
-  if (tool === "Bash") text = String(i.command || "");
+  if (tool === "Bash") {
+    // The command, and anything else it asks for that changes what it may do: never hidden behind the command.
+    text = String(i.command || "");
+    if (i.dangerouslyDisableSandbox) text += "\n(outside the sandbox)";
+    if (i.run_in_background) text += "\n(keeps running in the background)";
+  }
   else { try { text = JSON.stringify(i, null, 1); } catch { text = ""; } }
   return text.length > SHOW_MAX ? null : text;
 }
@@ -36,6 +41,8 @@ export function describe(tool, input) {
 const PLAIN = /^[^*()\r\n;&|`$<>]{1,500}$/;
 export function ruleFor(tool, input) {
   const command = String(input?.command || "").trim();
+  // Not for a command that asks to leave the sandbox or keep running: those are asked about every time.
+  if (input?.dangerouslyDisableSandbox || input?.run_in_background) return null;
   return tool === "Bash" && PLAIN.test(command) ? `Bash(${command})` : null;
 }
 

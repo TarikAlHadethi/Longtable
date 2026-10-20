@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Select } from "@/components/select";
 import { browserClient } from "@/lib/supabase/browser";
 import { firstName } from "@/lib/names";
@@ -110,7 +110,7 @@ export function PeopleSettings({ tableId, me, mainOwner, myRole, people, focus, 
 export function ClientSettings({ tableId, me, people, answerers, setAnswerer, savedFor, focus, onRemoved, copies, onCopies }: {
   tableId: string; me: string; people: Person[]; answerers: Record<string, "own" | "table">; setAnswerer: (m: string, who: "own" | "table") => void;
   savedFor: string; focus?: string | null; onRemoved: (id: string) => void;
-  copies: { preview_url: string | null; cap: number | null; paths: string | null } | null; onCopies: (c: { preview_url: string | null; cap: number | null; paths: string | null }) => void;
+  copies: { preview_url: string | null; cap: number | null; paths: string | null } | null | undefined; onCopies: (c: { preview_url: string | null; cap: number | null; paths: string | null }) => void;
 }) {
   const supabase = browserClient();
   const [error, setError] = useState("");
@@ -122,6 +122,14 @@ export function ClientSettings({ tableId, me, people, answerers, setAnswerer, sa
   const [paths, setPaths] = useState(copies?.paths ?? "");
   const [ours, setOurs] = useState(copies?.preview_url ?? "");
   const [copySaved, setCopySaved] = useState(false);
+  // Shown and saved only once really read: before, a save would write the defaults over what was there.
+  const read = copies !== undefined;
+  useEffect(() => {
+    if (copies === undefined) return;
+    setCap(copies ? (copies.cap === null ? "0" : String(copies.cap)) : "20");
+    setPaths(copies?.paths ?? "");
+    setOurs(copies?.preview_url ?? "");
+  }, [copies]);
   async function saveCopies(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -172,7 +180,7 @@ export function ClientSettings({ tableId, me, people, answerers, setAnswerer, sa
         <label className="label" htmlFor="copy-ours">Where your own site opens</label>
         <input id="copy-ours" className="field" value={ours} onChange={(e) => setOurs(e.target.value)} placeholder="https://" />
         <span className={styles.rowActions}>
-          <button className="btn">Save</button>
+          <button className="btn" disabled={!read}>Save</button>
           {copySaved && <span className={styles.saved} role="status">Saved</span>}
         </span>
       </form>

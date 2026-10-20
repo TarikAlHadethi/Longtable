@@ -64,6 +64,10 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
   const [popPin, setPopPin] = useState(false);
   const [making, setMaking] = useState(false);
   const [saving, setSaving] = useState(false);
+  // What the page sends back is taken only when this person asked for it: the page's own script can read the frame's
+  // key from any message, so a page could otherwise save versions in their name, or hand over pictures unasked.
+  const wantHtml = useRef(false);
+  const wantPng = useRef(false);
   const [reload, setReload] = useState(0);
   // Escape closes the topmost thing open: a menu, a comment being written, a thread, the list, a mode, then the window.
   const escape = useCallback(() => {
@@ -135,9 +139,13 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
     };
   }, [supabase, page.table_id, page.id, me.id]);
 
-  // A new version arriving moves the window to it, unless someone is looking at an older one on purpose.
+  // A new version arriving moves the window to it, unless someone is looking at an older one on purpose, or is
+  // changing words in this one (moving would throw their changes away; they see the new one once they save or stop).
   const lastSeen = useRef(page.version);
+  const editingRef = useRef(false);
+  editingRef.current = mode === "edit";
   useEffect(() => {
+    if (editingRef.current) return;
     setN((cur) => (cur === lastSeen.current ? page.version : cur));
     lastSeen.current = page.version;
   }, [page.version]);
@@ -183,8 +191,10 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
         setPlace(null); setReplyTo(null); setThread({ id: String(e2.id ?? ""), x: Number(e2.x) || 0, y: Number(e2.y) || 0 });
         return;
       }
-      if (d.op === "html") { setSaving(false); if (typeof d.a === "string") saveRef.current(d.a); return; }
+      if (d.op === "html") { if (!wantHtml.current) return; wantHtml.current = false; setSaving(false); if (typeof d.a === "string") saveRef.current(d.a); return; }
       if (d.op === "png") {
+        if (!wantPng.current) return;
+        wantPng.current = false;
         setMaking(false);
         if (typeof d.a === "string" && d.a.startsWith("data:image/png")) { const a2 = document.createElement("a"); a2.href = d.a; a2.download = `${nameRef.current}.png`; a2.click(); }
         else failedRef.current("The picture could not be made. Try HTML or PDF.");
@@ -274,7 +284,7 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
       save(url, "html");
       setTimeout(() => URL.revokeObjectURL(url), 2000);
     } else if (kind === "pdf") toFrame({ op: "print" });
-    else { setMaking(true); toFrame({ op: "png" }); }
+    else { setMaking(true); wantPng.current = true; toFrame({ op: "png" }); }
   }
 
   // Changing the words by hand: the page becomes editable in place, and Save keeps it as a new version.
@@ -379,14 +389,16 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
             <span className={s.editBar} data-testid="page-editing">
               <span>Editing the words</span>
               <button className="btn btn-quiet" onClick={() => { setMode("view"); setReload((k) => k + 1); }}>Cancel</button>
-              <button className="btn" onClick={() => { setSaving(true); toFrame({ op: "serialize" }); }} disabled={saving} data-testid="page-save">Save</button>
+              <button className="btn" onClick={() => { setSaving(true); wantHtml.current = true; toFrame({ op: "serialize" }); }} disabled={saving} data-testid="page-save">Save</button>
             </span>
           ) : (
             <span className={s.modes} role="group" aria-label="What pressing the page does">
               <button className={`${s.mode} ${mode === "comment" ? s.modeOn : ""}`} onClick={() => { setMode(mode === "comment" ? "view" : "comment"); setPlace(null); setThread(null); }} aria-pressed={mode === "comment"} data-testid="page-comment-mode">
                 <Icon d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4A2.5 2.5 0 0 1 3 13.5z" />Comment
               </button>
-              {newest && <button className={s.mode} onClick={() => { setMode("edit"); setPlace(null); setThread(null); setList(false); }} data-testid="page-edit-mode">
+              {/* Words are changed in place only on a page that does not build itself with its own script: saving one
+                  that does would keep what its script drew as well as the script, and show it twice. */}
+              {newest && html !== null && !/<script(?![^>]*data-lt)/i.test(html) && <button className={s.mode} onClick={() => { setMode("edit"); setPlace(null); setThread(null); setList(false); }} data-testid="page-edit-mode">
                 <Icon d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16zM13.5 6.5l4 4" />Edit
               </button>}
             </span>

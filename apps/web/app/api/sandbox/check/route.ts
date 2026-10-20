@@ -23,8 +23,8 @@ export async function POST(req: Request) {
   const { data: box } = await supabase.from("sandboxes").select("url, table_id").eq("member_id", member).maybeSingle();
   const url = (box as { url?: string | null } | null)?.url;
   if (!url) return Response.json({ ok: false, why: "no-address" }, { status: 404 });
-  // The owner asks, nobody else: checked before the server goes anywhere, not only when the answer is noted.
-  const { data: owner } = await supabase.rpc("is_owner", { t: (box as { table_id: string }).table_id });
+  // An owner, or a teammate given the clients, asks; nobody else: checked before the server goes anywhere.
+  const { data: owner } = await supabase.rpc("may", { t: (box as { table_id: string }).table_id, what: "clients" });
   if (!owner) return Response.json({ ok: false, why: "not-owner" }, { status: 403 });
 
   let ok = false;

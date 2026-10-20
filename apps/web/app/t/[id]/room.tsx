@@ -231,13 +231,14 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   };
   // The table's settings are read once here, so Settings is whole the moment it is opened.
   const [settings, setSettings] = useState<SettingsData | null>(null);
+  const readsSettings = self.role === "owner" || !!self.can_settings || !!self.can_clients;
   useEffect(() => {
-    if (self.role !== "owner") return;
+    if (!readsSettings) return;
     let cancelled = false;
     // A failed read leaves it to Settings itself, which reads again when opened and says so if it still cannot.
     loadSettings(supabase, table.id).then((d) => { if (!cancelled) setSettings(d); }).catch(() => {});
     return () => { cancelled = true; };
-  }, [supabase, table.id, self.role]);
+  }, [supabase, table.id, readsSettings]);
   const chatById = useMemo(() => new Map(chats.map((c) => [c.id, c])), [chats]);
   const requestById = useMemo(() => new Map(requests.map((r) => [r.id, r])), [requests]);
   const clients = members.filter((m) => m.role === "client");
@@ -1077,17 +1078,18 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               onClick={() => { setDrawerOpen(false); if (maySettings) openSettings(); else go("logs", `${base}/activity`); }}><Gear size={21} /></button>
             <BugButton tableId={table.id} place={view} />
           </div>
-          <ApprovalCards items={approvals} ai={myConnection?.kind === "codex" ? "ChatGPT" : "Claude"}
+        </aside>
+        {/* Outside the sidebar, which a phone hides: a request from their Claude reaches them on any screen. */}
+        <ApprovalCards items={approvals} ai={myConnection?.kind === "codex" ? "ChatGPT" : "Claude"}
             onAnswer={async (a, allow, always) => {
               setApprovals((prev) => prev.filter((x) => x.id !== a.id));
               const { error } = await supabase.rpc("decide_approval", { a: a.id, allow, always_allow: always });
               if (error) { didNotTake("That answer did not reach your Claude. Try again."); readApprovals(); }
             }} />
-        </aside>
 
         {view === "table" && (
           <main className={`${styles.main} ${styles.stage}`}>
-            <TableView table={{ id: table.id, name: tableName }} me={self} members={members} connections={connections} jobs={jobs} online={online} messages={messages}
+            <TableView table={{ id: table.id, name: tableName, main_owner: table.main_owner ?? null }} me={self} members={members} connections={connections} jobs={jobs} online={online} messages={messages}
               chats={chats} onOpenChat={openChat} onConnect={() => setConnectOpen(true)}
               tableModel={tableModel}
               onTableModel={(model) => setTableModelKept(model)}
@@ -1290,7 +1292,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
             </form>
             <div className={styles.composerTools}>
               {myConnection?.kind === "claude" && myConnection.full_claude && (
-                <ModePick value={myConnection.mode ?? "manual"} onPick={(m) => setMode(myConnection.id, m)} />
+                <ModePick value={myConnection.mode ?? "acceptEdits"} onPick={(m) => setMode(myConnection.id, m)} />
               )}
               {notice && <span className={styles.notice} role="status">{notice}</span>}
               {/* When this person's own AI cannot answer here, say why, with the one fix. */}
@@ -1321,7 +1323,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         <PersonWindow table={{ id: table.id, name: tableName }} me={self} person={byId.get(personId)!} connections={connections} here={online.has(personId)} edit={editingMe && personId === me.id} members={members}
           onClose={() => setPersonId(null)}
           onSaved={(m) => setMembers((prev) => prev.map((x) => (x.id === m.id ? { ...x, ...m } : x)))}
-          onGone={(id) => setMembers((prev) => prev.filter((x) => x.id !== id))} onSandbox={openSandbox}
+          onGone={(id) => setMembers((prev) => prev.filter((x) => x.id !== id))} onSandbox={openSandbox} mainOwner={me.id === table.main_owner}
           onSettings={(() => { const p = byId.get(personId); if (!p || p.id === me.id) return undefined; const tab = p.role === "client" ? "clients" : "people";
             return settingsTabs.includes(tab) ? () => { setPersonId(null); openSettings(tab, p.id); } : undefined; })()}
           waiting={changes.filter((c) => c.member_id === personId && c.status === "ready" && !c.verdict && !c.test).length} />
@@ -1359,7 +1361,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       })()}
       {tableOpen && (() => {
         const onNow = connections.filter((c) => !c.revoked_at && !!c.last_seen && Date.now() - new Date(c.last_seen).getTime() < 75000 && byId.get(c.member_id)?.role !== "client");
-        const w = onNow.find((c) => byId.get(c.member_id)?.role === "owner") ?? onNow[0];
+        const w = onNow.find((c) => c.member_id === table.main_owner) ?? onNow.find((c) => byId.get(c.member_id)?.role === "owner") ?? onNow[0];
         return (
           <TableWindow me={self} tableName={tableName} writer={w && byId.get(w.member_id) ? { person: byId.get(w.member_id)!, conn: w } : null}
             tableModel={tableModel} people={members.filter((m) => m.role !== "client").length} aisOn={onNow.length}

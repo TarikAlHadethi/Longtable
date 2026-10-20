@@ -101,7 +101,7 @@ export async function RoomPage({ id, wanted, view, side, sandbox }: { id: string
       initialNotes={(notes ?? []) as Note[]}
       initialRequests={(requests ?? []) as Request[]}
       initialChatId={start?.id ?? ""}
-      initialView={view === "settings" ? (mine.role === "owner" ? "settings" : "logs") : view ?? (typeof sandbox === "string" && members.some((m) => m.id === sandbox && m.role === "client") ? "sandbox" : side ? "client" : want ? "chat" : "table")}
+      initialView={view === "settings" ? (mine.role === "owner" || mine.can_settings || mine.can_clients ? "settings" : "logs") : view ?? (typeof sandbox === "string" && members.some((m) => m.id === sandbox && m.role === "client") ? "sandbox" : side ? "client" : want ? "chat" : "table")}
       initialTasks={(tasks ?? []) as Task[]}
       initialChanges={(changes ?? []) as SandboxChange[]}
       initialSandboxes={(boxes ?? []) as SandboxRow[]}

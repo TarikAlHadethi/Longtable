@@ -44,7 +44,7 @@ function shrink(file: File): Promise<string> {
 
 // A person, in a window in the middle of the screen. Your own is where you change how you look at this table;
 // anyone else's shows who they are, and gives the owner the two things an owner can do.
-export function PersonWindow({ table, me, person, connections, here, edit = false, members, onClose, onSaved, onGone, onSandbox, onSettings, waiting = 0 }: {
+export function PersonWindow({ table, me, person, connections, here, edit = false, members, onClose, onSaved, onGone, onSandbox, onSettings, mainOwner = false, waiting = 0 }: {
   table: { id: string; name: string };
   me: Member;
   person: Member;
@@ -59,6 +59,8 @@ export function PersonWindow({ table, me, person, connections, here, edit = fals
   // A client's own copy: opens what they changed there. How many changes are waiting for the team.
   onSandbox?: (id: string) => void;
   onSettings?: () => void;
+  // Whether the person looking is the main owner: only they hand the table over.
+  mainOwner?: boolean;
   waiting?: number;
 }) {
   const [shut, close] = useClosing(onClose);
@@ -235,10 +237,10 @@ export function PersonWindow({ table, me, person, connections, here, edit = fals
                   onClick={async () => { const p = await downloadExport("export_mine", table.id, table.name); if (p) setError(p); }}>Download what&apos;s mine</button>
               )}
               {/* What can be changed about them lives in Settings; the window only points there. */}
-              {!isMe && !asking && (onSettings || (me.role === "owner" && person.role === "developer")) && (
+              {!isMe && !asking && (onSettings || (mainOwner && person.role === "developer")) && (
                 <div className={s.row} style={{ marginRight: "auto" }}>
                   {onSettings && <button className="btn btn-quiet" onClick={onSettings} data-testid="person-settings">Settings</button>}
-                  {me.role === "owner" && person.role === "developer" && <button className="btn btn-quiet" onClick={() => setAsking("owner")}><Crown size={15} />Make owner</button>}
+                  {mainOwner && person.role === "developer" && <button className="btn btn-quiet" onClick={() => setAsking("owner")}><Crown size={15} />Make owner</button>}
                 </div>
               )}
               <button className="btn btn-quiet" onClick={close}>Close</button>

@@ -12,7 +12,7 @@ import { join } from "node:path";
 const scratch = mkdtempSync(join(tmpdir(), "longtable-land-"));
 process.env.LONGTABLE_HOME = join(scratch, "home");
 mkdirSync(process.env.LONGTABLE_HOME, { recursive: true });
-const { changedSoFar, freshCopy, neverCommit, openWork, landWork, safeBranch, workBranch } = await import("../../packages/connect/src/repo.mjs");
+const { changedSoFar, freshCopy, landTree, neverCommit, openTree, openWork, landWork, safeBranch, workBranch } = await import("../../packages/connect/src/repo.mjs");
 
 const results = {};
 const check = (name, ok, detail) => { results[name] = ok ? "pass" : `FAIL ${typeof detail === "string" ? detail : JSON.stringify(detail ?? "")}`.slice(0, 500); };
@@ -244,6 +244,36 @@ try {
   writeFileSync(join(qw.dir, "café", "page.tsx"), "new" + NL);
   const seen = changedSoFar("q1", qw);
   check("a changed file with an accented name is read, and a deleted one is named as it is", !seen.unread && seen.text.includes("new") && seen.files.includes("café/page.tsx") && seen.gone.includes("café/next.config.js"), seen);
+
+  // ---- full Claude Code: work in a worktree of the person's own repository, and two parts landing on one branch
+  {
+    const r = repo("tree", { "a.txt": lines(12) });
+    const mine = join(scratch, "tree-mine");
+    git(scratch, "clone", "-q", r.remote, mine);
+    git(mine, "config", "user.name", "Maya"); git(mine, "config", "user.email", "maya@example.test");
+    const seat = { table_id: "11111111-1111-4111-8111-111111111111", folder: mine, source: r.url };
+    const other = join(scratch, "tree-other");
+    git(scratch, "clone", "-q", r.remote, other);
+    git(other, "config", "user.name", "Sam"); git(other, "config", "user.email", "sam@example.test");
+    const edit = (dir, n, word) => { const f = join(dir, "a.txt"); const ls = readFileSync(f, "utf8").split(NL); ls[n] = word; writeFileSync(f, ls.join(NL)); };
+    // Sam's part lands first, on a different line.
+    git(other, "checkout", "-q", "-b", "longtable/full-1");
+    const t1 = openTree(seat, "longtable/full-1", { doing: true, job: "j1" });
+    edit(other, 11, "Sam's line"); git(other, "commit", "-qam", "sam"); git(other, "push", "-q", "origin", "HEAD:longtable/full-1");
+    edit(t1.dir, 0, "Maya's line");
+    const l1 = landTree(t1, "longtable/full-1", "Maya's part", "Maya");
+    const both = show(r, "longtable/full-1:a.txt") || "";
+    check("full mode: a part landing after another on the same branch is put together with it", l1?.pushed && !l1.apart && both.includes("Maya's line") && both.includes("Sam's line"), { l1, both: both.slice(0, 120) });
+    check("full mode: the person's own folder is left as it was", git(mine, "status", "--porcelain") === "" && !readFileSync(join(mine, "a.txt"), "utf8").includes("Maya's line"));
+    // Now both touch the same line: this part goes on a branch of its own beside it.
+    const t2 = openTree(seat, "longtable/full-1", { doing: true, job: "j2" });
+    git(other, "pull", "-q", "--no-rebase", "origin", "longtable/full-1"); edit(other, 5, "Sam again"); git(other, "commit", "-qam", "sam2"); git(other, "push", "-q", "origin", "HEAD:longtable/full-1");
+    edit(t2.dir, 5, "Maya again");
+    const l2 = landTree(t2, "longtable/full-1", "Maya's second part", "Maya");
+    check("full mode: parts touching the same lines land side by side, never over each other", l2?.pushed && l2.apart && l2.branch === "longtable/full-1-maya"
+      && (show(r, "longtable/full-1:a.txt") || "").includes("Sam again") && (show(r, "longtable/full-1-maya:a.txt") || "").includes("Maya again"), l2);
+    check("full mode: nothing ever reaches the default branch", !(show(r, "main:a.txt") || "").includes("Maya"));
+  }
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {
