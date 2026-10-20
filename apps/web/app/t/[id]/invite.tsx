@@ -45,7 +45,8 @@ export function Invite({ tableId, onClose }: { tableId: string; onClose: () => v
         <div className={styles.modalTitle}>Add someone to this table</div>
         <Grow>
         {!link && (
-          <>
+          // Its own column with its own gaps: inside the easing box the window's spacing does not reach these.
+          <div className={styles.inviteForm}>
             <input className="field" maxLength={60} value={name} onChange={(e) => setName(e.target.value)}
               placeholder="Their name (optional)" aria-label="Their name" />
             <input className="field" maxLength={200} value={email} onChange={(e) => setEmail(e.target.value)}
@@ -55,7 +56,7 @@ export function Invite({ tableId, onClose }: { tableId: string; onClose: () => v
               <button className={styles.roleTile} disabled={busy} onClick={() => make("developer")}><b>A developer</b><span>Brings their own AI to the table</span></button>
               <button className={styles.roleTile} disabled={busy} onClick={() => make("client")}><b>The client</b><span>Gets the client page, never the team side</span></button>
             </div>
-          </>
+          </div>
         )}
         {link && (
           <div className={styles.linkReady}>
