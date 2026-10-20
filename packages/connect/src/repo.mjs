@@ -3,6 +3,7 @@
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { home, log } from "./store.mjs";
 
 // Git never stops to ask for a name or password here: if this computer's saved sign-in cannot reach a repository,
@@ -314,10 +315,27 @@ export function realRepo(seat) {
   try { return existsSync(join(folder, ".git")) ? resolve(folder) : null; } catch { return null; }
 }
 
-function originDefault(repo) {
-  try { return tgit(repo, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]); } catch {}
-  for (const b of ["origin/main", "origin/master"]) { try { tgit(repo, ["rev-parse", "--verify", "--quiet", b]); return b; } catch {} }
-  return "HEAD";
+// Where the team's code lives is the table's source (what the locked mode reads too), never whatever the person's own
+// repository happens to call origin: that can be somebody else's repository (a client's), which work must never reach.
+// When the source is this very repository, work stays in it as a local branch and nothing is pushed anywhere.
+function sameRepo(source, repo) {
+  if (!source) return true;
+  let p = String(source);
+  if (/^file:/i.test(p)) { try { p = fileURLToPath(p); } catch { return false; } }
+  else if (!/^([A-Za-z]:[\\/]|[\\/])/.test(p)) return false;
+  const norm = (x) => resolve(x).replace(/[\\/]+$/, "").toLowerCase();
+  return norm(p) === norm(repo) || norm(p) === norm(join(repo, ".git"));
+}
+
+// The tip of a branch (or of the source's default branch) at the source, fetched under a private name of the
+// connection's and read back as a commit: nothing of the person's own refs or remotes changes.
+function sourceTip(repo, url, ref) {
+  const tmp = `refs/longtable-src/tip-${process.pid}-${Date.now()}`;
+  try {
+    tgit(repo, ["fetch", "--quiet", "--no-tags", url, `+${ref}:${tmp}`]);
+    return tgit(repo, ["rev-parse", tmp]);
+  } catch { return null; }
+  finally { try { tgit(repo, ["update-ref", "-d", tmp]); } catch {} }
 }
 
 // Only files git ignores are copied, as Claude Code does: something tracked is already in the worktree, and something
@@ -347,26 +365,35 @@ export function openTree(seat, branch, { doing = false, job = "read" } = {}) {
   const repo = realRepo(seat) || join(home, "copies", table);
   const dir = doing ? join(home, "trees", table, `work-${branch.slice("longtable/".length)}`)
     : join(home, "trees", table, `read-${String(job).replace(/[^A-Za-z0-9-]/g, "").slice(0, 36) || "job"}`);
-  try { tgit(repo, ["fetch", "--quiet", "origin"]); } catch (e) { log(`fetch before a worktree failed: ${String(e.message).split(/\r?\n/)[0]}`); }
+  // The table's code: this repository itself, or the address the table reads from (never "origin" by name).
+  const local = sameRepo(seat.source, repo);
+  const url = local ? null : seat.source;
   let onRemote = false;
-  if (branch) { try { tgit(repo, ["rev-parse", "--verify", "--quiet", `origin/${branch}`]); onRemote = true; } catch {} }
-  const base = onRemote ? `origin/${branch}` : originDefault(repo);
+  let base = null;
+  if (local) {
+    if (branch) { try { base = tgit(repo, ["rev-parse", "--verify", "--quiet", `refs/heads/${branch}`]); onRemote = true; } catch {} }
+    base ??= tgit(repo, ["rev-parse", "HEAD"]);
+  } else {
+    if (branch) { base = sourceTip(repo, url, `refs/heads/${branch}`); onRemote = !!base; }
+    base ??= sourceTip(repo, url, "HEAD");
+    if (!base) throw new Error("the project's code could not be fetched from where the table reads it");
+  }
   const fresh = !existsSync(join(dir, ".git"));
   if (fresh) {
     mkdirSync(join(home, "trees", table), { recursive: true });
     // A worktree of ours whose folder is gone is let go by name; the person's own worktrees are never touched.
     try { tgit(repo, ["worktree", "remove", "--force", dir]); } catch {}
-    if (doing) {
+    if (doing && !local) {
       // Their own local branch of the same name is never reset over work that is not on the server.
-      let local = null;
-      try { local = tgit(repo, ["rev-parse", "--verify", "--quiet", `refs/heads/${branch}`]); } catch {}
-      if (local) {
-        try { tgit(repo, ["merge-base", "--is-ancestor", local, base]); }
+      let mine = null;
+      try { mine = tgit(repo, ["rev-parse", "--verify", "--quiet", `refs/heads/${branch}`]); } catch {}
+      if (mine) {
+        try { tgit(repo, ["merge-base", "--is-ancestor", mine, base]); }
         catch { throw new Error(`a branch named ${branch} on this computer has work that is not on the server, so it was left as it is`); }
       }
     }
     tgit(repo, ["worktree", "add", "--quiet", ...(doing ? ["-B", branch, dir, base] : ["--detach", dir, base])]);
-  } else if (doing && onRemote) {
+  } else if (doing && onRemote && !local) {
     // Work picked up again starts from what is on the server (another AI's part may have landed there since), unless
     // this computer holds commits the server does not have yet.
     try { tgit(dir, ["merge-base", "--is-ancestor", "HEAD", base]); tgit(dir, ["reset", "--quiet", "--hard", base]); } catch {}
@@ -380,7 +407,7 @@ export function openTree(seat, branch, { doing = false, job = "read" } = {}) {
   const NL = String.fromCharCode(10);
   if (!now.split(/\r?\n/).includes(".longtable-yours/")) writeFileSync(exclude, `${now}${now && !now.endsWith(NL) ? NL : ""}.longtable-yours/${NL}`);
   if (fresh && realRepo(seat)) copyIncluded(repo, dir);
-  return { dir, repo, base: tgit(dir, ["rev-parse", "HEAD"]), continued: onRemote, tree: true };
+  return { dir, repo, url, base: tgit(dir, ["rev-parse", "HEAD"]), continued: onRemote, tree: true };
 }
 
 // What changed in the worktree since it was opened, committed or not.
@@ -410,13 +437,15 @@ export function landTree(tree, branch, message, who) {
   const commit = land(["rev-parse", "--short", "HEAD"]);
   let pushed = false;
   let landed = branch;
-  const push = (to) => land(["push", "--quiet", "--no-verify", "origin", `HEAD:refs/heads/${to}`]);
+  // Work on the table's own repository is already on its branch there: nothing is pushed anywhere.
+  if (!tree.url) return { files, commit, branch, pushed: true, apart: false };
+  const push = (to) => land(["push", "--quiet", "--no-verify", tree.url, `HEAD:refs/heads/${to}`]);
   try { push(branch); pushed = true; } catch (e) {
     log(`push of ${branch} failed: ${String(e.message).split(/\r?\n/)[0]}`);
     // Another part landed on the branch first (two people's work on one task): put the two together and try again;
     // when they touch the same lines, this part goes on a branch of its own beside it, as the other work does.
     try {
-      land(["fetch", "--quiet", "origin", branch]);
+      land(["fetch", "--quiet", "--no-tags", tree.url, `refs/heads/${branch}`]);
       land(["merge", "--quiet", "--no-edit", "--no-verify", "FETCH_HEAD"]);
       push(branch);
       pushed = true;

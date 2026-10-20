@@ -274,6 +274,34 @@ try {
       && (show(r, "longtable/full-1:a.txt") || "").includes("Sam again") && (show(r, "longtable/full-1-maya:a.txt") || "").includes("Maya again"), l2);
     check("full mode: nothing ever reaches the default branch", !(show(r, "main:a.txt") || "").includes("Maya"));
   }
+
+  // ---- full Claude Code never fetches from or pushes to "origin" by name: the person's origin can be somebody else's
+  // repository (a client's). It works from where the table reads the code, and pushes only there.
+  {
+    const theirs = repo("theirs", { "a.txt": "the client's old code" + NL });
+    const ours = repo("ours", { "a.txt": "our real code" + NL });
+    const mine = join(scratch, "mine-origin");
+    git(scratch, "clone", "-q", theirs.remote, mine); // origin = the client's repository
+    git(mine, "config", "user.name", "Maya"); git(mine, "config", "user.email", "maya@example.test");
+    git(mine, "remote", "add", "backup", ours.remote);
+    git(mine, "fetch", "-q", "backup"); git(mine, "checkout", "-q", "-B", "work", "backup/main");
+    // The table reads the code from our own repository, at its address.
+    const seatUrl = { table_id: "22222222-2222-4222-8222-222222222222", folder: mine, source: ours.url };
+    const u = openTree(seatUrl, "longtable/fix-1", { doing: true, job: "u1" });
+    check("full mode starts from where the table reads the code, not from origin", readFileSync(join(u.dir, "a.txt"), "utf8").startsWith("our real code"));
+    writeFileSync(join(u.dir, "a.txt"), "our real code, changed" + NL);
+    const lu = landTree(u, "longtable/fix-1", "A change", "Maya");
+    check("full mode pushes only to where the table reads the code", lu?.pushed && (show(ours, "longtable/fix-1:a.txt") || "").includes("changed") && show(theirs, "longtable/fix-1:a.txt") === null, lu);
+    // The table reads the code from the person's own folder: the work stays there, and nothing is pushed anywhere.
+    const seatLocal = { table_id: "33333333-3333-4333-8333-333333333333", folder: mine, source: "file:///" + mine.replace(/\\/g, "/") };
+    const l = openTree(seatLocal, "longtable/fix-2", { doing: true, job: "l1" });
+    check("full mode on the person's own folder starts from what they have checked out, not from origin", readFileSync(join(l.dir, "a.txt"), "utf8").startsWith("our real code"));
+    writeFileSync(join(l.dir, "a.txt"), "changed here" + NL);
+    const ll = landTree(l, "longtable/fix-2", "A local change", "Maya");
+    check("full mode on the person's own folder keeps the work there as a branch and pushes nowhere", ll?.pushed && git(mine, "show", "longtable/fix-2:a.txt").includes("changed here")
+      && show(theirs, "longtable/fix-2:a.txt") === null && show(ours, "longtable/fix-2:a.txt") === null, ll);
+    check("the client's repository never receives anything", branches(theirs).every((b) => !b.startsWith("longtable/")), branches(theirs));
+  }
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {
