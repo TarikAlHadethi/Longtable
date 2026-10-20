@@ -56,6 +56,8 @@ try {
   const standIn = spawn(process.execPath, [bin, "run", "--backup"], { env, stdio: "ignore", windowsHide: true });
   kids.push(standIn);
   await sleep(6000);
+  // The watchdog's start (`run --backup`) is the same: it steps aside for a running connection, and brings one back
+  // when none runs (checked below, once the running one is stopped).
   check("a stand-in started beside a running connection steps aside and leaves it running", alive(second) && !alive(standIn) && Number(readFileSync(join(home, "runner.pid"), "utf8").split(" ")[0]) === second.pid, { second: alive(second), standIn: alive(standIn) });
   // Full Claude Code on, and a quick job of its person's arrives: the connection takes it and keeps running (0.1.30
   // to 0.1.32 crashed here on a counter read before it was set).
@@ -69,6 +71,13 @@ try {
   await sleep(10000);
   const took = dbq(`select count(*) from public.jobs where table_id = '${T}' and kind = 'listen' and status <> 'queued'`);
   check("with full Claude Code on, a quick job of its person's is taken and the connection keeps running", alive(second) && took !== "0", { alive: alive(second), took });
+  // The connection stops (a crash, a closed window): the watchdog's next start brings it back.
+  second.kill();
+  await sleep(2000);
+  const back = spawn(process.execPath, [bin, "run", "--backup"], { env, stdio: "ignore", windowsHide: true });
+  kids.push(back);
+  await sleep(6000);
+  check("after the connection stops, the watchdog's start brings it back", !alive(second) && alive(back) && Number(readFileSync(join(home, "runner.pid"), "utf8").split(" ")[0]) === back.pid, { second: alive(second), back: alive(back) });
   const token = await accessToken(owner.context);
   const seen = async () => (await rest(token, `connections?select=last_seen&table_id=eq.${owner.tableId}`)).body[0]?.last_seen;
   const before = await seen();
@@ -88,8 +97,8 @@ try {
   // Disconnecting on this computer ends the one that is running.
   const off = spawnSync(process.execPath, [bin, "disconnect"], { env, encoding: "utf8" });
   await sleep(3000);
-  check("disconnect ends the running connection and forgets its keys", off.status === 0 && !alive(second) && !existsSync(join(home, "runner.pid"))
-    && JSON.parse(readFileSync(join(home, "config.json"), "utf8")).connections.length === 0, { status: off.status, alive: alive(second) });
+  check("disconnect ends the running connection and forgets its keys", off.status === 0 && !alive(back) && !existsSync(join(home, "runner.pid"))
+    && JSON.parse(readFileSync(join(home, "config.json"), "utf8")).connections.length === 0, { status: off.status, alive: alive(back) });
 
   // Starting with no network: it waits and keeps trying, it does not give up.
   writeFileSync(join(home, "config.json"), JSON.stringify({ ...config, supabaseUrl: "http://127.0.0.1:9" }));

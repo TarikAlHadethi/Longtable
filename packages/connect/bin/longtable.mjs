@@ -118,6 +118,9 @@ async function connect() {
     if (!(await codexSignIn(codex))) await leave("The ChatGPT sign-in didn't finish. Press Connect again.");
   }
 
+  // A connection already running holds the old settings in memory: it is ended first, so the one the start-up task
+  // starts now (which never replaces a running one) is this new one.
+  try { const old = runningConnection(); if (old && old !== process.pid) endConnection(old); } catch {}
   const auto = has("no-autostart") ? { started: false } : enableAutostart(process.execPath, binPath);
   if (!has("no-run") && !auto.started) {
     // A stand-in until the start-up task runs it: it never ends a connection the task started.

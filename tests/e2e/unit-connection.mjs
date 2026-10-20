@@ -64,7 +64,7 @@ try {
   const file = writeStarter(join(profile, "node.exe"), join(profile, "longtable.mjs"));
   const raw = readFileSync(file);
   check("the start-up script is written as Unicode with its mark, so Windows reads the folder name right", raw[0] === 0xff && raw[1] === 0xfe && raw.toString("utf16le").includes("طارق"), raw.slice(0, 4));
-  check("and still starts Node on the connection with no window", /\.Run """.*node\.exe"" "".*longtable\.mjs"" run", 0, False/.test(raw.toString("utf16le").replace(/^﻿/, "")), raw.toString("utf16le"));
+  check("and still starts Node on the connection with no window", /\.Run """.*node\.exe"" "".*longtable\.mjs"" run --backup", 0, False/.test(raw.toString("utf16le").replace(/^﻿/, "")), raw.toString("utf16le"));
 
   // ---- "Started" only when the connection really wrote its note.
   const now = Date.now();

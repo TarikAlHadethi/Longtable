@@ -8,7 +8,7 @@
 // that ran `connect` may itself live somewhere only the app can see.
 
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, normalize } from "node:path";
 import { defaultHome, home } from "./store.mjs";
@@ -61,7 +61,9 @@ export function writeStarter(nodePath, binPath) {
   // Written as UTF-16 with its mark: Windows Script Host reads any other file in the system's old code page, so a
   // profile folder with letters outside it (an Arabic or accented name) made a path that did not exist, and the
   // connection never started.
-  writeFileSync(file, `\ufeffCreateObject("Wscript.Shell").Run """${q(nodePath)}"" ""${q(binPath)}"" run", 0, False\r\n`, "utf16le");
+  // "--backup": started by the task (at sign-in, or by the watchdog every few minutes) it only starts a connection
+  // when none is running, and never replaces one.
+  writeFileSync(file, `\ufeffCreateObject("Wscript.Shell").Run """${q(nodePath)}"" ""${q(binPath)}"" run --backup", 0, False\r\n`, "utf16le");
   return file;
 }
 
@@ -69,9 +71,12 @@ export function registerTask(name, starter) {
   powershell(
     "$a = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument ('\"' + $env:LT_STARTER + '\"'); " +
       "$t = New-ScheduledTaskTrigger -AtLogOn -User ([Security.Principal.WindowsIdentity]::GetCurrent().Name); " +
+      // The watchdog: every five minutes, for as long as the computer is on. A connection that stopped for any
+      // reason is running again within five minutes, without waiting for the next sign-in.
+      "$w = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 5); " +
       "$p = New-ScheduledTaskPrincipal -UserId ([Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive -RunLevel Limited; " +
       "$s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -StartWhenAvailable; " +
-      "Register-ScheduledTask -TaskName $env:LT_TASK -Action $a -Trigger $t -Principal $p -Settings $s -Force | Out-Null",
+      "Register-ScheduledTask -TaskName $env:LT_TASK -Action $a -Trigger @($t, $w) -Principal $p -Settings $s -Force | Out-Null",
     { LT_TASK: name, LT_STARTER: starter },
   );
 }
@@ -141,6 +146,19 @@ export function enableAutostart(nodePath, binPath) {
 // Only the connection in the real ~/.longtable may change it: a test's connection in a folder of its own once removed
 // the person's real start-up task every time it disconnected.
 const ownsStartup = () => normalize(home) === normalize(defaultHome);
+
+// Every connection keeps its computer's start-up entry as the current version writes it (the watchdog came later):
+// rewritten once per version, quietly, by the connection in the real ~/.longtable.
+export function keepStartupCurrent(nodePath, binPath, version) {
+  if (!ownsStartup() || process.platform !== "win32" || !version) return;
+  const mark = join(home, "startup-written");
+  try { if (readFileSync(mark, "utf8").trim() === version) return; } catch {}
+  try {
+    if (!taskExists(TASK)) return;
+    registerTask(TASK, writeStarter(nodePath, binPath));
+    writeFileSync(mark, version);
+  } catch (e) { console.error(`keeping the start-up task current failed: ${e.message}`); }
+}
 
 export function disableAutostart() {
   if (!ownsStartup()) return;

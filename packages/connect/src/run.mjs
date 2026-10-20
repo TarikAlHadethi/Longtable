@@ -5,7 +5,8 @@
 
 import { layPointed, pointedPaths, pointedSystem } from "./pointed.mjs";
 import { PAGE, PAGE_KINDS, PAGE_SYSTEM, pageOut, pagesPrompt } from "./pages.mjs";
-import { newer, ownVersion, restartOnNew, updateTo } from "./update.mjs";
+import { newer, ownDir, ownVersion, restartOnNew, updateTo } from "./update.mjs";
+import { keepStartupCurrent } from "./autostart.mjs";
 import { attachedPrompt, commandPrompt, fetchAttachments, loadCommand, materialsPrompt, scanCommands, shareable } from "./extras.mjs";
 import { spawnSync } from "node:child_process";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -1079,6 +1080,12 @@ export async function runLoop({ pollMs = 2000, backup = false } = {}) {
   writeFileSync(lock, `${process.pid} ${Date.now()}`);
   const unlock = () => { try { if (runningConnection() === process.pid) rmSync(lock, { force: true }); } catch {} };
   process.on("exit", () => { stopAll(); unlock(); });
+  // Something nobody foresaw (a timer, a stream, a promise nobody waited on) is written down and the connection keeps
+  // running: a connection that quietly stops is worse than one that logged a fault and carried on.
+  process.on("uncaughtException", (e) => log(`tripwire: uncaught ${e?.stack?.split(String.fromCharCode(10)).slice(0, 3).join(" | ") || e}`));
+  process.on("unhandledRejection", (e) => log(`tripwire: unhandled ${e?.stack?.split(String.fromCharCode(10)).slice(0, 3).join(" | ") || e}`));
+  // The computer's start-up entry as this version writes it (with its watchdog), once per version.
+  try { keepStartupCurrent(process.execPath, join(ownDir(), "bin", "longtable.mjs"), ownVersion()); } catch (e) { log(`start-up entry not refreshed: ${e.message}`); }
   for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) process.on(sig, () => { stopAll(); unlock(); process.exit(0); });
   // Starting with no network yet (right after sign-in) is normal: keep trying. A table that took this connection
   // off is skipped, and the others carry on.
