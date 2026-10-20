@@ -1126,9 +1126,10 @@ export async function runLoop({ pollMs = 2000, backup = false } = {}) {
   setInterval(checkRelease, 10 * 60 * 1000).unref?.();
   // Two lanes on one connection: long work in one, everything quick in the other, so an hour of work never keeps
   // the table from hearing people or answering a question.
+  // Declared before the lanes start: they read it the moment a full-mode job arrives.
+  let aside = 0;
   await Promise.all([lane("light"), lane("heavy")]);
 
-  let aside = 0;
   async function lane(name) {
   for (;;) {
     let worked = false;
@@ -1149,12 +1150,14 @@ export async function runLoop({ pollMs = 2000, backup = false } = {}) {
       busy++;
       // A quick job run as their full Claude Code can wait minutes on its person's answer. It works in a tree of its
       // own, so it runs alongside, and the lane goes on hearing the table (listening, clients, views) meanwhile.
-      if (name === "light" && job.full === true && aside < 2) {
+      if (name === "light" && job.full === true && !["listen", "client"].includes(job.kind) && aside < 2) {
         aside++;
         work(rpc, s, engines, job).catch((e) => log(`job ${job.job_id} failed: ${e.message}`)).finally(() => { busy--; aside--; });
         continue;
       }
-      try { await work(rpc, s, engines, job); } finally { busy--; }
+      // One job going wrong in a way nobody foresaw never takes the whole connection down: it is logged as a
+      // tripwire and the lane goes on to the next.
+      try { await work(rpc, s, engines, job); } catch (e) { log(`tripwire: job ${job.job_id} broke the lane: ${e.message}`); } finally { busy--; }
     }
     await new Promise((r) => setTimeout(r, worked ? 100 : name === "heavy" ? pollMs * 2 : pollMs));
   }

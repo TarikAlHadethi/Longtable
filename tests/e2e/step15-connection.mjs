@@ -3,7 +3,7 @@
 //
 //   node --experimental-websocket tests/e2e/step15-connection.mjs
 
-import { spawn, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -57,6 +57,18 @@ try {
   kids.push(standIn);
   await sleep(6000);
   check("a stand-in started beside a running connection steps aside and leaves it running", alive(second) && !alive(standIn) && Number(readFileSync(join(home, "runner.pid"), "utf8").split(" ")[0]) === second.pid, { second: alive(second), standIn: alive(standIn) });
+  // Full Claude Code on, and a quick job of its person's arrives: the connection takes it and keeps running (0.1.30
+  // to 0.1.32 crashed here on a counter read before it was set).
+  const dbq = (q) => execFileSync("docker", ["exec", "-i", process.env.DB_CONTAINER || "supabase_db_longtable", "psql", "-U", "postgres", "-d", "postgres", "-At", "-c", q], { encoding: "utf8" }).trim().split(/\r?\n/)[0];
+  const T = owner.tableId;
+  dbq(`update public.connections set full_claude = true where table_id = '${T}' and revoked_at is null`);
+  const mayaId = dbq(`select id from public.members where table_id = '${T}' and display_name = 'Maya'`);
+  const chatId = dbq(`select id from public.chats where table_id = '${T}' and is_general`);
+  const q = dbq(`insert into public.messages (table_id, chat_id, member_id, body) values ('${T}', '${chatId}', '${mayaId}', 'what is in the readme?') returning id`);
+  dbq(`insert into public.jobs (table_id, chat_id, member_id, question_id, kind) values ('${T}', '${chatId}', '${mayaId}', '${q}', 'listen')`);
+  await sleep(10000);
+  const took = dbq(`select count(*) from public.jobs where table_id = '${T}' and kind = 'listen' and status <> 'queued'`);
+  check("with full Claude Code on, a quick job of its person's is taken and the connection keeps running", alive(second) && took !== "0", { alive: alive(second), took });
   const token = await accessToken(owner.context);
   const seen = async () => (await rest(token, `connections?select=last_seen&table_id=eq.${owner.tableId}`)).body[0]?.last_seen;
   const before = await seen();
