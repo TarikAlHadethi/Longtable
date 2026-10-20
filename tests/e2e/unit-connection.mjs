@@ -7,7 +7,7 @@
 //
 //   node tests/e2e/unit-connection.mjs
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -152,6 +152,17 @@ try {
   check("a folder read where it is shares its text files, code and data included, and not its pictures", sharedInPlace.some((n) => n.endsWith("form.ts")) && sharedInPlace.some((n) => n.endsWith("data.json")) && sharedInPlace.some((n) => n.endsWith("README.md")) && !sharedInPlace.some((n) => n.endsWith("logo.png")), sharedInPlace);
   const sharedCopy = shareable({ files: [], copied: [{ path: "C:/project", at: spot }], dirs: [spot] }).map((f) => f.name);
   check("a copied folder's files are shared once, under the path the person wrote", sharedCopy.length === 3 && sharedCopy.every((n) => n.startsWith("C:/project")), sharedCopy);
+
+  // ---- a connection in a folder of its own (a test's) never adds or removes the computer's start-up entry, which is
+  // the person's real one: tests once removed it every time they disconnected
+  {
+    const { disableAutostart, enableAutostart } = await import("../../packages/connect/src/autostart.mjs");
+    const before = process.platform === "win32" ? spawnSync("schtasks", ["/query", "/tn", "Longtable connection"], { windowsHide: true }).status : null;
+    disableAutostart();
+    const after = process.platform === "win32" ? spawnSync("schtasks", ["/query", "/tn", "Longtable connection"], { windowsHide: true }).status : null;
+    const how = enableAutostart(process.execPath, join(process.cwd(), "packages", "connect", "bin", "longtable.mjs"));
+    check("a connection in a folder of its own leaves the computer's start-up entry alone", before === after && how.started === false, { before, after, how });
+  }
 
   // ---- finding Claude Code: the Claude app's own copy, also where Windows really keeps it for the packaged app
   if (process.platform === "win32") {

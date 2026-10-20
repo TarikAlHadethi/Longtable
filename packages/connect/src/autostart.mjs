@@ -11,7 +11,7 @@ import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, normalize } from "node:path";
-import { home } from "./store.mjs";
+import { defaultHome, home } from "./store.mjs";
 
 export const TASK = "Longtable connection";
 const legacyStartup = () => join(process.env.APPDATA || "", "Microsoft", "Windows", "Start Menu", "Programs", "Startup", "Longtable.vbs");
@@ -96,6 +96,7 @@ export function taskExists(name) {
 
 // Returns how the connection will start: on Windows the task also starts it now, outside whatever ran `connect`.
 export function enableAutostart(nodePath, binPath) {
+  if (!ownsStartup()) return { started: false, where: "not this computer's start-up entry (a connection in a folder of its own)" };
   if (process.platform === "win32") {
     const copy = installCopy(binPath);
     registerTask(TASK, writeStarter(nodePath, copy));
@@ -136,7 +137,13 @@ export function enableAutostart(nodePath, binPath) {
   return { started: on.status === 0, where: unitFile() };
 }
 
+// The computer's start-up entry is one per person, named the same whatever folder a connection keeps its settings in.
+// Only the connection in the real ~/.longtable may change it: a test's connection in a folder of its own once removed
+// the person's real start-up task every time it disconnected.
+const ownsStartup = () => normalize(home) === normalize(defaultHome);
+
 export function disableAutostart() {
+  if (!ownsStartup()) return;
   if (process.platform === "win32") {
     removeTask(TASK);
     rmSync(join(home, "start.vbs"), { force: true });
