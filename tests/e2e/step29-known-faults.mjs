@@ -62,7 +62,8 @@ try {
   const chat = async (n) => (await rpc(people.Maya.token, "create_chat", { t: table, chat_name: `k${n}-${run}` })).body;
 
   // ---- D11: one owner, whatever arrives at the same moment
-  check("the database holds one owner per table", sql(`select count(*) from pg_indexes where indexname = 'members_one_owner'`) === "1");
+  // Co-owners can share a table now; the main owner is one, and only they hand it over.
+  check("the database holds one main owner per table", sql(`select count(*) from public.tables where id = '${table}' and main_owner is not null`) === "1");
   let twoOwners = 0, removedOwner = 0, tries = 0;
   for (let i = 0; i < 6; i++) {
     const from = ownerName();
@@ -90,6 +91,7 @@ try {
   if (ownerName() === "Kai") await rpc(people.Kai.token, "transfer_ownership", { m: people.Maya.id });
   check("one of the two went through and the other was refused", [give, take].filter((r) => r.status < 300).length === 1, [give.status, take.status, give.body, take.body]);
   check("the owner is Maya again before the rounds", ownerName() === "Maya", owners());
+  check("and she is the main owner again", sql(`select main_owner from public.tables where id = '${table}'`) === people.Maya.id);
 
   await pair("Maya");
   await pair("Sam");

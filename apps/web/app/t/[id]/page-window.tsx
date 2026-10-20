@@ -1,8 +1,8 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
-import { useEscape } from "@/components/use-escape";
+import { useClosing, useEscape } from "@/components/use-escape";
 import { Select } from "@/components/select";
 import { Face } from "@/components/face";
 import { Time } from "@/components/time";
@@ -13,20 +13,11 @@ import type { Member, Page, PageComment, PageValue, PageVersion } from "./types"
 import s from "./pages.module.css";
 
 // One small picture per kind of page, drawn the same way as the rest of the app's icons.
-export function PageIcon({ icon, size = 18 }: { icon: string; size?: number }) {
-  const paths: Record<string, string> = {
-    chart: "M4 20V10M10 20V4M16 20v-7M22 20H2",
-    table: "M3 5h18v14H3zM3 10h18M9 10v9",
-    map: "M9 4l-6 2v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14",
-    form: "M5 4h14v16H5zM8 8h8M8 12h8M8 16h5",
-    plan: "M4 6h10M4 12h16M4 18h7M17 4l3 3-3 3",
-    report: "M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5",
-    diagram: "M4 4h6v6H4zM14 14h6v6h-6zM10 7h4a3 3 0 0 1 3 3v4",
-    tool: "M14 7a4 4 0 1 0-5 5l-5 5 3 3 5-5a4 4 0 0 0 2-8z",
-  };
+export function PageIcon({ size = 18 }: { icon?: string; size?: number }) {
+  // One mark for every handout, whatever it holds: two sheets, the top one with a folded corner.
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d={paths[icon] ?? "M6 3h9l4 4v14H6zM14 3v5h5"} />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M8 3.5h6.5L19 8v10.5a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2z" /><path d="M14 3.5V8h5" /><path d="M9.5 13h6M9.5 16.5h4" />
     </svg>
   );
 }
@@ -36,7 +27,7 @@ export function PageCard({ page, onOpen }: { page: Page; onOpen: () => void }) {
   return (
     <button className={s.card} onClick={onOpen} data-testid="page-card">
       <span className={s.cardIcon}><PageIcon icon={page.icon} /></span>
-      <span className={s.cardText}><b>{page.title}</b>{page.about && <span>{page.about}</span>}</span>
+      <span className={s.cardText}><b>{page.title}</b></span>
       <span className={s.cardOpen}>Open</span>
     </button>
   );
@@ -60,13 +51,34 @@ type Props = {
 
 // A page, open: the page itself in its locked frame, and beside it what people said about it.
 export function PageWindow({ supabase, page, me, owner, members, versions, comments, values, pinned, viewers, onClose, onFailed, onPinned }: Props) {
-  useEscape(onClose);
+  const [shut, close] = useClosing(onClose);
   const frame = useRef<HTMLIFrameElement>(null);
+  const stage = useRef<HTMLDivElement>(null);
+  // What pressing the page does: nothing special, comment on the thing pressed, or edit its words in place.
+  const [mode, setMode] = useState<"view" | "comment" | "edit">("view");
+  // A comment being written on one thing in the page, a pin's thread open, the comments list, a menu open.
+  const [place, setPlace] = useState<{ path: number[]; label: string; x: number; y: number; w: number } | null>(null);
+  const [thread, setThread] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [list, setList] = useState(false);
+  const [menu, setMenu] = useState<"download" | "delete" | null>(null);
+  const [popPin, setPopPin] = useState(false);
+  const [making, setMaking] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [reload, setReload] = useState(0);
+  // Escape closes the topmost thing open: a menu, a comment being written, a thread, the list, a mode, then the window.
+  const escape = useCallback(() => {
+    if (menu) setMenu(null);
+    else if (place) setPlace(null);
+    else if (thread) setThread(null);
+    else if (list) setList(false);
+    else if (mode !== "view") { setMode("view"); if (mode === "edit") setReload((k) => k + 1); }
+    else close();
+  }, [menu, place, thread, list, mode, close]);
+  useEscape(escape);
   // A fresh key for each time the page is drawn: only messages carrying it are answered.
   const [key] = useState(() => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join(""));
   const [n, setN] = useState(page.version);
   const [html, setHtml] = useState<string | null>(null);
-  const [side, setSide] = useState(true);
   const [draft, setDraft] = useState("");
   const [picked, setPicked] = useState("");
   const [toAi, setToAi] = useState(false);
@@ -145,6 +157,9 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
     return () => { gone = true; };
   }, [supabase, page.id, n]);
 
+  // The message handler is made once per frame key: what it needs that changes is read through refs.
+  const saveRef = useRef<(t: string) => void>(() => {});
+  const nameRef = useRef("handout");
   const doc = useMemo(() => (html === null ? null : frameDoc(html, { key, me: firstName(me.display_name) })), [html, key, me.display_name]);
 
   // What the page asks of the table, answered as the person looking, and only for this frame.
@@ -156,7 +171,25 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
       const d = e.data as { lt?: string; id?: number; op?: string; a?: { key?: string; value?: unknown } | string } | null;
       if (!win || e.source !== win || !d || d.lt !== key) return;
       const answer = (value: unknown, error?: string) => win.postMessage({ lt: key, id: d.id, value, error }, "*");
-      if (d.op === "picked" && typeof d.a === "string") { setPicked(d.a.slice(0, 300)); setSide(true); return; }
+      if (d.op === "picked" && typeof d.a === "string") { setPicked(d.a.slice(0, 300)); setList(true); return; }
+      if (d.op === "pickEl" && d.a && typeof d.a === "object") {
+        const e2 = d.a as { path?: number[]; label?: string; x?: number; y?: number; w?: number };
+        setThread(null); setReplyTo(null); setToAi(true);
+        setPlace({ path: (e2.path ?? []).slice(0, 40).map((x) => Math.max(0, Math.floor(Number(x) || 0))), label: String(e2.label ?? "").slice(0, 80).replace(/\|/g, " "), x: Number(e2.x) || 0, y: Number(e2.y) || 0, w: Number(e2.w) || 0 });
+        return;
+      }
+      if (d.op === "pin" && d.a && typeof d.a === "object") {
+        const e2 = d.a as { id?: string; x?: number; y?: number };
+        setPlace(null); setReplyTo(null); setThread({ id: String(e2.id ?? ""), x: Number(e2.x) || 0, y: Number(e2.y) || 0 });
+        return;
+      }
+      if (d.op === "html") { setSaving(false); if (typeof d.a === "string") saveRef.current(d.a); return; }
+      if (d.op === "png") {
+        setMaking(false);
+        if (typeof d.a === "string" && d.a.startsWith("data:image/png")) { const a2 = document.createElement("a"); a2.href = d.a; a2.download = `${nameRef.current}.png`; a2.click(); }
+        else failedRef.current("The picture could not be made. Try HTML or PDF.");
+        return;
+      }
       if (d.op === "pointer") {
         const now = Date.now();
         const where = d.a && typeof d.a === "object" ? (d.a as { path?: number[]; fx?: number; fy?: number }) : null;
@@ -165,7 +198,7 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
         cursorChannel.current?.send({ type: "broadcast", event: "point", payload: where ? { m: me.id, page: page.id, path: where.path, fx: where.fx, fy: where.fy } : { m: me.id, page: page.id, path: null } }).catch(() => {});
         return;
       }
-      if (d.op === "mark" && typeof d.a === "string") { setSide(true); setLit(d.a); document.querySelector(`[data-cid="${d.a}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }); return; }
+      if (d.op === "mark" && typeof d.a === "string") { setList(true); setLit(d.a); document.querySelector(`[data-cid="${d.a}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }); return; }
       const a = (typeof d.a === "object" && d.a) || {};
       if (d.op === "get") return answer(valuesRef.current.find((v) => v.key === a.key)?.value ?? null);
       if (d.op === "all") return answer(Object.fromEntries(valuesRef.current.map((v) => [v.key, v.value])));
@@ -206,7 +239,6 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
   };
   const mine = page.made_by === me.id;
   const name = (id: string | null) => (id ? members.get(id)?.display_name ?? "Someone" : "Someone");
-  const madeBy = (v: PageVersion) => (v.by_ai ? `${firstName(name(v.made_by))}'s AI` : firstName(name(v.made_by)));
 
   async function call(fn: string, args: Record<string, unknown>, failed: string) {
     setBusy(true);
@@ -216,29 +248,55 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
     return !error;
   }
 
-  async function send() {
-    const body = draft.trim();
-    if (!body) return;
-    const ok = await call("comment_page", { p: page.id, body, anchor: replyTo ? "" : picked, parent: replyTo, to_ai: !replyTo && toAi },
-      toAi ? "Your comment was not sent to the AIs. Try again." : "Your comment was not kept. Try again.");
-    if (ok) { setDraft(""); setPicked(""); setReplyTo(null); setToAi(false); }
+  async function send(anchor: string, body: string, ai: boolean) {
+    const words = body.trim();
+    if (!words) return false;
+    const ok = await call("comment_page", { p: page.id, body: words, anchor: replyTo ? "" : anchor, parent: replyTo, to_ai: !replyTo && ai },
+      ai ? "Your comment was not sent to the AIs. Try again." : "Your comment was not kept. Try again.");
+    if (ok) { setDraft(""); setPicked(""); setReplyTo(null); setToAi(false); setPlace(null); }
+    return ok;
   }
 
-  function download() {
-    if (html === null) return;
-    const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+  // Downloads: the page as it is, a picture of it, or a PDF from the browser's own print window.
+  const fileName = `${page.title.replace(/[^\w\- ]+/g, "").trim() || "handout"}${newest ? "" : ` v${n}`}`;
+  nameRef.current = fileName;
+  function save(href: string, ext: string) {
     const a = document.createElement("a");
-    a.href = url;
-    a.download = `${page.title.replace(/[^\w\- ]+/g, "").trim() || "page"}${newest ? "" : ` v${n}`}.html`;
+    a.href = href;
+    a.download = `${fileName}.${ext}`;
     a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
   }
+  function download(kind: "html" | "pdf" | "png") {
+    setMenu(null);
+    if (html === null) return;
+    if (kind === "html") {
+      const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+      save(url, "html");
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    } else if (kind === "pdf") toFrame({ op: "print" });
+    else { setMaking(true); toFrame({ op: "png" }); }
+  }
+
+  // Changing the words by hand: the page becomes editable in place, and Save keeps it as a new version.
+  async function saveEdit(text: string) {
+    const { data, error } = await supabase.rpc("edit_page", { p: page.id, html: text });
+    if (error) { onFailed("Your changes were not kept. Try again."); return; }
+    setMode("view");
+    if (typeof data === "number") setN(data);
+  }
+  saveRef.current = saveEdit;
+  useEffect(() => { toFrame({ op: "mode", m: mode }); }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const live = comments.filter((c) => !c.deleted_at || comments.some((r) => r.parent_id === c.id && !r.deleted_at));
   const tops = live.filter((c) => !c.parent_id);
   const open = tops.filter((c) => !c.resolved_at);
   const resolved = tops.filter((c) => c.resolved_at);
   const others = viewers.filter((id) => id !== me.id);
+  // Comments on a thing in the page are numbered pins on it; comments on words light the words.
+  const pinned2 = open.filter((c) => c.anchor?.startsWith("el:"));
+  const pinList = useMemo(() => pinned2.map((c, i) => ({ id: c.id, n: i + 1, path: c.anchor.slice(3).split("|")[0].split(".").filter(Boolean).map(Number) })), [pinned2]);
+  useEffect(() => { toFrame({ op: "pins", list: pinList }); }, [pinList, html]); // eslint-disable-line react-hooks/exhaustive-deps
+  const anchorText = (a: string) => (a.startsWith("el:") ? a.slice(a.indexOf("|") + 1) : a);
 
   // Drawn by a plain function, never a component made inside this one (that would remount it on every change).
   const comment = (c: PageComment): ReactNode => {
@@ -251,10 +309,10 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
           <span className={s.face} style={{ background: who?.color }}><Face who={who} /></span>
           <b>{c.deleted_at ? "Taken away" : firstName(who?.display_name ?? "Someone")}</b>
           <span className={s.when}><Time iso={c.created_at} style="when" /></span>
-          {c.version !== page.version && <span className={s.when}>on v{c.version}</span>}
+          {c.version !== page.version && <span className={s.when}>on version {c.version}</span>}
           {c.to_ai && <span className={s.toAi}>sent to the AIs</span>}
         </div>
-        {c.anchor && <div className={s.anchor}>{c.anchor}</div>}
+        {c.anchor && <div className={s.anchor}>{anchorText(c.anchor)}</div>}
         {!c.deleted_at && <div className={s.commentBody}><Inline text={c.body} /></div>}
         {!c.deleted_at && (
           <div className={s.commentActions}>
@@ -268,9 +326,33 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
     );
   };
 
+  // The box to write in: for the whole handout, for one thing in it, or a reply.
+  const composer = (anchor: string, onDone?: () => void) => (
+    <form className={s.compose} onSubmit={async (e) => { e.preventDefault(); if (await send(anchor, draft, toAi)) onDone?.(); }}>
+      {replyTo && <div className={s.replying}>Replying <button type="button" onClick={() => setReplyTo(null)}>Cancel</button></div>}
+      {!replyTo && anchor && <div className={s.anchor}>{anchorText(anchor)}</div>}
+      <textarea className="field" rows={2} autoFocus={!!anchor} maxLength={4000} value={draft} placeholder={replyTo ? "Your reply" : anchor ? "What should change here?" : "About this handout"}
+        onChange={(e) => { setDraft(e.target.value); if (e.target.value.trim()) sayWriting(); }}
+        onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); (e.currentTarget.form as HTMLFormElement).requestSubmit(); } }} data-testid="page-comment-box" />
+      <div className={s.composeRow}>
+        {!replyTo && <label className={s.askAi}><input type="checkbox" checked={toAi} onChange={(e) => setToAi(e.target.checked)} data-testid="page-to-ai" /> Ask the AIs to change it</label>}
+        <button className="btn" disabled={busy || !draft.trim()} data-testid="page-comment-send">{toAi && !replyTo ? "Send to the AIs" : "Comment"}</button>
+      </div>
+    </form>
+  );
+
+  // Where a popover sits over the page: beside the thing it is about, kept inside the stage.
+  const at = (x: number, y: number) => {
+    const f = frame.current, st = stage.current;
+    if (!f || !st) return { left: 24, top: 24 };
+    const fr = f.getBoundingClientRect(), sr = st.getBoundingClientRect();
+    return { left: Math.max(12, Math.min(sr.width - 332, fr.left - sr.left + x)), top: Math.max(12, Math.min(sr.height - 240, fr.top - sr.top + y)) };
+  };
+  const threadOf = thread ? open.find((c) => c.id === thread.id) : undefined;
+
   return (
-    <div className={s.back} onClick={onClose}>
-      <div className={`${s.window} ${side ? s.withSide : ""}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-label={page.title} data-testid="page-window">
+    <div className={`${s.back} ${shut ? s.closing : ""}`} onClick={close}>
+      <div className={s.window} onClick={(e) => { e.stopPropagation(); setMenu(null); }} role="dialog" aria-label={page.title} data-testid="page-window">
         <div className={s.top}>
           <span className={s.topIcon}><PageIcon icon={page.icon} /></span>
           {naming === null ? (
@@ -280,72 +362,126 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
               <input className="field" autoFocus value={naming} maxLength={120} onChange={(e) => setNaming(e.target.value)} onBlur={() => setNaming(null)} aria-label="The handout's name" />
             </form>
           )}
-          <div className={s.versions} data-testid="page-version">
-            <Select label="Version" value={String(n)} onChange={(v) => setN(Number(v))}
-              options={[...versions].sort((a, b) => b.n - a.n).map((v) => ({ value: String(v.n), label: `v${v.n}${v.n === page.version ? " (newest)" : ""}, ${madeBy(v)}${v.note ? `: ${v.note}` : ""}` }))} />
-          </div>
+          {versions.length > 1 && (
+            <div className={s.versions} data-testid="page-version">
+              <Select label="Version" value={String(n)} onChange={(v) => setN(Number(v))}
+                options={[...versions].sort((a, b) => b.n - a.n).map((v) => ({ value: String(v.n), label: `Version ${v.n}` }))} />
+            </div>
+          )}
           {others.length > 0 && (
             <span className={s.viewers} title={`Also here: ${others.map((id) => firstName(name(id))).join(", ")}`} data-testid="page-viewers">
               {others.slice(0, 4).map((id) => { const w = members.get(id); return <span key={id} className={s.face} style={{ background: w?.color }}><Face who={w} /></span>; })}
             </span>
           )}
           <span className={s.spacer} />
-          {!newest && <button className="btn btn-quiet" disabled={busy} onClick={async () => { if (await call("restore_page_version", { p: page.id, n }, "That version was not brought back. Try again.")) setN(page.version + 1); }}>Go back to this version</button>}
-          <button className={`${s.tool} ${pinned ? s.on : ""}`} onClick={async () => { if (await call("pin_page", { p: page.id, pinned: !pinned }, "That did not take. Try again.")) onPinned(!pinned); }} aria-pressed={pinned} title={pinned ? "Unpin" : "Pin"}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill={pinned ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.7"><path d="M9 3h6l-1 6 4 4H6l4-4-1-6zM12 13v8" /></svg>
-          </button>
-          <button className={s.tool} onClick={download} title="Download" disabled={html === null}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" /></svg>
-          </button>
-          <button className={`${s.tool} ${side ? s.on : ""}`} onClick={() => setSide(!side)} title="Comments" aria-pressed={side} data-testid="page-comments-toggle">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M4 5h16v11H9l-5 4z" /></svg>
+          {!newest && mode === "view" && <button className="btn btn-quiet" disabled={busy} onClick={async () => { if (await call("restore_page_version", { p: page.id, n }, "That version was not brought back. Try again.")) setN(page.version + 1); }}>Go back to this version</button>}
+          {mode === "edit" ? (
+            <span className={s.editBar} data-testid="page-editing">
+              <span>Editing the words</span>
+              <button className="btn btn-quiet" onClick={() => { setMode("view"); setReload((k) => k + 1); }}>Cancel</button>
+              <button className="btn" onClick={() => { setSaving(true); toFrame({ op: "serialize" }); }} disabled={saving} data-testid="page-save">Save</button>
+            </span>
+          ) : (
+            <span className={s.modes} role="group" aria-label="What pressing the page does">
+              <button className={`${s.mode} ${mode === "comment" ? s.modeOn : ""}`} onClick={() => { setMode(mode === "comment" ? "view" : "comment"); setPlace(null); setThread(null); }} aria-pressed={mode === "comment"} data-testid="page-comment-mode">
+                <Icon d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4A2.5 2.5 0 0 1 3 13.5z" />Comment
+              </button>
+              {newest && <button className={s.mode} onClick={() => { setMode("edit"); setPlace(null); setThread(null); setList(false); }} data-testid="page-edit-mode">
+                <Icon d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16zM13.5 6.5l4 4" />Edit
+              </button>}
+            </span>
+          )}
+          <button className={`${s.tool} ${list ? s.on : ""}`} onClick={() => { setList(!list); setThread(null); setPlace(null); }} title="Comments" aria-pressed={list} data-testid="page-comments-toggle">
+            <Icon d="M5 6h14M5 12h14M5 18h9" />
             {open.length > 0 && <span className={s.count}>{open.length}</span>}
           </button>
-          {(mine || owner) && (
-            <button className={s.tool} title="Delete the handout" onClick={async () => { if (window.confirm(`Delete the handout "${page.title}" with all its versions and comments?`) && await call("delete_page", { p: page.id }, "The handout was not deleted. Try again.")) onClose(); }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l.8 12a1.5 1.5 0 0 0 1.5 1.4h6.4a1.5 1.5 0 0 0 1.5-1.4l.8-12" /></svg>
+          <button className={`${s.tool} ${pinned ? s.on : ""} ${popPin ? s.popped : ""}`} title={pinned ? "Unpin" : "Pin"} aria-pressed={pinned} data-testid="page-pin"
+            onClick={async () => { const next = !pinned; onPinned(next); setPopPin(true); setTimeout(() => setPopPin(false), 320);
+              const { error } = await supabase.rpc("pin_page", { p: page.id, pinned: next }); if (error) { onPinned(!next); onFailed("That did not take. Try again."); } }}>
+            <Icon d="M14.5 3.5l6 6-3 1-3.5 3.5.5 4-1.5 1.5-4.5-4.5L4 20.5l-.5-.5L9 14.5 4.5 10 6 8.5l4 .5L13.5 5.5z" fill={pinned} />
+          </button>
+          <span className={s.menuWrap} onClick={(e) => e.stopPropagation()}>
+            <button className={`${s.tool} ${menu === "download" ? s.on : ""}`} title="Download" disabled={html === null} onClick={() => setMenu(menu === "download" ? null : "download")} data-testid="page-download" aria-haspopup="menu" aria-expanded={menu === "download"}>
+              {making ? <span className={s.spin} /> : <Icon d="M12 4v10.5M7.5 10.5L12 15l4.5-4.5M5 19.5h14" />}
             </button>
+            {menu === "download" && (
+              <div className={s.menu} role="menu">
+                <button role="menuitem" onClick={() => download("html")}><b>HTML</b><span>The page itself, works anywhere</span></button>
+                <button role="menuitem" onClick={() => download("pdf")}><b>PDF</b><span>Choose Save as PDF in the print window</span></button>
+                <button role="menuitem" onClick={() => download("png")}><b>PNG</b><span>A picture of the whole page</span></button>
+              </div>
+            )}
+          </span>
+          {(mine || owner) && (
+            <span className={s.menuWrap} onClick={(e) => e.stopPropagation()}>
+              <button className={`${s.tool} ${menu === "delete" ? s.on : ""}`} title="Delete the handout" onClick={() => setMenu(menu === "delete" ? null : "delete")} aria-haspopup="dialog" aria-expanded={menu === "delete"}>
+                <Icon d="M5 7h14M10 4h4M7 7l.8 11.2A2 2 0 0 0 9.8 20h4.4a2 2 0 0 0 2-1.8L17 7" />
+              </button>
+              {menu === "delete" && (
+                <div className={`${s.menu} ${s.sure}`} role="dialog">
+                  <b>Delete this handout?</b>
+                  <span>Every version and comment goes with it.</span>
+                  <span className={s.sureRow}>
+                    <button className="btn btn-quiet" onClick={() => setMenu(null)}>Keep</button>
+                    <button className="btn" onClick={async () => { if (await call("delete_page", { p: page.id }, "The handout was not deleted. Try again.")) close(); }} data-testid="page-delete">Delete</button>
+                  </span>
+                </div>
+              )}
+            </span>
           )}
-          <button className={s.tool} onClick={onClose} title="Close" aria-label="Close">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          <button className={s.tool} onClick={close} title="Close" aria-label="Close">
+            <Icon d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
           </button>
         </div>
         <div className={s.body}>
-          <div className={s.stage}>
+          <div className={`${s.stage} ${mode !== "view" ? s.stageMode : ""}`} ref={stage}>
             {doc === null ? <div className={s.loading}>Opening…</div>
-              : <iframe ref={frame} className={s.frame} title={page.title} sandbox={FRAME_SANDBOX} srcDoc={doc} referrerPolicy="no-referrer" data-testid="page-frame"
-                  onLoad={() => { toFrame({ op: "marks", list: markList }); toFrame({ op: "cursors", list: cursorList }); }} />}
-          </div>
-          {side && (
-            <aside className={s.side} aria-label="Comments">
-              <div className={s.sideList}>
-                {open.length === 0 && resolved.length === 0 && <div className="note">No comments yet. Pick words out of the handout to comment on them, or say something about all of it.</div>}
-                {open.map((c) => comment(c))}
-                {resolved.length > 0 && (
-                  <button className={s.showResolved} onClick={() => setShowResolved(!showResolved)}>{showResolved ? "Hide" : "Show"} {resolved.length} resolved</button>
-                )}
-                {showResolved && resolved.map((c) => comment(c))}
+              : <iframe key={reload} ref={frame} className={s.frame} title={page.title} sandbox={FRAME_SANDBOX} srcDoc={doc} referrerPolicy="no-referrer" data-testid="page-frame"
+                  onLoad={() => { toFrame({ op: "marks", list: markList }); toFrame({ op: "cursors", list: cursorList }); toFrame({ op: "pins", list: pinList }); toFrame({ op: "mode", m: mode }); }} />}
+            {/* Someone writing a comment shows over the page, whether or not the comments are open. */}
+            {Object.keys(writing).length > 0 && (
+              <div className={`${s.writing} ${s.writingOver}`} data-testid="page-writing">{Object.keys(writing).map((id) => firstName(name(id))).join(", ")} {Object.keys(writing).length > 1 ? "are" : "is"} writing a comment<span className={s.dots}><i /><i /><i /></span></div>
+            )}
+            {mode === "comment" && !place && <div className={s.hint}>Point at anything on the page and press it to comment there</div>}
+            {place && (
+              <div className={s.pop} style={at(place.x + place.w, place.y)} onClick={(e) => e.stopPropagation()} data-testid="page-comment-here">
+                {composer(`el:${place.path.join(".")}|${place.label}`, () => setMode("view"))}
+                <button className={s.popClose} onClick={() => setPlace(null)} aria-label="Cancel">×</button>
               </div>
-              {Object.keys(writing).length > 0 && (
-                <div className={s.writing} data-testid="page-writing">{Object.keys(writing).map((id) => firstName(name(id))).join(", ")} {Object.keys(writing).length > 1 ? "are" : "is"} writing a comment<span className={s.dots}><i /><i /><i /></span></div>
-              )}
-              <form className={s.compose} onSubmit={(e) => { e.preventDefault(); send(); }}>
-                {replyTo && <div className={s.replying}>Replying <button type="button" onClick={() => setReplyTo(null)}>Cancel</button></div>}
-                {!replyTo && picked && <div className={s.anchor}>{picked} <button type="button" className={s.unpick} onClick={() => setPicked("")} aria-label="Comment on the whole handout instead">×</button></div>}
-                <textarea className="field" rows={3} maxLength={4000} value={draft} placeholder={replyTo ? "Your reply" : picked ? "About these words" : "About this handout"}
-                  onChange={(e) => { setDraft(e.target.value); if (e.target.value.trim()) sayWriting(); }} onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); } }} data-testid="page-comment-box" />
-                <div className={s.composeRow}>
-                  {!replyTo && (
-                    <label className={s.askAi}><input type="checkbox" checked={toAi} onChange={(e) => setToAi(e.target.checked)} data-testid="page-to-ai" /> Ask the AIs to change it</label>
+            )}
+            {threadOf && thread && (
+              <div className={s.pop} style={at(thread.x + 28, thread.y)} onClick={(e) => e.stopPropagation()}>
+                <div className={s.popList}>{comment(threadOf)}</div>
+                {replyTo === threadOf.id && composer("")}
+                <button className={s.popClose} onClick={() => { setThread(null); setReplyTo(null); }} aria-label="Close">×</button>
+              </div>
+            )}
+            {list && (
+              <aside className={s.drawer} aria-label="Comments" onClick={(e) => e.stopPropagation()}>
+                <div className={s.sideList}>
+                  {open.length === 0 && resolved.length === 0 && <div className="note">No comments yet. Press Comment, then the thing you want changed.</div>}
+                  {open.map((c) => comment(c))}
+                  {resolved.length > 0 && (
+                    <button className={s.showResolved} onClick={() => setShowResolved(!showResolved)}>{showResolved ? "Hide" : "Show"} {resolved.length} resolved</button>
                   )}
-                  <button className="btn" disabled={busy || !draft.trim()}>{toAi && !replyTo ? "Send to the AIs" : "Comment"}</button>
+                  {showResolved && resolved.map((c) => comment(c))}
                 </div>
-              </form>
-            </aside>
-          )}
+                {composer(replyTo ? "" : picked)}
+              </aside>
+            )}
+          </div>
         </div>
       </div>
     </div>
+  );
+}
+
+// The soft, round icons of the handout window.
+function Icon({ d, fill = false }: { d: string; fill?: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill={fill ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d={d} />
+    </svg>
   );
 }
 

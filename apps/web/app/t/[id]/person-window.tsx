@@ -1,6 +1,6 @@
 "use client";
 
-import { useEscape } from "@/components/use-escape";
+import { useClosing, useEscape } from "@/components/use-escape";
 import { useRef, useState } from "react";
 import { AI_NAME, AiLogo } from "@/components/ai-logo";
 import { Face } from "@/components/face";
@@ -44,7 +44,7 @@ function shrink(file: File): Promise<string> {
 
 // A person, in a window in the middle of the screen. Your own is where you change how you look at this table;
 // anyone else's shows who they are, and gives the owner the two things an owner can do.
-export function PersonWindow({ table, me, person, connections, here, edit = false, members, onClose, onSaved, onGone, onSandbox, waiting = 0 }: {
+export function PersonWindow({ table, me, person, connections, here, edit = false, members, onClose, onSaved, onGone, onSandbox, onSettings, waiting = 0 }: {
   table: { id: string; name: string };
   me: Member;
   person: Member;
@@ -58,9 +58,11 @@ export function PersonWindow({ table, me, person, connections, here, edit = fals
   onGone: (id: string) => void;
   // A client's own copy: opens what they changed there. How many changes are waiting for the team.
   onSandbox?: (id: string) => void;
+  onSettings?: () => void;
   waiting?: number;
 }) {
-  useEscape(onClose);
+  const [shut, close] = useClosing(onClose);
+  useEscape(close);
   const supabase = browserClient();
   const isMe = person.id === me.id;
   const mine = isMe && edit;
@@ -101,7 +103,7 @@ export function PersonWindow({ table, me, person, connections, here, edit = fals
     setBusy(false);
     if (error) return setError(error.message);
     onSaved(next);
-    onClose();
+    close();
   }
 
   async function run(fn: "transfer_ownership" | "remove_member") {
@@ -112,11 +114,11 @@ export function PersonWindow({ table, me, person, connections, here, edit = fals
     setAsking(null);
     if (error) return setError(error.message);
     if (fn === "remove_member") onGone(person.id);
-    onClose();
+    close();
   }
 
   return (
-    <div className={room.modalBack} onClick={onClose}>
+    <div className={`${room.modalBack} ${shut ? room.closing : ""}`} onClick={close}>
       <div className={`${room.modal} ${s.window}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-label={mine ? "You" : person.display_name} data-testid="person-window">
         <div className={s.hero}>
           <span className={s.faceWrap}>
@@ -185,7 +187,7 @@ export function PersonWindow({ table, me, person, connections, here, edit = fals
             </div>
             {error && <div className="error" role="alert">{error}</div>}
             <div className={room.modalActions}>
-              <button type="button" className="btn btn-quiet" onClick={onClose}>Close</button>
+              <button type="button" className="btn btn-quiet" onClick={close}>Close</button>
               <button className="btn" disabled={busy || !changed || !name.trim()}>{busy ? "Saving…" : "Save"}</button>
             </div>
           </form>
@@ -232,13 +234,14 @@ export function PersonWindow({ table, me, person, connections, here, edit = fals
                 <button type="button" className={room.toolLink} style={{ marginRight: "auto" }}
                   onClick={async () => { const p = await downloadExport("export_mine", table.id, table.name); if (p) setError(p); }}>Download what&apos;s mine</button>
               )}
-              {me.role === "owner" && !isMe && !asking && (
+              {/* What can be changed about them lives in Settings; the window only points there. */}
+              {!isMe && !asking && (onSettings || (me.role === "owner" && person.role === "developer")) && (
                 <div className={s.row} style={{ marginRight: "auto" }}>
-                  {person.role === "developer" && <button className="btn btn-quiet" onClick={() => setAsking("owner")}><Crown size={15} />Make owner</button>}
-                  <button className="btn btn-quiet" onClick={() => setAsking("remove")}>Take off the table</button>
+                  {onSettings && <button className="btn btn-quiet" onClick={onSettings} data-testid="person-settings">Settings</button>}
+                  {me.role === "owner" && person.role === "developer" && <button className="btn btn-quiet" onClick={() => setAsking("owner")}><Crown size={15} />Make owner</button>}
                 </div>
               )}
-              <button className="btn btn-quiet" onClick={onClose}>Close</button>
+              <button className="btn btn-quiet" onClick={close}>Close</button>
             </div>
           </>
         )}

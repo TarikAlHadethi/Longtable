@@ -10,7 +10,8 @@ export function Grow({ children, className }: { children: ReactNode; className?:
   useLayoutEffect(() => {
     const el = inner.current;
     if (!el) return;
-    const measure = () => setHeight(el.getBoundingClientRect().height);
+    // Its layout height, not the drawn one: a window still scaling in draws smaller than it is.
+    const measure = () => setHeight(el.offsetHeight);
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);

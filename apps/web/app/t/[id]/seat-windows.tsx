@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useEscape } from "@/components/use-escape";
+import { useClosing, useEscape } from "@/components/use-escape";
 import { AI_NAME, AiLogo } from "@/components/ai-logo";
 import { Mark } from "@/components/mark";
 import { Time } from "@/components/time";
@@ -16,7 +16,7 @@ import { Select } from "@/components/select";
 const prettyPlan = (plan?: string | null) => (plan ? `${plan.charAt(0).toUpperCase()}${plan.slice(1)}`.replace(/_/g, " ") : null);
 
 // A switch with what it does said underneath, so nobody has to guess.
-function Switch({ on, disabled, onChange, title, about, testid }: { on: boolean; disabled?: boolean; onChange: (next: boolean) => void; title: string; about: string; testid?: string }) {
+export function Switch({ on, disabled, onChange, title, about, testid }: { on: boolean; disabled?: boolean; onChange: (next: boolean) => void; title: string; about: string; testid?: string }) {
   return (
     <label className={`${s.switchRow} ${disabled ? s.switchOff : ""}`}>
       <span className={s.switchText}><b>{title}</b><span>{about}</span></span>
@@ -42,7 +42,8 @@ export function AiWindow({ me, person, conn, commands, on, busy, onSpeed, onClos
   onConnect: () => void;
   onDisconnect: (conn: string) => void;
 }) {
-  useEscape(onClose);
+  const [shut, close] = useClosing(onClose);
+  useEscape(close);
   const [asking, setAsking] = useState(false);
   const mine = person.id === me.id;
   const first = firstName(person.display_name);
@@ -53,7 +54,7 @@ export function AiWindow({ me, person, conn, commands, on, busy, onSpeed, onClos
   const open = live?.open_paths !== false;
   const share = live?.share_paths !== false;
   return (
-    <div className={room.modalBack} onClick={onClose}>
+    <div className={`${room.modalBack} ${shut ? room.closing : ""}`} onClick={close}>
       <div className={`${room.modal} ${s.window}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-label={mine ? `Your ${ai}` : `${person.display_name}'s ${ai}`} data-testid="ai-window">
         <div className={s.hero}>
           <span className={s.seatMark}>{conn ? <AiLogo kind={conn.kind} size={44} /> : <Mark size={44} />}</span>
@@ -69,11 +70,23 @@ export function AiWindow({ me, person, conn, commands, on, busy, onSpeed, onClos
                 ? <ModelPick kind={conn.kind} value={conn.model_choice ?? ""} text={model} reported={conn.limits?.models} className="" canPick onPick={(m) => onModel(conn.id, m)} />
                 : model}</b>
             </div>
+            {mine && live && (
+              <div className={s.fact}>
+                <span>Effort</span>
+                <b>
+                  {/* Medium unless they pick another; the menu wide enough for every level on one line. */}
+                  <span className={s.effortPick}>
+                    <Select id="opt-effort" label="Effort" value={live.effort ?? "medium"} onChange={(v) => onSpeed(live.id, { effort: v })}
+                      options={EFFORT_LEVELS.map((l) => ({ value: l, label: l === "xhigh" ? "Extra high" : l.charAt(0).toUpperCase() + l.slice(1) }))} />
+                  </span>
+                </b>
+              </div>
+            )}
             {plan && <div className={s.fact}><span>Plan</span><b>{plan}</b></div>}
             {conn.last_seen && <div className={s.fact}><span>Last on</span><b><Time iso={conn.last_seen} style="stamp" /></b></div>}
             <div className={s.fact}><span>Runs on</span><b>{mine ? "Your computer, your own plan" : `${first}'s computer, their own plan`}</b></div>
-            {conn.limits?.version && <div className={s.fact}><span>Connection</span><b>{conn.limits.version}, updates itself</b></div>}
-            {mine && live && <div className={s.fact}><span>Its own commands</span><b>{commands.length ? `${commands.length}, type / in a chat` : "None found"}</b></div>}
+            {conn.limits?.version && <div className={s.fact}><span>Connection</span><b>{conn.limits.version}</b></div>}
+            {mine && live && <div className={s.fact}><span>Its own commands</span><b>{commands.length || "None"}</b></div>}
           </div>
         )}
 
@@ -92,27 +105,12 @@ export function AiWindow({ me, person, conn, commands, on, busy, onSpeed, onClos
                   title="Run as my full Claude Code"
                   about="Runs commands and tests. Asks you first." />
               )}
+              {/* Fast mode only where their account can use it: a switch that can never work is not offered. */}
+              {conn?.kind === "claude" && !(live.limits?.fast_why && live.limits?.fast !== "on") && (
+                <Switch on={!!live.fast} onChange={(v) => onSpeed(live.id, { fast: v })} testid="opt-fast"
+                  title="Fast mode" about="Faster, costs more of your plan." />
+              )}
             </div>
-          </div>
-        )}
-        {mine && live && (
-          <div className={s.block}>
-            <h3 className={s.h2}>How it works here</h3>
-            <div className={s.fact}>
-              <span>Effort</span>
-              <b>
-                {/* Medium unless they pick another; the menu wide enough for every level on one line. */}
-                <span className={s.effortPick}>
-                  <Select id="opt-effort" label="Effort" value={live.effort ?? "medium"} onChange={(v) => onSpeed(live.id, { effort: v })}
-                    options={EFFORT_LEVELS.map((l) => ({ value: l, label: l === "xhigh" ? "Extra high" : l.charAt(0).toUpperCase() + l.slice(1) }))} />
-                </span>
-              </b>
-            </div>
-            {/* Fast mode only where their account can use it: a switch that can never work is not offered. */}
-            {conn?.kind === "claude" && !(live.limits?.fast_why && live.limits?.fast !== "on") && <div className={s.switches}>
-              <Switch on={!!live.fast} onChange={(v) => onSpeed(live.id, { fast: v })} testid="opt-fast"
-                title="Fast mode" about="Faster, costs more of your plan." />
-            </div>}
           </div>
         )}
         {!mine && live && (
@@ -123,7 +121,7 @@ export function AiWindow({ me, person, conn, commands, on, busy, onSpeed, onClos
           <div className={s.ask}>
             <p>Your {ai} leaves this table. Work it is in the middle of is stopped. You can connect again whenever you like.</p>
             <div className={s.row}>
-              <button className="btn" onClick={() => { onDisconnect(live.id); onClose(); }}>Disconnect</button>
+              <button className="btn" onClick={() => { onDisconnect(live.id); close(); }}>Disconnect</button>
               <button className="btn btn-quiet" onClick={() => setAsking(false)}>Keep it</button>
             </div>
           </div>
@@ -132,10 +130,10 @@ export function AiWindow({ me, person, conn, commands, on, busy, onSpeed, onClos
           {mine && !asking && (
             <div className={s.row} style={{ marginRight: "auto" }}>
               {live ? <button className="btn btn-quiet" onClick={() => setAsking(true)}>Disconnect</button>
-                : <button className="btn" onClick={() => { onClose(); onConnect(); }}>{conn ? "Connect again" : "Connect your AI"}</button>}
+                : <button className="btn" onClick={() => { close(); onConnect(); }}>{conn ? "Connect again" : "Connect your AI"}</button>}
             </div>
           )}
-          <button className="btn btn-quiet" onClick={onClose}>Close</button>
+          <button className="btn btn-quiet" onClick={close}>Close</button>
         </div>
       </div>
     </div>
@@ -154,10 +152,11 @@ export function TableWindow({ me, tableName, writer, tableModel, onTableModel, p
   onSettings?: () => void;
   onClose: () => void;
 }) {
-  useEscape(onClose);
+  const [shut, close] = useClosing(onClose);
+  useEscape(close);
   const text = writer ? `${AI_NAME[writer.conn.kind]} ${prettyModel(tableModel) ?? (writer.conn.kind === "claude" ? "Sonnet 5.5" : prettyModel(writer.conn.limits?.model) ?? "")}`.trim() : "";
   return (
-    <div className={room.modalBack} onClick={onClose}>
+    <div className={`${room.modalBack} ${shut ? room.closing : ""}`} onClick={close}>
       <div className={`${room.modal} ${s.window}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="The table" data-testid="table-window">
         <div className={s.hero}>
           <span className={s.seatMark}><Mark size={48} /></span>
@@ -185,8 +184,8 @@ export function TableWindow({ me, tableName, writer, tableModel, onTableModel, p
           </ol>
         </div>
         <div className={room.modalActions}>
-          {onSettings && <button className="btn btn-quiet" style={{ marginRight: "auto" }} onClick={() => { onClose(); onSettings(); }}>Table settings</button>}
-          <button className="btn btn-quiet" onClick={onClose}>Close</button>
+          {onSettings && <button className="btn btn-quiet" style={{ marginRight: "auto" }} onClick={() => { close(); onSettings(); }}>Table settings</button>}
+          <button className="btn btn-quiet" onClick={close}>Close</button>
         </div>
       </div>
     </div>

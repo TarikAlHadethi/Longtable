@@ -127,4 +127,5 @@
 @keyframes pn-pop { from { opacity: 0; transform: scale(0.55) rotate(-8deg); } to { opacity: 1; transform: none; } }
 
 /* The effort menu: wide enough that "Extra high" sits on one line, in the box and in its menu. */
-.effortPick { display: block; width: 168px; font-weight: 500; }
+.effortPick { display: block; width: 150px; font-weight: 500; }
+.effortPick button[aria-haspopup] { padding: 6px 12px; border-radius: 9px; }

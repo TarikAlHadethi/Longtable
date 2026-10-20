@@ -1,6 +1,6 @@
 "use client";
 
-import { useEscape } from "@/components/use-escape";
+import { useClosing, useEscape } from "@/components/use-escape";
 import { useState } from "react";
 import { browserClient } from "@/lib/supabase/browser";
 import { Select } from "@/components/select";
@@ -25,7 +25,8 @@ export function NewDecision({ chatId, myName, clientName, hasClient, request: fi
   requests?: Asked[];
   onClose: () => void;
 }) {
-  useEscape(onClose);
+  const [shut, close] = useClosing(onClose);
+  useEscape(close);
   const [request, setRequest] = useState<Asked | null>(first ?? null);
   const [title, setTitle] = useState(first?.title ?? "");
   const [context, setContext] = useState("");
@@ -80,11 +81,11 @@ export function NewDecision({ chatId, myName, clientName, hasClient, request: fi
     });
     setBusy(false);
     if (error) return setError(error.message);
-    onClose();
+    close();
   }
 
   return (
-    <div className={styles.modalBack} onClick={onClose}>
+    <div className={`${styles.modalBack} ${shut ? styles.closing : ""}`} onClick={close}>
       <form className={styles.modal} onSubmit={save} onClick={(e) => e.stopPropagation()} aria-label="Make a poll">
         <div className={styles.modalTitle}>Make a poll</div>
         {requests.length > 0 && (
@@ -187,7 +188,7 @@ export function NewDecision({ chatId, myName, clientName, hasClient, request: fi
         )}
         {error && <div className="error">{error}</div>}
         <div className={styles.modalActions}>
-          <button type="button" className="btn btn-quiet" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn btn-quiet" onClick={close}>Cancel</button>
           <button className="btn" disabled={!ready || busy}>{busy ? "Adding…" : "Start the poll"}</button>
         </div>
       </form>

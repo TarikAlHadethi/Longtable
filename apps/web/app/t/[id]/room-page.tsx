@@ -27,10 +27,10 @@ export async function RoomPage({ id, wanted, view, side, sandbox }: { id: string
   // A read that failed is a fault, not a table that is not there: it used to show "not found" to the table's own team.
   // Read at once, not one after another: every read crosses to the database, and a refresh waited on each in turn.
   const [{ data: table, error: tableError }, { data: rows, error: rowsError }] = await Promise.all([
-    supabase.from("tables").select("id, name").eq("id", id).maybeSingle(),
+    supabase.from("tables").select("id, name, main_owner").eq("id", id).maybeSingle(),
     supabase
       .from("members")
-      .select("id, user_id, display_name, role, color, created_at, avatar, name_color, status, bubble, tasks_cleared_at, test")
+      .select("id, user_id, display_name, role, color, created_at, avatar, name_color, status, bubble, tasks_cleared_at, test, can_settings, can_invite, can_clients")
       .eq("table_id", id)
       .is("removed_at", null)
       .order("created_at"),

@@ -116,9 +116,10 @@ try {
   await inside.evaluate(() => { window.__stillHere = true; });
   await sleep(9000);
   check("the open page is not reloaded while the room refreshes around it", await inside.evaluate(() => window.__stillHere === true).catch(() => false));
+  await page.click("[data-testid=page-comments-toggle]");
   check("the window shows its comments", (await page.locator("[data-testid=page-comment]").count()) >= 1);
   await page.fill("[data-testid=page-comment-box]", "Looks right now");
-  await page.click("[data-testid=page-window] button:has-text('Comment')");
+  await page.click("[data-testid=page-comment-send]");
   await sleep(1500);
   check("a comment written in the window is kept", sql(`select count(*) from public.page_comments where page_id = '${pageId}' and body = 'Looks right now'`) === "1");
   await page.click("[data-testid=page-window] button[aria-label=Close]");

@@ -6,34 +6,35 @@ import { Select } from "@/components/select";
 import { downloadExport } from "@/lib/download";
 import { browserClient } from "@/lib/supabase/browser";
 import styles from "./settings.module.css";
-import { firstName } from "@/lib/names";
+import { ClientSettings, PeopleSettings, type Person } from "./people-settings";
 
-type Person = { id: string; display_name: string; role: "owner" | "developer" | "client"; color: string };
 type Extra = { undo_seconds: number; client_chat: string | null; final_seat: string | null; when_final_offline: string };
 type Github = { connected: boolean; repo: string; last_event_at: string | null } | null;
 
-const ROLE = { owner: "Owner", developer: "Developer", client: "Client" } as const;
 
-export type SettingsData = { extra: Extra | null; github: Github; answerers?: Record<string, "own" | "table"> };
+export type Copies = { preview_url: string | null; cap: number | null; paths: string | null };
+export type SettingsData = { extra: Extra | null; github: Github; answerers?: Record<string, "own" | "table">; copies?: Copies | null };
 type Db = ReturnType<typeof browserClient>;
 // The table's own settings and its GitHub link. The room reads these once when it opens, so Settings is complete the
 // moment it is shown.
 export async function loadSettings(supabase: Db, tableId: string): Promise<SettingsData> {
-  const [row, hub, who] = await Promise.all([
+  const [row, hub, who, box] = await Promise.all([
     supabase.from("tables").select("undo_seconds, client_chat, final_seat, when_final_offline").eq("id", tableId).maybeSingle(),
     supabase.rpc("github_status", { t: tableId }),
     supabase.from("client_settings").select("member_id, answered_by").eq("table_id", tableId),
+    supabase.from("table_sandbox").select("preview_url, cap, paths").eq("table_id", tableId).maybeSingle(),
   ]);
   // A read that failed is not settings: nothing is shown as loaded, so nothing made up can be saved over the real ones.
   if (row.error || !row.data) throw new Error("The table's settings could not be read.");
   if (who.error) console.warn("[settings] who answers clients could not be read:", who.error.code);
   const answerers = Object.fromEntries(((who.data ?? []) as { member_id: string; answered_by: "own" | "table" }[]).map((x) => [x.member_id, x.answered_by]));
-  return { extra: row.data as Extra, github: (hub.data as Github) ?? null, answerers };
+  if (box.error) console.warn("[settings] client copies could not be read:", box.error.code);
+  return { extra: row.data as Extra, github: (hub.data as Github) ?? null, answerers, copies: (box.data as Copies | null) ?? null };
 }
 
 // Settings in plain words: the table, who writes the final answer, GitHub, your data, and the people at the table.
 // It opens inside the room at once and fills in the table's own settings a moment later.
-export function SettingsForm({ table, me, people, chats, data, onData, onRenamed, onRemoved, part = "general" }: {
+export function SettingsForm({ table, me, people, chats, data, onData, onRenamed, onRemoved, onChanged, mainOwner = null, myRole = "owner", focus = null, part = "general" }: {
   table: { id: string; name: string };
   me: string;
   part?: "general" | "people" | "clients";
@@ -43,6 +44,10 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
   onData: (d: SettingsData) => void;
   onRenamed: (name: string) => void;
   onRemoved: (id: string) => void;
+  onChanged?: (id: string, patch: Partial<Person>) => void;
+  mainOwner?: string | null;
+  myRole?: Person["role"];
+  focus?: string | null;
 }) {
   const supabase = browserClient();
   // Saving is only possible once the table's own settings are on screen: before, a failed read showed made-up
@@ -53,11 +58,9 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
   const [requests, setRequests] = useState(data?.extra?.client_chat ?? "");
   const [seat, setSeat] = useState(data?.extra?.final_seat ?? "");
   const [offline, setOffline] = useState(data?.extra?.when_final_offline ?? "wait");
-  const [confirming, setConfirming] = useState<string | null>(null);
   const [saved, setSaved] = useState("");
   const [error, setError] = useState("");
   const team = people.filter((p) => p.role !== "client");
-  const clients = people.filter((p) => p.role === "client");
   // Who answers each client, saved the moment it is chosen.
   const [answerers, setAnswerers] = useState<Record<string, "own" | "table">>(data?.answerers ?? {});
   useEffect(() => { if (data?.answerers) setAnswerers(data.answerers); }, [data?.answerers]);
@@ -167,15 +170,6 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
     keep({ final_seat: seat || null, when_final_offline: offline });
   }
 
-  async function remove(id: string) {
-    setError("");
-    const { error } = await supabase.rpc("remove_member", { m: id });
-    setConfirming(null);
-    if (error) return setError(error.message);
-    onRemoved(id);
-    if (seat === id) setSeat("");
-  }
-
   return (
     <div className={`${styles.cols} ${loaded ? "" : styles.loadingForm}`} data-testid="settings-panel">
         {error && <div className={`error ${styles.wide}`} role="alert">{error}</div>}
@@ -211,42 +205,10 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
         </form>
 
         </>}
-        {part === "clients" && (
-          <section className={styles.card} aria-label="Clients" data-testid="clients-settings">
-            <div className={styles.cardTitle}>Clients</div>
-            {clients.length === 0 && <div className="note">No clients at this table yet. Invite one from your picture's menu.</div>}
-            <div className="note">Who answers each client. The table answers from what the team has done and decided, and asks the team&apos;s AIs when it has to.</div>
-            {clients.map((c) => (
-              <div key={c.id} className={styles.clientRow} data-client={c.display_name}>
-                <label className="label" htmlFor={`who-${c.id}`}>Who answers {firstName(c.display_name)}</label>
-                <Select id={`who-${c.id}`} value={answerers[c.id] ?? "own"} onChange={(v) => setAnswerer(c.id, v as "own" | "table")}
-                  options={[{ value: "own", label: "Their own AI when it is on, else the table" }, { value: "table", label: "Always the table" }]} />
-                {saved === `client-${c.id}` && <span className={styles.saved} role="status">Saved</span>}
-              </div>
-            ))}
-          </section>
-        )}
-        {part === "people" && <>
-        <section className={styles.card} aria-label="People">
-          <div className={styles.cardTitle}>People</div>
-          {people.map((p) => (
-            <div key={p.id} className={styles.person} data-person={p.display_name}>
-              <span className={styles.dot} style={{ background: p.color }} />
-              <span className={styles.personName}>{p.display_name}{p.id === me ? " (you)" : ""}</span>
-              <span className={styles.role}>{ROLE[p.role]}</span>
-              {p.role !== "owner" && (confirming === p.id ? (
-                <>
-                  <button className="btn" onClick={() => remove(p.id)}>Take {firstName(p.display_name)} off</button>
-                  <button className="btn btn-quiet" onClick={() => setConfirming(null)}>Keep</button>
-                </>
-              ) : (
-                <button className="btn btn-quiet" onClick={() => setConfirming(p.id)}>Take off the table</button>
-              ))}
-            </div>
-          ))}
-          <div className="note">Taking someone off ends their access at once and disconnects their AI. Their messages stay.</div>
-        </section>
-        </>}
+        {part === "clients" && <ClientSettings tableId={table.id} me={me} people={people} answerers={answerers} setAnswerer={setAnswerer} savedFor={saved} focus={focus} onRemoved={onRemoved}
+          copies={data?.copies ?? null} onCopies={(c) => data && onData({ ...data, copies: c })} />}
+        {part === "people" && <PeopleSettings tableId={table.id} me={me} mainOwner={mainOwner} myRole={myRole} people={people} focus={focus}
+          onChanged={(id, patch) => onChanged?.(id, patch)} onRemoved={onRemoved} />}
         </div>
         <div className={styles.col}>
         {part === "general" && <>

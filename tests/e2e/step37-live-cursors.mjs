@@ -63,11 +63,12 @@ try {
   let label = "";
   for (let i = 0; i < 25 && !label; i++) { label = await mayaFrame.locator("[data-lt-cursor] span").first().textContent({ timeout: 300 }).catch(() => ""); await sleep(200); }
   check("Maya sees Sam's pointer on the page, with his name", label === "Sam", label);
-  if (process.env.SCREENSHOTS) { await sam.page.fill("[data-testid=page-comment-box]", "Thinking"); await sleep(1200); await maya.screenshot({ path: `${process.env.SCREENSHOTS}/pages-cursor.png` }); await sam.page.fill("[data-testid=page-comment-box]", ""); }
+  if (process.env.SCREENSHOTS) { await sam.page.click("[data-testid=page-comments-toggle]"); await sam.page.fill("[data-testid=page-comment-box]", "Thinking"); await sleep(1200); await maya.screenshot({ path: `${process.env.SCREENSHOTS}/pages-cursor.png` }); await sam.page.fill("[data-testid=page-comment-box]", ""); }
   const samSelf = await sam.page.frameLocator("[data-testid=page-frame]").locator("[data-lt-cursor]").count();
   check("nobody sees their own pointer drawn twice", samSelf === 0, samSelf);
 
   // Sam writes a comment.
+  if (!(await sam.page.locator("[data-testid=page-comment-box]").count())) await sam.page.click("[data-testid=page-comments-toggle]");
   await sam.page.fill("[data-testid=page-comment-box]", "Thinking about it");
   let writing = "";
   for (let i = 0; i < 20 && !writing; i++) { writing = await maya.locator("[data-testid=page-writing]").textContent({ timeout: 300 }).catch(() => ""); await sleep(200); }

@@ -84,6 +84,7 @@ try {
   await sam.waitForFunction(() => !document.body.innerText.includes("Connecting"), null, { timeout: 10000 });
   await owner.page.goto(`${APP}/t/${tableId}/settings`);
   await owner.page.click("[role=tab]:has-text('People')");
+  await owner.page.click("[data-person='Sam Lee'] summary");
   await owner.page.click("[data-person='Sam Lee'] button:has-text('Take off the table')");
   await owner.page.click("[data-person='Sam Lee'] button:has-text('Take Sam off')");
   const closed = await sam.waitForFunction(() => document.body.innerText.includes("no longer at this table"), null, { timeout: 10000 })

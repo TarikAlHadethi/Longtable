@@ -53,7 +53,7 @@ type View = "table" | "chat" | "client" | "logs" | "settings" | "sandbox";
 const after = (a: string, b: string) => new Date(a).getTime() > new Date(b).getTime();
 
 export function Room({ table, me, initialMembers, initialChats, initialMessages, initialDecisions, initialJobs, initialConnections, initialNotes, initialRequests, initialChatId, initialView, initialTableModel, initialTasks, initialChanges, initialSandboxes, initialSandboxSettings, initialSandbox }: {
-  table: { id: string; name: string };
+  table: { id: string; name: string; main_owner?: string | null };
   me: Member;
   initialMembers: Member[];
   initialChats: Chat[];
@@ -215,6 +215,20 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   // This person as the table has them now: their role can change while the page is open (the table handed over).
   const self = byId.get(me.id) ?? me;
+  // What this person may change: owners everything, a developer what an owner turned on for them.
+  const mayTable = self.role === "owner" || !!self.can_settings;
+  const mayInvite = self.role === "owner" || !!self.can_invite;
+  const mayClients = self.role === "owner" || !!self.can_clients;
+  const settingsTabs = ([...(mayTable ? ["general"] : []), ...(self.role === "owner" ? ["people"] : []), ...(mayClients ? ["clients"] : [])]) as ("general" | "people" | "clients")[];
+  const maySettings = settingsTabs.length > 0;
+  const [settingsFocus, setSettingsFocus] = useState<string | null>(null);
+  const openSettings = (tab?: "general" | "people" | "clients", focus: string | null = null) => {
+    const t = tab && settingsTabs.includes(tab) ? tab : settingsTabs[0];
+    if (!t) return;
+    setSettingsFocus(focus);
+    setSetTab(t);
+    go("settings", `${base}/settings`);
+  };
   // The table's settings are read once here, so Settings is whole the moment it is opened.
   const [settings, setSettings] = useState<SettingsData | null>(null);
   useEffect(() => {
@@ -588,7 +602,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     const onPop = () => {
       const url = new URL(window.location.href);
       const c = url.searchParams.get("c");
-      if (url.pathname.endsWith("/settings")) setView(self.role === "owner" ? "settings" : "logs");
+      if (url.pathname.endsWith("/settings")) setView(maySettings ? "settings" : "logs");
       else if (url.pathname.endsWith("/activity")) setView("logs");
       else if (url.searchParams.get("sandbox")) { setSandboxOf(url.searchParams.get("sandbox")); setView("sandbox"); }
       else if (url.searchParams.get("side") === "client") setView("client");
@@ -1002,7 +1016,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         {!noSide && <button className={`btn btn-quiet ${styles.inboxToggle}`} onClick={() => { setInboxOpen(!inboxOpen); setDrawerOpen(false); }}>
           {view === "table" ? "Usage" : "Work"}
         </button>}
-        <ProfileMenu me={self} tableId={table.id} onInvite={self.role === "owner" ? () => setInviting(true) : undefined}
+        <ProfileMenu me={self} tableId={table.id} onInvite={mayInvite ? () => setInviting(true) : undefined}
           onMe={() => openPerson(me.id, true)} onSettings={() => (myConnection ? setAiOf(me.id) : openPerson(me.id, true))}
           ai={myConnection?.kind ?? null} onConnect={() => setConnectOpen(true)} onDisconnect={() => myConnection && disconnect(myConnection.id)} />
       </header>
@@ -1059,8 +1073,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           {(clients.length > 0 || self.role === "owner") && <button className={`btn btn-quiet ${styles.clientSideMenu}`} onClick={() => { setDrawerOpen(false); go("client", `${base}?side=client`); }}>Client side</button>}
           {/* Everything about the table, in one place: its settings for the owner, the logs for everyone else. */}
           <div className={styles.sideFoot}>
-            <button className={styles.gear} aria-label={self.role === "owner" ? "Table settings" : "Logs"} title={self.role === "owner" ? "Table settings" : "Logs"} data-testid="gear"
-              onClick={() => { setDrawerOpen(false); if (self.role === "owner") { setSetTab("general"); go("settings", `${base}/settings`); } else go("logs", `${base}/activity`); }}><Gear size={17} /></button>
+            <button className={styles.gear} aria-label={maySettings ? "Table settings" : "Logs"} title={maySettings ? "Table settings" : "Logs"} data-testid="gear"
+              onClick={() => { setDrawerOpen(false); if (maySettings) openSettings(); else go("logs", `${base}/activity`); }}><Gear size={21} /></button>
             <BugButton tableId={table.id} place={view} />
           </div>
           <ApprovalCards items={approvals} ai={myConnection?.kind === "codex" ? "ChatGPT" : "Claude"}
@@ -1077,7 +1091,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               chats={chats} onOpenChat={openChat} onConnect={() => setConnectOpen(true)}
               tableModel={tableModel}
               onTableModel={(model) => setTableModelKept(model)}
-              onModel={(conn, model) => setModelKept(conn, model)} onInvite={self.role === "owner" ? () => setInviting(true) : undefined}
+              onModel={(conn, model) => setModelKept(conn, model)} onInvite={mayInvite ? () => setInviting(true) : undefined}
               onPerson={(id) => openPerson(id)} onAi={setAiOf} onTable={() => setTableOpen(true)} />
           </main>
         )}
@@ -1094,19 +1108,21 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           <main className={styles.main}>
             <div className={styles.setPage} data-testid="settings-page">
               <div className={styles.setHead}>
-                <h1 className={styles.setTitle}>{self.role === "owner" ? "Settings" : "Logs"}</h1>
-                {self.role === "owner" && (
+                <h1 className={styles.setTitle}>{maySettings ? "Settings" : "Logs"}</h1>
+                {maySettings && (
                   <div className={styles.seg} role="tablist">
-                    {(["general", "people", "clients"] as const).map((t) => (
+                    {settingsTabs.map((t) => (
                       <button key={t} role="tab" aria-selected={view === "settings" && setTab === t} className={view === "settings" && setTab === t ? styles.segOn : ""}
-                        onClick={() => { setSetTab(t); go("settings", `${base}/settings`); }}>{t === "general" ? "General" : t === "people" ? "People" : "Clients"}</button>
+                        onClick={() => openSettings(t)}>{t === "general" ? "General" : t === "people" ? "People" : "Clients"}</button>
                     ))}
                     <button role="tab" aria-selected={view === "logs"} className={view === "logs" ? styles.segOn : ""} onClick={() => go("logs", `${base}/activity`)}>Logs</button>
                   </div>
                 )}
               </div>
-              {view === "settings" && self.role === "owner"
-                ? <SettingsForm part={setTab} table={{ id: table.id, name: tableName }} me={me.id} people={members} chats={chats} data={settings} onData={setSettings}
+              {view === "settings" && maySettings
+                ? <SettingsForm part={settingsTabs.includes(setTab) ? setTab : settingsTabs[0]} table={{ id: table.id, name: tableName }} me={me.id} people={members} chats={chats} data={settings} onData={setSettings}
+                    mainOwner={table.main_owner ?? null} myRole={self.role} focus={settingsFocus}
+                    onChanged={(id, patch) => setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)))}
                     onRenamed={setTableName} onRemoved={(id) => setMembers((prev) => prev.filter((m) => m.id !== id))} />
                 : <LogsPanel table={table} members={members} />}
             </div>
@@ -1306,6 +1322,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           onClose={() => setPersonId(null)}
           onSaved={(m) => setMembers((prev) => prev.map((x) => (x.id === m.id ? { ...x, ...m } : x)))}
           onGone={(id) => setMembers((prev) => prev.filter((x) => x.id !== id))} onSandbox={openSandbox}
+          onSettings={(() => { const p = byId.get(personId); if (!p || p.id === me.id) return undefined; const tab = p.role === "client" ? "clients" : "people";
+            return settingsTabs.includes(tab) ? () => { setPersonId(null); openSettings(tab, p.id); } : undefined; })()}
           waiting={changes.filter((c) => c.member_id === personId && c.status === "ready" && !c.verdict && !c.test).length} />
       )}
       {inviting && <Invite tableId={table.id} onClose={() => setInviting(false)} />}
@@ -1346,7 +1364,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           <TableWindow me={self} tableName={tableName} writer={w && byId.get(w.member_id) ? { person: byId.get(w.member_id)!, conn: w } : null}
             tableModel={tableModel} people={members.filter((m) => m.role !== "client").length} aisOn={onNow.length}
             onTableModel={(model) => setTableModelKept(model)}
-            onSettings={self.role === "owner" ? () => go("settings", `${base}/settings`) : undefined} onClose={() => setTableOpen(false)} />
+            onSettings={maySettings ? () => openSettings() : undefined} onClose={() => setTableOpen(false)} />
         );
       })()}
       {failed && <div className={styles.toast} role="alert" data-testid="did-not-take">{failed}</div>}
