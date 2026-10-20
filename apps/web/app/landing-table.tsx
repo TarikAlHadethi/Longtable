@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { TableView } from "./t/[id]/table-view";
 import type { Chat, Connection, Member } from "./t/[id]/types";
 
@@ -29,7 +28,6 @@ const CHATS: Chat[] = [{ id: "general", name: "General", about: "", is_general: 
 const nothing = () => {};
 
 export function LandingTable() {
-  const router = useRouter();
   const spot = useRef<HTMLDivElement>(null);
   // Drawn when it scrolls into view, so it sets itself out in front of the reader, the way the real one does.
   const [shown, setShown] = useState(false);
@@ -64,7 +62,7 @@ export function LandingTable() {
     <div ref={spot} style={{ width: "100%", minHeight: 560, display: "flex" }}>
       {shown && now > 0 && (
         <TableView table={{ id: "demo", name: "Fernhill Dental booking" }} me={PEOPLE[0]} members={PEOPLE} connections={connections} jobs={[]}
-          online={new Set(["m1", "m2", "m3", "m5", "c1"])} messages={[]} chats={CHATS} onOpenChat={() => router.push("/demo")} onConnect={nothing}
+          online={new Set(["m1", "m2", "m3", "m5", "c1"])} messages={[]} chats={CHATS} onOpenChat={() => document.getElementById("demo")?.scrollIntoView({ behavior: "smooth", block: "center" })} onConnect={nothing}
           tableModel={tableModel} onTableModel={setTableModel} onModel={(conn, model) => setModels((m) => ({ ...m, [conn]: model }))} showcase
           onPerson={nothing} onAi={nothing} onTable={nothing} />
       )}

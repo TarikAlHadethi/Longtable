@@ -38,7 +38,6 @@
 .big { padding: 14px 24px; font-size: 16.5px; border-radius: 11px; }
 .arrow { display: inline-block; transition: transform 0.2s var(--ease-out); }
 .big:hover .arrow { transform: translateX(4px); }
-.play { width: 0; height: 0; border-left: 9px solid var(--table); border-top: 6px solid transparent; border-bottom: 6px solid transparent; }
 .small { font-size: 14px; color: var(--muted); }
 
 .stage { width: 100%; display: flex; justify-content: center; }
@@ -142,8 +141,6 @@
 .cta p { margin: 0 0 12px; font-size: 18px; color: OKLCH(0.86 0.015 170); }
 .light { background: var(--on-night); color: OKLCH(0.22 0.015 170); }
 .light:hover { background: white; color: OKLCH(0.22 0.015 170); }
-.ghost { background: transparent; color: var(--on-night); border: 1px solid OKLCH(0.98 0.004 80 / 0.3); }
-.ghost:hover { background: OKLCH(0.98 0.004 80 / 0.1); color: var(--on-night); }
 
 /* Questions: the tiles' type, one thin line between each, opening the way every details element does. */
 .faq { max-width: 820px; border-top: 1px solid var(--line); }

@@ -25,7 +25,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         <nav className={s.links}>
           <a href="#how">How it works</a>
           <a href="#inside">What is inside</a>
-          <Link href="/demo">Demo</Link>
+          <a href="#demo">Demo</a>
           <a href="https://github.com/TarikAlHadethi/Longtable">GitHub</a>
         </nav>
         <span className={s.spacer} />
@@ -49,12 +49,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           </p>
           <div className={`${s.buttons} rise`} style={i(3)}>
             <Link className={`btn ${s.big}`} href="/start">Start a table <span className={s.arrow}>→</span></Link>
-            <Link className={`btn btn-quiet ${s.big}`} href="/demo"><span className={s.play} />Start demo</Link>
           </div>
           <div className={`${s.small} rise`} style={i(4)}>Free during early access, and free for life for teams that join now. No passwords.</div>
         </section>
 
-        <div className={`${s.stage} rise`} style={i(6)}><Fit width={1120}><Stage /></Fit></div>
+        {/* The demo is the live picture itself, right under the opening lines: there is no separate one to start. */}
+        <div id="demo" className={`${s.stage} rise`} style={i(6)}><Fit width={1120}><Stage /></Fit></div>
         {/* The table as a team sees it, right under the live picture. */}
         <div id="table" className={s.tableShow}><Fit width={1120}><LandingTable /></Fit></div>
 
@@ -170,7 +170,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           <p>Start a table, connect your AI, and ask the first question.</p>
           <div className={s.buttons}>
             <Link className={`btn ${s.big} ${s.light}`} href="/start">Start a table <span className={s.arrow}>→</span></Link>
-            <Link className={`btn ${s.big} ${s.ghost}`} href="/demo">Start demo</Link>
           </div>
         </Reveal>
       </main>
@@ -178,7 +177,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
       <footer className={s.foot}>
         <span className={s.brand}><Mark size={20} /> Longtable</span>
         <span className={s.spacer} />
-        <Link href="/demo">Demo</Link>
+        <a href="#demo">Demo</a>
         <a href="https://github.com/TarikAlHadethi/Longtable">Open source, MIT</a>
         <Link href="/privacy">Privacy</Link>
         <Link href="/terms">Terms</Link>

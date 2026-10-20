@@ -2,7 +2,7 @@
 
 **One live room where a small software team, the AIs each of them brings, and their client work together.**
 
-[longtable.chat](https://longtable.chat) · [Try the demo](https://longtable.chat/demo) · MIT licensed
+[longtable.chat](https://longtable.chat) · [See it work](https://longtable.chat/#demo) · MIT licensed
 
 > **Status: early.** Live at longtable.chat and used by a real team. The background connection is at v0.1.x
 > (npm package `longtable`) and updates itself. Expect rough edges, and please open an issue when you find one.

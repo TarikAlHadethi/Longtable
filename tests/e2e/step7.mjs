@@ -31,10 +31,10 @@ try {
   const page = await ctx.newPage();
   const started = Date.now();
 
-  // The opening screen: one sentence, Start, Start demo.
+  // The opening screen: one sentence, Start, and the live picture right under it (no separate demo to start).
   await page.goto(APP);
   check("the opening screen says what it is and offers Start and the demo",
-    (await page.textContent("body")).includes("at one table") && await page.isVisible("a:has-text('Start demo')"));
+    (await page.textContent("body")).includes("at one table") && (await page.locator("a:has-text('Start demo')").count()) === 0 && await page.isVisible("#demo"));
   await page.click("a:has-text('Start')");
   await signIn(page, `new-${run}@example.test`);
   await page.waitForURL(/\/start$/);
