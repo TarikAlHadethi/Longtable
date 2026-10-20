@@ -51,6 +51,12 @@ try {
   kids.push(second);
   await sleep(6000);
   check("starting a second one ends the first, and the second carries on", !alive(first) && alive(second) && Number(readFileSync(join(home, "runner.pid"), "utf8").split(" ")[0]) === second.pid, { first: alive(first), second: alive(second) });
+  // The stand-in `connect` starts when the start-up task is slow never ends the real one (it would leave a
+  // connection tied to the window that ran connect): it steps aside.
+  const standIn = spawn(process.execPath, [bin, "run", "--backup"], { env, stdio: "ignore", windowsHide: true });
+  kids.push(standIn);
+  await sleep(6000);
+  check("a stand-in started beside a running connection steps aside and leaves it running", alive(second) && !alive(standIn) && Number(readFileSync(join(home, "runner.pid"), "utf8").split(" ")[0]) === second.pid, { second: alive(second), standIn: alive(standIn) });
   const token = await accessToken(owner.context);
   const seen = async () => (await rest(token, `connections?select=last_seen&table_id=eq.${owner.tableId}`)).body[0]?.last_seen;
   const before = await seen();

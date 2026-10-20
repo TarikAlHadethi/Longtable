@@ -102,8 +102,11 @@ export function enableAutostart(nodePath, binPath) {
     rmSync(legacyStartup(), { force: true });
     const asked = Date.now();
     startTask(TASK);
-    // Said started only when the connection really wrote its note; otherwise `connect` runs it itself.
-    return { started: wroteNoteSince(asked, 20000), where: `Task Scheduler: ${TASK}` };
+    // Said started only when the connection really wrote its note; otherwise `connect` runs a stand-in itself. A
+    // first start can be slow (Windows looking over a new program), so it is asked once more and given a minute.
+    if (wroteNoteSince(asked, 20000)) return { started: true, where: `Task Scheduler: ${TASK}` };
+    try { startTask(TASK); } catch {}
+    return { started: wroteNoteSince(asked, 40000), where: `Task Scheduler: ${TASK}` };
   }
   // Every system runs the copy in ~/.longtable/app, which the connection keeps up to date itself, never the copy
   // that ran `connect` (on Mac and Linux that was a cache folder npm may clear).

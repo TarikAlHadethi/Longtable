@@ -1060,7 +1060,7 @@ async function tellCommands(rpc, seat) {
   } catch (e) { log(`commands not sent: ${e.message}`); }
 }
 
-export async function runLoop({ pollMs = 2000 } = {}) {
+export async function runLoop({ pollMs = 2000, backup = false } = {}) {
   const config = readConfig();
   if (!config.connections?.length) throw new Error("Not connected to any table yet.");
   const engines = { claude: findClaude(), codex: findCodex() };
@@ -1072,6 +1072,9 @@ export async function runLoop({ pollMs = 2000 } = {}) {
   // Only one connection runs on a computer. A second one would wipe the first one's work folder under it.
   const lock = join(home, "runner.pid");
   const old = runningConnection();
+  // The stand-in `connect` starts when the start-up task was slow never ends the real one: it would leave a
+  // connection tied to the window that ran `connect`, gone when that window closes. It steps aside instead.
+  if (old && old !== process.pid && backup) { log(`a connection is already running (${old}); this stand-in steps aside`); process.exit(0); }
   if (old && old !== process.pid) { endConnection(old); log(`ended the connection that was already running (${old})`); }
   writeFileSync(lock, `${process.pid} ${Date.now()}`);
   const unlock = () => { try { if (runningConnection() === process.pid) rmSync(lock, { force: true }); } catch {} };

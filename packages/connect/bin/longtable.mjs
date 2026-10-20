@@ -120,11 +120,16 @@ async function connect() {
 
   const auto = has("no-autostart") ? { started: false } : enableAutostart(process.execPath, binPath);
   if (!has("no-run") && !auto.started) {
-    spawn(process.execPath, [binPath, "run"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    // A stand-in until the start-up task runs it: it never ends a connection the task started.
+    spawn(process.execPath, [binPath, "run", "--backup"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
   }
   const word = ai === "codex" ? "Codex" : "Claude";
   log(`connected to "${paired.table_name}" for ${paired.member_name} (${ai === "codex" ? codexVersion(codex) : claudeVersion(claude)})`);
-  say(`Connected. ${paired.member_name}'s ${word} is now at "${paired.table_name}". It answers in the background whenever this computer is on.`);
+  say(auto.started || has("no-autostart")
+    ? `Connected. ${paired.member_name}'s ${word} is now at "${paired.table_name}". It answers in the background whenever this computer is on.`
+    // Said plainly when it could not be set to run by itself: today it runs from here, and from the next sign-in on
+    // Windows starts it, so closing this window takes it away until then.
+    : `Connected. ${paired.member_name}'s ${word} is now at "${paired.table_name}". It could not start in the background just now, so it is running from this window: leave it open for now. From the next time you sign in to this computer it starts by itself.`);
   const git = gitCanJoin();
   if (!git.ok) {
     log(`git cannot join two parts of work (${git.version})`);
@@ -186,7 +191,7 @@ try {
     // Started from an older copy (a cache, or an old start-up entry) while ~/.longtable/app holds a newer one: run that.
     const newerCopy = handOffTo();
     if (newerCopy) { log(`run: handing over to the newer copy in ${newerCopy}`); await import(pathToFileURL(newerCopy).href); }
-    else await runLoop();
+    else await runLoop({ backup: args.includes("--backup") });
   }
   else if (command === "status") await status();
   else if (command === "disconnect") await disconnect();
