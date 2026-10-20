@@ -652,3 +652,13 @@
 .roleTile:disabled { opacity: 0.6; cursor: default; }
 .linkReady { display: flex; flex-direction: column; gap: 12px; padding: 4px 0 2px; animation: lt-rise 0.32s var(--ease-out) both; }
 @media (max-width: 520px) { .roleTiles { grid-template-columns: 1fr; } }
+
+/* With room beside the column, the pictures and marks hang in the margin, so the words line up with the column's edge
+   on the left just as your own bubbles do on the right, and the conversation reads as centred. Without the room they
+   stay inside, never cut off. */
+.scroll { container-type: inline-size; }
+@container (min-width: 740px) {
+  .list > .message, .list > .say:not(.sayMine), .list > .clientSay { margin-left: -40px; }
+  .list > .backRoom { margin-left: 0; }
+  .list > .working { padding-left: 0; }
+}

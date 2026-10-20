@@ -56,3 +56,5 @@
 .quietLink { border: 0; background: none; padding: 0; font: inherit; font-size: 14px; font-weight: 560; color: var(--danger); cursor: pointer; opacity: 0.85; }
 .quietLink:hover { opacity: 1; }
 .copies { display: flex; flex-direction: column; gap: 8px; margin-top: 18px; padding-top: 18px; border-top: 1px solid light-dark(oklch(0.94 0.006 80), oklch(0.266 0.006 80)); }
+/* An open row lets its menu hang below it: a dropdown inside must never be cut off. */
+.row[open]::details-content { overflow-y: visible; }
