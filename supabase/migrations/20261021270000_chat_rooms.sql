@@ -145,9 +145,10 @@ begin
 end;
 $$;
 create trigger activity_chat before insert on public.activity for each row execute function public.activity_chat();
--- The log is append-only; filling the new column for lines already written is the one change it takes.
+-- The log is append-only; filling the new column for lines already written is the one change it takes, so its guard
+-- steps aside for exactly this statement and is back before anything else runs.
+alter table public.activity disable trigger activity_append_only;
 do $$ begin
-  perform set_config('longtable.deleting_table', '1', true);
   update public.activity a set chat_id = case when a.action like 'chat.%' then a.subject else (select x.c from (
            select m.chat_id as c from public.messages m where m.id = a.subject
            union all select d.chat_id from public.decisions d where d.id = a.subject
@@ -155,8 +156,8 @@ do $$ begin
            union all select pg.chat_id from public.pages pg where pg.id = a.subject
            union all select j.chat_id from public.jobs j where j.id = a.subject) x where x.c is not null limit 1) end
    where a.subject is not null;
-  perform set_config('longtable.deleting_table', '', true);
 end $$;
+alter table public.activity enable trigger activity_append_only;
 -- A private chat that was deleted, so its lines in the log stay hidden. A plain id: deleting a whole table deletes
 -- its chats in the same moment, and the log goes with the table anyway.
 create table public.gone_private_chats (chat_id uuid primary key, table_id uuid not null);
