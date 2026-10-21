@@ -72,7 +72,7 @@ the code as it is (last brought up to date 17 Oct 2026); update it with every ch
 | An attachment is read by the wrong person | Private storage; you write only in your own folder; the team reads its table's files; links an AI fetches from last a day and are readable by nobody | step 23, step 26 |
 | A handout attacks the page around it | Shown in a sandboxed frame with no same origin (no sign-in, storage or room access), a strict content policy, no network; its bridge answers only its own frame's key | unit-pages, step 35 |
 | A handout is seen outside the team | Team-only policies on handouts, versions, comments and shared values | step 35 |
-| A forged GitHub delivery | HMAC-SHA256 against the table's secret, checked before anything happens; repeated deliveries ignored; secret unreadable | step 6 GitHub, step 31 |
+| A forged GitHub delivery | HMAC-SHA256 against the table's secret, compared in constant time, checked before anything happens; repeated deliveries ignored; secret unreadable | step 6 GitHub, step 31 |
 | A live push is lost and someone acts on stale state | Pages re-read the database on reconnect, on returning to the tab, and on a timer | step 5 (pushes dropped on purpose) |
 | An error report leaks a message, a name, an email, a file name or a key | Web app only, real site only; every report rebuilt from a short safe list in `apps/web/lib/report.mjs` | unit-report |
 | A key is committed to the repository | A pre-commit scan of everything staged; the whole history can be scanned | unit-scan |
@@ -85,11 +85,10 @@ Client messages (30 an hour, 60 with a copy), new tables (10 a day), connect cod
 ## Known gaps
 
 - **A removed person's open live channel** is closed by their own page, not the server. A modified page could keep
-  receiving pushes until it reconnects. Fix: re-check channel access on a short interval, or rotate the table's
-  channel names when someone is removed.
+  receiving pushes until its sign-in token expires (Supabase's live server closes a channel then; the token lasts an
+  hour on this project, `jwt_expiry`). A shorter token lifetime in the project's Auth settings narrows it; renaming a
+  table's channels when someone is removed would close it at once, but every function that broadcasts would change.
 - **Presence and cursors can be faked by a team member** (display only: who is looking, and where a pointer is).
-- **The GitHub signature check is not constant-time.** Across the network the timing difference is far below the
-  noise, but a constant-time compare is the textbook answer.
 - **Read-only is not secret-proof.** A team member's AI can read anything committed to their repo, including a secret
   committed by mistake. The key filters catch common key shapes, not all of them.
 - **The copy guard is a filter, not a wall.** It is why the owner confirms that previews hold no real data or keys.
