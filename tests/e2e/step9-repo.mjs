@@ -34,7 +34,11 @@ try {
   await owner.page.click("div[role=dialog] button:has-text('Save')");
 
   const mine = await owner.page.locator("[data-testid=connect-message]").textContent();
-  check("the setup message carries the address and no longer asks for a folder", mine.includes(` --repo ${REPO} `) && !/in this folder/.test(mine) && /Only its answers leave this computer/.test(mine), mine);
+  // With the address the AI may be opened anywhere; in the project's own folder it also keeps that folder for its
+  // person's own requests, and the message says plainly that those run as their Claude Code there.
+  check("the setup message carries the address and asks for the project's folder only when it is on this computer", mine.includes(` --repo ${REPO} `)
+    && /in this project's own folder if it is on this computer/.test(mine) && /My own requests there run as my Claude Code in this folder/.test(mine)
+    && /teammates' requests work in a separate copy and never change my files/.test(mine), mine);
 
   await dev.page.click("[data-testid=me-menu]");
   await dev.page.click("button:has-text('Connect my AI')");

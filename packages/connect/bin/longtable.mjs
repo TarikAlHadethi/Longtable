@@ -12,13 +12,13 @@
 
 import { spawn } from "node:child_process";
 import { rmSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { client, fetchConfig } from "../src/api.mjs";
 import { claudeVersion, findClaude, installClaude, tokenWorks } from "../src/claude.mjs";
 import { codexSignIn, codexSignedIn, codexVersion, findCodex } from "../src/codex.mjs";
 import { disableAutostart, enableAutostart } from "../src/autostart.mjs";
-import { forgetCopies, freshCopy, gitCanJoin, resolveSource } from "../src/repo.mjs";
+import { folderFor, forgetCopies, freshCopy, gitCanJoin, resolveSource } from "../src/repo.mjs";
 import { endConnection, runLoop, runningConnection } from "../src/run.mjs";
 import { handOffTo } from "../src/update.mjs";
 import { pathToFileURL } from "node:url";
@@ -91,7 +91,9 @@ async function connect() {
     member_name: paired.member_name,
     role: paired.role,
     source,
-    folder: /^(https?:|git@|ssh:)/.test(repo || "") ? null : resolve(repo || process.cwd()),
+    // Connected with the table's repository from inside the project's own folder, that folder is still theirs:
+    // their own requests work in it.
+    folder: folderFor(repo, process.cwd()),
     model: option("model") || null,
   });
   writeConfig(config);

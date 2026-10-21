@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { browserClient } from "@/lib/supabase/browser";
 import { useClosing, useEscape } from "@/components/use-escape";
 import { AI_NAME, AiLogo } from "@/components/ai-logo";
 import { Mark } from "@/components/mark";
@@ -12,6 +13,10 @@ import s from "./panels.module.css";
 import { firstName } from "@/lib/names";
 import { EFFORT_LEVELS } from "@/lib/slash.mjs";
 import { Select } from "@/components/select";
+
+// One repository written as https, ssh or with .git, shown the same way: github.com/team/app.
+const repoKey = (u?: string | null) => u ? u.trim().replace(/^ssh:\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\//i, "$1/").replace(/^git@([^:]+):/i, "$1/")
+  .replace(/^https?:\/\/(?:[^@/]+@)?/i, "").replace(/\/+$/, "").replace(/\.git$/i, "").toLowerCase() : null;
 
 const prettyPlan = (plan?: string | null) => (plan ? `${plan.charAt(0).toUpperCase()}${plan.slice(1)}`.replace(/_/g, " ") : null);
 
@@ -27,7 +32,8 @@ export function Switch({ on, disabled, onChange, title, about, testid }: { on: b
 
 // A person's AI at the table: what it is, what it runs, what it may do. Its own person can change it; everyone else
 // on the team can look.
-export function AiWindow({ me, person, conn, commands, on, busy, onSpeed, onClose, onModel, onOptions, onConnect, onDisconnect }: {
+export function AiWindow({ tableId, me, person, conn, commands, on, busy, onSpeed, onClose, onModel, onOptions, onConnect, onDisconnect }: {
+  tableId: string;
   me: Member;
   person: Member;
   conn: Connection | null;
@@ -38,7 +44,7 @@ export function AiWindow({ me, person, conn, commands, on, busy, onSpeed, onClos
   busy: boolean;
   onClose: () => void;
   onModel: (conn: string, model: string) => void;
-  onOptions: (conn: string, patch: { open_paths?: boolean; share_paths?: boolean; full_claude?: boolean; in_folder?: boolean }) => void;
+  onOptions: (conn: string, patch: { open_paths?: boolean; share_paths?: boolean; full_claude?: boolean; in_folder?: boolean; push_anywhere?: boolean; use_repo?: string | null }) => void;
   onConnect: () => void;
   onDisconnect: (conn: string) => void;
 }) {
@@ -46,6 +52,18 @@ export function AiWindow({ me, person, conn, commands, on, busy, onSpeed, onClos
   useEscape(close);
   const [asking, setAsking] = useState(false);
   const mine = person.id === me.id;
+  // The table's repository, read when the window opens: the team reads it, whoever may change settings sets it.
+  const [tableRepo, setTableRepo] = useState<string | null>(null);
+  useEffect(() => {
+    if (!mine || conn?.kind !== "claude") return;
+    let cancelled = false;
+    browserClient().from("table_code").select("repo_url").eq("table_id", tableId).maybeSingle()
+      .then(({ data, error }: { data: { repo_url: string } | null; error: { code?: string } | null }) => {
+        if (error) console.warn("[ai window] the table's repository could not be read:", error.code);
+        else if (!cancelled) setTableRepo(data?.repo_url ?? null);
+      });
+    return () => { cancelled = true; };
+  }, [mine, conn?.kind, tableId]);
   const first = firstName(person.display_name);
   const live = conn && !conn.revoked_at ? conn : null;
   const ai = conn ? AI_NAME[conn.kind] : "AI";
@@ -86,7 +104,24 @@ export function AiWindow({ me, person, conn, commands, on, busy, onSpeed, onClos
             {conn.last_seen && <div className={s.fact}><span>Last on</span><b><Time iso={conn.last_seen} style="stamp" /></b></div>}
             <div className={s.fact}><span>Runs on</span><b>{mine ? "Your computer, your own plan" : `${first}'s computer, their own plan`}</b></div>
             {conn.limits?.version && <div className={s.fact}><span>Connection</span><b>{conn.limits.version}</b></div>}
+            {/* What it reads: the shared repository, or only the folder on its person's computer. */}
+            {conn.limits?.reads && <div className={s.fact} data-testid="ai-reads"><span>Reads the code from</span>
+              <b>{conn.limits.reads.repo ? conn.limits.reads.repo.replace(/^https:\/\//, "").replace(/^git@([^:]+):/, "$1/").replace(/\.git$/, "")
+                : conn.limits.reads.folder ? `${conn.limits.reads.folder}, only on ${mine ? "your" : "their"} computer` : "Nothing yet"}</b></div>}
+            {conn.limits?.reads && conn.kind === "claude" && <div className={s.fact}><span>{mine ? "Your" : "Their"} folder</span>
+              <b>{conn.limits.reads.folder ?? "None: connected from somewhere else"}</b></div>}
             {mine && live && <div className={s.fact}><span>Its own commands</span><b>{commands.length || "None"}</b></div>}
+          </div>
+        )}
+
+        {/* The table's repository is used by their AI only once they say yes to that exact address (or connected with
+            it): whoever may change settings can never send their AI's work somewhere on their own. */}
+        {mine && live && conn?.kind === "claude" && tableRepo && live.use_repo !== tableRepo && repoKey(conn.limits?.reads?.repo) !== repoKey(tableRepo) && (
+          <div className={s.ask} data-testid="use-repo">
+            <p>The team&apos;s code is at <b>{repoKey(tableRepo)}</b>. Use it for your {ai}? Teammates&apos; requests will read it and put their branches there, and in your folder it may push only there.</p>
+            <div className={s.row}>
+              <button className="btn" onClick={() => onOptions(live.id, { use_repo: tableRepo })} data-testid="use-repo-yes">Use it</button>
+            </div>
           </div>
         )}
 
@@ -109,6 +144,11 @@ export function AiWindow({ me, person, conn, commands, on, busy, onSpeed, onClos
                 <Switch on={live.in_folder !== false} onChange={(v) => onOptions(live.id, { in_folder: v })} testid="opt-in-folder"
                   title="Work in my folder"
                   about="Your requests change your files, as at home. Off: a branch." />
+              )}
+              {conn?.kind === "claude" && !!live.full_claude && live.in_folder !== false && (
+                <Switch on={!!live.push_anywhere} onChange={(v) => onOptions(live.id, { push_anywhere: v })} testid="opt-push-anywhere"
+                  title="Let it push anywhere"
+                  about="Off: it pushes only to the table's repository." />
               )}
               {/* Fast mode only where their account can use it: a switch that can never work is not offered. */}
               {conn?.kind === "claude" && !(live.limits?.fast_why && live.limits?.fast !== "on") && (

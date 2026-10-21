@@ -320,6 +320,72 @@ try {
     check("their folder is the place it works, and a missing one is none", ownFolder({ folder: own }) !== null && ownFolder({ folder: join(scratch, "nope") }) === null && ownFolder({}) === null);
     check("a folder that is not git counts nothing rather than failing", folderState(scratch + "-missing") === null && folderChanges(null, null).length === 0);
   }
+  // The table's repository and the person's own folder (section 1 of the parity work).
+  {
+    const { addressKey, sameAddress, resolveSource, folderFor, sourceFor, pushPlan } = await import("../../packages/connect/src/repo.mjs");
+    const { fullEnv } = await import("../../packages/connect/src/claude.mjs");
+    check("one repository written as https, ssh or with .git is one", sameAddress("https://github.com/Team/App.git", "git@github.com:team/app")
+      && sameAddress("ssh://git@github.com/team/app", "https://github.com/team/app/") && !sameAddress("https://github.com/team/app", "https://github.com/team/app-evil")
+      && addressKey("https://name:tok@github.com/team/app") === "github.com/team/app"
+      && sameAddress("file:///C:/scratch/remote.git", "C:\\scratch\\remote") && !sameAddress("file:///C:/scratch/remote.git", "C:\\scratch\\other.git"));
+
+    // A folder whose origin is somebody else's repository (a client's), with the team's as another remote.
+    const theirs = join(scratch, "client-repo.git");
+    const teams = join(scratch, "team-repo.git");
+    git(scratch, "init", "-q", "--bare", "-b", "main", theirs);
+    git(scratch, "init", "-q", "--bare", "-b", "main", teams);
+    const mine = join(scratch, "my-project");
+    mkdirSync(mine);
+    git(mine, "init", "-q", "-b", "main");
+    writeFileSync(join(mine, "a.txt"), "one" + NL);
+    git(mine, "add", "-A");
+    git(mine, "-c", "user.name=T", "-c", "user.email=t@example.test", "commit", "-q", "-m", "start");
+    git(mine, "remote", "add", "origin", theirs);
+    git(mine, "remote", "add", "backup", teams);
+    const local = resolveSource(mine);
+    check("connecting from a folder never takes its origin as the team's code", local.startsWith("file:///") && !local.includes("client-repo"), local);
+
+    // Addresses written the way GitHub writes them, so the matching is the same as for a real project.
+    const TEAM = "https://github.com/team/app";
+    git(mine, "remote", "set-url", "backup", "https://github.com/team/app.git");
+    check("connected with the team's repository from inside the project, the folder is kept", folderFor(TEAM, mine) === mine, folderFor(TEAM, mine));
+    check("connected with an address from somewhere else, there is no folder of theirs", folderFor(TEAM, scratch) === null && folderFor("https://github.com/other/thing", mine) === null);
+    const seat = { source: local, folder: mine };
+    check("the folder knowing the table's repository is not enough: its person has to say yes", sourceFor(seat, TEAM) === local);
+    check("with their yes to that address, it becomes the source", sourceFor(seat, TEAM, TEAM) === TEAM);
+    // Someone who may change settings points the table at the folder's other remote (a client's): their yes was to
+    // another address, so nothing moves.
+    git(mine, "remote", "set-url", "origin", "https://github.com/client/app.git");
+    check("a table repository changed by someone else needs their yes again, even when the folder knows it", sourceFor(seat, "https://github.com/client/app", TEAM) === local);
+    git(mine, "remote", "set-url", "origin", theirs);
+    check("connected with the address itself, that was the yes", sourceFor({ source: TEAM, folder: mine }, "https://github.com/team/app.git") === TEAM);
+    check("a table repository this computer does not know is never used", sourceFor(seat, "https://github.com/someone-else/app", "https://github.com/someone-else/app") === local
+      && sourceFor({ source: local, folder: null }, TEAM, TEAM) === local);
+    check("an address with a sign-in in it is never used", sourceFor(seat, "https://name:tok@github.com/team/app", "https://name:tok@github.com/team/app") === local);
+    check("no table repository: nothing changes", sourceFor(seat, null) === local);
+
+    // Pushing from the person's own folder: only to the table's repository.
+    const plan = pushPlan(mine, TEAM, false);
+    check("in their folder pushes go only to the table's repository", plan.noPush === false && plan.pushTo.includes(TEAM) && plan.pushTo.includes("https://github.com/team/app.git")
+      && !plan.pushTo.some((u) => u.includes("client-repo")), plan);
+    check("with no table repository nothing may be pushed, and anywhere means anywhere", pushPlan(mine, null, false).pushTo.length === 0 && pushPlan(mine, TEAM, true).pushTo === null);
+    // For a real push, the team's remote is a local bare repository standing in for GitHub.
+    git(mine, "remote", "set-url", "backup", teams);
+    const guarded = { ...fullEnv(null, { hooksOff: false, pushTo: pushPlan(mine, teams, false).pushTo }), GIT_TERMINAL_PROMPT: "0" };
+    const push = (remote) => { try { execFileSync("git", ["push", "-q", remote, "HEAD:refs/heads/x"], { cwd: mine, env: guarded, stdio: ["ignore", "pipe", "pipe"] }); return true; } catch { return false; } };
+    check("git itself pushes to the table's repository", push("backup") && git(scratch, "--git-dir", teams, "branch", "--list", "x").includes("x"));
+    check("and refuses the folder's origin, by name or by address", !push("origin") && !push(theirs) && git(scratch, "--git-dir", theirs, "branch", "--list").trim() === "");
+    // A repository whose address only starts with the team's (team-repo.git-old, team-repo-old) is another repository.
+    const sibling = `${teams}-old`;
+    const cousin = teams.replace(/\.git$/, "-old.git");
+    git(scratch, "init", "-q", "--bare", "-b", "main", sibling);
+    git(scratch, "init", "-q", "--bare", "-b", "main", cousin);
+    check("a repository whose address only starts with the team's is refused", !push(sibling) && !push(cousin)
+      && git(scratch, "--git-dir", sibling, "branch", "--list").trim() === "" && git(scratch, "--git-dir", cousin, "branch", "--list").trim() === "");
+    check("the team's address with or without .git still goes through", push(teams.replace(/\.git$/, "")) || push(teams));
+    git(mine, "config", "remote.origin.pushurl", theirs);
+    check("a remote with a push address of its own refuses pushing outright", pushPlan(mine, teams, false).noPush === true);
+  }
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {

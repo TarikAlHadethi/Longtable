@@ -1342,7 +1342,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         const conn = all.find((c) => !c.revoked_at) ?? [...all].sort((a, b) => (b.revoked_at ?? "").localeCompare(a.revoked_at ?? ""))[0] ?? null;
         const on = !!conn && !conn.revoked_at && !!conn.last_seen && Date.now() - new Date(conn.last_seen).getTime() < 75000;
         return (
-          <AiWindow me={self} person={byId.get(aiOf)!} conn={conn} commands={aiOf === me.id ? myCommands : []} on={on} busy={on && jobs.some((j) => j.member_id === aiOf && (j.status === "running" || j.status === "queued"))}
+          <AiWindow tableId={table.id} me={self} person={byId.get(aiOf)!} conn={conn} commands={aiOf === me.id ? myCommands : []} on={on} busy={on && jobs.some((j) => j.member_id === aiOf && (j.status === "running" || j.status === "queued"))}
             onClose={() => setAiOf(null)} onConnect={() => setConnectOpen(true)} onDisconnect={disconnect}
             onModel={(id, model) => setModelKept(id, model)}
             onSpeed={(id, patch) => { setSpeed(id, patch); }}
@@ -1353,9 +1353,13 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 ? await supabase.rpc("set_full_claude", { conn: id, full_on: patch.full_claude })
                 : patch.in_folder !== undefined
                 ? await supabase.rpc("set_work_in_folder", { conn: id, on_: patch.in_folder })
+                : patch.push_anywhere !== undefined
+                ? await supabase.rpc("set_push_anywhere", { conn: id, on_: patch.push_anywhere })
+                : patch.use_repo !== undefined
+                ? await supabase.rpc("set_use_repo", { conn: id, url: patch.use_repo })
                 : await supabase.rpc("set_connection_options", { conn: id, open: patch.open_paths ?? null, share: patch.share_paths ?? null });
               if (error && before) {
-                setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, open_paths: before.open_paths, share_paths: before.share_paths, full_claude: before.full_claude, in_folder: before.in_folder } : c)));
+                setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, open_paths: before.open_paths, share_paths: before.share_paths, full_claude: before.full_claude, in_folder: before.in_folder, push_anywhere: before.push_anywhere, use_repo: before.use_repo } : c)));
                 didNotTake("That switch was not changed. Try again.");
               }
             }} />

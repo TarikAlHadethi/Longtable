@@ -72,22 +72,42 @@ export function childEnv(token, apiKey) {
 
 // A full Claude Code run gets the person's own environment, as their Claude Code at home would (their PATH, their git
 // and their tools), with the connection's own sign-in: never an API key or another account from whatever started it.
-export function fullEnv(token, { guard = true } = {}) {
+// Every character that can carry a repository address on past its end.
+// (The table's repository is only ever an https or ssh address, whose names use few of these; the rest are here so
+// an address on this computer, a path, is held to the same rule.)
+const CONTINUES = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-~+/@:%\\ #?=,;!$&'()*[]"];
+
+// The environment a full run's commands see. `pushTo`: the only addresses git may push to (an empty list refuses
+// every push; null leaves pushing to the person, as at home). `hooksOff`: git hooks point at an empty folder.
+export function fullEnv(token, { hooksOff = true, pushTo = [] } = {}) {
   const env = { ...process.env };
   for (const k of Object.keys(env)) if (/^(ANTHROPIC_|CLAUDE_CODE_OAUTH_TOKEN$|CLAUDE_CODE_USE_|OPENAI_API_KEY$|LT_)/.test(k)) delete env[k];
   if (token) env.CLAUDE_CODE_OAUTH_TOKEN = token;
-  // In their own folder git is theirs as at home: their hooks run and a push is theirs to approve.
-  if (!guard) return env;
-  // Git itself refuses every push from the commands this Claude runs, however the command is written (git -C, -c,
-  // an alias, a script): every push address is rewritten to one no git can reach. Only the connection pushes, and
-  // only the task's longtable/ branch. Git hooks point at an empty folder, so a hook from the branch never runs.
-  const noHooks = join(home, "no-hooks");
-  try { mkdirSync(noHooks, { recursive: true }); } catch {}
-  env.GIT_CONFIG_COUNT = "2";
-  env.GIT_CONFIG_KEY_0 = "url.longtable-no-push://refused/.pushInsteadOf";
-  env.GIT_CONFIG_VALUE_0 = "";
-  env.GIT_CONFIG_KEY_1 = "core.hooksPath";
-  env.GIT_CONFIG_VALUE_1 = noHooks;
+  const conf = [];
+  // Git itself refuses a push from the commands this Claude runs, however the command is written (git -C, -c, an
+  // alias, a script): every push address is rewritten to one no git can reach. The addresses it may push to are
+  // rewritten to themselves, and git takes the longest match, so only those go through.
+  if (Array.isArray(pushTo)) {
+    const NO = "url.longtable-no-push://refused/.pushInsteadOf";
+    conf.push([NO, ""]);
+    const allowed = [...new Set(pushTo.filter((x) => typeof x === "string" && x && !/[\r\n]/.test(x)))];
+    for (const u of allowed) {
+      conf.push([`url.${u}.pushInsteadOf`, u]);
+      // The rewrite matches by prefix, so an address that only starts with an allowed one (team/app-old after
+      // team/app) is refused by a longer rule of its own. An allowed longer form (app.git) is longer still and wins.
+      for (const c of CONTINUES) if (!allowed.includes(u + c)) conf.push([NO, u + c]);
+    }
+  }
+  // A hook from a branch other people's AIs push to never runs. In the person's own folder their hooks are theirs.
+  if (hooksOff) {
+    const noHooks = join(home, "no-hooks");
+    try { mkdirSync(noHooks, { recursive: true }); } catch {}
+    conf.push(["core.hooksPath", noHooks]);
+  }
+  if (conf.length) {
+    env.GIT_CONFIG_COUNT = String(conf.length);
+    conf.forEach(([k, v], i) => { env[`GIT_CONFIG_KEY_${i}`] = k; env[`GIT_CONFIG_VALUE_${i}`] = v; });
+  }
   return env;
 }
 
@@ -157,9 +177,11 @@ export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,
     // and their local ones included, read by Claude Code itself.
     args.push("--setting-sources", full.folder ? "user,project,local" : "user");
     // Only the connection pushes, and only the task's branch: their Claude never pushes itself, whatever their rules.
-    // In their own folder a push is theirs, asked like any command. In plan mode the plan is its answer here: there is
+    // In their own folder a push goes only to the table's repository (unless they let it push anywhere), asked like
+    // any command. In plan mode the plan is its answer here: there is
     // no plan to approve, so it never asks to leave plan mode.
-    const no = [...(full.folder ? [] : ["Bash(git push:*)", "Bash(git push)"]), ...(edit ? [] : ["Edit", "Write", "NotebookEdit"]), ...(full.mode === "plan" ? ["ExitPlanMode"] : [])];
+    // A remote with a push address of its own is not covered by git's rewrite, so then pushing is refused outright.
+    const no = [...(full.folder && !full.noPush ? [] : ["Bash(git push:*)", "Bash(git push)"]), ...(edit ? [] : ["Edit", "Write", "NotebookEdit"]), ...(full.mode === "plan" ? ["ExitPlanMode"] : [])];
     if (no.length) args.push("--disallowedTools", ...no);
     if (full.allow?.length) args.push("--allowedTools", ...full.allow);
   }
@@ -177,7 +199,7 @@ export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,
   for (const d of addDirs) args.push("--add-dir", d);
   return new Promise((resolve, reject) => {
     const started = Date.now();
-    const child = spawn(claude, args, { cwd, env: full ? fullEnv(token, { guard: !full.folder }) : childEnv(token, apiKey), windowsHide: true });
+    const child = spawn(claude, args, { cwd, env: full ? fullEnv(token, full.folder ? { hooksOff: false, pushTo: full.pushTo === undefined ? [] : full.pushTo } : {}) : childEnv(token, apiKey), windowsHide: true });
     keepTrack(child);
     // Only the result and the plan's limits are kept: work with no time limit would otherwise hold every file it ever
     // read in memory.

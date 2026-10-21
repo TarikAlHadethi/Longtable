@@ -129,3 +129,15 @@ export async function listen(token, topic) {
     stop: async () => { await sb.removeChannel(channel).catch(() => {}); sb.realtime.disconnect(); },
   };
 }
+
+// The table's repository, as the owner sets it in Settings, and each person's yes to it in their AI's window. Settings takes only https and ssh addresses, so a test's
+// stand-in for GitHub (a bare repository on this computer) is written straight into the local database.
+export async function tableRepo(tableId, remotePath) {
+  const { execFileSync } = await import("node:child_process");
+  const { pathToFileURL } = await import("node:url");
+  const url = pathToFileURL(remotePath).href.replace(/'/g, "''");
+  execFileSync("docker", ["exec", "-i", process.env.DB_CONTAINER || "supabase_db_longtable", "psql", "-U", "postgres", "-d", "postgres", "-qAt", "-c",
+    `insert into public.table_code (table_id, repo_url) values ('${tableId}', '${url}') on conflict (table_id) do update set repo_url = excluded.repo_url;
+     update public.connections set use_repo = repo_url from public.table_code where table_code.table_id = connections.table_id and connections.table_id = '${tableId}' and connections.revoked_at is null`]);
+  return url;
+}

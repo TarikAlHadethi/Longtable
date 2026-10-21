@@ -45,6 +45,43 @@ try {
   check("only its person decides whether it works in their folder", samFolder.status >= 400 && mayaFolder.status < 300
     && sql(`select in_folder from public.connections where id = '${conn.maya}'`) === "f", { samFolder, mayaFolder });
   await rpc(tok.maya, "set_work_in_folder", { conn: conn.maya, on_: true });
+
+  // Where it may push from her folder is hers alone to widen.
+  const samPush = await rpc(tok.sam, "set_push_anywhere", { conn: conn.maya, on_: true });
+  const elenaPush = await rpc(tok.elena, "set_push_anywhere", { conn: conn.maya, on_: true });
+  check("pushing only to the table's repository is the default, and only its person can widen it", sql(`select push_anywhere from public.connections where id = '${conn.maya}'`) === "f"
+    && samPush.status >= 400 && elenaPush.status >= 400, { samPush, elenaPush });
+
+  // The table's repository, set by someone who may change settings (never a client), reaches the connection with each job.
+  const elenaRepo = await rpc(tok.elena, "set_table_repo", { t: tableId, url: "https://github.com/someone/else" });
+  const withSignIn = await rpc(tok.maya, "set_table_repo", { t: tableId, url: "https://maya:secret@github.com/team/app" });
+  const setRepo = await rpc(tok.maya, "set_table_repo", { t: tableId, url: "https://github.com/team/app" });
+  check("the owner sets the table's repository; a client cannot, and a sign-in in it is refused", setRepo.status < 300 && elenaRepo.status >= 400 && withSignIn.status >= 400, { setRepo, elenaRepo, withSignIn });
+  // Using it is each person's own yes, to exactly that address.
+  const samYes = await rpc(tok.sam, "set_use_repo", { conn: conn.maya, url: "https://github.com/team/app" });
+  const wrongYes = await rpc(tok.maya, "set_use_repo", { conn: conn.maya, url: "https://github.com/someone/else" });
+  const mayaYes = await rpc(tok.maya, "set_use_repo", { conn: conn.maya, url: "https://github.com/team/app" });
+  check("only its person says yes to the table's repository, and only to the address it has now", samYes.status >= 400 && wrongYes.status >= 400 && mayaYes.status < 300
+    && sql(`select use_repo from public.connections where id = '${conn.maya}'`) === "https://github.com/team/app", { samYes, wrongYes, mayaYes });
+  const askedId = sql(`insert into public.messages (table_id, chat_id, member_id, body) values ('${tableId}', '${chatId}', '${mayaId}', 'where is it') returning id`).split(/\r?\n/)[0];
+  const lookId = sql(`insert into public.jobs (table_id, member_id, kind, chat_id, question_id) values ('${tableId}', '${mayaId}', 'look', '${chatId}', '${askedId}') returning id`).split(/\r?\n/)[0];
+  const claimed = (await anon("runner_claim", { token: device.maya, lane: "light" })).body;
+  check("each job carries the table's repository and where its person lets it push", claimed?.repo === "https://github.com/team/app" && claimed?.use_repo === "https://github.com/team/app" && claimed?.push_anywhere === false && claimed?.in_folder === true,
+    { repo: claimed?.repo, push: claimed?.push_anywhere, kind: claimed?.kind });
+  sql(`update public.jobs set status = 'done' where id = '${lookId}'`);
+
+  // The address changes and changes back: the yes was to the old one, and it is not given back by itself.
+  await rpc(tok.maya, "set_table_repo", { t: tableId, url: "https://github.com/team/other" });
+  await rpc(tok.maya, "set_table_repo", { t: tableId, url: "https://github.com/team/app" });
+  check("a changed repository needs its person's yes again", sql(`select coalesce(use_repo, 'none') from public.connections where id = '${conn.maya}'`) === "none");
+
+  // What a connection says it reads is kept only as a plain address and the folder's own name.
+  await anon("runner_report", { token: device.maya, limits: { ai: "claude", reads: { repo: "https://maya:tok@github.com/team/app", folder: "C:\\Users\\maya\\app", known: true } } });
+  const bad = JSON.parse(sql(`select limits -> 'reads' from public.connections where id = '${conn.maya}'`) || "null");
+  await anon("runner_report", { token: device.maya, limits: { ai: "claude", reads: { repo: "https://github.com/team/app", folder: "app", known: false } } });
+  const good = JSON.parse(sql(`select limits -> 'reads' from public.connections where id = '${conn.maya}'`) || "null");
+  check("what it reads is shown without a sign-in or a whole path", bad?.repo === null && bad?.folder === null
+    && good?.repo === "https://github.com/team/app" && good?.folder === "app" && good?.known === false, { bad, good });
   await rpc(tok.maya, "set_full_claude", { conn: conn.maya, full_on: false });
   const early = await anon("runner_job_key", { token: device.maya, job });
   check("no key for a connection that is not set to full Claude Code", early.status >= 400, early);

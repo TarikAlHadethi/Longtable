@@ -20,24 +20,106 @@ export function canReach(source) {
   }
 }
 
-// Given a folder or a git address, find where to copy from. For a folder: its origin when this computer can reach
-// it, else the folder's own history, which is still only committed work. An address that cannot be reached is an
-// error, said before anything else happens.
+// Given a folder or a git address, find where to copy from. For a folder: the folder's own history, which is still
+// only committed work. Never whatever the folder happens to call origin: that can be somebody else's repository (a
+// client's), and the team's work must never land there. Where the team shares its code is the table's repository,
+// set once in Longtable. An address that cannot be reached is an error, said before anything else happens.
 export function resolveSource(repo) {
   if (!repo) return null;
-  if (/^(https?:|git@|ssh:)/.test(repo)) {
+  if (isAddress(repo)) {
     if (!canReach(repo)) throw new Error(`This computer's git cannot open ${repo}. Sign in to git for it, or open your AI in the project's own folder and connect from there.`);
     return repo;
   }
   const folder = resolve(repo);
   if (!existsSync(join(folder, ".git"))) throw new Error(`${folder} is not a git repository`);
-  try {
-    const origin = git(["-C", folder, "remote", "get-url", "origin"]);
-    if (origin && canReach(origin)) return origin;
-  } catch {
-    // No origin: fall through to the folder itself.
-  }
   return "file:///" + folder.replace(/\\/g, "/");
+}
+
+export const isAddress = (s) => /^(https?:|git@|ssh:|file:)/i.test(String(s || ""));
+
+// One repository written two ways is still one: https and ssh, with or without .git, any case in the host.
+export function addressKey(a) {
+  let s = String(a || "").trim();
+  // A repository on this computer, as a file:// address or a plain path (what git writes for a clone of one).
+  if (/^file:/i.test(s) || /^([A-Za-z]:[\\/]|\/)/.test(s)) {
+    let p = s;
+    if (/^file:/i.test(p)) { try { p = fileURLToPath(p); } catch { return null; } }
+    // Windows paths are the same in any case; elsewhere a path's case is part of it.
+    const key = resolve(p).replace(/\\/g, "/").replace(/\/+$/, "").replace(/\.git$/i, "");
+    return "file:" + (process.platform === "win32" ? key.toLowerCase() : key);
+  }
+  if (!isAddress(s)) return null;
+  s = s.replace(/^ssh:\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\//i, "$1/").replace(/^git@([^:]+):/i, "$1/").replace(/^https?:\/\/(?:[^@/]+@)?/i, "");
+  s = s.replace(/\/+$/, "").replace(/\.git$/i, "");
+  const [host, ...rest] = s.split("/");
+  return rest.length ? `${host.toLowerCase()}/${rest.join("/").toLowerCase()}` : null;
+}
+export const sameAddress = (a, b) => { const x = addressKey(a); return !!x && x === addressKey(b); };
+
+// The remotes a folder's git knows: name, address, and whether it has a push address of its own.
+// Addresses as git itself resolves them, the person's own url.*.insteadOf shortcuts applied (gh:team/app).
+// Read again only when the folder's git config has changed since: every job asks, some twice.
+const remotesSeen = new Map();
+export function remotesOf(folder) {
+  let stamp = null;
+  try { const st = statSync(join(folder, ".git", "config")); stamp = `${st.mtimeMs}:${st.size}`; } catch {}
+  const seen = remotesSeen.get(folder);
+  if (stamp && seen?.stamp === stamp) return seen.list;
+  const list = readRemotes(folder);
+  if (stamp) remotesSeen.set(folder, { stamp, list });
+  return list;
+}
+function readRemotes(folder) {
+  let names = [];
+  try { names = git(["-C", folder, "remote"]).split(/\r?\n/).filter(Boolean); } catch { return []; }
+  return names.map((name) => {
+    const list = (args) => { try { return git(["-C", folder, "remote", "get-url", ...args, name]).split(/\r?\n/).filter(Boolean); } catch { return []; } };
+    let pushurl = false;
+    try { pushurl = git(["-C", folder, "config", "--get-all", `remote.${name}.pushurl`]) !== ""; } catch {}
+    return { name, urls: [...new Set([...list(["--all"]), ...list(["--push", "--all"])])], pushurl };
+  });
+}
+
+// Where a run in the person's own folder may push: only to the table's repository (any of the folder's remotes that is
+// it), unless they let it push anywhere. With no table repository, nowhere. A remote with a push address of its own is
+// outside git's rewrite, so when one points anywhere else, pushing is refused outright (noPush).
+export function pushPlan(folder, repo, anywhere) {
+  if (anywhere) return { pushTo: null, noPush: false };
+  const remotes = remotesOf(folder);
+  const ok = (u) => !!repo && sameAddress(u, repo);
+  // Each address with and without its .git, since git is given exact addresses and refuses anything longer.
+  const twins = (u) => { const bare = u.replace(/\/+$/, "").replace(/\.git$/i, ""); return [bare, `${bare}.git`]; };
+  const pushTo = repo ? [...new Set([repo, ...remotes.flatMap((r) => r.urls.filter(ok))].flatMap(twins))] : [];
+  return { pushTo, noPush: remotes.some((r) => r.pushurl && !r.urls.every(ok)) };
+}
+
+// The folder a connection keeps as its person's own: the one it was connected from. Connected with an address, the
+// folder it ran in is kept only when it is that same project (one of its remotes is the address): an AI opened
+// anywhere else has no folder of its person's to work in.
+export function folderFor(repo, cwd) {
+  if (!isAddress(repo)) return resolve(repo || cwd);
+  try {
+    if (!existsSync(join(cwd, ".git"))) return null;
+    return remotesOf(cwd).some((r) => r.urls.some((u) => sameAddress(u, repo))) ? resolve(cwd) : null;
+  } catch { return null; }
+}
+
+// The table's repository, when this person's connection may use it: they connected with that address, or they said
+// yes to exactly that address in their AI's window (`agreed`) and their own folder's git knows it. Never on the
+// table's word alone: anyone who may change settings could otherwise send this person's AI's work to any repository
+// their folder can reach (a client's, named as origin). A changed address needs their yes again.
+export function trustedRepo(seat, repo, agreed) {
+  if (!repo || !isAddress(repo) || !addressKey(repo) || /^(https|ssh):\/\/[^/]*@/i.test(repo)) return null;
+  if (sameAddress(seat.source, repo)) return repo;
+  if (agreed === repo && seat.folder && remotesOf(seat.folder).some((r) => r.urls.some((u) => sameAddress(u, repo)))) return repo;
+  return null;
+}
+
+// Where this job reads the team's code from and lands its branches: the trusted table repository, else what this
+// connection was connected with. Changing the table's repository takes effect without connecting again.
+export function sourceFor(seat, repo, agreed) {
+  const t = trustedRepo(seat, repo, agreed);
+  return t && !sameAddress(seat.source, t) ? t : seat.source;
 }
 
 // Bring the copy up to the latest default branch. Symlinks are checked out as plain files, so a link in the

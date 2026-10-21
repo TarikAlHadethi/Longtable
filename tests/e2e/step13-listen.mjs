@@ -14,7 +14,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { accessToken, inviteLink, join as joinTable, launch, rest, startTable } from "./lib.mjs";
+import { accessToken, inviteLink, join as joinTable, launch, rest, startTable, tableRepo } from "./lib.mjs";
 
 const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const bin = join(repoRoot, "packages", "connect", "bin", "longtable.mjs");
@@ -48,11 +48,15 @@ async function connect(page, dir) {
   await page.click("[data-testid=me-menu]");
   await page.click("button:has-text('Connect my AI')");
   await page.click("[data-testid=pick-claude]");
-  await page.click("text=It is only on my computer");
+  await page.waitForFunction(() => [...document.querySelectorAll("button")].some((b) => /It is only on my computer/.test(b.textContent || ""))
+    || /connect [0-9A-F]{20}/.test(document.querySelector("[data-testid=connect-message]")?.textContent || ""));
+  if (await page.locator("text=It is only on my computer").count()) await page.click("text=It is only on my computer");
   const message = await page.locator("[data-testid=connect-message]").textContent();
-  const [, code, app] = message.match(/connect ([0-9A-F]{20}) --app (\S+)/);
+  const [, code, app] = message.match(/connect ([0-9A-F]{20})(?: --repo \S+)? --app (\S+)/);
   const env = { ...process.env, LONGTABLE_HOME: dir, LONGTABLE_MODEL: "haiku" };
   const r = spawnSync(process.execPath, [bin, "connect", code, "--app", app, "--repo", project, "--no-autostart", "--no-run"], { env, encoding: "utf8" });
+  // The team shares its code in the stand-in for GitHub, set as the table's repository.
+  await tableRepo(new URL(page.url()).pathname.split("/")[2], remote);
   if (r.status !== 0) throw new Error(r.stderr || r.stdout);
   await page.locator("[role=dialog] button").last().click();
   return spawn(process.execPath, [bin, "run"], { env, stdio: "ignore", windowsHide: true });

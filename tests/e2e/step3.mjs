@@ -73,7 +73,7 @@ try {
   check("a question comes back from Sam's Claude with no human involved", true);
   const firstAnswer = await owner.page.locator("[data-ai='true']").last().textContent();
   results.firstAnswer = firstAnswer;
-  check("it is labelled as Sam's Claude, with what it read", /Sam's Claude/.test(firstAnswer) && /main @ [0-9a-f]{7}/.test(firstAnswer), firstAnswer);
+  check("it is labelled as Sam's Claude, with what it read", /Sam's Claude/.test(firstAnswer) && /[\w./-]+ @ [0-9a-f]{7}/.test(firstAnswer), firstAnswer);
 
   // A planted instruction does nothing: no command, no file, the copy stays clean.
   const copies = join(testHome, "copies");

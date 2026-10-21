@@ -13,23 +13,26 @@ type Github = { connected: boolean; repo: string; last_event_at: string | null }
 
 
 export type Copies = { preview_url: string | null; cap: number | null; paths: string | null };
-export type SettingsData = { extra: Extra | null; github: Github; answerers?: Record<string, "own" | "table">; copies?: Copies | null };
+export type SettingsData = { extra: Extra | null; github: Github; answerers?: Record<string, "own" | "table">; copies?: Copies | null; repo?: string | null };
 type Db = ReturnType<typeof browserClient>;
 // The table's own settings and its GitHub link. The room reads these once when it opens, so Settings is complete the
 // moment it is shown.
 export async function loadSettings(supabase: Db, tableId: string): Promise<SettingsData> {
-  const [row, hub, who, box] = await Promise.all([
+  const [row, hub, who, box, code] = await Promise.all([
     supabase.from("tables").select("undo_seconds, client_chat, final_seat, when_final_offline").eq("id", tableId).maybeSingle(),
     supabase.rpc("github_status", { t: tableId }),
     supabase.from("client_settings").select("member_id, answered_by").eq("table_id", tableId),
     supabase.from("table_sandbox").select("preview_url, cap, paths").eq("table_id", tableId).maybeSingle(),
+    supabase.from("table_code").select("repo_url").eq("table_id", tableId).maybeSingle(),
   ]);
   // A read that failed is not settings: nothing is shown as loaded, so nothing made up can be saved over the real ones.
   if (row.error || !row.data) throw new Error("The table's settings could not be read.");
   if (who.error) console.warn("[settings] who answers clients could not be read:", who.error.code);
   const answerers = Object.fromEntries(((who.data ?? []) as { member_id: string; answered_by: "own" | "table" }[]).map((x) => [x.member_id, x.answered_by]));
   if (box.error) console.warn("[settings] client copies could not be read:", box.error.code);
-  return { extra: row.data as Extra, github: (hub.data as Github) ?? null, answerers, copies: (box.data as Copies | null) ?? null };
+  if (code.error) console.warn("[settings] the table's repository could not be read:", code.error.code);
+  return { extra: row.data as Extra, github: (hub.data as Github) ?? null, answerers, copies: (box.data as Copies | null) ?? null,
+    repo: code.error ? undefined : ((code.data as { repo_url: string } | null)?.repo_url ?? null) };
 }
 
 // Settings in plain words: the table, who writes the final answer, GitHub, your data, and the people at the table.
@@ -163,6 +166,22 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
     onRenamed(name.trim());
   }
 
+  // Where the team shares its code: every AI at the table reads it from there and puts its branches there.
+  const [repo, setRepo] = useState(data?.repo ?? "");
+  // What was read fills the box only until someone types in it: a read that lands after typing never wipes it.
+  const typedRepo = useRef(false);
+  useEffect(() => { if (data?.repo !== undefined && !typedRepo.current) setRepo(data.repo ?? ""); }, [data?.repo]);
+  async function saveRepo(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setSaved("");
+    const url = repo.trim();
+    const { error } = await supabase.rpc("set_table_repo", { t: table.id, url });
+    if (error) return setError(error.message);
+    setSaved("repo");
+    if (data) onData({ ...data, repo: url || null });
+  }
+
   async function saveAnswers(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -189,6 +208,19 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
           <div className={styles.actions}>
             <button className="btn" disabled={!loaded}>Save</button>
             {saved === "table" && <span className={styles.saved} role="status">Saved</span>}
+          </div>
+        </form>
+
+        <form className={styles.card} onSubmit={saveRepo} aria-label="Where the code is">
+          <div className={styles.cardTitle}>Where the code is</div>
+          <div className="note">The repository your team shares. Each AI reads the code from it and puts its branches there, once its person says yes in their AI&apos;s window. Your own requests still work in your own folder.</div>
+          {data?.repo === null && <div className="note" data-testid="no-repo">Until it is set, each AI only sees the code on its own person&apos;s computer, so your AIs cannot look over each other&apos;s work.</div>}
+          <label className="label" htmlFor="s-repo">Repository address</label>
+          <input id="s-repo" className="field" placeholder="https://github.com/your-team/your-project" maxLength={250} value={repo}
+            onChange={(e) => { typedRepo.current = true; setRepo(e.target.value); }} data-testid="table-repo" />
+          <div className={styles.actions}>
+            <button className="btn" disabled={!loaded || data?.repo === undefined}>Save</button>
+            {saved === "repo" && <span className={styles.saved} role="status">Saved</span>}
           </div>
         </form>
 
