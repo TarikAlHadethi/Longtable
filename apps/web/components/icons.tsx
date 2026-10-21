@@ -39,6 +39,7 @@ export const Crown = ({ size = 16 }: { size?: number }) => (
   </svg>
 );
 export const Plug = (p: Props) => <Svg {...p}><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0V8zM12 17v4" /></Svg>;
+export const Lock = (p: Props) => <Svg {...p}><rect x="5" y="10.500" width="14" height="10" rx="2.500" /><path d="M8.500 10.500V8a3.500 3.500 0 0 1 7 0v2.500" /></Svg>;
 export const Dots = (p: Props) => <Svg {...p} stroke={3}><path d="M5 12h.01M12 12h.01M19 12h.01" /></Svg>;
 export const Pencil = (p: Props) => <Svg {...p}><path d="M4 20l1-4.500L16.500 4a2 2 0 0 1 2.800 0l.700.700a2 2 0 0 1 0 2.800L8.500 19 4 20z" /><path d="M14.500 6l3.500 3.500" /></Svg>;
 export const Trash = (p: Props) => <Svg {...p}><path d="M4 7h16M9 7V4.500h6V7M6.500 7l.800 12a1.500 1.500 0 0 0 1.500 1.400h6.400a1.500 1.500 0 0 0 1.500-1.400l.800-12M10 11v6M14 11v6" /></Svg>;

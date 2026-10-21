@@ -6,7 +6,7 @@ import {
   CONNECTION_COLUMNS, DECISION_COLUMNS, EVENT_COLUMNS, JOB_COLUMNS, LINE_COLUMNS, MESSAGE_COLUMNS, NOTE_COLUMNS, REQUEST_COLUMNS, UPDATE_COLUMNS,
   type Chat, type ClientLine, type ClientUpdate, type Connection, type Decision, type Job, type Member, type Message, type Note, type Request,
   type RequestEvent,
-  CHANGE_COLUMNS, type SandboxChange, SANDBOX_COLUMNS, type SandboxRow, TASK_COLUMNS, type Task,
+  CHANGE_COLUMNS, type SandboxChange, SANDBOX_COLUMNS, type SandboxRow, TASK_COLUMNS, type Task, CHAT_COLUMNS,
 } from "./types";
 
 type MemberRow = Member & { user_id: string };
@@ -68,7 +68,7 @@ export async function RoomPage({ id, wanted, view, side, sandbox }: { id: string
 
   const [{ data: chats }, { data: recent }, { data: decisions }, { data: jobs }, { data: connections }, { data: notes }, { data: requests },
     { data: tableAi }, { data: boxes }, { data: boxSet }, { data: changes }, { data: tasks }] = await Promise.all([
-    supabase.from("chats").select("id, name, about, is_general, created_at, created_by").eq("table_id", id).order("created_at"),
+    supabase.from("chats").select(CHAT_COLUMNS).eq("table_id", id).order("created_at"),
     supabase.from("messages").select(MESSAGE_COLUMNS).eq("table_id", id).order("created_at", { ascending: false }).limit(300),
     supabase.from("decisions").select(DECISION_COLUMNS).eq("table_id", id).order("created_at", { ascending: false }).limit(100),
     supabase.from("jobs").select(JOB_COLUMNS).eq("table_id", id).in("status", ["queued", "running", "waiting", "failed"]).order("created_at", { ascending: false }).limit(50),

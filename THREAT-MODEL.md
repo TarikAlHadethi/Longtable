@@ -31,6 +31,8 @@ the code as it is (last brought up to date 17 Oct 2026); update it with every ch
 | A client reads the back room | Row level security: chats, messages, decisions, options, activity, jobs, notes, tasks, handouts are team only; connections and requests are read by column grant | step 2 (0 rows from every back-room table), step 5 (8 tables, 0 rows), step 25 |
 | A client reads another client's requests | Requests, timelines and updates about a request belong to the asker; each client has their own live channel; a question for a client must be about that client's own request | step 5 (refused on the wire, 0 rows), step 34 |
 | One table reads another | Every policy and function checks membership of that table | step 2, step 25, sim-rounds |
+| A teammate reads a private chat room | Only the people in it see it: every policy on chats, messages, polls, tasks, jobs, handouts (versions, comments, state), attachments and their files, and the log asks `can_see_chat`; its live changes go on `room:<chat>`, which only they may hear; the owner's download leaves out rooms the owner is not in; a deleted room's log lines stay hidden; a client is never in one and clients' requests never go to one | step 46 |
+| Someone else's AI is given a private room's words | Every job of a private chat is moved to the AI of someone in it, or dropped (`jobs_stay_in_room`), and a connection is never handed one for a person outside it; related messages, tasks and teammates' names leave out rooms the AI's person is not in; nothing learned in a room goes into the AI's own notes for later jobs | step 46 |
 | Someone hears a channel they should not | Private channels with policies on `realtime.messages`: the team channel and the cursor channel for the team only, `client:<table>:<member>` for that client only | steps 1, 5, 37 |
 | A person writes as someone else, or as an AI | Insert policies require your own member id, `kind = 'chat'`, empty meta, not `by_ai`; everything else goes through checked functions; the server sets the time | steps 3, 5, 26 |
 | A client changes decisions, requests or their AI's lines | No write policies; only `client_say` and `client_reply`, which act for the caller's own seat | step 5, step 27, client AI test |
@@ -88,6 +90,7 @@ Client messages (30 an hour, 60 with a copy), new tables (10 a day), connect cod
   receiving pushes until its sign-in token expires (Supabase's live server closes a channel then; the token lasts an
   hour on this project, `jwt_expiry`). A shorter token lifetime in the project's Auth settings narrows it; renaming a
   table's channels when someone is removed would close it at once, but every function that broadcasts would change.
+- **A private room shows that it exists, never what is in it.** The team's channel hears that a private chat changed (its id only), and a handout's id can show in presence and pointers. A file's signed address handed out before its chat became private keeps working until it runs out (an hour on screens, a day for an AI).
 - **Presence and cursors can be faked by a team member** (display only: who is looking, and where a pointer is).
 - **Read-only is not secret-proof.** A team member's AI can read anything committed to their repo, including a secret
   committed by mistake. The key filters catch common key shapes, not all of them.

@@ -1,24 +1,26 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Dots, Pencil, Plus, Trash } from "@/components/icons";
+import { Dots, Gear, Lock, Pencil, Plus, Trash } from "@/components/icons";
 import type { Chat } from "./types";
 import styles from "./room.module.css";
 
 // The chats in the sidebar. A chat opens with a click. Its name is changed by double-clicking it while it is open,
 // or from the menu behind the dots that show when the pointer is over it; the same menu deletes it.
-// A new chat that is left without a name is gone the moment the pointer goes elsewhere.
-export function ChatList({ chats, activeId, waiting, canDelete, onOpen, onCreate, onRename, onDelete }: {
+// The "+" opens the window that sets a new chat up (who is in it, notes, how the AIs answer); the same window changes
+// a chat later, from its menu, for whoever made it or an owner. A private chat carries a lock.
+export function ChatList({ chats, activeId, waiting, canDelete, canSetUp, onOpen, onNew, onSetUp, onRename, onDelete }: {
   chats: Chat[];
   activeId: string | null;
   waiting: Set<string>;
   canDelete: (c: Chat) => boolean;
+  canSetUp: (c: Chat) => boolean;
   onOpen: (id: string) => void;
-  onCreate: (name: string) => Promise<string | null>;
+  onNew: () => void;
+  onSetUp: (c: Chat) => void;
   onRename: (id: string, name: string) => Promise<string | null>;
   onDelete: (id: string) => Promise<string | null>;
 }) {
-  const [naming, setNaming] = useState(false);
   const [draft, setDraft] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [menu, setMenu] = useState<string | null>(null);
@@ -47,15 +49,6 @@ export function ChatList({ chats, activeId, waiting, canDelete, onOpen, onCreate
     const problem = await onRename(c.id, name);
     if (problem) setError(problem);
   }
-  async function create(e: React.FormEvent) {
-    e.preventDefault();
-    const name = draft.trim();
-    if (!name) return;
-    setNaming(false);
-    setDraft("");
-    const problem = await onCreate(name);
-    if (problem) setError(problem);
-  }
   // The row folds away at once while the table deletes it; if that fails, it comes back with the reason.
   async function remove(c: Chat) {
     setMenu(null);
@@ -71,7 +64,7 @@ export function ChatList({ chats, activeId, waiting, canDelete, onOpen, onCreate
       <div className={styles.sectionHead}>
         <div className={styles.sectionTitle}>Chats</div>
         <button className={styles.plus} title="New chat" aria-label="New chat"
-          onMouseDown={(e) => e.preventDefault()} onClick={() => { setError(""); setDraft(""); setEditing(null); setNaming(!naming); }}>
+          onMouseDown={(e) => e.preventDefault()} onClick={() => { setError(""); setEditing(null); onNew(); }} data-testid="new-chat">
           <Plus size={14} />
         </button>
       </div>
@@ -86,6 +79,7 @@ export function ChatList({ chats, activeId, waiting, canDelete, onOpen, onCreate
               <button className={`${styles.chat} ${(c.id === activeId && !making) || c.pending ? styles.chatActive : ""}`} onClick={() => { if (!c.pending) onOpen(c.id); }}
                 onDoubleClick={() => { if (c.id === activeId) startRename(c); }} title={c.id === activeId ? "Double-click to rename" : undefined}>
                 <span className={styles.chatName}><span className={styles.chatHash} aria-hidden="true">#</span>{c.name}</span>
+                {c.private && <span className={styles.chatLock} title="Private: only its people see it" aria-label="Private"><Lock size={13} /></span>}
               </button>
               {!c.pending && <button className={styles.chatMore} aria-label={`More for ${c.name}`} aria-haspopup="menu" aria-expanded={menu === c.id} data-chat-menu
                 onClick={() => setMenu(menu === c.id ? null : c.id)}>
@@ -104,6 +98,7 @@ export function ChatList({ chats, activeId, waiting, canDelete, onOpen, onCreate
                     </div>
                   ) : (
                     <>
+                      {canSetUp(c) && <button role="menuitem" className={styles.meItem} onClick={() => { setMenu(null); onSetUp(c); }}><Gear size={15} />Set up</button>}
                       <button role="menuitem" className={styles.meItem} onClick={() => startRename(c)}><Pencil size={15} />Rename</button>
                       {canDelete(c) && <button role="menuitem" className={`${styles.meItem} ${styles.danger}`} onClick={() => setSure(true)}><Trash size={15} />Delete</button>}
                     </>
@@ -114,13 +109,6 @@ export function ChatList({ chats, activeId, waiting, canDelete, onOpen, onCreate
           )}
         </div>
       ))}
-      {naming && (
-        <form onSubmit={create} className={styles.newChat}>
-          <input className="field" autoFocus maxLength={60} value={draft} onChange={(e) => setDraft(e.target.value)}
-            placeholder="Name the chat" aria-label="Name the new chat"
-            onBlur={() => { setNaming(false); setDraft(""); }} onKeyDown={(e) => { if (e.key === "Escape") { setNaming(false); setDraft(""); } }} />
-        </form>
-      )}
       {error && <div className="error" style={{ padding: "4px 8px", fontSize: 13 }}>{error}</div>}
     </div>
   );

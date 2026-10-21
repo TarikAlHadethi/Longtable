@@ -671,6 +671,18 @@
 .roleTile:hover { border-color: var(--sage); box-shadow: 0 0 0 4px color-mix(in oklch, var(--sage) 12%, transparent); }
 .roleTile:active { transform: scale(0.97); }
 .roleTile:disabled { opacity: 0.6; cursor: default; }
+/* A chosen tile, when the tiles are a choice rather than buttons that act at once (who is in a chat). */
+.roleTileOn { border-color: var(--sage); box-shadow: 0 0 0 4px color-mix(in oklch, var(--sage) 14%, transparent); }
+.roleTiles3 { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 520px) { .roleTiles3 { grid-template-columns: 1fr; } }
+.setupLabel { font-size: 13px; font-weight: 560; color: var(--ink-2); margin: 4px 0 -4px; }
+.setupPeople { display: flex; flex-direction: column; gap: 2px; padding: 4px 2px 2px; max-height: 200px; overflow-y: auto; }
+.setupPerson { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 9px; font-size: 15px; cursor: pointer; }
+.setupPerson:hover { background: var(--hover); }
+/* A chat not set up yet, for whoever cannot set it up. */
+.notSetUp { margin: auto; max-width: 360px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; color: var(--muted); padding: 24px; animation: lt-rise 0.3s var(--ease-out) both; }
+.notSetUp b { color: var(--ink); font-size: 18px; font-weight: 560; }
+.chatLock { flex: none; color: var(--faint); margin-left: auto; }
 .linkReady { display: flex; flex-direction: column; gap: 12px; padding: 4px 0 2px; animation: lt-rise 0.32s var(--ease-out) both; }
 @media (max-width: 520px) { .roleTiles { grid-template-columns: 1fr; } }
 
@@ -684,3 +696,6 @@
   .list > .working { padding-left: 0; }
 }
 .inviteForm { display: flex; flex-direction: column; gap: 12px; }
+
+/* How an empty chat is set up, in one quiet line under its title. */
+.emptyNote { font-size: 14px; color: var(--muted); margin-top: 6px; text-align: center; }

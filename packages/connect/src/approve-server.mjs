@@ -27,10 +27,12 @@ const POLL_MS = Number(process.env.LT_POLL_MS || 1500);
 // What the person is asked: exactly what would be done. A command is shown whole; any other tool shows its whole
 // input. Nothing is ever cut short: a request too long to show in full is refused instead (null).
 export const SHOW_MAX = 2000;
+// The tools that run a command: Bash, and on Windows Claude Code's PowerShell. Each is shown, explained and remembered alike.
+export const SHELLS = ["Bash", "PowerShell"];
 export function describe(tool, input) {
   const i = input && typeof input === "object" ? input : {};
   let text = "";
-  if (tool === "Bash") {
+  if (SHELLS.includes(tool)) {
     // The command, and anything else it asks for that changes what it may do: never hidden behind the command.
     text = String(i.command || "");
     if (i.dangerouslyDisableSandbox) text += "\n(outside the sandbox)";
@@ -45,7 +47,7 @@ export function describe(tool, input) {
 export function whyOf(tool, input) {
   const i = input && typeof input === "object" ? input : {};
   // Only a command's own description: another tool's "description" field is what it would write, not why.
-  const said = tool === "Bash" && typeof i.description === "string" ? i.description.replace(/\s+/g, " ").trim() : "";
+  const said = SHELLS.includes(tool) && typeof i.description === "string" ? i.description.replace(/\s+/g, " ").trim() : "";
   if (said) return said.slice(0, 1000);
   const file = String(i.file_path || i.notebook_path || "").split(/[\\/]/).pop();
   if (["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(tool) && file) return `Change ${file}`;
@@ -59,7 +61,7 @@ export function ruleFor(tool, input) {
   const command = String(input?.command || "").trim();
   // Not for a command that asks to leave the sandbox or keep running: those are asked about every time.
   if (input?.dangerouslyDisableSandbox || input?.run_in_background) return null;
-  return tool === "Bash" && PLAIN.test(command) ? `Bash(${command})` : null;
+  return SHELLS.includes(tool) && PLAIN.test(command) ? `${tool}(${command})` : null;
 }
 
 // The rules kept on this computer, checked every time they are read: anything that is not one plain command is
@@ -67,7 +69,7 @@ export function ruleFor(tool, input) {
 export function alwaysRules(file) {
   try {
     const list = JSON.parse(readFileSync(file, "utf8"));
-    return Array.isArray(list) ? list.filter((r) => typeof r === "string" && /^Bash\(.+\)$/.test(r) && PLAIN.test(r.slice(5, -1))) : [];
+    return Array.isArray(list) ? list.filter((r) => typeof r === "string" && /^(Bash|PowerShell)\(.+\)$/.test(r) && PLAIN.test(r.slice(r.indexOf("(") + 1, -1))) : [];
   } catch { return []; }
 }
 

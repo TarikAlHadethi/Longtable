@@ -20,9 +20,9 @@ try {
 
   await p.click("button[aria-label='New chat']");
   await p.fill("input[aria-label='Name the new chat']", "Half typed");
-  await p.click("textarea");
-  await p.waitForTimeout(300);
-  check("a new chat left unnamed is gone when you click elsewhere", (await p.locator("input[aria-label='Name the new chat']").count()) === 0 && !(await names(p)).includes("Half typed"), JSON.stringify(await names(p)));
+  await p.keyboard.press("Escape");
+  await p.waitForTimeout(400);
+  check("a new chat whose window is closed is never made", (await p.locator("input[aria-label='Name the new chat']").count()) === 0 && !(await names(p)).includes("Half typed"), JSON.stringify(await names(p)));
 
   await p.click("button[aria-label='New chat']");
   await p.fill("input[aria-label='Name the new chat']", "Launch");

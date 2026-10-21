@@ -100,10 +100,14 @@ try {
   await page.click("[data-testid=ai-window] button:has-text('Close')");
 
   // Chats.
+  // A new chat opens its window to be set up, its name already in it.
   await box.fill("/clear Plans");
   await box.press("Enter");
+  await page.waitForSelector("[data-testid=chat-setup]");
+  const named = await page.inputValue("[data-testid=setup-name]");
+  await page.click("[data-testid=setup-save]");
   await sleep(1500);
-  check("/clear starts a new chat", sql(`select count(*) from public.chats where table_id = '${tableId}' and name = 'Plans'`) === "1");
+  check("/clear opens a new chat's window with its name, and makes it", named === "Plans" && sql(`select count(*) from public.chats where table_id = '${tableId}' and name = 'Plans'`) === "1");
   await box.fill("/rename Launch plans");
   await box.press("Enter");
   await sleep(1200);

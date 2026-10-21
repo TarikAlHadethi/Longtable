@@ -23,6 +23,7 @@ const AI_DID: Record<string, { verb: string; noun: string }> = {
   listen: { verb: "listened in", noun: "listening" },
   client: { verb: "answered a client", noun: "answer to a client" },
   sandbox: { verb: "worked on a client's own copy", noun: "work on a client's copy" },
+  notes: { verb: "took notes", noun: "notes" },
 };
 
 // What was read last time, by table, shown at once while the log is read again.
@@ -63,6 +64,7 @@ export function LogsPanel({ table, members }: { table: { id: string; name: strin
       case "member.joined": return `${d.name ?? who(e)} joined as ${d.role === "client" ? "the client" : "a developer"}`;
       case "chat.renamed": return `${who(e)} renamed the chat "${d.from}" to "${d.name}"`;
       case "chat.deleted": return `${who(e)} deleted the chat "${d.name}"`;
+      case "chat.set_up": return `${who(e)} set up the chat "${d.name}"`;
       case "chat.created": return `${who(e)} made the chat "${d.name}"`;
       case "decision.created": return `${who(e)} asked for a decision: ${d.title}`;
       case "decision.decided": return `${who(e)} decided "${d.title}": ${d.option}`;

@@ -10,7 +10,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { alwaysRules, describe, ruleFor, SHOW_MAX } from "../../packages/connect/src/approve-server.mjs";
+import { alwaysRules, describe, ruleFor, SHOW_MAX, whyOf } from "../../packages/connect/src/approve-server.mjs";
 
 const results = {};
 const check = (name, ok, detail) => { results[name] = ok ? "pass" : `FAIL ${JSON.stringify(detail ?? "").slice(0, 300)}`; };
@@ -18,6 +18,10 @@ const NL = String.fromCharCode(10);
 
 // What the person is shown.
 check("a command is shown whole", describe("Bash", { command: "npm test -- --watch=false" }) === "npm test -- --watch=false");
+// Claude Code's PowerShell tool runs commands too: shown, explained and remembered the same way, as its own rule.
+check("a PowerShell command is shown whole, with Claude's reason, and remembered as exactly that command",
+  describe("PowerShell", { command: "npm test", description: "Run the tests" }) === "npm test" && whyOf("PowerShell", { command: "npm test", description: "Run the tests" }) === "Run the tests"
+  && ruleFor("PowerShell", { command: "npm test" }) === "PowerShell(npm test)" && ruleFor("PowerShell", { command: "npm test; rm -r x" }) === null);
 check("any other tool shows its whole input, not just a path", /force/.test(describe("mcp__gh__push", { path: "README", branch: "main", force: true }) || ""));
 check("leaving the sandbox or running on in the background is shown, never hidden behind the command", /outside the sandbox/.test(describe("Bash", { command: "npm test", dangerouslyDisableSandbox: true }) || "") && /background/.test(describe("Bash", { command: "npm run dev", run_in_background: true }) || ""));
 check("and is never offered as always allow", ruleFor("Bash", { command: "npm test", dangerouslyDisableSandbox: true }) === null && ruleFor("Bash", { command: "npm run dev", run_in_background: true }) === null);

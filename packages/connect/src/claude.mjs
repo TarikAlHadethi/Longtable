@@ -251,7 +251,7 @@ function askOnce({ claude, cwd, prompt, system, schema, model, tools = "Read,Gre
     const lines = lineReader((e) => {
       if (full && e.type === "assistant") {
         for (const part of e.message?.content || []) {
-          if (part.type === "tool_use" && part.name === "Bash" && (part.input?.run_in_background || LEAVES_RUNNING.test(String(part.input?.command || "")))) lingering.add(part.id);
+          if (part.type === "tool_use" && (part.name === "Bash" || part.name === "PowerShell") && (part.input?.run_in_background || LEAVES_RUNNING.test(String(part.input?.command || "")))) lingering.add(part.id);
         }
       } else if (full && e.type === "user") {
         for (const part of e.message?.content || []) if (part.type === "tool_result" && lingering.has(part.tool_use_id)) setTimeout(look, 1500);
@@ -289,7 +289,7 @@ function askOnce({ claude, cwd, prompt, system, schema, model, tools = "Read,Gre
           const file = inside && inside.length <= 80 ? inside : where.split(/[/\\]/).pop();
           if (/[/\\]\.longtable-yours([/\\]|$)/.test(where) || /^\.longtable-yours([/\\]|$)/.test(where)) onNote("reading what it knows");
           // A command is named by its program only: the rest of a command line can hold a secret.
-          else if (part.name === "Bash") onNote(`running ${String(part.input?.command || "").trim().split(/\s+/)[0].replace(/[^A-Za-z0-9._-]/g, "").slice(0, 30) || "a command"}`);
+          else if (part.name === "Bash" || part.name === "PowerShell") onNote(`running ${String(part.input?.command || "").trim().split(/\s+/)[0].replace(/[^A-Za-z0-9._-]/g, "").slice(0, 30) || "a command"}`);
           else onNote(part.name === "Edit" || part.name === "Write" ? `editing ${file}` : part.name === "Read" ? `reading ${file}`
             : (part.name === "Grep" || part.name === "Glob") && part.input?.pattern ? `searching for ${String(part.input.pattern).replace(/\s+/g, " ").slice(0, 40)}` : "searching the code");
         }

@@ -42,7 +42,7 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
   me: string;
   part?: "general" | "people" | "clients";
   people: Person[];
-  chats: { id: string; name: string; is_general: boolean }[];
+  chats: { id: string; name: string; is_general: boolean; private?: boolean; set_up?: boolean }[];
   data: SettingsData | null;
   onData: (d: SettingsData) => void;
   onRenamed: (name: string) => void;
@@ -204,7 +204,7 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
           <input id="s-name" className="field" maxLength={80} value={name} onChange={(e) => setName(e.target.value)} />
           <label className="label" htmlFor="s-requests">Client requests go to</label>
           <Select id="s-requests" value={requests} onChange={setRequests}
-            options={[{ value: "", label: "General" }, ...chats.filter((c) => !c.is_general).map((c) => ({ value: c.id, label: c.name }))]} />
+            options={[{ value: "", label: "General" }, ...chats.filter((c) => !c.is_general && !c.private && c.set_up !== false).map((c) => ({ value: c.id, label: c.name }))]} />
           <div className={styles.actions}>
             <button className="btn" disabled={!loaded}>Save</button>
             {saved === "table" && <span className={styles.saved} role="status">Saved</span>}

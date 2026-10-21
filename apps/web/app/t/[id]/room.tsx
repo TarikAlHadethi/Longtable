@@ -28,12 +28,13 @@ import { TableView } from "./table-view";
 import { UsagePanel } from "./usage-panel";
 import { elapsed, WorkPanel } from "./work-panel";
 import { SandboxReview } from "./sandbox-review";
+import { ChatSetup } from "./chat-setup";
 import {
   CONNECTION_COLUMNS, DECISION_COLUMNS, JOB_COLUMNS, MEMBER_COLUMNS, MESSAGE_COLUMNS, NOTE_COLUMNS, REQUEST_COLUMNS,
   type Chat, type Command, type Connection, type Decision, type Job, type Member, type Message, type Note, type Request,
   CHANGE_COLUMNS, type SandboxChange, SANDBOX_COLUMNS, type SandboxRow, TASK_COLUMNS, type Task,
   PAGE_COLUMNS, PAGE_COMMENT_COLUMNS, PAGE_VERSION_COLUMNS, type Page, type PageComment, type PageValue, type PageVersion,
-  APPROVAL_COLUMNS, type Approval,
+  APPROVAL_COLUMNS, type Approval, CHAT_COLUMNS,
 } from "./types";
 import { ApprovalCards } from "./approvals";
 import { ModePick } from "./mode-pick";
@@ -203,9 +204,14 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   }, [supabase]);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // The window that sets a chat up: a new one from "+", or an existing one.
+  const [setupFor, setSetupFor] = useState<Chat | "new" | null>(null);
+  const [newName, setNewName] = useState("");
   const [asking, setAsking] = useState(false);
   // The live channel is set up once; it reaches the newest dropChat through this.
   const dropRef = useRef<(id: string) => void>(() => {});
+  // The handler of the team's live channel, used by each private room's own channel too.
+  const handlerRef = useRef<((kind: "INSERT" | "UPDATE") => (msg: { payload: unknown }) => void) | null>(null);
   const chatIdRef = useRef(initialChatId);
   const viewRef = useRef<View>(initialView);
   const generalRef = useRef<string | null>(initialChats.find((c) => c.is_general)?.id ?? null);
@@ -259,6 +265,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   // Who hears a decision meant for the client: one client by name; with several, every one of them.
   const clientName = clients.length > 1 ? "every client" : client?.display_name ?? "the client";
   const chat = chatById.get(chatId) ?? chats[0];
+  const unset = chat?.set_up === false;
   const liveAI = new Set(connections.filter((c) => !c.revoked_at).map((c) => c.member_id));
   const myConnection = connections.find((c) => !c.revoked_at && c.member_id === me.id);
   // What to call a person's AI: Claude or ChatGPT once it is connected, their AI before that.
@@ -341,7 +348,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       supabase.from("tasks").select(TASK_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(40),
       supabase.from("sandbox_changes").select(CHANGE_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(120),
       supabase.from("sandboxes").select(SANDBOX_COLUMNS).eq("table_id", table.id),
-      supabase.from("chats").select("id, name, about, is_general, created_at, created_by").eq("table_id", table.id),
+      supabase.from("chats").select(CHAT_COLUMNS).eq("table_id", table.id),
     ]);
     if (mine < shown.current) return;
     if (pushedAt.current > began && retries.current < 3) {
@@ -444,6 +451,9 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         setRequests((prev) => [...prev.filter((x) => x.id !== r.id), r]);
       } else if (name === "chats") {
         const c = record as unknown as Chat;
+        // A private chat changed somewhere: the team hears only that, never its name. The list is read again, and
+        // shows it only to its people.
+        if (c.private && !("name" in (record as object))) return catchUpRef.current?.();
         if ((record as { deleted?: boolean }).deleted) return dropRef.current(c.id);
         // The chat this person just named arrives here too, often before their own call returns: it takes the place of the
         // row already showing, keeping its key, so the list never shows it twice or redraws it.
@@ -475,6 +485,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         });
       }
     };
+    handlerRef.current = onChange;
     (async () => {
       await supabase.realtime.setAuth();
       if (cancelled) return;
@@ -515,6 +526,26 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       if (channel) supabase.removeChannel(channel);
     };
   }, [supabase, table.id, me.id, refreshMembers, loadDecision, catchUp]);
+
+  // Each private room this person is in has its own live channel: what is said there never goes over the team's.
+  const roomIds = chats.filter((c) => c.private && !c.pending).map((c) => c.id).sort().join(",");
+  useEffect(() => {
+    if (!roomIds) return;
+    let cancelled = false;
+    const subs: RealtimeChannel[] = [];
+    (async () => {
+      await supabase.realtime.setAuth();
+      if (cancelled) return;
+      for (const id of roomIds.split(",")) {
+        const ch = supabase.channel(`room:${id}`, { config: { private: true } });
+        ch.on("broadcast", { event: "INSERT" }, (m: { payload: unknown }) => handlerRef.current?.("INSERT")(m))
+          .on("broadcast", { event: "UPDATE" }, (m: { payload: unknown }) => handlerRef.current?.("UPDATE")(m))
+          .subscribe((status: string) => { if (status === "SUBSCRIBED") catchUpRef.current?.(); });
+        subs.push(ch);
+      }
+    })();
+    return () => { cancelled = true; for (const ch of subs) supabase.removeChannel(ch); };
+  }, [supabase, roomIds]);
 
   // Back to the tab: read what happened while it was away.
   useEffect(() => {
@@ -803,7 +834,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       if (e.where === "ai") setAiOf(me.id);
       else if (e.where === "usage") window.location.assign(`/t/${table.id}/usage`);
       else if (e.where === "profile") openPerson(me.id, true);
-      else if (e.where === "new-chat") makeChat(args.slice(0, 60) || "New chat").then((problem) => setNotice(problem ?? ""));
+      else if (e.where === "new-chat") { setNewName(args.slice(0, 60)); setSetupFor("new"); }
       else if (e.where === "rename-chat") {
         if (!chat || chat.is_general) setNotice("General keeps its name. Open another chat to rename it.");
         else if (!args) setNotice("Type the new name after /rename.");
@@ -849,22 +880,22 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, revoked_at: new Date().toISOString() } : c)));
   }
 
-  // A new chat shows in the list the moment it is named, and becomes the real one, in the same place, when the table
-  // has made it.
-  async function makeChat(name: string) {
-    const local = `new-${Math.random().toString(36).slice(2)}`;
-    const at = new Date().toISOString();
-    setChats((prev) => [...prev, { id: local, local_key: local, name, about: "", is_general: false, created_at: at, created_by: self.id, pending: true }]);
-    const { data, error } = await supabase.rpc("create_chat", { t: table.id, chat_name: name, chat_about: "" });
-    if (error || !data) {
-      setChats((prev) => prev.filter((c) => c.local_key !== local));
-      return error?.message ?? "The chat was not made. Try again.";
-    }
-    const id = data as string;
-    setChats((prev) => prev.filter((c) => c.id !== id || c.local_key === local).map((c) => (c.local_key === local ? { ...c, id, pending: false } : c)).sort(byTime));
-    openChat(id);
-    return null;
+  // A chat made or set up in its window: the list is read again (a private one arrives only for its people), and a
+  // new one opens.
+  async function chatReady(id: string, made: boolean) {
+    const { data } = await supabase.from("chats").select(CHAT_COLUMNS).eq("table_id", table.id);
+    if (data) setChats((data as Chat[]).slice().sort(byTime));
+    if (made) openChat(id);
   }
+  // Whoever made a chat sets it up, and an owner can; the table's own Chat room, made by nobody, is the owners'.
+  const canSetUp = (c: Chat) => !c.pending && (self.role === "owner" || (!!c.created_by && c.created_by === me.id));
+  // Opening a chat that is not set up yet, as someone who may set it up, opens its window once.
+  const offered = useRef<string | null>(null);
+  useEffect(() => {
+    if (view !== "chat" || !chat || chat.set_up !== false || !canSetUp(chat) || offered.current === chat.id) return;
+    offered.current = chat.id;
+    setSetupFor(chat);
+  }, [view, chat?.id, chat?.set_up]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function renameChat(id: string, name: string) {
     const old = chats.find((c) => c.id === id)?.name;
@@ -1070,7 +1101,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           <ChatList chats={chats} activeId={view === "chat" ? chat?.id ?? null : null}
             waiting={new Set(decisions.filter((d) => d.status === "open").map((d) => d.chat_id))}
             canDelete={(c) => !c.is_general && (self.role === "owner" || c.created_by === me.id)}
-            onOpen={openChat} onCreate={makeChat} onRename={renameChat} onDelete={deleteChat} />
+            canSetUp={canSetUp} onNew={() => { setNewName(""); setSetupFor("new"); }} onSetUp={(c) => setSetupFor(c)}
+            onOpen={openChat} onRename={renameChat} onDelete={deleteChat} />
           {/* Handouts: what the AIs made for the table to look at. Its own section, there only once there is one. */}
           {pages.length > 0 && (
             <div className={`${styles.section} ${styles.handouts}`} data-testid="handouts">
@@ -1177,11 +1209,35 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           </main>
         )}
         <main className={styles.main} hidden={view !== "chat"}>
-          <div ref={scrollRef} className={styles.scroll} onScroll={onScroll} data-testid="messages">
+          {/* A chat not set up yet: whoever may set it up is offered to; everyone else waits for them. */}
+          {unset && chat && (
+            <div className={styles.notSetUp} data-testid="not-set-up">
+              {canSetUp(chat) ? (
+                <>
+                  <b>Set up {chat.name}</b>
+                  <span>Choose who is in it, whether an AI takes notes, and how the AIs answer.</span>
+                  <button className="btn" onClick={() => setSetupFor(chat)}>Set it up</button>
+                </>
+              ) : (
+                <>
+                  <b>{chat.name} is not set up yet</b>
+                  <span>The owner hasn&apos;t set this chat up yet. It opens here once they have.</span>
+                </>
+              )}
+            </div>
+          )}
+          <div ref={scrollRef} className={styles.scroll} onScroll={onScroll} data-testid="messages" hidden={unset}>
             <div className={styles.list}>
               {items.length === 0 && (
                 <div className={styles.empty}>
                   <div className={styles.emptyTitle}>{`Nothing in ${chat?.name ?? "this chat"} yet`}</div>
+                  {chat && (chat.private || chat.notes || (chat.answers ?? "normal") !== "normal") && (
+                    <div className={styles.emptyNote} data-testid="chat-setup-note">
+                      {[chat.private ? "Only the people in it see this chat." : "",
+                        chat.notes ? "An AI keeps notes of it as a handout." : "",
+                        chat.answers === "silent" ? "The AIs only read here." : chat.answers === "named" ? "The AIs answer when someone names one." : ""].filter(Boolean).join(" ")}
+                    </div>
+                  )}
                 </div>
               )}
               {items.map((it, at) => {
@@ -1299,7 +1355,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
             </div>
           </div>
 
-          <div className={styles.composerWrap} {...dropHandlers(attach)}>
+          <div className={styles.composerWrap} {...dropHandlers(attach)} hidden={unset}>
             <AttachTray a={attach} />
             {slash.length > 0 && (
               <div className={styles.slash} role="listbox" aria-label={`Your ${aiWord(me.id)}'s own commands`} data-testid="slash-menu">
@@ -1386,6 +1442,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           waiting={changes.filter((c) => c.member_id === personId && c.status === "ready" && !c.verdict && !c.test).length} />
       )}
       {inviting && <Invite tableId={table.id} onClose={() => setInviting(false)} />}
+      {setupFor && <ChatSetup tableId={table.id} me={me.id} people={members} chat={setupFor === "new" ? null : setupFor} name={newName}
+        onDone={(id) => chatReady(id, setupFor === "new")} onClose={() => setSetupFor(null)} />}
       {pagesOpen && <PagesList pages={pages} pins={pins} members={byId} onClose={() => setPagesOpen(false)} onOpen={(id) => { setPagesOpen(false); setOpenPage(id); }} />}
       {openPage && pages.some((p) => p.id === openPage) && (
         <PageWindow supabase={supabase} page={pages.find((p) => p.id === openPage)!} me={self} owner={self.role === "owner"} members={byId}
