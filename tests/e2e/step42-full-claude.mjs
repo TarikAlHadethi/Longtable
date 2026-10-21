@@ -115,6 +115,35 @@ try {
   check("nothing was committed or pushed for her", !/farewell/.test(git(project, "show", "HEAD:greet.js")) && !branchesNow().some((b) => b.startsWith("longtable/")), branchesNow());
   check("no worktree was made", !git(project, "worktree", "list").includes("trees"), git(project, "worktree", "list"));
 
+  // Her next request carries on the same session, as at home: what it ran last time is still there. The command's
+  // output is only in the session (she asks it not to say it), so only a session that carried on can answer.
+  const MARK2 = `SESSION-${run}`;
+  const count0 = await page.locator("[data-ai='true']").count();
+  await page.fill("textarea", `Run node -e "console.log('${MARK2}-' + (6 * 7))" but do not tell me what it printed. Just reply with the single word done.`);
+  await page.keyboard.press("Control+Enter");
+  for (let i = 0; i < 420; i++) {
+    if ((await page.locator("[data-ai='true']").count()) > count0) break;
+    const ok = page.locator("[data-testid=approvals] [data-approval] [data-testid=allow]").first();
+    if (await ok.count()) await ok.click().catch(() => {});
+    await page.waitForTimeout(1000);
+  }
+  const quiet = (await page.locator("[data-ai='true']").last().textContent()) || "";
+  const count1 = await page.locator("[data-ai='true']").count();
+  await page.fill("textarea", "What exactly did that last command print? Do not run anything again; answer from what you already saw.");
+  await page.keyboard.press("Control+Enter");
+  for (let i = 0; i < 420; i++) {
+    if ((await page.locator("[data-ai='true']").count()) > count1) break;
+    const no = page.locator("[data-testid=approvals] [data-approval] [data-testid=deny]").first();
+    if (await no.count()) await no.click().catch(() => {});
+    await page.waitForTimeout(1000);
+  }
+  const recalled = (await page.locator("[data-ai='true']").last().textContent()) || "";
+  results.session = { quiet: quiet.slice(-200), recalled: recalled.slice(-300) };
+  check("the output stayed out of the chat", !quiet.includes(`${MARK2}-42`), quiet.slice(-200));
+  check("her next request carries on the same session and knows what the command printed", recalled.includes(`${MARK2}-42`), recalled.slice(-300));
+  const runLog = readFileSync(join(home, "runner.log"), "utf8");
+  check("the connection says it carried the chat's session on", /carrying on this chat's session/.test(runLog));
+
   // A command she denies does not run.
   const before = await page.locator("[data-ai='true']").count();
   await page.fill("textarea", "Run `node -e \"console.log('DENY-CHECK-' + (40 + 2))\"` and tell me exactly what it printed.");

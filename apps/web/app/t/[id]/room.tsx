@@ -144,12 +144,14 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     else setApprovals((data as Approval[] | null) ?? []);
   }, [supabase, table.id]);
   useEffect(() => { readApprovals(); }, [readApprovals]);
-  // While something waits, look again now and then: a request ends when its work does, and a live push can be lost.
+  // While something waits, or their own AI is at work and may ask, look again every few seconds: a live push can be
+  // lost, and a request now waits for its person for as long as its work runs, so a lost one must still show.
+  const myWorkGoing = jobs.some((j) => j.member_id === me.id && (j.status === "running" || j.status === "queued"));
   useEffect(() => {
-    if (!approvals.length) return;
-    const t = setInterval(readApprovals, 8000);
+    if (!approvals.length && !myWorkGoing) return;
+    const t = setInterval(readApprovals, 5000);
     return () => clearInterval(t);
-  }, [approvals.length, readApprovals]);
+  }, [approvals.length, myWorkGoing, readApprovals]);
   // The tab says so too, so a request is seen from another tab.
   useEffect(() => {
     const base = document.title.replace(/^\(\d+\) /, "");
@@ -316,6 +318,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const retries = useRef(0);
   const catchUp = useCallback(async () => {
     const mine = ++reads.current;
+    readApprovals();
     const began = performance.now();
     const [{ data: recent }, { data: inFlight }, { data: ds }, { data: rq }, { data: ns }, { data: cs }, { data: tk }, { data: sc }, { data: bx }, { data: ch }] = await Promise.all([
       supabase.from("messages").select(MESSAGE_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(100),
@@ -358,7 +361,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (cs) setConnections(cs as Connection[]);
     readCommands();
     readPages();
-  }, [supabase, table.id, me.id, readCommands, readPages]);
+  }, [supabase, table.id, me.id, readCommands, readPages, readApprovals]);
 
   const catchUpRef = useRef<(() => void) | null>(null);
   catchUpRef.current = catchUp;

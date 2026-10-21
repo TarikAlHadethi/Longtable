@@ -165,7 +165,7 @@ export function ask(opts) {
   });
 }
 
-function askOnce({ claude, cwd, prompt, system, schema, model, tools = "Read,Grep,Glob", edit = false, long = false, onNote, control, apiKey, timeoutMs = 4 * 60 * 1000, addDirs = [], effort = null, fast = false, full = null }) {
+function askOnce({ claude, cwd, prompt, system, schema, model, tools = "Read,Grep,Glob", edit = false, long = false, onNote, control, apiKey, timeoutMs = 4 * 60 * 1000, addDirs = [], effort = null, fast = false, full = null, session = null }) {
   // Work a person asked for takes as long as it takes: no time limit, and steps to match. It ends when it is done,
   // when someone presses Stop, or when the connection itself goes away.
   if (edit) { tools = "Read,Grep,Glob,Edit,Write"; timeoutMs = long ? 0 : 10 * 60 * 1000; }
@@ -196,6 +196,11 @@ function askOnce({ claude, cwd, prompt, system, schema, model, tools = "Read,Gre
     const no = [...(full.folder && !full.noPush ? [] : ["Bash(git push:*)", "Bash(git push)"]), ...(edit ? [] : ["Edit", "Write", "NotebookEdit"]), ...(full.mode === "plan" ? ["ExitPlanMode"] : [])];
     if (no.length) args.push("--disallowedTools", ...no);
     if (full.allow?.length) args.push("--allowedTools", ...full.allow);
+  }
+  // A person's own chat in their own folder keeps one session, as at home: kept by Claude Code, picked up next time.
+  if (session && full) {
+    args.splice(args.indexOf("--no-session-persistence"), 1);
+    args.push(session.resume ? "--resume" : "--session-id", session.id);
   }
   if (system) args.push("--append-system-prompt", system);
   if (schema) args.push("--json-schema", JSON.stringify(schema));
@@ -257,6 +262,10 @@ function askOnce({ claude, cwd, prompt, system, schema, model, tools = "Read,Gre
         && /not (available|supported|enabled)|unavailable|unsupported|requires|disabled/i.test(`${err} ${result?.result || ""}`)
         && (!result || result.is_error);
       if (noAuto) return reject(Object.assign(new Error("Auto mode is not available here"), { noAuto: true }));
+      // A session that is gone (deleted, or never written) cannot be picked up: said so, so the request starts a new one.
+      if (session?.resume && (!result || result.is_error) && /no conversation found with session id/i.test(`${err} ${result?.result || ""}`)) {
+        return reject(Object.assign(new Error("that session could not be picked up"), { noSession: true }));
+      }
       if (!result) {
         log(`claude exited ${code} without a result: ${err.slice(0, 300)}`);
         return reject(new Error("Claude Code did not answer. See the runner log."));

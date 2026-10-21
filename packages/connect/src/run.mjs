@@ -7,6 +7,7 @@ import { layPointed, pointedPaths, pointedSystem } from "./pointed.mjs";
 import { PAGE, PAGE_KINDS, PAGE_SYSTEM, pageOut, pagesPrompt } from "./pages.mjs";
 import { newer, ownDir, ownVersion, restartOnNew, updateTo } from "./update.mjs";
 import { keepStartupCurrent } from "./autostart.mjs";
+import { forgetSession, giveBackSession, newSessionId, remember as rememberSession, sessionFor, tableSessionIds, takeSession, unseen } from "./sessions.mjs";
 import { attachedPrompt, commandPrompt, fetchAttachments, loadCommand, materialsPrompt, scanCommands, shareable } from "./extras.mjs";
 import { spawnSync } from "node:child_process";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -148,10 +149,12 @@ const fence = (job) => {
   const who = (m) => (m.by_ai ? `${m.name}'s AI` : m.client ? `${m.name} (the client, asking)` : m.name);
   const parts = [];
   if (job.people?.length) parts.push(facts(job));
+  // Carrying on its session, it already has the notes and the earlier conversation: only what is new is sent.
   if (job.pinned?.length) parts.push("Pinned notes:\n" + job.pinned.map((n) => `(${n.title || n.kind}) ${n.body ?? ""}`).join("\n"));
-  if (job.related?.length) parts.push("Related earlier messages from other chats:\n" + job.related.map((m) => `[${m.chat}] ${who(m)}: ${m.body ?? ""}`).join("\n"));
+  if (job.related?.length && !job.resumed) parts.push("Related earlier messages from other chats:\n" + job.related.map((m) => `[${m.chat}] ${who(m)}: ${m.body ?? ""}`).join("\n"));
   const talk = recent(job.history, 120000);
-  parts.push(talk.length ? `The conversation in "${job.chat_name}"${talk.length < (job.history || []).length ? " (its start is left out for length)" : ""}:\n` + talk.map((m) => `${who(m)}: ${m.body ?? ""}`).join("\n") : `No earlier messages in "${job.chat_name}".`);
+  if (job.resumed) parts.push(talk.length ? `Said in "${job.chat_name}" since your last turn here${talk.length < (job.history || []).length ? " (its start is left out for length)" : ""}:\n` + talk.map((m) => `${who(m)}: ${m.body ?? ""}`).join("\n") : `Nothing else was said in "${job.chat_name}" since your last turn here.`);
+  else parts.push(talk.length ? `The conversation in "${job.chat_name}"${talk.length < (job.history || []).length ? " (its start is left out for length)" : ""}:\n` + talk.map((m) => `${who(m)}: ${m.body ?? ""}`).join("\n") : `No earlier messages in "${job.chat_name}".`);
   if (job.kind === "plan") {
     parts.push("What the other AIs said before the work:" + NL + (job.views?.length ? job.views.map((v) => `${v.name}'s AI: ${v.view}`).join(NL) : "Nothing."));
   }
@@ -225,7 +228,9 @@ export function systemFor(job) {
   return [
     `You are ${job.me}'s Claude, working at their team's Longtable table "${job.table_name}".`,
     ...(job.yours ? [`You are the same Claude ${job.me} talks to on their own computer. The folder ${YOURS} in front of you holds what you know from there, whole: their instructions for this project, your memory files, and recent-conversation.md, the latest of your own conversation with them about it. When a question is about people, plans, history, what someone wants, what was decided or what you two were doing, read there before you answer, and answer as someone who knows. Never name that folder or its files at the table, never quote it at length, and never write any of it into the project.`] : []),
-    ...(job.knows || job.mind ? ["The message starts with what is yours alone, between <<<YOURS and YOURS>>>: what you already know from working with your person on their own computer, and your own notes from earlier work at this table (each other AI here keeps its own). Work the way it says and use the notes as hints. Never quote it, never name its files at the table, and never write any of it into a file. Where it disagrees with the code in front of you, the code wins."] : []),
+    // Carrying on its session, that came at the start of the session, not this message, and the rule still holds.
+    ...(job.knows || job.mind || job.resumed ? [`${job.resumed ? "Earlier in this session you were given" : "The message starts with"} what is yours alone, between <<<YOURS and YOURS>>>:`
+      + " what you already know from working with your person on their own computer, and your own notes from earlier work at this table (each other AI here keeps its own). Work the way it says and use the notes as hints. Never quote it, never name its files at the table, and never write any of it into a file. Where it disagrees with the code in front of you, the code wins."] : []),
     ...(job.kind === "combine" ? [`This time you write the table's one answer, from what the AIs here found. It is read first by ${job.me}, your own person: lead with what matters most to them by what you know of their priorities, leave out what they would not care about, and keep everything the other AIs found accurate. One answer, no second round.`] : []),
     // As their full Claude Code it has its usual tools, commands included, under its person's own rules; anything those
     // do not already allow is sent to its person to approve.
@@ -317,10 +322,19 @@ function said(content) {
   if (!Array.isArray(content)) return "";
   return content.filter((p) => p?.type === "text" && typeof p.text === "string").map((p) => p.text).join(NL);
 }
+// Where Claude Code keeps the sessions it ran in a folder.
+const sessionsDir = (folder) => join(process.env.LONGTABLE_CLAUDE_HOME || join(homedir(), ".claude"), "projects", resolve(folder).replace(/[^a-zA-Z0-9]/g, "-"));
+// The kinds of job that are a person's own request to their own AI, and so carry on the chat's session.
+const SESSION_KINDS = new Set(["look", "work", "answer", "plan"]);
+// A session can only be picked up while Claude Code still has it (the person may have cleared it).
+export const sessionOnDisk = (folder, id) => { try { return statSync(join(sessionsDir(folder), `${id}.jsonl`)).isFile(); } catch { return false; } };
+
 export function recentSession(folder, room = 90000) {
-  const dir = join(process.env.LONGTABLE_CLAUDE_HOME || join(homedir(), ".claude"), "projects", resolve(folder).replace(/[^a-zA-Z0-9]/g, "-"));
+  const dir = sessionsDir(folder);
+  // A table's own sessions are not the person's conversation with their Claude.
+  const tables = tableSessionIds();
   let files = [];
-  try { files = readdirSync(dir).filter((f) => f.endsWith(".jsonl")).map((f) => ({ f, at: statSync(join(dir, f)).mtimeMs, size: statSync(join(dir, f)).size })).sort((a, b) => b.at - a.at).slice(0, 3); } catch { return ""; }
+  try { files = readdirSync(dir).filter((f) => f.endsWith(".jsonl") && !tables.has(f.slice(0, -6))).map((f) => ({ f, at: statSync(join(dir, f)).mtimeMs, size: statSync(join(dir, f)).size })).sort((a, b) => b.at - a.at).slice(0, 3); } catch { return ""; }
   const turns = [];
   let used = 0;
   for (const { f, size } of files) {
@@ -847,6 +861,8 @@ async function work(rpc, seat, engines, raw) {
   let fullRun = null;
   let tree = null;
   let side = null;
+  let session = null;
+  let took = null;
   try {
     const copy = freshCopy(seat.table_id, seat.source);
     if (seat.kind === "codex") {
@@ -885,6 +901,19 @@ async function work(rpc, seat, engines, raw) {
     // An AI arriving writes the notes every AI here reads, so it is never handed what is its person's alone.
     const own = job.kind !== "intro";
     job = { ...job, mind: own ? mind(seat.table_id) : "", knows: own ? knows(seat) : "" };
+    // Their own request in their own folder carries on the chat's one session, as at home: what it read, ran and found
+    // last time is still there, and Claude Code compacts it by itself. It is sent only what it has not seen, and what
+    // it already knows of its person is not handed over again. One request at a time in a session: a second one in
+    // the same chat meanwhile runs fresh.
+    const fullHistory = job.history;
+    if (folder && full && SESSION_KINDS.has(job.kind) && job.chat_id && takeSession(seat.table_id, job.chat_id)) {
+      took = job.chat_id;
+      const had = sessionFor(seat.table_id, job.chat_id, folder);
+      const resume = !!had && sessionOnDisk(folder, had.id);
+      session = { id: resume ? had.id : newSessionId(), resume, chat: job.chat_id };
+      if (resume) job = { ...job, knows: "", mind: "", history: unseen(job.history, had), resumed: true };
+      log(`job ${job.job_id}: ${resume ? "carrying on" : "starting"} this chat's session`);
+    }
     // While it works, the connection tells the table it is alive and what it is on. If the table says stop, it stops.
     let note = "";
     let told = 0;
@@ -931,6 +960,7 @@ async function work(rpc, seat, engines, raw) {
     if (full) { fullRun = await fullSetup(rpc, seat, job, !!folder); log(`job ${job.job_id}: running as their full Claude Code in ${folder ? "their own folder" : opened.dir}`); }
     const before = folder ? folderState(folder) : null;
     const result = await ask({
+      session: session ? { id: session.id, resume: session.resume } : null,
       full: fullRun ? { mcp: fullRun.mcp, allow: fullRun.allow, project: fullRun.project, mode: job.mode || null, folder: !!folder,
         ...(folder ? pushPlan(folder, trustedRepo(seat, job.repo, job.use_repo), job.push_anywhere === true) : {}) } : null,
       claude,
@@ -1011,10 +1041,19 @@ async function work(rpc, seat, engines, raw) {
         },
       },
     });
+    // The session has now seen the chat up to here, its own request and its own answer.
+    if (session && !result.is_error) {
+      rememberSession(seat.table_id, session.chat, { id: session.id, folder, history: fullHistory, questionId: job.question_id, jobId: job.job_id });
+      // Claude Code keeps a resumed session under the same id; if a version ever gave it a new one, the table's session
+      // could later be read as the person's own conversation.
+      if (result.session_id && result.session_id !== session.id) log(`tripwire: the session came back under another id`);
+    }
     log(`${job.kind} job ${job.job_id} done in ${result.wall_ms} ms`);
     await report(rpc, seat, { ai: "claude", ...(result.limits || {}), models: ["opus", "sonnet", "haiku"] }, Object.keys(result.modelUsage || {})[0] || seat.model || process.env.LONGTABLE_MODEL);
   } catch (e) {
     log(`${job.kind} job ${job.job_id} failed: ${e.message}`);
+    // A session Claude Code could not pick up is forgotten, so the job taken up again starts a new one.
+    if (e.noSession && session) forgetSession(seat.table_id, session.chat);
     // Stopped by a person: the table already knows, and there is nothing to retry.
     if (e.message === "stopped") return;
     try { await rpc("runner_fail", { token: seat.token, job: job.job_id, reason: plain(e) }); } catch {}
@@ -1024,6 +1063,7 @@ async function work(rpc, seat, engines, raw) {
     if (fullRun) { try { rmSync(fullRun.mcp, { force: true }); } catch {} }
     if (tree) closeTree(tree);
     if (side) { try { rmSync(side, { recursive: true, force: true }); } catch {} }
+    if (took) giveBackSession(seat.table_id, took);
   }
 }
 
