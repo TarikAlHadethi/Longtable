@@ -36,7 +36,8 @@ export function WorkPanel({ review = [], onReview, tasks, jobs, members, aiWord,
       : j.kind === "view" ? "giving its view"
       : j.kind === "review" ? "looking it over"
       : j.kind === "combine" ? "writing it up"
-      : j.progress || "working";
+      // What it said between steps is marked with a quote mark; shown here as its words in quotes.
+      : j.progress?.startsWith("\"") ? `“${j.progress.slice(1)}”` : j.progress || "working";
     return `${what}${mins >= 1 ? ` · ${elapsed(mins)}` : ""}`;
   };
   return (

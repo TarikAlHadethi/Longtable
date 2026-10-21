@@ -637,6 +637,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (!chat || attach.busy || sendingFiles.current) return;
     sendingFiles.current = true;
     const body = draft.trim();
+    const pasted = takePasted(body);
     const putBack = () => { setDraft((d) => (d.trim() ? `${body}\n${d}` : body)); requestAnimationFrame(grow); };
     setDraft("");
     requestAnimationFrame(grow);
@@ -653,6 +654,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       }
       attach.clear();
       setNotice("");
+      markPasted(ask ? (data as { message_id: string }).message_id : (data as string), pasted);
       finishFiles(ask, data);
     } finally {
       sendingFiles.current = false;
@@ -666,6 +668,24 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (ask) catchUp();
   }
 
+  // Text pasted from somewhere else (a long block, or several lines) is noted, and where it sits in the message is sent
+  // with it, counted in characters, so the AIs read it as something brought in, never as the person's instructions.
+  const pastedRef = useRef<string[]>([]);
+  const takePasted = (body: string) => {
+    const out: [number, number][] = [];
+    for (const t of pastedRef.current) {
+      const piece = t.trim();
+      const at = piece ? body.indexOf(piece) : -1;
+      if (at >= 0) out.push([Array.from(body.slice(0, at)).length, Array.from(piece).length]);
+    }
+    pastedRef.current = [];
+    return out.slice(0, 10);
+  };
+  const markPasted = (m: string | undefined, ranges: [number, number][]) => {
+    if (!m || !ranges.length) return;
+    supabase.rpc("mark_pasted", { m, ranges }).then(({ error }: { error: { code?: string } | null }) => { if (error) console.warn("[pasted] could not be marked:", error.code); });
+  };
+
   async function send() {
     if (attach.pending.length) return sendFiles();
     const body = draft.trim();
@@ -678,6 +698,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     atBottom.current = true;
     const tempId = `sending-${crypto.randomUUID()}`;
     setMessages((prev) => [...prev, { id: tempId, chat_id: chat.id, member_id: me.id, body, created_at: new Date().toISOString(), state: "sending" }]);
+    const pasted = takePasted(body);
     const { data, error } = await supabase
       .from("messages")
       .insert({ table_id: table.id, chat_id: chat.id, member_id: me.id, body })
@@ -688,7 +709,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       setDraft((d) => (d.trim() ? `${body}\n${d}` : body));
       requestAnimationFrame(grow);
       setNotice("That message was not sent. It is back in the box.");
-    } else setNotice("");
+    } else { setNotice(""); markPasted((data as Message).id, pasted); }
     setMessages((prev) => {
       const rest = prev.filter((m) => m.id !== tempId);
       if (error || !data) return rest;
@@ -707,12 +728,14 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     setNotice("");
     requestAnimationFrame(grow);
     atBottom.current = true;
+    const pasted = takePasted(body);
     const { data, error } = await supabase.rpc("ask_table", { c: chat.id, body });
     if (error) {
       setDraft(body);
       return setNotice(error.message);
     }
     const res = data as { message_id: string; job_id: string | null; answered_by: string | null };
+    markPasted(res.message_id, pasted);
     const { data: row } = await supabase.from("messages").select(MESSAGE_COLUMNS).eq("id", res.message_id).single();
     if (row) setMessages((prev) => (prev.some((m) => m.id === (row as Message).id) ? prev : [...prev, row as Message]));
     if (!res.answered_by) setNotice("No AI is connected at this table yet, so nobody will answer. Connect yours from the table (press Longtable, top left).");
@@ -1181,6 +1204,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                   return <Answer key={m.id} m={m} members={byId} views={m.meta?.round ? viewsByRound.get(m.meta.round) ?? [] : []} follows={follows}
                     pages={m.meta?.job ? pages.filter((p) => p.job_id === m.meta?.job || pageVersions.some((v) => v.page_id === p.id && v.job_id === m.meta?.job)) : []}
                     onOpenPage={setOpenPage}
+                    files={m.meta?.files?.length ? <div className={styles.sayFiles}><Files supabase={supabase} files={m.meta.files} /></div> : null}
                     again={m.kind === "intro" && items.some((o) => o.kind !== "decision" && o.m.kind === "intro" && o.m.member_id === m.member_id && o.m.created_at < m.created_at)} />;
                 }
                 const mine = m.member_id === me.id;
@@ -1240,7 +1264,9 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                             : j.status === "failed" ? <div className={`${styles.brText} ${styles.workingFailed}`}>Couldn&apos;t finish: {j.error ?? "it gave up"}</div>
                             : j.status === "running" ? (
                               <div className={styles.brReading} key={j.progress ?? ""}><span className={styles.brSpin} />
-                                {j.progress && on ? <>{verb} <code>{on}</code></> : (j.progress || waiting)}
+                                {/* What it said between steps, in its own words; otherwise what it is doing, with the file in a chip. */}
+                                {j.progress?.startsWith("\"") ? <span className={styles.brSaid} data-testid="said-between">{j.progress.slice(1)}</span>
+                                  : j.progress && on ? <>{verb} <code>{on}</code></> : (j.progress || waiting)}
                               </div>
                             )
                             : <div className={styles.brWaiting}>{waiting}</div>}
@@ -1280,6 +1306,10 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 value={draft}
                 placeholder={`Message ${chat?.name ?? "the table"}`}
                 aria-label="Message the table"
+                onPaste={(e) => {
+                  const t = e.clipboardData.getData("text/plain");
+                  if (t && (t.length >= 150 || (t.match(/\n/g) || []).length >= 2)) pastedRef.current.push(t);
+                }}
                 onChange={(e) => { setDraft(e.target.value); setSlashAt(0); grow(); }}
                 onKeyDown={(e) => {
                   // With the list of their own commands open, the arrows move through it and Enter or Tab takes one.
@@ -1365,9 +1395,11 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 ? await supabase.rpc("set_push_anywhere", { conn: id, on_: patch.push_anywhere })
                 : patch.use_repo !== undefined
                 ? await supabase.rpc("set_use_repo", { conn: id, url: patch.use_repo })
+                : patch.browser !== undefined
+                ? await supabase.rpc("set_browser", { conn: id, on_: patch.browser })
                 : await supabase.rpc("set_connection_options", { conn: id, open: patch.open_paths ?? null, share: patch.share_paths ?? null });
               if (error && before) {
-                setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, open_paths: before.open_paths, share_paths: before.share_paths, full_claude: before.full_claude, in_folder: before.in_folder, push_anywhere: before.push_anywhere, use_repo: before.use_repo } : c)));
+                setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, open_paths: before.open_paths, share_paths: before.share_paths, full_claude: before.full_claude, in_folder: before.in_folder, push_anywhere: before.push_anywhere, use_repo: before.use_repo, browser: before.browser } : c)));
                 didNotTake("That switch was not changed. Try again.");
               }
             }} />

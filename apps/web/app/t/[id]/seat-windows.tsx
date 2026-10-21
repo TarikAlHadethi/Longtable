@@ -44,7 +44,7 @@ export function AiWindow({ tableId, me, person, conn, commands, on, busy, onSpee
   busy: boolean;
   onClose: () => void;
   onModel: (conn: string, model: string) => void;
-  onOptions: (conn: string, patch: { open_paths?: boolean; share_paths?: boolean; full_claude?: boolean; in_folder?: boolean; push_anywhere?: boolean; use_repo?: string | null }) => void;
+  onOptions: (conn: string, patch: { open_paths?: boolean; share_paths?: boolean; full_claude?: boolean; in_folder?: boolean; push_anywhere?: boolean; use_repo?: string | null; browser?: boolean }) => void;
   onConnect: () => void;
   onDisconnect: (conn: string) => void;
 }) {
@@ -149,6 +149,11 @@ export function AiWindow({ tableId, me, person, conn, commands, on, busy, onSpee
                 <Switch on={!!live.push_anywhere} onChange={(v) => onOptions(live.id, { push_anywhere: v })} testid="opt-push-anywhere"
                   title="Let it push anywhere"
                   about="Off: it pushes only to the table's repository." />
+              )}
+              {conn?.kind === "claude" && !!live.full_claude && (
+                <Switch on={!!live.browser} onChange={(v) => onOptions(live.id, { browser: v })} testid="opt-browser"
+                  title="Let it open pages"
+                  about="A browser for your requests, with no window, to see what it builds." />
               )}
               {/* Fast mode only where their account can use it: a switch that can never work is not offered. */}
               {conn?.kind === "claude" && !(live.limits?.fast_why && live.limits?.fast !== "on") && (

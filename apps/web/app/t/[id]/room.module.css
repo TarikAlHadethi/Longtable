@@ -610,6 +610,7 @@
 .brWho { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; color: var(--muted); }
 .brWho b { color: var(--ink); font-weight: 560; }
 .brReading { display: flex; align-items: center; gap: 7px; font-size: 13.5px; color: var(--ink-2); margin-top: 2px; min-width: 0; animation: lt-fade 0.18s ease both; }
+.brSaid { font-style: italic; color: var(--ink-2); }
 .brReading code { font-family: var(--font-ui); font-size: 12px; background: var(--chip); padding: 1px 5px; border-radius: 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .brWaiting { font-size: 13.5px; color: var(--muted); margin-top: 2px; }
 .brText { font-size: 14px; line-height: 1.45; margin-top: 2px; animation: lt-rise 0.4s var(--ease-out) both; }

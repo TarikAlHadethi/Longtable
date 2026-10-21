@@ -212,6 +212,43 @@ try {
   check("a run that died without reading what it was handed gives it back to be heard", Array.isArray(got4) && got4.some((m) => m.id === m4) && heardM4 === "1", { got4, heardM4 });
   sql(`delete from public.jobs where chat_id = '${chat2}' and kind = 'listen'`);
 
+  // Her Claude puts a file on its answer: uploaded into its own job's place with nothing but the job's key, then on the answer.
+  const prefix = (await anon("runner_upload_slot", { key: key2 })).body;
+  check("a running job gets a place of its own to upload into", typeof prefix === "string" && prefix.startsWith(`${tableId}/ai-`), prefix);
+  const object = `${prefix}${crypto.randomUUID()}-shot.png`;
+  const PNG = Buffer.from("89504e470d0a1a0a0000000d4948445200000001000000010806000000", "hex");
+  const up = await fetch(`${API}/storage/v1/object/attachments/${object}`, { method: "POST", headers: { apikey: KEY, "Content-Type": "image/png" }, body: PNG });
+  const elsewhere = await fetch(`${API}/storage/v1/object/attachments/${tableId}/ai-${"0".repeat(32)}/x-shot.png`, { method: "POST", headers: { apikey: KEY, "Content-Type": "image/png" }, body: PNG });
+  check("it uploads there, and nowhere a job's key did not open", up.ok && !elsewhere.ok, { up: up.status, elsewhere: elsewhere.status });
+  const notItsPlace = await anon("runner_attach", { key: key2, path: `${tableId}/${mayaId}/${crypto.randomUUID()}-x.png`, name: "x.png" });
+  const named = await anon("runner_attach", { key: key2, path: object, name: "shot.png" });
+  check("only a file in its own place can be named to the job", notItsPlace.status >= 400 && named.status < 300, { notItsPlace, named });
+  const answerMsg = sql(`insert into public.messages (table_id, chat_id, member_id, body, by_ai, kind) values ('${tableId}', '${chatId}', '${mayaId}', 'Here it is.', true, 'answer') returning id`).split(/\r?\n/)[0];
+  sql(`update public.jobs set result_message_id = '${answerMsg}' where id = '${job}'`);
+  const placed = (await anon("runner_attach_answer", { token: device.maya, job })).body;
+  const onAnswer = JSON.parse(sql(`select meta -> 'files' from public.messages where id = '${answerMsg}'`) || "[]");
+  check("once its answer is written, the file is on it", placed === 1 && onAnswer.length === 1 && onAnswer[0].name === "shot.png" && onAnswer[0].kind === "image", { placed, onAnswer });
+  const teamSees = await rest(tok.sam, `attachments?select=id&message_id=eq.${answerMsg}`);
+  const clientSees = await rest(tok.elena, `attachments?select=id&message_id=eq.${answerMsg}`);
+  check("the team sees it, a client does not", teamSees.body?.length === 1 && Array.isArray(clientSees.body) && clientSees.body.length === 0, { teamSees: teamSees.body, clientSees: clientSees.body });
+
+  // Text she pasted is marked where it sits, on her own message only, and reaches her AI marked.
+  const pastedMsg = sql(`insert into public.messages (table_id, chat_id, member_id, body) values ('${tableId}', '${chatId}', '${mayaId}', 'see this: LOG LINE ONE') returning id`).split(/\r?\n/)[0];
+  const samMarks = await rpc(tok.sam, "mark_pasted", { m: pastedMsg, ranges: [[0, 3]] });
+  const tooLong = await rpc(tok.maya, "mark_pasted", { m: pastedMsg, ranges: [[10, 999]] });
+  const marks = await rpc(tok.maya, "mark_pasted", { m: pastedMsg, ranges: [[10, 12]] });
+  const kept = JSON.parse(sql(`select coalesce(meta -> 'pasted', 'null') from public.messages where id = '${pastedMsg}'`));
+  check("she marks what she pasted in her own message, only where it fits", tooLong.status < 300 && marks.status < 300 && JSON.stringify(kept) === "[[10,12]]", { kept });
+  check("nobody else can mark her message", samMarks.status >= 400, samMarks);
+  // Her browser is hers to turn on, and reaches her connection with each job.
+  const samBrowser = await rpc(tok.sam, "set_browser", { conn: conn.maya, on_: true });
+  const mayaBrowser = await rpc(tok.maya, "set_browser", { conn: conn.maya, on_: true });
+  check("only she turns her AI's browser on", samBrowser.status >= 400 && mayaBrowser.status < 300 && sql(`select browser from public.connections where id = '${conn.maya}'`) === "t", { samBrowser, mayaBrowser });
+  const lookP = sql(`insert into public.jobs (table_id, member_id, kind, chat_id, question_id) values ('${tableId}', '${mayaId}', 'look', '${chatId}', '${pastedMsg}') returning id`).split(/\r?\n/)[0];
+  const claimedP = (await anon("runner_claim", { token: device.maya, lane: "light" })).body;
+  check("each job carries her browser switch and where her question was pasted", claimedP?.browser === true && JSON.stringify(claimedP?.question_pasted) === "[[10,12]]", { browser: claimedP?.browser, pasted: claimedP?.question_pasted, kind: claimedP?.kind });
+  sql(`update public.jobs set status = 'done' where id = '${lookP}'`);
+
   // The job ends: its key dies with it, and nothing of it waits any more.
   const open = (await anon("runner_ask_approval", { key: key2, tool: "Bash", summary: "npm run lint" })).body;
   sql(`update public.jobs set status = 'done' where id = '${job}'`);

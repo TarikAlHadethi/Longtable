@@ -171,18 +171,37 @@ try {
   await page.waitForTimeout(3000);
   await page.fill("textarea", `Also end your reply with the word ${MARK3}.`);
   await page.keyboard.press("Enter");
+  let sawWords = false;
   for (let i = 0; i < 300; i++) {
     if ((await page.locator("[data-ai='true']").count()) > count3) break;
+    if (await page.locator("[data-testid=said-between]").count()) sawWords = true;
     const more = page.locator("[data-testid=approvals] [data-approval] [data-testid=allow]").first();
     if (await more.count()) await more.click().catch(() => {});
     await page.waitForTimeout(1000);
   }
+  results.sawWords = sawWords;
   await page.waitForTimeout(15000);
   const answersNow = await page.locator("[data-ai='true']").count();
   const midway = (await page.locator("[data-ai='true']").nth(count3).textContent()) || "";
   results.midway = midway.slice(-250);
   check("what she typed while it worked reached the same run", midway.includes(MARK3), midway.slice(-250));
   check("and did not become a request of its own", answersNow === count3 + 1, { answersNow, expected: count3 + 1 });
+  check("what it wrote between steps showed in the back room while it worked", sawWords);
+
+  // It puts a file on its answer, as Claude in the app sends one.
+  const count4 = await page.locator("[data-ai='true']").count();
+  await page.fill("textarea", "Create a file named note.txt in the project containing the word hello, then share that file with me using your file-sharing tool, then reply with the single word done.");
+  await page.keyboard.press("Control+Enter");
+  for (let i = 0; i < 300; i++) {
+    if ((await page.locator("[data-ai='true']").count()) > count4) break;
+    const ok = page.locator("[data-testid=approvals] [data-approval] [data-testid=allow]").first();
+    if (await ok.count()) await ok.click().catch(() => {});
+    await page.waitForTimeout(1000);
+  }
+  let shared = "";
+  for (let i = 0; i < 30 && !/note.txt/.test(shared); i++) { await page.waitForTimeout(1000); shared = (await page.locator("[data-ai='true']").last().locator("[data-testid=files]").textContent().catch(() => "")) || ""; }
+  results.shared = shared;
+  check("the file it shared shows on its answer", /note.txt/.test(shared), shared);
 
   // A command she denies does not run.
   const before = await page.locator("[data-ai='true']").count();

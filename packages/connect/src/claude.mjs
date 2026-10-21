@@ -201,8 +201,8 @@ function askOnce({ claude, cwd, prompt, system, schema, model, tools = "Read,Gre
     // Its own question tool goes nowhere in a run like this; questions go to the person through Longtable's instead.
     const no = ["AskUserQuestion", ...(full.folder && !full.noPush ? [] : ["Bash(git push:*)", "Bash(git push)"]), ...(edit ? [] : ["Edit", "Write", "NotebookEdit"]), ...(full.mode === "plan" ? ["ExitPlanMode"] : [])];
     if (no.length) args.push("--disallowedTools", ...no);
-    // Asking its person a question is never itself something to ask permission for.
-    args.push("--allowedTools", "mcp__longtable__ask", ...(full.allow || []));
+    // Asking its person a question, or putting a file on its answer, is never itself something to ask permission for.
+    args.push("--allowedTools", "mcp__longtable__ask", "mcp__longtable__share_file", ...(full.allow || []));
   }
   // A person's own chat in their own folder keeps one session, as at home: kept by Claude Code, picked up next time.
   if (session && full) {
@@ -272,8 +272,16 @@ function askOnce({ claude, cwd, prompt, system, schema, model, tools = "Read,Gre
       else if (e.type === "system" && e.subtype === "init") init = { commands: Array.isArray(e.slash_commands) ? e.slash_commands : [], fast: e.fast_mode_state || null, fastWhy: e.fast_mode_disabled_reason || null };
       else if (e.type === "rate_limit_event") rate = e.rate_limit_info;
       else if (onNote && e.type === "assistant") {
-        // A tool call says what the AI is doing right now.
+        // A tool call says what the AI is doing right now, and what it writes between steps ("Rebuilt, running the
+        // checks again") is shown as it says it, as in Claude Code: its first sentence, marked with a quote mark.
         for (const part of e.message?.content || []) {
+          if (part.type === "text") {
+            // Only from a person's own full Claude Code, as at home: never from work done for a client's copy or others.
+            if (!full) continue;
+            const first = Array.from(String(part.text || "").replace(/\s+/g, " ").trim().split(/(?<=[.!?:])\s/)[0] || "");
+            if (first.length > 2) onNote(`"${first.length > 115 ? `${first.slice(0, 114).join("")}…` : first.join("")}`);
+            continue;
+          }
           if (part.type !== "tool_use") continue;
           const where = String(part.input?.file_path || part.input?.path || "");
           // The path inside the project when it is in it (src/booking/StaffPicker.tsx), else the file's name alone.

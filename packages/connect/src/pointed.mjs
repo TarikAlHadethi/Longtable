@@ -32,7 +32,7 @@ const NEVER = [
 ];
 // On Windows a colon after the drive names one of a file's streams (".env::$DATA" reads the .env itself), and no
 // ordinary file name holds one there, so a path with one is never opened.
-const refused = (p) => NEVER.some((r) => r.test(p)) || (process.platform === "win32" && String(p).replace(/^(\\\\[?.]\\)?[A-Za-z]:/, "").includes(":"));
+export const refused = (p) => NEVER.some((r) => r.test(p)) || (process.platform === "win32" && String(p).replace(/^(\\\\[?.]\\)?[A-Za-z]:/, "").includes(":"));
 const isLink = (p) => { try { return lstatSync(p).isSymbolicLink(); } catch { return true; } };
 // A whole drive, a whole home folder or the system's own folders are not "a place someone pointed at".
 function tooWide(p) {

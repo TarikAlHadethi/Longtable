@@ -5,7 +5,7 @@
 //   node tests/e2e/unit-approve.mjs
 
 import { spawn } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -39,16 +39,22 @@ check("a missing or broken file is no rules", alwaysRules(join(dir, "none.json")
 
 // The whole exchange, against a stand-in Longtable that answers the person's way.
 let asked = null;
+let uploaded = null;
+let attached = null;
 let answer = "allowed";
 let replyWords = "Blue, the darker one";
 const longtable = createServer((req, res) => {
   let body = "";
   req.on("data", (d) => (body += d));
   req.on("end", () => {
+    // A file put into its job's place in storage.
+    if (req.url.includes("/storage/v1/object/attachments/")) { uploaded = decodeURIComponent(req.url); res.setHeader("Content-Type", "application/json"); return res.end("{}"); }
     const args = JSON.parse(body || "{}");
     res.setHeader("Content-Type", "application/json");
     if (req.url.endsWith("/runner_ask_approval")) { asked = args; return res.end(JSON.stringify("a-1")); }
     if (req.url.endsWith("/runner_ask_question")) { asked = args; return res.end(JSON.stringify("q-1")); }
+    if (req.url.endsWith("/runner_upload_slot")) return res.end(JSON.stringify("t1/ai-" + "a".repeat(32) + "/"));
+    if (req.url.endsWith("/runner_attach")) { attached = args; return res.end(JSON.stringify("f-1")); }
     if (req.url.endsWith("/runner_approval")) {
       // The job ended: its key is dead, and the server says so.
       if (answer === "gone") { res.statusCode = 400; return res.end(JSON.stringify({ message: "that key is not for a running job" })); }
@@ -67,12 +73,12 @@ async function exchange(tool, input, extra = {}, name = "approve") {
   child.stdout.on("data", (d) => (out += d));
   const send = (m) => child.stdin.write(JSON.stringify(m) + NL);
   send({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } });
-  send({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name, arguments: name === "ask" ? input : { tool_name: tool, input } } });
+  send({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name, arguments: name === "approve" ? { tool_name: tool, input } : input } });
   for (let i = 0; i < 100 && !out.includes('"id":2'); i++) await new Promise((r) => setTimeout(r, 50));
   child.kill();
   const line = out.split(NL).find((l) => l.includes('"id":2'));
   const text = JSON.parse(line).result.content[0].text;
-  return name === "ask" ? text : JSON.parse(text);
+  return name === "approve" ? JSON.parse(text) : text;
 }
 
 writeFileSync(file, "[]");
@@ -104,6 +110,24 @@ answer = "allowed";
 const q = await exchange("ask", { question: "Which colour?", options: [{ label: "Red" }, { label: "Blue", description: "the darker one" }] }, {}, "ask");
 check("a question goes to the person with its choices", asked?.key === "job-key" && asked?.question === "Which colour?" && asked?.options?.length === 2 && asked.options[1].about === "the darker one", asked);
 check("and their answer comes back to Claude in their words", typeof q === "string" && /They answered: Blue, the darker one/.test(q), q);
+// Putting a file on its answer: only from the folder it works in or its screenshots, never secrets, notes, folders or huge files.
+const work = join(dir, "work");
+mkdirSync(join(work, ".longtable-yours"), { recursive: true });
+writeFileSync(join(work, "report.csv"), "a,b\n1,2\n");
+writeFileSync(join(work, ".env"), "KEY=1\n");
+writeFileSync(join(work, ".longtable-yours", "recent-conversation.md"), "private");
+writeFileSync(join(dir, "elsewhere.txt"), "not in the work folder");
+const roots = { LT_SHARE_ROOTS: work };
+const ok = await exchange("share_file", { path: join(work, "report.csv") }, roots, "share_file");
+check("a file from the folder it works in goes on its answer, into its own job's place", /report\.csv is on your answer/.test(ok) && /\/storage\/v1\/object\/attachments\/t1\/ai-a{32}\/.+-report\.csv$/.test(uploaded || "") && attached?.name === "report.csv", { ok, uploaded, attached });
+uploaded = null;
+const outside = await exchange("share_file", { path: join(dir, "elsewhere.txt") }, roots, "share_file");
+const notes = await exchange("share_file", { path: join(work, ".longtable-yours", "recent-conversation.md") }, roots, "share_file");
+const secret = await exchange("share_file", { path: join(work, ".env") }, roots, "share_file");
+const folder = await exchange("share_file", { path: work }, roots, "share_file");
+check("never a file from elsewhere, the person's own notes, a secret file or a folder", /Only a file from the folder/.test(outside) && /Only a file from the folder/.test(notes) && /never shares/.test(secret) && /not a file/.test(folder) && uploaded === null, { outside, notes, secret, folder });
+writeFileSync(join(work, "big.bin"), Buffer.alloc(16 * 1024 * 1024));
+check("never a file over 15 MB", /over 15 MB/.test(await exchange("share_file", { path: join(work, "big.bin") }, roots, "share_file")));
 longtable.close();
 
 console.log(JSON.stringify({ checks: results }, null, 2));
