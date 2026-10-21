@@ -1,8 +1,6 @@
-import { Demo } from "./demo";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Demo · Longtable" };
-
-// The demo: a made-up dental clinic's team and their client, with recorded answers and nothing real behind it.
+// The demo lives on the opening page now; an old link to /demo lands there.
 export default function DemoPage() {
-  return <Demo />;
+  redirect("/#demo");
 }

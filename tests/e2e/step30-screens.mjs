@@ -5,7 +5,7 @@
 //   Settings that could not be read cannot be saved; Logs that could not be read say so.
 //   A chat deleted while the owner is in Settings leaves them in Settings.
 //   A short name keeps a title: "Take Dr. Ruiz off", never "Take Dr. off".
-//   The demo's client side is drawn with the client page's own look, with no greeting.
+//   The old demo address lands on the opening page's demo.
 //   GitHub deliveries without a signature are refused before the database is asked.
 //
 //   node --experimental-websocket tests/e2e/step30-screens.mjs
@@ -97,15 +97,10 @@ try {
   check("a log that could not be read says so, not \"Nothing yet.\"", /could not be read/.test(logs) && !/Nothing yet/.test(logs), logs.slice(0, 200));
   await p.unroute("**/rest/v1/activity?*");
 
-  // ---- The demo's client side has the client page's own look
+  // ---- The old demo address lands on the opening page's demo
   await p.goto(`${APP}/demo`);
-  await p.waitForSelector("[aria-label=\"Elena's page\"]");
-  const demo = await p.evaluate(() => {
-    const pane = document.querySelector("[aria-label=\"Elena's page\"]");
-    const bubble = pane.querySelector("[class*=bubble]");
-    return { greeting: /Good morning/.test(pane.textContent), bubble: bubble ? getComputedStyle(bubble).backgroundColor : null };
-  });
-  check("the demo's client side is drawn with the real client page's look, with no greeting", !demo.greeting && !!demo.bubble && demo.bubble !== "rgba(0, 0, 0, 0)", demo);
+  await p.waitForSelector("#demo", { timeout: 20000 });
+  check("the old demo address lands on the opening page's demo", new URL(p.url()).pathname === "/", p.url());
 
   // ---- GitHub deliveries without a signature never reach the database
   const unsigned = await fetch(`${APP}/api/github/${tableId}`, { method: "POST", headers: { "x-github-event": "push", "content-type": "application/json" }, body: "{}" });
