@@ -52,6 +52,7 @@ jobs:
       - run: node tests/e2e/unit-connection.mjs
       - run: node tests/e2e/unit-approve.mjs
       - run: node tests/e2e/unit-sessions.mjs
+      - run: node tests/e2e/unit-procs.mjs
       - run: node tests/e2e/chaos-connect.mjs
 
   # The connection starting at login and starting again after an update, for real, on a Mac (launchd) and on Linux

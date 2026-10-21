@@ -5,6 +5,10 @@ import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, join } from "node:path";
 import { home, loadSecret, log } from "./store.mjs";
+import { below } from "./procs.mjs";
+
+// A command that can leave a program running after it returns.
+export const LEAVES_RUNNING = /(^|[^&<>])&(?![&>])|\bnohup\b|\bdisown\b|\bsetsid\b|\bnpm\s+(run\s+)?(dev|start)\b|\bnext\s+(dev|start)\b|\bvite\b|\bserve\b|docker\s+compose\s+up|\bpm2\b/i;
 
 const isWindows = process.platform === "win32";
 const exe = isWindows ? "claude.exe" : "claude";
@@ -169,8 +173,9 @@ function askOnce({ claude, cwd, prompt, system, schema, model, tools = "Read,Gre
   // Work a person asked for takes as long as it takes: no time limit, and steps to match. It ends when it is done,
   // when someone presses Stop, or when the connection itself goes away.
   if (edit) { tools = "Read,Grep,Glob,Edit,Write"; timeoutMs = long ? 0 : 10 * 60 * 1000; }
-  // A full run can wait on the person's answers, so a short job gets longer than a locked one.
-  if (full && !edit) timeoutMs = Math.max(timeoutMs, 15 * 60 * 1000);
+  // Their own full Claude Code takes as long as it takes, a question as much as work, as at home: no time limit and
+  // steps to match. It ends when it is done, when they press Stop, or when the connection goes away.
+  if (full) timeoutMs = 0;
   const token = apiKey ? null : loadSecret("claude-token");
   if (!token && !apiKey) return Promise.reject(new Error("This connection has no Claude sign-in yet. Run connect again."));
   // Streamed output carries the plan's usage limits (a rate_limit_event) as well as the result.
@@ -179,7 +184,7 @@ function askOnce({ claude, cwd, prompt, system, schema, model, tools = "Read,Gre
       // Their own choice of how it asks (manual, accept edits, auto, plan), else as before: edits go ahead in work.
       "--permission-mode", full.mode === "plan" ? "plan" : full.mode === "auto" ? "auto" : full.mode === "manual" ? "default" : full.mode === "acceptEdits" || edit ? "acceptEdits" : "default",
       "--permission-prompt-tool", "mcp__longtable__approve",
-      "--mcp-config", full.mcp, "--max-turns", edit ? (long ? "10000" : "200") : "60"]
+      "--mcp-config", full.mcp, "--max-turns", edit && !long ? "200" : "10000"]
     : ["-p", "--output-format", "stream-json", "--verbose", "--no-session-persistence", "--restricted", "--permission-mode", edit ? "acceptEdits" : "dontAsk",
       "--strict-mcp-config", "--max-turns", edit ? (long ? "10000" : "60") : tools ? "25" : "4", "--tools", tools];
   if (full) {
@@ -216,7 +221,9 @@ function askOnce({ claude, cwd, prompt, system, schema, model, tools = "Read,Gre
   for (const d of addDirs) args.push("--add-dir", d);
   return new Promise((resolve, reject) => {
     const started = Date.now();
-    const child = spawn(claude, args, { cwd, env: full ? fullEnv(token, full.folder ? { hooksOff: false, pushTo: full.pushTo === undefined ? [] : full.pushTo } : {}) : childEnv(token, apiKey), windowsHide: true });
+    const child = spawn(claude, args, { cwd, env: full ? fullEnv(token, full.folder ? { hooksOff: false, pushTo: full.pushTo === undefined ? [] : full.pushTo } : {}) : childEnv(token, apiKey), windowsHide: true,
+      // On Mac and Linux a full run leads its own process group, so what it starts can still be found after it is gone.
+      detached: !!full && process.platform !== "win32" });
     keepTrack(child);
     // Only the result and the plan's limits are kept: work with no time limit would otherwise hold every file it ever
     // read in memory.
@@ -229,8 +236,34 @@ function askOnce({ claude, cwd, prompt, system, schema, model, tools = "Read,Gre
     child.stderr.setEncoding("utf8");
     const timer = timeoutMs ? setTimeout(() => { ended = "ran out of time"; child.kill(); }, timeoutMs) : null;
     if (control) control.kill = () => { ended = "stopped"; child.kill(); };
+    // What this Claude starts and leaves running: looked for just after a command that can leave something behind,
+    // and once more as it finishes, while it is still there to be the parent of what it started.
+    const seen = new Map();
+    const lingering = new Set();
+    // Each listing is waited for before the run reports: the last one is taken as it finishes, and what it started still
+    // names it as their parent after it has gone.
+    const looks = [];
+    const look = () => { if (full) looks.push(below(child.pid, started).then((list) => { for (const p of list) seen.set(`${p.pid}|${p.start}`, p); }).catch(() => {})); };
     const lines = lineReader((e) => {
-      if (e.type === "result") result = e;
+      if (full && e.type === "assistant") {
+        for (const part of e.message?.content || []) {
+          if (part.type === "tool_use" && part.name === "Bash" && (part.input?.run_in_background || LEAVES_RUNNING.test(String(part.input?.command || "")))) lingering.add(part.id);
+        }
+      } else if (full && e.type === "user") {
+        for (const part of e.message?.content || []) if (part.type === "tool_result" && lingering.has(part.tool_use_id)) setTimeout(look, 1500);
+      }
+      if (e.type === "result") {
+        result = e;
+        look();
+        // Its answer is in. Claude Code can stay running after that, waiting on a program it left in the background; then
+        // what it left is listed and that Claude Code ends, so the run finishes. What it started lives on (in a chat's
+        // session) or is stopped (outside one).
+        setTimeout(() => {
+          if (finished || child.exitCode !== null) return;
+          look();
+          Promise.allSettled(looks).then(() => { try { child.kill(); } catch {} setTimeout(() => finish(child.exitCode), 1000); });
+        }, 4000);
+      }
       // What this Claude Code has built in, and whether fast mode can serve: the table's "/" list and the AI's window.
       else if (e.type === "system" && e.subtype === "init") init = { commands: Array.isArray(e.slash_commands) ? e.slash_commands : [], fast: e.fast_mode_state || null, fastWhy: e.fast_mode_disabled_reason || null };
       else if (e.type === "rate_limit_event") rate = e.rate_limit_info;
@@ -250,13 +283,20 @@ function askOnce({ claude, cwd, prompt, system, schema, model, tools = "Read,Gre
         }
       }
     });
-    child.stdout.on("data", (d) => lines.push(d));
-    child.stderr.on("data", (d) => { if (err.length < 4000) err += d; });
+    let finished = false;
+    // Read for as long as anything writes to it, even after the run is done, so a program left running never blocks on
+    // a full pipe or fails writing to a closed one; what comes after the run is not kept.
+    child.stdout.on("data", (d) => { if (!finished) lines.push(d); });
+    child.stderr.on("data", (d) => { if (!finished && err.length < 4000) err += d; });
     child.on("error", (e) => { clearTimeout(timer); reject(e); });
-    child.on("close", (code) => {
+    // Done when Claude itself has exited, not when its output closes: a program it left running in the background holds
+    // its output open, so waiting for that would wait as long as the program runs. A moment after it exits, for the
+    // last of its output to be read, the run is finished, once.
+    const finish = (code) => { if (finished) return; finished = true; if (lingering.size) look(); return Promise.allSettled(looks).then(() => {
       clearTimeout(timer);
       lines.end();
-      if (ended) return reject(new Error(ended));
+      const procs = [...seen.values()];
+      if (ended) return reject(Object.assign(new Error(ended), { procs }));
       // Asked for Auto on an account or model that cannot use it: said so, so the run is tried again without it.
       const noAuto = full?.mode === "auto" && /auto/i.test(`${err} ${result?.is_error ? result.result || "" : ""}`)
         && /not (available|supported|enabled)|unavailable|unsupported|requires|disabled/i.test(`${err} ${result?.result || ""}`)
@@ -270,8 +310,10 @@ function askOnce({ claude, cwd, prompt, system, schema, model, tools = "Read,Gre
         log(`claude exited ${code} without a result: ${err.slice(0, 300)}`);
         return reject(new Error("Claude Code did not answer. See the runner log."));
       }
-      resolve({ ...result, wall_ms: Date.now() - started, limits: claudeLimits(rate), init });
-    });
+      resolve({ ...result, wall_ms: Date.now() - started, limits: claudeLimits(rate), init, procs });
+    }); };
+    child.on("close", (code) => finish(code));
+    child.on("exit", (code) => setTimeout(() => finish(code), 1500));
     // A child that dies before it has read the whole prompt must not take the connection down with it.
     child.stdin.on("error", () => {});
     child.stdin.end(prompt);

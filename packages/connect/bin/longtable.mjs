@@ -20,6 +20,7 @@ import { codexSignIn, codexSignedIn, codexVersion, findCodex } from "../src/code
 import { disableAutostart, enableAutostart } from "../src/autostart.mjs";
 import { folderFor, forgetCopies, freshCopy, gitCanJoin, resolveSource } from "../src/repo.mjs";
 import { forgetTableSessions } from "../src/sessions.mjs";
+import { stopLeftovers } from "../src/procs.mjs";
 import { endConnection, runLoop, runningConnection } from "../src/run.mjs";
 import { handOffTo } from "../src/update.mjs";
 import { pathToFileURL } from "node:url";
@@ -186,6 +187,8 @@ async function disconnect() {
   forgetCopies((config.connections || []).map((c) => c.table_id), (config.connections || []).map((c) => c.folder).filter(Boolean));
   // Which chat had which session is forgotten too; the sessions themselves stay in their own Claude Code history.
   forgetTableSessions((config.connections || []).map((c) => c.table_id));
+  // The connection was ended from outside, so what its sessions left running is stopped here.
+  stopLeftovers();
   // Its own notes from those tables, and a client's ChatGPT sign-in kept for Longtable alone, go too.
   for (const c of config.connections || []) { try { rmSync(join(home, "minds", `${String(c.table_id).replace(/[^0-9a-f-]/gi, "")}.md`), { force: true }); } catch {} }
   if ((config.connections || []).some((c) => c.role === "client")) { try { rmSync(join(home, "codex"), { recursive: true, force: true }); } catch {} }

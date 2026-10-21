@@ -119,7 +119,7 @@ try {
   // output is only in the session (she asks it not to say it), so only a session that carried on can answer.
   const MARK2 = `SESSION-${run}`;
   const count0 = await page.locator("[data-ai='true']").count();
-  await page.fill("textarea", `Run node -e "console.log('${MARK2}-' + (6 * 7))" but do not tell me what it printed. Just reply with the single word done.`);
+  await page.fill("textarea", `Run node -e "console.log('${MARK2}-' + (6 * 7))" and read what it prints yourself, but do not repeat it in your reply: just reply with the single word done.`);
   await page.keyboard.press("Control+Enter");
   for (let i = 0; i < 420; i++) {
     if ((await page.locator("[data-ai='true']").count()) > count0) break;

@@ -90,3 +90,4 @@ export function takeSession(table, chat) {
   return true;
 }
 export function giveBackSession(table, chat) { busy.delete(`${table}:${chat}`); }
+export const sessionInUse = (key) => busy.has(key);

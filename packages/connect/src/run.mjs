@@ -7,7 +7,8 @@ import { layPointed, pointedPaths, pointedSystem } from "./pointed.mjs";
 import { PAGE, PAGE_KINDS, PAGE_SYSTEM, pageOut, pagesPrompt } from "./pages.mjs";
 import { newer, ownDir, ownVersion, restartOnNew, updateTo } from "./update.mjs";
 import { keepStartupCurrent } from "./autostart.mjs";
-import { forgetSession, giveBackSession, newSessionId, remember as rememberSession, sessionFor, tableSessionIds, takeSession, unseen } from "./sessions.mjs";
+import { SESSION_IDLE_MS, endAllSessions, endIdleSessions, endSession, keepForSession, stopLeftovers, stopProcs, touchSession } from "./procs.mjs";
+import { forgetSession, giveBackSession, sessionInUse, newSessionId, remember as rememberSession, sessionFor, tableSessionIds, takeSession, unseen } from "./sessions.mjs";
 import { attachedPrompt, commandPrompt, fetchAttachments, loadCommand, materialsPrompt, scanCommands, shareable } from "./extras.mjs";
 import { spawnSync } from "node:child_process";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -906,6 +907,14 @@ async function work(rpc, seat, engines, raw) {
     // it already knows of its person is not handed over again. One request at a time in a session: a second one in
     // the same chat meanwhile runs fresh.
     const fullHistory = job.history;
+    // What its Claude leaves running: kept while the chat's session lives (a server it tests against next time), else
+    // stopped as soon as this run ends. Only ever what this Claude started.
+    const keepOrStop = (procs) => {
+      if (!procs?.length) return;
+      if (session) { keepForSession(`${seat.table_id}:${session.chat}`, procs); return; }
+      const n = stopProcs(procs);
+      if (n) log(`job ${job.job_id}: stopped ${n} program(s) its Claude had left running`);
+    };
     if (folder && full && SESSION_KINDS.has(job.kind) && job.chat_id && takeSession(seat.table_id, job.chat_id)) {
       took = job.chat_id;
       const had = sessionFor(seat.table_id, job.chat_id, folder);
@@ -913,6 +922,9 @@ async function work(rpc, seat, engines, raw) {
       session = { id: resume ? had.id : newSessionId(), resume, chat: job.chat_id };
       if (resume) job = { ...job, knows: "", mind: "", history: unseen(job.history, had), resumed: true };
       log(`job ${job.job_id}: ${resume ? "carrying on" : "starting"} this chat's session`);
+      // A new session is a new start: what the chat's session before it left running is stopped.
+      if (!resume) endSession(`${seat.table_id}:${session.chat}`, "a new session began");
+      touchSession(`${seat.table_id}:${session.chat}`);
     }
     // While it works, the connection tells the table it is alive and what it is on. If the table says stop, it stops.
     let note = "";
@@ -979,10 +991,12 @@ async function work(rpc, seat, engines, raw) {
       effort: job.effort || "medium",
       fast: job.fast === true,
     }).catch((e) => {
+      keepOrStop(e.procs);
       // Only short jobs have a time limit now; if one that was changing files hits it, what it changed still lands.
       if (e.message !== "ran out of time" || !doing) throw e;
       return { structured_output: { answer: folder ? "I ran out of time. What I had changed up to then is in your folder. It is not finished, so look at it before building on it." : "I ran out of time. What I had changed up to then is on the branch. It is not finished, so look at it before building on it.", sources: [] }, usage: {}, modelUsage: {} };
     });
+    keepOrStop(result.procs);
     const s = result.is_error ? {} : result.structured_output || {};
     const moved = folder ? folderChanges(before, folderState(folder)) : [];
     let text = job.kind === "view" || job.kind === "review" ? s.view
@@ -1053,7 +1067,7 @@ async function work(rpc, seat, engines, raw) {
   } catch (e) {
     log(`${job.kind} job ${job.job_id} failed: ${e.message}`);
     // A session Claude Code could not pick up is forgotten, so the job taken up again starts a new one.
-    if (e.noSession && session) forgetSession(seat.table_id, session.chat);
+    if (e.noSession && session) { forgetSession(seat.table_id, session.chat); endSession(`${seat.table_id}:${session.chat}`, "its session could not be picked up"); }
     // Stopped by a person: the table already knows, and there is nothing to retry.
     if (e.message === "stopped") return;
     try { await rpc("runner_fail", { token: seat.token, job: job.job_id, reason: plain(e) }); } catch {}
@@ -1063,7 +1077,7 @@ async function work(rpc, seat, engines, raw) {
     if (fullRun) { try { rmSync(fullRun.mcp, { force: true }); } catch {} }
     if (tree) closeTree(tree);
     if (side) { try { rmSync(side, { recursive: true, force: true }); } catch {} }
-    if (took) giveBackSession(seat.table_id, took);
+    if (took) { touchSession(`${seat.table_id}:${took}`); giveBackSession(seat.table_id, took); }
   }
 }
 
@@ -1170,7 +1184,10 @@ export async function runLoop({ pollMs = 2000, backup = false } = {}) {
   if (old && old !== process.pid) { endConnection(old); log(`ended the connection that was already running (${old})`); }
   writeFileSync(lock, `${process.pid} ${Date.now()}`);
   const unlock = () => { try { if (runningConnection() === process.pid) rmSync(lock, { force: true }); } catch {} };
-  process.on("exit", () => { stopAll(); unlock(); });
+  process.on("exit", () => { stopAll(); endAllSessions("the connection stopped"); unlock(); });
+  // What an earlier connection's sessions left running is stopped, and a session nobody uses for a while ends.
+  stopLeftovers();
+  setInterval(() => endIdleSessions(sessionInUse), Math.min(10 * 60 * 1000, Math.max(5000, SESSION_IDLE_MS / 2))).unref?.();
   // Something nobody foresaw (a timer, a stream, a promise nobody waited on) is written down and the connection keeps
   // running: a connection that quietly stops is worse than one that logged a fault and carried on.
   process.on("uncaughtException", (e) => log(`tripwire: uncaught ${e?.stack?.split(String.fromCharCode(10)).slice(0, 3).join(" | ") || e}`));
@@ -1250,7 +1267,7 @@ export async function runLoop({ pollMs = 2000, backup = false } = {}) {
       busy++;
       // A quick job run as their full Claude Code can wait minutes on its person's answer. It works in a tree of its
       // own, so it runs alongside, and the lane goes on hearing the table (listening, clients, views) meanwhile.
-      if (name === "light" && job.full === true && !["listen", "client"].includes(job.kind) && aside < 2) {
+      if (name === "light" && job.full === true && !["listen", "client"].includes(job.kind) && aside < 20) {
         aside++;
         work(rpc, s, engines, job).catch((e) => log(`job ${job.job_id} failed: ${e.message}`)).finally(() => { busy--; aside--; });
         continue;
