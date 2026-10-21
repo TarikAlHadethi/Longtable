@@ -39,7 +39,13 @@ try {
   // A running job of Maya's, as the connection would have claimed it.
   const job = sql(`insert into public.jobs (table_id, member_id, kind, chat_id, status, started_at) values ('${tableId}', '${mayaId}', 'look', '${chatId}', 'running', now()) returning id`).split(/\r?\n/)[0];
 
-  check("full Claude Code is off until its person turns it on", sql(`select bool_and(not full_claude) from public.connections where table_id = '${tableId}'`) === "t");
+  check("full Claude Code is on by default, working in its person's own folder", sql(`select bool_and(full_claude and in_folder) from public.connections where table_id = '${tableId}' and kind = 'claude'`) === "t");
+  const samFolder = await rpc(tok.sam, "set_work_in_folder", { conn: conn.maya, on_: false });
+  const mayaFolder = await rpc(tok.maya, "set_work_in_folder", { conn: conn.maya, on_: false });
+  check("only its person decides whether it works in their folder", samFolder.status >= 400 && mayaFolder.status < 300
+    && sql(`select in_folder from public.connections where id = '${conn.maya}'`) === "f", { samFolder, mayaFolder });
+  await rpc(tok.maya, "set_work_in_folder", { conn: conn.maya, on_: true });
+  await rpc(tok.maya, "set_full_claude", { conn: conn.maya, full_on: false });
   const early = await anon("runner_job_key", { token: device.maya, job });
   check("no key for a connection that is not set to full Claude Code", early.status >= 400, early);
 

@@ -12,7 +12,7 @@ import { join } from "node:path";
 const scratch = mkdtempSync(join(tmpdir(), "longtable-land-"));
 process.env.LONGTABLE_HOME = join(scratch, "home");
 mkdirSync(process.env.LONGTABLE_HOME, { recursive: true });
-const { changedSoFar, freshCopy, landTree, neverCommit, openTree, openWork, landWork, safeBranch, workBranch } = await import("../../packages/connect/src/repo.mjs");
+const { changedSoFar, folderChanges, folderState, freshCopy, ownFolder, landTree, neverCommit, openTree, openWork, landWork, safeBranch, workBranch } = await import("../../packages/connect/src/repo.mjs");
 
 const results = {};
 const check = (name, ok, detail) => { results[name] = ok ? "pass" : `FAIL ${typeof detail === "string" ? detail : JSON.stringify(detail ?? "")}`.slice(0, 500); };
@@ -301,6 +301,24 @@ try {
     check("full mode on the person's own folder keeps the work there as a branch and pushes nowhere", ll?.pushed && git(mine, "show", "longtable/fix-2:a.txt").includes("changed here")
       && show(theirs, "longtable/fix-2:a.txt") === null && show(ours, "longtable/fix-2:a.txt") === null, ll);
     check("the client's repository never receives anything", branches(theirs).every((b) => !b.startsWith("longtable/")), branches(theirs));
+  }
+  // Their own request in their own folder: the files it changed are told apart from work already in progress there.
+  {
+    const own = join(scratch, "own-folder");
+    mkdirSync(own);
+    git(own, "init", "-q", "-b", "main");
+    writeFileSync(join(own, "a.txt"), "one\n");
+    writeFileSync(join(own, "b.txt"), "one\n");
+    git(own, "add", "-A");
+    git(own, "-c", "user.name=T", "-c", "user.email=t@example.test", "commit", "-q", "-m", "start");
+    writeFileSync(join(own, "a.txt"), "their own work in progress\n");
+    const before = folderState(own);
+    writeFileSync(join(own, "b.txt"), "changed by the job\n");
+    writeFileSync(join(own, "new.txt"), "made by the job\n");
+    const moved = folderChanges(before, folderState(own));
+    check("in their own folder only the files the job changed are counted", JSON.stringify(moved) === JSON.stringify(["b.txt", "new.txt"]), moved);
+    check("their folder is the place it works, and a missing one is none", ownFolder({ folder: own }) !== null && ownFolder({ folder: join(scratch, "nope") }) === null && ownFolder({}) === null);
+    check("a folder that is not git counts nothing rather than failing", folderState(scratch + "-missing") === null && folderChanges(null, null).length === 0);
   }
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));

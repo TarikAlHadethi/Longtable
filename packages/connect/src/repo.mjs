@@ -1,7 +1,7 @@
 // The connection's own clean copy of the team's code: the latest main, never the person's work folder.
 
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { home, log } from "./store.mjs";
@@ -313,6 +313,41 @@ export function realRepo(seat) {
   const folder = seat?.folder;
   if (!folder) return null;
   try { return existsSync(join(folder, ".git")) ? resolve(folder) : null; } catch { return null; }
+}
+
+// The folder they connected from, as their own Claude Code at home would open it: their own requests work there by
+// default ("Work in my folder"), git repository or not.
+export function ownFolder(seat) {
+  const folder = seat?.folder;
+  if (!folder) return null;
+  try { return statSync(folder).isDirectory() ? resolve(folder) : null; } catch { return null; }
+}
+
+// What git sees as changed in their folder right now, each path with its status and the file's size and time, so a
+// job can say which files it changed even in a folder that already had work in progress.
+export function folderState(folder) {
+  const out = new Map();
+  let raw = "";
+  try { raw = execFileSync("git", ["-c", "core.quotePath=false", "status", "--porcelain=v1", "-z", "--untracked-files=all"], { cwd: folder, env: quiet, windowsHide: true, stdio: ["ignore", "pipe", "ignore"], timeout: 60000, maxBuffer: 64 * 1024 * 1024 }).toString(); }
+  catch { return null; }
+  const parts = raw.split("\0");
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
+    if (p.length < 4) continue;
+    const code = p.slice(0, 2);
+    const path = p.slice(3);
+    // A rename carries the old name next; it is not a file of its own.
+    if (code[0] === "R" || code[0] === "C") i++;
+    let seen = "gone";
+    try { const s = statSync(join(folder, path)); seen = `${s.size}:${s.mtimeMs}`; } catch {}
+    out.set(path, `${code}|${seen}`);
+  }
+  return out;
+}
+export function folderChanges(before, after) {
+  if (!before || !after) return [];
+  const all = new Set([...before.keys(), ...after.keys()]);
+  return [...all].filter((p) => before.get(p) !== after.get(p)).sort();
 }
 
 // Where the team's code lives is the table's source (what the locked mode reads too), never whatever the person's own

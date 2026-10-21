@@ -38,7 +38,7 @@ export function AiWindow({ me, person, conn, commands, on, busy, onSpeed, onClos
   busy: boolean;
   onClose: () => void;
   onModel: (conn: string, model: string) => void;
-  onOptions: (conn: string, patch: { open_paths?: boolean; share_paths?: boolean; full_claude?: boolean }) => void;
+  onOptions: (conn: string, patch: { open_paths?: boolean; share_paths?: boolean; full_claude?: boolean; in_folder?: boolean }) => void;
   onConnect: () => void;
   onDisconnect: (conn: string) => void;
 }) {
@@ -104,6 +104,11 @@ export function AiWindow({ me, person, conn, commands, on, busy, onSpeed, onClos
                 <Switch on={!!live.full_claude} onChange={(v) => onOptions(live.id, { full_claude: v })} testid="opt-full"
                   title="Run as my full Claude Code"
                   about="Runs commands and tests. Asks you first." />
+              )}
+              {conn?.kind === "claude" && !!live.full_claude && (
+                <Switch on={live.in_folder !== false} onChange={(v) => onOptions(live.id, { in_folder: v })} testid="opt-in-folder"
+                  title="Work in my folder"
+                  about="Your requests change your files, as at home. Off: a branch." />
               )}
               {/* Fast mode only where their account can use it: a switch that can never work is not offered. */}
               {conn?.kind === "claude" && !(live.limits?.fast_why && live.limits?.fast !== "on") && (

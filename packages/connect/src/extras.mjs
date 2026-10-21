@@ -313,7 +313,8 @@ export async function fetchAttachments(base, tableId, list, into) {
 
 export function attachedPrompt(got, base) {
   if (!got || (!got.here.length && !got.not.length)) return "";
-  const rel = (at) => at.slice(base.length).replace(/^[\\/]+/, "").split(sep).join("/");
+  // Inside the working folder by its path there; anything handed beside it (in their own folder) by its whole path.
+  const rel = (at) => (at.startsWith(base) ? at.slice(base.length).replace(/^[\\/]+/, "") : at).split(sep).join("/");
   const lines = [
     ...got.here.map((a) => `- ${named(a.from)} attached "${named(a.name)}" (${a.kind === "image" ? "a picture" : "a file"}): open it at ${rel(a.at)}`),
     ...got.not.map((a) => `- ${named(a.from)} attached "${named(a.name)}", which is NOT here for you: ${a.why}. Say so if it matters to the answer.`),

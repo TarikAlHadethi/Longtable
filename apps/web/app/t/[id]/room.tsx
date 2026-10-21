@@ -1351,9 +1351,11 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
               const { error } = patch.full_claude !== undefined
                 ? await supabase.rpc("set_full_claude", { conn: id, full_on: patch.full_claude })
+                : patch.in_folder !== undefined
+                ? await supabase.rpc("set_work_in_folder", { conn: id, on_: patch.in_folder })
                 : await supabase.rpc("set_connection_options", { conn: id, open: patch.open_paths ?? null, share: patch.share_paths ?? null });
               if (error && before) {
-                setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, open_paths: before.open_paths, share_paths: before.share_paths, full_claude: before.full_claude } : c)));
+                setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, open_paths: before.open_paths, share_paths: before.share_paths, full_claude: before.full_claude, in_folder: before.in_folder } : c)));
                 didNotTake("That switch was not changed. Try again.");
               }
             }} />

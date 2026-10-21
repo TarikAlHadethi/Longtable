@@ -15,6 +15,10 @@ export const KEY = process.env.SUPABASE_PUBLISHABLE_KEY || localEnv.NEXT_PUBLIC_
 const MAIL = process.env.MAILPIT_URL || "http://127.0.0.1:54324";
 const CHROME = process.env.CHROME_PATH || "C:/Program Files/Google/Chrome/Application/chrome.exe";
 
+// Full Claude Code is on by default for a real person, and asks them before it runs anything. The suites written for
+// the locked mode run their connections in it; the suites for full Claude Code turn it back on (LONGTABLE_FULL: "on").
+process.env.LONGTABLE_FULL ??= "off";
+
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export function launch() {

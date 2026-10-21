@@ -72,10 +72,12 @@ export function childEnv(token, apiKey) {
 
 // A full Claude Code run gets the person's own environment, as their Claude Code at home would (their PATH, their git
 // and their tools), with the connection's own sign-in: never an API key or another account from whatever started it.
-export function fullEnv(token) {
+export function fullEnv(token, { guard = true } = {}) {
   const env = { ...process.env };
   for (const k of Object.keys(env)) if (/^(ANTHROPIC_|CLAUDE_CODE_OAUTH_TOKEN$|CLAUDE_CODE_USE_|OPENAI_API_KEY$|LT_)/.test(k)) delete env[k];
   if (token) env.CLAUDE_CODE_OAUTH_TOKEN = token;
+  // In their own folder git is theirs as at home: their hooks run and a push is theirs to approve.
+  if (!guard) return env;
   // Git itself refuses every push from the commands this Claude runs, however the command is written (git -C, -c,
   // an alias, a script): every push address is rewritten to one no git can reach. Only the connection pushes, and
   // only the task's longtable/ branch. Git hooks point at an empty folder, so a hook from the branch never runs.
@@ -151,10 +153,14 @@ export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,
   if (full) {
     // Their own settings come from their own computer: their user settings, and their project's settings read from
     // their own folder (full.project), never from the branch being worked on, which other people's AIs push to.
-    args.push("--setting-sources", "user");
+    // In their own folder (full.folder) it is Claude Code as at home: every settings source of theirs, the project's
+    // and their local ones included, read by Claude Code itself.
+    args.push("--setting-sources", full.folder ? "user,project,local" : "user");
     // Only the connection pushes, and only the task's branch: their Claude never pushes itself, whatever their rules.
-    // In plan mode the plan is its answer here: there is no plan to approve, so it never asks to leave plan mode.
-    args.push("--disallowedTools", "Bash(git push:*)", "Bash(git push)", ...(edit ? [] : ["Edit", "Write", "NotebookEdit"]), ...(full.mode === "plan" ? ["ExitPlanMode"] : []));
+    // In their own folder a push is theirs, asked like any command. In plan mode the plan is its answer here: there is
+    // no plan to approve, so it never asks to leave plan mode.
+    const no = [...(full.folder ? [] : ["Bash(git push:*)", "Bash(git push)"]), ...(edit ? [] : ["Edit", "Write", "NotebookEdit"]), ...(full.mode === "plan" ? ["ExitPlanMode"] : [])];
+    if (no.length) args.push("--disallowedTools", ...no);
     if (full.allow?.length) args.push("--allowedTools", ...full.allow);
   }
   if (system) args.push("--append-system-prompt", system);
@@ -165,13 +171,13 @@ export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,
   // On Mac and Linux commands also run in Claude Code's sandbox, and still ask: the sandbox alone never stands in for
   // the person's answer.
   const settings = { ...(full?.project || {}), ...(fast ? { fastMode: true } : {}),
-    ...(full && process.platform !== "win32" ? { sandbox: { ...(full?.project?.sandbox || {}), enabled: true, autoAllowBashIfSandboxed: false } } : {}) };
+    ...(full && !full.folder && process.platform !== "win32" ? { sandbox: { ...(full?.project?.sandbox || {}), enabled: true, autoAllowBashIfSandboxed: false } } : {}) };
   if (Object.keys(settings).length) args.push("--settings", JSON.stringify(settings));
   // Folders beside the working one that this job may read: only ever ones the connection chose.
   for (const d of addDirs) args.push("--add-dir", d);
   return new Promise((resolve, reject) => {
     const started = Date.now();
-    const child = spawn(claude, args, { cwd, env: full ? fullEnv(token) : childEnv(token, apiKey), windowsHide: true });
+    const child = spawn(claude, args, { cwd, env: full ? fullEnv(token, { guard: !full.folder }) : childEnv(token, apiKey), windowsHide: true });
     keepTrack(child);
     // Only the result and the plan's limits are kept: work with no time limit would otherwise hold every file it ever
     // read in memory.

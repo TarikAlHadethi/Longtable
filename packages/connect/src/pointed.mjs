@@ -245,7 +245,8 @@ export function layPointed(into, paths, { reading, home: keep }) {
 
 // What the AI is told about them.
 export function pointedSystem(me, laid, base) {
-  const rel = (at) => at.slice(base.length).replace(/^[\\/]+/, "").split(sep).join("/");
+  // Inside the working folder by its path there; anything handed beside it (in their own folder) by its whole path.
+  const rel = (at) => (at.startsWith(base) ? at.slice(base.length).replace(/^[\\/]+/, "") : at).split(sep).join("/");
   const lines = [
     ...laid.files.map((f) => `- the file ${f.path} is here for you as ${rel(f.at)}`),
     ...laid.copied.map((f) => f.kept ? `- the folder ${f.path} is here for you, without its keys, sign-in files and node_modules, at ${f.at}` : `- the folder ${f.path} is here for you as ${rel(f.at)}/`),

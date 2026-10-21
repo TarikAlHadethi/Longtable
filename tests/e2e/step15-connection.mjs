@@ -21,7 +21,7 @@ if (!existsSync(savedSignIn)) throw new Error("No saved Claude sign-in on this c
 const home = mkdtempSync(join(tmpdir(), "longtable-home-"));
 mkdirSync(join(home, "secrets"), { recursive: true });
 copyFileSync(savedSignIn, join(home, "secrets", "claude-token.bin"));
-const env = { ...process.env, LONGTABLE_HOME: home, LONGTABLE_MODEL: "haiku" };
+const env = { ...process.env, LONGTABLE_HOME: home, LONGTABLE_MODEL: "haiku", LONGTABLE_FULL: "on" };
 const alive = (child) => child.exitCode === null && child.signalCode === null;
 const start = () => spawn(process.execPath, [bin, "run"], { env, stdio: "ignore", windowsHide: true });
 const log = () => { try { return readFileSync(join(home, "runner.log"), "utf8"); } catch { return ""; } };

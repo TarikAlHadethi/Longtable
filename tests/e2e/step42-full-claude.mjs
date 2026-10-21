@@ -1,14 +1,15 @@
-// A person's full Claude Code at the table, on the real model: with the switch on, their Claude works in a worktree of
-// their own repository, runs a command it needs, and the permission prompt reaches them in Longtable. They allow it
-// (always), it runs and the output is in the answer, the change lands on the task's branch, and their own folder is
-// untouched. A command they deny does not run.
+// A person's full Claude Code at the table, on the real model. By default it is on and works in their own folder, as
+// Claude Code does at home: it runs a command it needs, the permission prompt reaches them in Longtable, they allow it
+// (always), it runs and the output is in the answer, and the change is in their folder with nothing committed or
+// pushed. A command they deny does not run. With "Work in my folder" off, the change lands on the task's branch in a
+// worktree and their folder is untouched.
 //
 // The connection runs here on this computer's saved Claude sign-in, on Haiku; the project is a scratch repository.
 //
 //   node --experimental-websocket tests/e2e/step42-full-claude.mjs
 
 import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -56,7 +57,7 @@ try {
   await page.click("text=It is only on my computer");
   const message = await page.locator("[data-testid=connect-message]").textContent();
   const [, code, app] = message.match(/connect ([0-9A-F]{20}) --app (\S+)/);
-  const env = { ...process.env, LONGTABLE_HOME: home, LONGTABLE_MODEL: "haiku" };
+  const env = { ...process.env, LONGTABLE_HOME: home, LONGTABLE_MODEL: "haiku", LONGTABLE_FULL: "on" };
   const r = spawnSync(process.execPath, [bin, "connect", code, "--app", app, "--repo", project, "--no-autostart", "--no-run"], { env, cwd: project, encoding: "utf8" });
   if (r.status !== 0) throw new Error(r.stderr || r.stdout);
   await page.locator("[role=dialog] button").last().click();
@@ -65,10 +66,8 @@ try {
 
   // She turns on full Claude Code in her AI's window.
   const token = await accessToken(owner.context);
-  const conn = (await rest(token, `connections?select=id,full_claude&table_id=eq.${owner.tableId}&revoked_at=is.null`)).body[0];
-  check("full Claude Code starts off", conn && conn.full_claude === false, conn);
-  const on = await rpc(token, "set_full_claude", { conn: conn.id, full_on: true });
-  check("she turns it on", on.status < 300, on);
+  const conn = (await rest(token, `connections?select=id,full_claude,in_folder&table_id=eq.${owner.tableId}&revoked_at=is.null`)).body[0];
+  check("full Claude Code starts on, working in her own folder", conn && conn.full_claude === true && conn.in_folder === true, conn);
 
   // She asks for something that needs a command run.
   await page.fill("textarea", "Add a farewell export to greet.js that says bye. Then run `node check.js` and tell me exactly what it printed.");
@@ -100,13 +99,10 @@ try {
   results.answer = answer.slice(-700);
   check("the command ran and its output is in the answer", answer.includes(MARK) || /farewell,greeting|greeting,farewell/.test(answer), results.answer);
 
-  const branches = git(scratch, "--git-dir", remote, "branch", "--list").split(/\r?\n/).map((b) => b.replace(/^[* ]+/, ""));
-  const made = branches.find((b) => b.startsWith("longtable/"));
-  check("the change is on the task's own branch in the repository", !!made, branches);
-  if (made) check("with what was asked", /farewell/.test(git(scratch, "--git-dir", remote, "show", `${made}:greet.js`)));
-  check("the default branch is untouched", !/farewell/.test(git(scratch, "--git-dir", remote, "show", "main:greet.js")));
-  check("her own folder is untouched", git(project, "status", "--porcelain") === "" && !/farewell/.test(git(project, "show", "HEAD:greet.js")));
-  check("it worked in a worktree of her repository", git(project, "worktree", "list").includes("trees"), git(project, "worktree", "list"));
+  const branchesNow = () => git(scratch, "--git-dir", remote, "branch", "--list").split(/\r?\n/).map((b) => b.replace(/^[* ]+/, "")).filter(Boolean);
+  check("the change is in her own folder, as at home", /farewell/.test(readFileSync(join(project, "greet.js"), "utf8")) && /greet\.js/.test(git(project, "status", "--porcelain")), git(project, "status", "--porcelain"));
+  check("nothing was committed or pushed for her", !/farewell/.test(git(project, "show", "HEAD:greet.js")) && !branchesNow().some((b) => b.startsWith("longtable/")), branchesNow());
+  check("no worktree was made", !git(project, "worktree", "list").includes("trees"), git(project, "worktree", "list"));
 
   // A command she denies does not run.
   const before = await page.locator("[data-ai='true']").count();
@@ -130,6 +126,25 @@ try {
     && /said no|didn.t run|did not run|couldn.t run|not run|declined/i.test(said), { lastAsk, said: said.slice(-300) });
   const leftover = (await rest(token, `approvals?select=status&table_id=eq.${owner.tableId}&status=eq.waiting`)).body;
   check("nothing is left waiting", Array.isArray(leftover) && leftover.length === 0, leftover);
+
+  // She turns "Work in my folder" off: her next request goes to the task's branch in a worktree, her folder stays as it is.
+  const off = await rpc(token, "set_work_in_folder", { conn: conn.id, on_: false });
+  check("she turns working in her folder off", off.status < 300, off);
+  const folderBefore = readFileSync(join(project, "greet.js"), "utf8");
+  const third = await page.locator("[data-ai='true']").count();
+  await page.fill("textarea", "Add an export named ciao to greet.js whose value is the string ciao. Change nothing else and run nothing.");
+  await page.keyboard.press("Control+Enter");
+  for (let i = 0; i < 420; i++) {
+    if ((await page.locator("[data-ai='true']").count()) > third) break;
+    const any = page.locator("[data-testid=approvals] [data-approval] [data-testid=allow]").first();
+    if (await any.count()) await any.click().catch(() => {});
+    await page.waitForTimeout(1000);
+  }
+  const made = branchesNow().find((b) => b.startsWith("longtable/"));
+  check("the change is on the task's own branch in the repository", !!made, branchesNow());
+  if (made) check("with what was asked", /ciao/.test(git(scratch, "--git-dir", remote, "show", `${made}:greet.js`)));
+  check("the default branch is untouched", !/ciao|farewell/.test(git(scratch, "--git-dir", remote, "show", "main:greet.js")));
+  check("her own folder is untouched by it", readFileSync(join(project, "greet.js"), "utf8") === folderBefore);
 } catch (e) {
   check("the run did not crash", false, e.stack || e.message);
 } finally {
