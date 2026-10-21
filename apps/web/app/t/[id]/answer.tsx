@@ -8,11 +8,12 @@ import { AI_NAME, AiLogo } from "@/components/ai-logo";
 import { kindOfModel } from "./table-view";
 import type { Member, Message, Page } from "./types";
 import { PageCard } from "./page-window";
+import { fileLink } from "@/lib/file-links.mjs";
 import styles from "./room.module.css";
 
 // An answer from the table: one AI's, or one combined from several. Every answer speaks as the table; whose AI wrote
 // it is in the small print. Sources are the files it read; "How they got here" opens the back-room views.
-export function Answer({ m, members, views, again, follows = false, pages = [], onOpenPage, files = null }: { m: Message; members: Map<string, Member>; views: Message[]; again?: boolean; follows?: boolean; pages?: Page[]; onOpenPage?: (id: string) => void; files?: React.ReactNode }) {
+export function Answer({ m, members, views, again, follows = false, pages = [], onOpenPage, files = null, repo = null }: { m: Message; members: Map<string, Member>; views: Message[]; again?: boolean; follows?: boolean; pages?: Page[]; onOpenPage?: (id: string) => void; files?: React.ReactNode; repo?: string | null }) {
   const [open, setOpen] = useState(false);
   const who = members.get(m.member_id);
   const name = who?.display_name ?? "Someone";
@@ -52,7 +53,8 @@ export function Answer({ m, members, views, again, follows = false, pages = [], 
             <span className={styles.messageName}>The table</span>
           </div>
         )}
-        <div className={`${styles.messageText} ${styles.aiText}`}><Prose text={m.body} /></div>
+        {/* A file it names links to that file in the team's repository, at what it read. */}
+        <div className={`${styles.messageText} ${styles.aiText}`}><Prose text={m.body} link={repo ? fileLink(repo, m.meta?.read, m.meta?.sources) : undefined} /></div>
         {/* Files and pictures its AI put on the answer, shown like anything attached in the chat. */}
         {files}
         {pages.map((p) => <PageCard key={p.id} page={p} onOpen={() => onOpenPage?.(p.id)} />)}

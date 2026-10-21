@@ -56,7 +56,7 @@ export type Job = {
   created_at: string;
 };
 
-export type Limits = { ai?: string | null; plan?: string | null; model?: string | null; status?: string | null; models?: string[]; fast?: string | null; fast_why?: string | null; version?: string | null; reads?: { repo: string | null; folder: string | null; known: boolean } | null; windows?: { name: string; used: number; resets: string | null }[] };
+export type Limits = { ai?: string | null; plan?: string | null; model?: string | null; status?: string | null; models?: string[]; fast?: string | null; fast_why?: string | null; version?: string | null; reads?: { repo: string | null; folder: string | null; known: boolean } | null; tools?: string[] | null; windows?: { name: string; used: number; resets: string | null }[] };
 // A person's own command or skill on their computer: its name and a line on what it is for.
 export type Command = { name: string; about: string; kind: "command" | "skill" | "prompt" | "builtin" };
 export type Connection = { id: string; member_id: string; kind: "claude" | "codex"; last_seen: string | null; revoked_at: string | null; created_at: string; limits?: Limits | null; model_choice?: string | null;

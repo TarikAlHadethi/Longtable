@@ -28,7 +28,7 @@ try {
   check("each message is handed over once", run("PostToolUse") === null);
   writeFileSync(inbox, JSON.stringify({ who: "Maya", messages: [{ id: "m1", body: "also make the button blue" }, { id: "m2", body: "and keep the old one too" }] }));
   const stop = run("Stop");
-  check("one that comes as it is about to stop keeps it going, with only what is new", stop?.decision === "block" && /keep the old one/.test(stop.reason) && !/button blue/.test(stop.reason), stop);
+  check("as it is about to stop, every message is raised once more to keep it going, even one it had after a step", stop?.decision === "block" && /keep the old one/.test(stop.reason) && /button blue/.test(stop.reason), stop);
   check("and then it may stop", run("Stop") === null);
   writeFileSync(inbox, "not json");
   check("a damaged file never breaks the run", run("PostToolUse") === null);

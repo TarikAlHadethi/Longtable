@@ -10,7 +10,7 @@ import { keepStartupCurrent } from "./autostart.mjs";
 import { SESSION_IDLE_MS, endAllSessions, endIdleSessions, endSession, keepForSession, stopLeftovers, stopProcs, touchSession } from "./procs.mjs";
 import { forgetSession, giveBackSession, sessionInUse, newSessionId, remember as rememberSession, sessionFor, tableSessionIds, takeSession, unseen } from "./sessions.mjs";
 import { attachedPrompt, commandPrompt, fetchAttachments, loadCommand, materialsPrompt, scanCommands, shareable } from "./extras.mjs";
-import { spawnSync } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir, uptime } from "node:os";
 import { delimiter, dirname, isAbsolute, join, normalize, relative, resolve } from "node:path";
@@ -270,6 +270,7 @@ export function systemFor(job) {
     ...(job.full ? ["When you need your person to decide something before you can go on, ask them with the mcp__longtable__ask tool: they see your question as a card with a button for each choice, and you get their answer back and carry on. Do not end your turn just to ask.",
       "To put a file or a picture into your answer (a screenshot you took, a spreadsheet or report you made), use the mcp__longtable__share_file tool with its path: it shows on your answer for the team. Never share keys or secret files."] : []),
     ...(job.full && job.browser ? ["You have a browser (the playwright tools), as in the Claude app: open pages, click, type, read them and take screenshots, for instance of what you build running locally. To show a screenshot, share it with mcp__longtable__share_file."] : []),
+    ...(job.folderInUse ? ["Another Claude Code session of your person's is at work in this same folder right now: files may change while you work. Never undo or overwrite a change you did not make; if you need a file the other session is changing, say so."] : []),
     ...(job.inbox ? [`While you work, whatever ${job.me} says in the chat reaches you after one of your steps, or as you are about to finish, marked as their own words to you: take it in as you would a message they type to you at home while you work.`] : []),
     ...(PAGE_KINDS.has(job.kind) ? [PAGE_SYSTEM] : []),
     "Write like a teammate in a chat: plain words, short, no headings. Never repeat secrets or anything shaped like a key.",
@@ -356,6 +357,25 @@ const sessionsDir = (folder) => join(process.env.LONGTABLE_CLAUDE_HOME || join(h
 const SESSION_KINDS = new Set(["look", "work", "answer", "plan"]);
 // A session can only be picked up while Claude Code still has it (the person may have cleared it).
 export const sessionOnDisk = (folder, id) => { try { return statSync(join(sessionsDir(folder), `${id}.jsonl`)).isFile(); } catch { return false; } };
+// The person's own Claude Code sessions in this folder (never a table's), each with its size, to tell afterwards whether
+// one was written to while a run worked.
+export function folderSessions(folder) {
+  const tables = tableSessionIds();
+  const out = new Map();
+  try { for (const f of readdirSync(sessionsDir(folder))) if (f.endsWith(".jsonl") && !tables.has(f.slice(0, -6))) out.set(f, statSync(join(sessionsDir(folder), f)).size); } catch {}
+  return out;
+}
+export const sessionsGrew = (before, folder) => !!before && [...folderSessions(folder)].some(([f, size]) => before.get(f) !== size);
+
+// Whether one of the person's own Claude Code sessions (not a table's) was at work in this folder in the last two
+// minutes: then two Claudes are changing the same files, which is worth saying, not stopping.
+export function folderBusy(folder, withinMs = 120000) {
+  const tables = tableSessionIds();
+  try {
+    return readdirSync(sessionsDir(folder)).some((f) => f.endsWith(".jsonl") && !tables.has(f.slice(0, -6))
+      && Date.now() - statSync(join(sessionsDir(folder), f)).mtimeMs < withinMs);
+  } catch { return false; }
+}
 
 export function recentSession(folder, room = 90000) {
   const dir = sessionsDir(folder);
@@ -464,12 +484,36 @@ async function report(rpc, seat, limits, model) {
   if (!limits && !model) return;
   // Whether fast mode can serve this person's Claude, as Claude Code itself last said, so their AI's window can say so.
   const fast = seat.kind === "claude" && claudeSays.fast ? { fast: claudeSays.fast, fast_why: claudeSays.fastWhy } : {};
-  try { await rpc("runner_report", { token: seat.token, limits: { ai: seat.kind, ...(limits || {}), ...fast, version: ownVersion(), reads: readsOf(seat), ...(model ? { model } : {}) } }); } catch (e) { log(`limits report failed: ${e.message}`); }
+  try { await rpc("runner_report", { token: seat.token, limits: { ai: seat.kind, ...(limits || {}), ...fast, version: ownVersion(), reads: readsOf(seat), tools: toolsHere(), ...(model ? { model } : {}) } }); } catch (e) { log(`limits report failed: ${e.message}`); }
 }
 
 // What its AI window says it reads: the repository's address (never a sign-in in it), the name of their own folder
 // (only its last part: a whole path names the person's account on this computer), and whether the table's repository
 // is one this computer knows.
+// The common tools its Claude can run from here (what a person would otherwise find out from a "not found"): looked
+// for once, with the same PATH the commands get. Names only.
+let toolsFound = null;
+// Looked for once at start, without holding the connection up: each check runs on its own, at most a few seconds.
+// On a Mac, git and python in /usr/bin are stand-ins that open Apple's installer when the developer tools are
+// missing, so they are only asked when those tools are there.
+export async function lookForTools() {
+  const has = (cmd, args = ["--version"]) => new Promise((done) => {
+    try { execFile(cmd, args, { windowsHide: true, timeout: 8000 }, (e) => done(!e)); } catch { done(false); }
+  });
+  const mac = process.platform === "darwin";
+  const devTools = mac ? await has("xcode-select", ["-p"]) : true;
+  const npmBeside = [join(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js"), join(dirname(process.execPath), "..", "lib", "node_modules", "npm", "bin", "npm-cli.js")].some((p) => existsSync(p));
+  const [git, npm, docker, python, python3, py] = await Promise.all([
+    devTools ? has("git") : false, npmBeside ? true : has("npm"), has("docker"), has("python"),
+    devTools ? has("python3") : false, process.platform === "win32" ? has("py") : false,
+  ]);
+  toolsFound = [git && "git", "node", npm && "npm", docker && "docker", (python || python3 || py) && "python"].filter(Boolean);
+  log(`tools on the connection's PATH: ${toolsFound.join(", ")}`);
+  return toolsFound;
+}
+// What was found, or null until it has been looked for.
+export const toolsHere = () => toolsFound;
+
 export function readsOf(seat) {
   const t = tableRepos.get(seat.table_id);
   const source = t?.trusted || seat.source;
@@ -870,7 +914,7 @@ function openInbox(rpc, seat, job) {
       try { seen = JSON.parse(readFileSync(`${file}.seen`, "utf8")); } catch {}
       // The table confirms what the run read and gives back everything else it was handed.
       try { await rpc("runner_inbox", { token: seat.token, job: job.job_id, open: false, seen }); } catch (e) { log(`job ${job.job_id}: could not close its messages: ${e.message}`); }
-      for (const f of [file, `${file}.seen`]) { try { rmSync(f, { force: true }); } catch {} }
+      for (const f of [file, `${file}.seen`, `${file}.stop`]) { try { rmSync(f, { force: true }); } catch {} }
     },
   };
 }
@@ -1042,6 +1086,11 @@ async function work(rpc, seat, engines, raw) {
     if (cmd) log(`job ${job.job_id}: running their /${cmd.name}`);
     if (full) { fullRun = await fullSetup(rpc, seat, job, !!folder, dir); log(`job ${job.job_id}: running as their full Claude Code in ${folder ? "their own folder" : opened.dir}`); }
     const before = folder ? folderState(folder) : null;
+    // Their own Claude Code is at work in the same folder right now: said to both, never stopped.
+    const folderInUse = folder ? folderBusy(folder) : false;
+    const sessionsBefore = folder ? folderSessions(folder) : null;
+    if (folderInUse) job = { ...job, folderInUse: true };
+    if (folderInUse) { log(`job ${job.job_id}: another Claude Code session is at work in their folder`); note = "\"Your folder is busy in another Claude Code session"; soon(); }
     const result = await ask({
       session: session ? { id: session.id, resume: session.resume } : null,
       full: fullRun ? { mcp: fullRun.mcp, allow: fullRun.allow, project: fullRun.project, mode: job.mode || null, folder: !!folder, hooks: inbox ? inbox.hooks : null,
@@ -1096,6 +1145,9 @@ async function work(rpc, seat, engines, raw) {
     const message = String(job.question || "Work from the table").split(/\r?\n/)[0].slice(0, 72);
     const landed = opened && doing ? (opened.tree ? landTree(opened, branch, message, job.me) : landWork(seat.table_id, opened, branch, message, job.me)) : null;
     const said = landed && !landed.pushed ? `${text}\n\nI made the change, but git on ${job.me}'s computer could not push the branch ${branch}, so nobody else can see it yet. It is kept there as commit ${landed.commit}.`
+      : folder && sessionsGrew(sessionsBefore, folder) ? `${text}
+
+(Another Claude Code session of yours was at work in this folder at the same time, so both may have changed files. Look before building on either.)`
       : landed?.apart ? `${text}\n\nMy part touched the same lines as another AI's part, so it is on its own branch, ${landed.branch}, beside ${branch}. Someone needs to put the two together.` : text;
     const n = landed ? landed.files.length : 0;
     await rpc("runner_finish", {
@@ -1108,7 +1160,7 @@ async function work(rpc, seat, engines, raw) {
         handoffs: job.kind === "plan" ? s.handoffs || [] : undefined,
         ok: job.kind === "review" ? s.ok !== false : true,
         read: folder ? (moved.length ? `changed ${moved.length} ${moved.length === 1 ? "file" : "files"} in ${job.me}'s folder` : `${job.me}'s folder`)
-          : job.kind === "combine" && job.work_read ? job.work_read : landed?.pushed ? `changed ${n} ${n === 1 ? "file" : "files"} on ${landed.branch} @ ${landed.commit}` : opened?.continued ? `${branch} @ ${opened.base.slice(0, 7)}` : copy.read,
+          : job.kind === "combine" && job.work_read ? job.work_read : landed?.pushed ? `changed ${n} ${n === 1 ? "file" : "files"} on ${landed.branch} @ ${landed.commit}${landed.local ? `, only on ${job.me}'s computer` : ""}` : opened?.continued ? `${branch} @ ${opened.base.slice(0, 7)}` : copy.read,
         model: Object.keys(result.modelUsage || {})[0] || seat.model || process.env.LONGTABLE_MODEL || "default",
         sources: cleanSources(dir, (s.sources || []).length || job.kind !== "combine" ? s.sources : (job.views || []).filter((v) => v.meta?.part === "work").flatMap((v) => v.meta?.sources || [])),
         how: s.how || "",
@@ -1275,6 +1327,8 @@ export async function runLoop({ pollMs = 2000, backup = false } = {}) {
   writeFileSync(lock, `${process.pid} ${Date.now()}`);
   const unlock = () => { try { if (runningConnection() === process.pid) rmSync(lock, { force: true }); } catch {} };
   process.on("exit", () => { stopAll(); endAllSessions("the connection stopped"); unlock(); });
+  // Which common tools its Claude will find here, looked for once at start and shown in its AI window.
+  setTimeout(() => { lookForTools().catch((e) => log(`could not look for tools: ${e.message}`)); }, 2000).unref?.();
   // What an earlier connection's sessions left running is stopped, and a session nobody uses for a while ends.
   stopLeftovers();
   setInterval(() => endIdleSessions(sessionInUse), Math.min(10 * 60 * 1000, Math.max(5000, SESSION_IDLE_MS / 2))).unref?.();

@@ -22,6 +22,8 @@
 .stop:hover { color: var(--danger); }
 
 .result { font-size: 14px; color: var(--muted); line-height: 1.4; overflow-wrap: anywhere; }
+.prLink { color: var(--link); text-decoration: none; }
+.prLink:hover { text-decoration: underline; }
 .when { font-size: 13px; color: var(--faint); }
 
 @keyframes wp-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }

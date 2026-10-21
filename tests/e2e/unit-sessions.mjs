@@ -71,6 +71,26 @@ try {
   const talk = recentSession(folder);
   check("a table's session is never read as the person's own conversation", talk.includes("MY-OWN-TALK") && !talk.includes("TABLE-TALK"), talk.slice(0, 300));
   check("a session is picked up only while Claude Code still has it", sessionOnDisk(folder, id) === true && sessionOnDisk(folder, "not-there") === false);
+
+  // Their own Claude Code at work in the same folder right now (a session written to in the last two minutes, not a
+  // table's): said, never stopped.
+  const { folderBusy } = await import("../../packages/connect/src/run.mjs");
+  const { utimesSync } = await import("node:fs");
+  const old = new Date(Date.now() - 10 * 60 * 1000);
+  utimesSync(join(projectDir, "mine.jsonl"), old, old);
+  check("a folder whose only recent session is the table's own is not busy", folderBusy(folder) === false);
+  utimesSync(join(projectDir, "mine.jsonl"), new Date(), new Date());
+  check("a folder their own Claude Code is at work in is busy", folderBusy(folder) === true);
+  check("a folder Claude Code never ran in is not busy", folderBusy(join(scratch, "nowhere")) === false);
+  // Afterwards, the note that both changed files is said only if one of their own sessions was written to meanwhile.
+  const { folderSessions, sessionsGrew } = await import("../../packages/connect/src/run.mjs");
+  const { appendFileSync } = await import("node:fs");
+  const before = folderSessions(folder);
+  check("their sessions are known, never the table's", before.has("mine.jsonl") && !before.has(`${id}.jsonl`));
+  appendFileSync(join(projectDir, `${id}.jsonl`), "\n");
+  check("the table's own session growing is not their Claude at work", sessionsGrew(before, folder) === false);
+  appendFileSync(join(projectDir, "mine.jsonl"), "\n");
+  check("their own session written to meanwhile is", sessionsGrew(before, folder) === true);
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));
 } finally {

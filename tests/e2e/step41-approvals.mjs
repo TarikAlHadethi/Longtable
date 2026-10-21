@@ -240,6 +240,9 @@ try {
   const kept = JSON.parse(sql(`select coalesce(meta -> 'pasted', 'null') from public.messages where id = '${pastedMsg}'`));
   check("she marks what she pasted in her own message, only where it fits", tooLong.status < 300 && marks.status < 300 && JSON.stringify(kept) === "[[10,12]]", { kept });
   check("nobody else can mark her message", samMarks.status >= 400, samMarks);
+  // Which tools its Claude found is kept as known names only.
+  await anon("runner_report", { token: device.maya, limits: { ai: "claude", tools: ["git", "node", "docker", "rm -rf /", "<script>"] } });
+  check("the tools a connection found are kept as known names only", JSON.stringify(JSON.parse(sql(`select limits -> 'tools' from public.connections where id = '${conn.maya}'`))) === JSON.stringify(["docker", "git", "node"]));
   // Her browser is hers to turn on, and reaches her connection with each job.
   const samBrowser = await rpc(tok.sam, "set_browser", { conn: conn.maya, on_: true });
   const mayaBrowser = await rpc(tok.maya, "set_browser", { conn: conn.maya, on_: true });

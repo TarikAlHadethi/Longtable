@@ -177,6 +177,8 @@ button { font: inherit; }
 }
 
 .inline-code {
+.code-link { text-decoration: none; color: inherit; }
+.code-link:hover .inline-code { text-decoration: underline; text-underline-offset: 2px; }
   font-family: var(--font-ui);
   font-size: 0.86em;
   padding: 1px 5px;

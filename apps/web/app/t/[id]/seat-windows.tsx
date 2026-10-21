@@ -110,6 +110,9 @@ export function AiWindow({ tableId, me, person, conn, commands, on, busy, onSpee
                 : conn.limits.reads.folder ? `${conn.limits.reads.folder}, only on ${mine ? "your" : "their"} computer` : "Nothing yet"}</b></div>}
             {conn.limits?.reads && conn.kind === "claude" && <div className={s.fact}><span>{mine ? "Your" : "Their"} folder</span>
               <b>{conn.limits.reads.folder ?? "None: connected from somewhere else"}</b></div>}
+            {/* The common tools its Claude found on that computer, so a missing one is seen before a request needs it. */}
+            {Array.isArray(conn.limits?.tools) && conn.kind === "claude" && <div className={s.fact} data-testid="ai-tools"><span>Tools it found</span>
+              <b>{conn.limits.tools.length ? conn.limits.tools.map((t) => t === "node" ? "Node" : t === "npm" ? "npm" : t === "git" ? "git" : t.charAt(0).toUpperCase() + t.slice(1)).join(", ") : "None"}</b></div>}
             {mine && live && <div className={s.fact}><span>Its own commands</span><b>{commands.length || "None"}</b></div>}
           </div>
         )}

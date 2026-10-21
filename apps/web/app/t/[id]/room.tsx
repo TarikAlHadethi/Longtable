@@ -241,6 +241,17 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     loadSettings(supabase, table.id).then((d) => { if (!cancelled) setSettings(d); }).catch(() => {});
     return () => { cancelled = true; };
   }, [supabase, table.id, readsSettings]);
+  // The table's repository, so a file an AI names in its answer links to it there (the team reads it; settings keep it).
+  const [tableRepo, setTableRepo] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    supabase.from("table_code").select("repo_url").eq("table_id", table.id).maybeSingle()
+      .then(({ data, error }: { data: { repo_url: string } | null; error: { code?: string } | null }) => {
+        if (error) console.warn("[repo] the table's repository could not be read:", error.code);
+        else if (!cancelled) setTableRepo(data?.repo_url ?? null);
+      });
+    return () => { cancelled = true; };
+  }, [supabase, table.id, settings?.repo]);
   const chatById = useMemo(() => new Map(chats.map((c) => [c.id, c])), [chats]);
   const requestById = useMemo(() => new Map(requests.map((r) => [r.id, r])), [requests]);
   const clients = members.filter((m) => m.role === "client");
@@ -1205,6 +1216,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                     pages={m.meta?.job ? pages.filter((p) => p.job_id === m.meta?.job || pageVersions.some((v) => v.page_id === p.id && v.job_id === m.meta?.job)) : []}
                     onOpenPage={setOpenPage}
                     files={m.meta?.files?.length ? <div className={styles.sayFiles}><Files supabase={supabase} files={m.meta.files} /></div> : null}
+                    repo={tableRepo}
                     again={m.kind === "intro" && items.some((o) => o.kind !== "decision" && o.m.kind === "intro" && o.m.member_id === m.member_id && o.m.created_at < m.created_at)} />;
                 }
                 const mine = m.member_id === me.id;
@@ -1353,7 +1365,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         ) : (
           <WorkPanel review={toReview.map((x) => ({ id: x.m.id, name: firstName(x.m.display_name), n: x.n }))} onReview={openSandbox} tasks={shownTasks} jobs={jobs} members={byId} aiWord={aiWord} open={inboxOpen}
             onOpenChat={(id) => openChat(id)} onClear={clearTasks}
-            onStop={stopJob} />
+            onStop={stopJob} repo={tableRepo} />
         )}
       </div>
 

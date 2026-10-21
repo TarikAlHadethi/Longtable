@@ -4,6 +4,7 @@ import { Time } from "@/components/time";
 import type { Job, Member, Task } from "./types";
 import styles from "./room.module.css";
 import s from "./work-panel.module.css";
+import { githubBase, landedBranch, onlyLocal } from "@/lib/file-links.mjs";
 
 // How long something has been going, in words: 47 min, 3 h 12 min.
 export const elapsed = (mins: number) => (mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)} h${mins % 60 ? ` ${mins % 60} min` : ""}`);
@@ -11,7 +12,9 @@ export const elapsed = (mins: number) => (mins < 60 ? `${mins} min` : `${Math.fl
 // What the AIs are working on, and what they finished: one entry for each piece of work, its title first. It is only
 // in the room while there is something in it. Clear takes away what is finished, for you alone; when that leaves
 // nothing, the panel goes too.
-export function WorkPanel({ review = [], onReview, tasks, jobs, members, aiWord, open, onOpenChat, onClear, onStop }: {
+export function WorkPanel({ review = [], onReview, tasks, jobs, members, aiWord, open, onOpenChat, onClear, onStop, repo = null }: {
+  // The table's repository: a branch on GitHub gets a link to open a pull request.
+  repo?: string | null;
   // Clients whose own copies have changes waiting for the team's answer.
   review?: { id: string; name: string; n: number }[];
   onReview?: (memberId: string) => void;
@@ -80,7 +83,12 @@ export function WorkPanel({ review = [], onReview, tasks, jobs, members, aiWord,
           <div key={t.id} className={s.task} data-testid="work-task">
             <button type="button" className={s.title} onClick={() => onOpenChat(t.chat_id)}>{t.title}</button>
             <div className={s.result}>
-              {t.status === "stopped" ? "Stopped" : t.result && t.result.startsWith("changed ") ? `On ${t.branch}` : "Done, nothing changed"}
+              {/* Work in someone's own folder is there, not on a branch; work on a branch of a GitHub repository can be
+                  opened as a pull request in one press. */}
+              {t.status === "stopped" ? "Stopped"
+                : t.result && t.result.startsWith("changed ") && / folder$/.test(t.result) ? `C${t.result.slice(1)}`
+                : t.result && t.result.startsWith("changed ") ? <>On {landedBranch(t.result, t.branch)}{githubBase(repo) && !onlyLocal(t.result) && <> · <a href={`${githubBase(repo)}/compare/${landedBranch(t.result, t.branch).split("/").map(encodeURIComponent).join("/")}?expand=1`} target="_blank" rel="noreferrer" className={s.prLink} data-testid="open-pr">Open a pull request</a></>}</>
+                : "Done, nothing changed"}
             </div>
             <div className={s.when}><Time iso={t.finished_at ?? t.created_at} style="stamp" /></div>
           </div>

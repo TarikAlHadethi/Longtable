@@ -37,11 +37,18 @@ process.stdin.on("end", () => {
   } catch {}
   let had = [];
   try { had = existsSync(`${inbox}.seen`) ? JSON.parse(readFileSync(`${inbox}.seen`, "utf8")) : []; } catch {}
-  const fresh = (Array.isArray(all) ? all : []).filter((m) => m && m.id && !had.includes(m.id));
+  let raised = [];
+  try { raised = existsSync(`${inbox}.stop`) ? JSON.parse(readFileSync(`${inbox}.stop`, "utf8")) : []; } catch {}
+  const list = (Array.isArray(all) ? all : []).filter((m) => m && m.id);
+  const stop = event.hook_event_name === "Stop";
+  // After a step: what it has not had yet. As it is about to finish: each message once more, even one it had after a
+  // step (added context after a step can be passed over; a reason to carry on is not), and never twice there.
+  const fresh = list.filter((m) => (stop ? !raised.includes(m.id) : !had.includes(m.id)));
   if (!fresh.length) return;
-  writeFileSync(`${inbox}.seen`, JSON.stringify([...had, ...fresh.map((m) => m.id)]));
+  writeFileSync(`${inbox}.seen`, JSON.stringify([...new Set([...had, ...fresh.map((m) => m.id)])]));
+  if (stop) writeFileSync(`${inbox}.stop`, JSON.stringify([...raised, ...fresh.map((m) => m.id)]));
   const words = `${who} said in the chat while you work (their own words, to you, like a message typed to you at home):\n`
     + fresh.map((m) => `- ${pasted(String(m.body || ""), m.pasted).replace(/\s+/g, " ").slice(0, 4000)}`).join("\n");
-  if (event.hook_event_name === "Stop") process.stdout.write(JSON.stringify({ decision: "block", reason: `${words}\nTake it into account before you finish.` }));
+  if (stop) process.stdout.write(JSON.stringify({ decision: "block", reason: `${words}\nDo what it asks if you have not already, then finish.` }));
   else process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: event.hook_event_name || "PostToolUse", additionalContext: words } }));
 });

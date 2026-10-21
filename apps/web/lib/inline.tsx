@@ -2,7 +2,9 @@ import { Fragment, type ReactNode } from "react";
 
 // A small, safe formatter for chat text: `code` and **bold**, nothing else. It builds React elements from plain
 // text, so nothing in a message is ever treated as HTML.
-export function Inline({ text }: { text: string }) {
+// `link`, when given, turns a `code` piece into a link when it names something it can point at (a file in the team's
+// repository); the address is built by the caller, never taken from the text.
+export function Inline({ text, link }: { text: string; link?: (code: string) => string | null }) {
   const out: ReactNode[] = [];
   const pattern = /(`[^`\n]+`|\*\*[^*\n]+\*\*)/g;
   let last = 0;
@@ -10,7 +12,11 @@ export function Inline({ text }: { text: string }) {
   for (const m of text.matchAll(pattern)) {
     if (m.index! > last) out.push(<Fragment key={key++}>{text.slice(last, m.index)}</Fragment>);
     const token = m[0];
-    if (token.startsWith("`")) out.push(<code key={key++} className="inline-code">{token.slice(1, -1)}</code>);
+    if (token.startsWith("`")) {
+      const inner = token.slice(1, -1);
+      const href = link?.(inner);
+      out.push(href ? <a key={key++} href={href} target="_blank" rel="noreferrer" className="code-link"><code className="inline-code">{inner}</code></a> : <code key={key++} className="inline-code">{inner}</code>);
+    }
     else out.push(<strong key={key++}>{token.slice(2, -2)}</strong>);
     last = m.index! + token.length;
   }
@@ -20,16 +26,16 @@ export function Inline({ text }: { text: string }) {
 
 // An AI's answer, set like a page: paragraphs with air between them, real bullets and numbers, small headings. The
 // same safety as Inline: every piece is a React element built from plain text.
-export function Prose({ text }: { text: string }) {
+export function Prose({ text, link }: { text: string; link?: (code: string) => string | null }) {
   const blocks: ReactNode[] = [];
   const lines = text.replace(/\r/g, "").split("\n");
   let para: string[] = [];
   let list: { ordered: boolean; start: number; items: string[] } | null = null;
   let key = 0;
-  const endPara = () => { if (para.length) blocks.push(<p key={key++}><Inline text={para.join("\n")} /></p>); para = []; };
+  const endPara = () => { if (para.length) blocks.push(<p key={key++}><Inline text={para.join("\n")} link={link} /></p>); para = []; };
   const endList = () => {
     if (!list) return;
-    const items = list.items.map((it, i) => <li key={i}><Inline text={it} /></li>);
+    const items = list.items.map((it, i) => <li key={i}><Inline text={it} link={link} /></li>);
     blocks.push(list.ordered ? <ol key={key++} start={list.start}>{items}</ol> : <ul key={key++}>{items}</ul>);
     list = null;
   };

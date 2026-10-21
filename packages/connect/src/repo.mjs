@@ -555,7 +555,8 @@ export function landTree(tree, branch, message, who) {
   let pushed = false;
   let landed = branch;
   // Work on the table's own repository is already on its branch there: nothing is pushed anywhere.
-  if (!tree.url) return { files, commit, branch, pushed: true, apart: false };
+  // Kept as a branch in their own repository, pushed nowhere: it is there, on their computer only.
+  if (!tree.url) return { files, commit, branch, pushed: true, apart: false, local: true };
   const push = (to) => land(["push", "--quiet", "--no-verify", tree.url, `HEAD:refs/heads/${to}`]);
   try { push(branch); pushed = true; } catch (e) {
     log(`push of ${branch} failed: ${String(e.message).split(/\r?\n/)[0]}`);
