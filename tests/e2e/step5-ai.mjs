@@ -170,7 +170,12 @@ try {
   await elena.page.fill("[aria-label='Ask the team']", offAsk);
   await elena.page.press("[aria-label='Ask the team']", "Enter");
   await elena.page.waitForFunction((t) => (document.querySelector("[data-testid=client-chat]")?.innerText ?? "").includes(t), offAsk, { timeout: 10000 }).catch(() => {});
-  const offRequests = (await rest(elenaToken, `requests?select=body&table_id=eq.${tableId}`)).body.map((r) => r.body);
+  // The page shows her words before the server has them, so wait for the request itself.
+  let offRequests = [];
+  for (let i = 0; i < 40 && !offRequests.includes(offAsk); i++) {
+    offRequests = (await rest(elenaToken, `requests?select=body&table_id=eq.${tableId}`)).body.map((r) => r.body);
+    if (!offRequests.includes(offAsk)) await sleep(250);
+  }
   check("with her AI off, her words go straight to the team", offRequests.includes(offAsk), JSON.stringify(offRequests));
 
   if (process.env.SCREENSHOTS) {
