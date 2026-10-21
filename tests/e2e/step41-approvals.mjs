@@ -1,6 +1,6 @@
 // A person's full Claude Code at the table, against the database with stand-in connections: the switch is theirs
 // alone and off until they turn it on; their Claude's requests reach only them; only they answer; a job's key asks
-// only about that job and dies with it; a request nobody answers expires as a no.
+// only about that job and dies with it; a request waits for its person for as long as its job runs.
 //
 //   node --experimental-websocket tests/e2e/step41-approvals.mjs
 
@@ -40,6 +40,7 @@ try {
   const job = sql(`insert into public.jobs (table_id, member_id, kind, chat_id, status, started_at) values ('${tableId}', '${mayaId}', 'look', '${chatId}', 'running', now()) returning id`).split(/\r?\n/)[0];
 
   check("full Claude Code is on by default, working in its person's own folder", sql(`select bool_and(full_claude and in_folder) from public.connections where table_id = '${tableId}' and kind = 'claude'`) === "t");
+  check("a new connection starts in Auto, so almost nothing needs its person", sql(`select bool_and(mode = 'auto') from public.connections where table_id = '${tableId}' and kind = 'claude'`) === "t");
   const samFolder = await rpc(tok.sam, "set_work_in_folder", { conn: conn.maya, on_: false });
   const mayaFolder = await rpc(tok.maya, "set_work_in_folder", { conn: conn.maya, on_: false });
   check("only its person decides whether it works in their folder", samFolder.status >= 400 && mayaFolder.status < 300
@@ -122,15 +123,14 @@ try {
   const twice = await rpc(tok.maya, "decide_approval", { a, allow: false, always_allow: false });
   check("an answer is given once", twice.status >= 400, twice);
 
-  // Nobody answers: after ten minutes it is a no.
-  const late = (await anon("runner_ask_approval", { key, tool: "Bash", summary: "npm run build" })).body;
-  sql(`update public.approvals set created_at = now() - interval '11 minutes' where id = '${late}'`);
-  const expired = (await anon("runner_approval", { key, a: late })).body;
-  check("a request nobody answers in ten minutes expires as a no", expired?.status === "expired", expired);
-  const stale = (await anon("runner_ask_approval", { key, tool: "Bash", summary: "npm run e2e" })).body;
-  sql(`update public.approvals set created_at = now() - interval '11 minutes' where id = '${stale}'`);
-  const staleSays = await rpc(tok.maya, "decide_approval", { a: stale, allow: true, always_allow: false });
-  check("an answer after ten minutes is refused, even before Claude has looked again", staleSays.status >= 400 && sql(`select status from public.approvals where id = '${stale}'`) !== "allowed", staleSays);
+  // Nobody answers for hours: it waits for her, as Claude Code at home does, while its job runs.
+  const late = (await anon("runner_ask_approval", { key, tool: "Bash", summary: "npm run build", why: "Build the app to check it compiles" })).body;
+  sql(`update public.approvals set created_at = now() - interval '3 hours' where id = '${late}'`);
+  const still = (await anon("runner_approval", { key, a: late })).body;
+  check("a request nobody has answered for hours still waits for her", still?.status === "waiting", still);
+  check("and says why in one plain line", sql(`select why from public.approvals where id = '${late}'`) === "Build the app to check it compiles");
+  const lateSays = await rpc(tok.maya, "decide_approval", { a: late, allow: true, always_allow: false });
+  check("her answer when she comes back still counts", lateSays.status < 300 && (await anon("runner_approval", { key, a: late })).body?.status === "allowed", lateSays);
 
   // A Claude that asks and asks cannot bury its person in requests.
   sql(`update public.approvals set status = 'denied' where job_id = '${job}' and status = 'waiting'`);
@@ -139,10 +139,24 @@ try {
   check("at most five requests wait for one job at a time", flood.slice(0, 5).every((r) => r.status < 300) && flood[5].status >= 400, flood.map((r) => r.status));
   sql(`update public.approvals set status = 'denied' where id in (${flood.filter((r) => r.status < 300).map((r) => `'${r.body}'`).join(",")})`);
 
+  // Her connection restarts mid-wait and takes the job up again: what the earlier run asked ends, so no card is left
+  // whose answer nobody would read, and nothing piles up toward the limit.
+  const before = (await anon("runner_ask_approval", { key, tool: "Bash", summary: "npm run e2e" })).body;
+  const again = (await anon("runner_job_key", { token: device.maya, job })).body;
+  check("a job taken up again ends what its earlier run was waiting on", typeof again === "string" && sql(`select status from public.approvals where id = '${before}'`) === "expired");
+  const oldKey = await anon("runner_ask_approval", { key, tool: "Bash", summary: "anything" });
+  check("and the earlier run's key asks nothing more", oldKey.status >= 400, oldKey);
+  // She turns her full Claude Code off while it waits: the request ends with it.
+  const offWait = (await anon("runner_ask_approval", { key: again, tool: "Bash", summary: "npm run deploy-preview" })).body;
+  await rpc(tok.maya, "set_full_claude", { conn: conn.maya, full_on: false });
+  check("turning full Claude Code off ends what it was waiting on", sql(`select status from public.approvals where id = '${offWait}'`) === "expired");
+  await rpc(tok.maya, "set_full_claude", { conn: conn.maya, full_on: true });
+  const key2 = again;
+
   // The job ends: its key dies with it, and nothing of it waits any more.
-  const open = (await anon("runner_ask_approval", { key, tool: "Bash", summary: "npm run lint" })).body;
+  const open = (await anon("runner_ask_approval", { key: key2, tool: "Bash", summary: "npm run lint" })).body;
   sql(`update public.jobs set status = 'done' where id = '${job}'`);
-  const after = await anon("runner_ask_approval", { key, tool: "Bash", summary: "anything" });
+  const after = await anon("runner_ask_approval", { key: key2, tool: "Bash", summary: "anything" });
   check("when its job ends the key asks nothing", after.status >= 400, after);
   check("and what still waited for it is closed", sql(`select status from public.approvals where id = '${open}'`) === "expired");
 

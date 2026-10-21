@@ -83,6 +83,9 @@ export function fullEnv(token, { hooksOff = true, pushTo = [] } = {}) {
   const env = { ...process.env };
   for (const k of Object.keys(env)) if (/^(ANTHROPIC_|CLAUDE_CODE_OAUTH_TOKEN$|CLAUDE_CODE_USE_|OPENAI_API_KEY$|LT_)/.test(k)) delete env[k];
   if (token) env.CLAUDE_CODE_OAUTH_TOKEN = token;
+  // A permission request waits for its person as long as they take, as at home: Claude Code's own limit on a tool call
+  // (the approval is one) is set to a week, unless they set their own.
+  if (!env.MCP_TOOL_TIMEOUT) env.MCP_TOOL_TIMEOUT = String(7 * 24 * 3600 * 1000);
   const conf = [];
   // Git itself refuses a push from the commands this Claude runs, however the command is written (git -C, -c, an
   // alias, a script): every push address is rewritten to one no git can reach. The addresses it may push to are
@@ -153,7 +156,16 @@ export const EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
 // through the approval server (`full.mcp`, the MCP config that starts it), where the person allows or denies each one.
 // Their "always allow" answers come back as `full.allow`. On Mac and Linux, commands also run in Claude Code's sandbox.
 // A job that only reads may not change files (`edit` false).
-export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,Grep,Glob", edit = false, long = false, onNote, control, apiKey, timeoutMs = 4 * 60 * 1000, addDirs = [], effort = null, fast = false, full = null }) {
+// A run asked for in Auto on an account that cannot use it goes again in Accept edits, rather than failing.
+export function ask(opts) {
+  return askOnce(opts).catch((e) => {
+    if (!e.noAuto) throw e;
+    log("Auto mode is not available to this Claude Code; running in Accept edits");
+    return askOnce({ ...opts, full: { ...opts.full, mode: "acceptEdits" } });
+  });
+}
+
+function askOnce({ claude, cwd, prompt, system, schema, model, tools = "Read,Grep,Glob", edit = false, long = false, onNote, control, apiKey, timeoutMs = 4 * 60 * 1000, addDirs = [], effort = null, fast = false, full = null }) {
   // Work a person asked for takes as long as it takes: no time limit, and steps to match. It ends when it is done,
   // when someone presses Stop, or when the connection itself goes away.
   if (edit) { tools = "Read,Grep,Glob,Edit,Write"; timeoutMs = long ? 0 : 10 * 60 * 1000; }
@@ -240,6 +252,11 @@ export function ask({ claude, cwd, prompt, system, schema, model, tools = "Read,
       clearTimeout(timer);
       lines.end();
       if (ended) return reject(new Error(ended));
+      // Asked for Auto on an account or model that cannot use it: said so, so the run is tried again without it.
+      const noAuto = full?.mode === "auto" && /auto/i.test(`${err} ${result?.is_error ? result.result || "" : ""}`)
+        && /not (available|supported|enabled)|unavailable|unsupported|requires|disabled/i.test(`${err} ${result?.result || ""}`)
+        && (!result || result.is_error);
+      if (noAuto) return reject(Object.assign(new Error("Auto mode is not available here"), { noAuto: true }));
       if (!result) {
         log(`claude exited ${code} without a result: ${err.slice(0, 300)}`);
         return reject(new Error("Claude Code did not answer. See the runner log."));

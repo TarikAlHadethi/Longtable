@@ -13,6 +13,9 @@ export function ApprovalCards({ items, ai, onAnswer }: { items: Approval[]; ai: 
       {items.map((a) => (
         <div key={a.id} className={`${styles.card} ${styles.ask}`} data-approval={a.id}>
           <div className={styles.cardTitle}>Your {ai} wants to {a.tool === "Bash" ? "run" : a.tool === "Edit" || a.tool === "Write" ? "change" : "use"}</div>
+          {/* Why, in the words Claude wrote for it, so it can be answered without reading the command. Marked as
+              Claude's own words, quieter than the command itself: the command is what would run. */}
+          {a.why && <div className={styles.askWhy} data-testid="approval-why">Claude says: {a.why}</div>}
           <div className={styles.askWhat}>{a.tool === "Bash" ? a.summary : `${a.tool}${a.summary ? `: ${a.summary}` : ""}`}</div>
           <div className={styles.askRow}>
             <button className="btn" onClick={() => onAnswer(a, true, false)} data-testid="allow">Allow once</button>

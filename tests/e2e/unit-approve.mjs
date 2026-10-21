@@ -47,7 +47,11 @@ const longtable = createServer((req, res) => {
     const args = JSON.parse(body || "{}");
     res.setHeader("Content-Type", "application/json");
     if (req.url.endsWith("/runner_ask_approval")) { asked = args; return res.end(JSON.stringify("a-1")); }
-    if (req.url.endsWith("/runner_approval")) return res.end(JSON.stringify({ status: answer, always: answer === "allowed" }));
+    if (req.url.endsWith("/runner_approval")) {
+      // The job ended: its key is dead, and the server says so.
+      if (answer === "gone") { res.statusCode = 400; return res.end(JSON.stringify({ message: "that key is not for a running job" })); }
+      return res.end(JSON.stringify({ status: answer, always: answer === "allowed" }));
+    }
     res.statusCode = 404; res.end("{}");
   });
 });
@@ -55,8 +59,8 @@ await new Promise((r) => longtable.listen(0, r));
 const url = `http://127.0.0.1:${longtable.address().port}`;
 const server = resolve(fileURLToPath(new URL("../../packages/connect/src/approve-server.mjs", import.meta.url)));
 
-async function exchange(tool, input) {
-  const child = spawn(process.execPath, [server], { env: { ...process.env, LT_SUPABASE_URL: url, LT_KEY: "k", LT_JOB_KEY: "job-key", LT_ALWAYS: file, LT_POLL_MS: "50", LT_WAIT_MS: "3000" } });
+async function exchange(tool, input, extra = {}) {
+  const child = spawn(process.execPath, [server], { env: { ...process.env, LT_SUPABASE_URL: url, LT_KEY: "k", LT_JOB_KEY: "job-key", LT_ALWAYS: file, LT_POLL_MS: "50", LT_WAIT_MS: "3000", ...extra } });
   let out = "";
   child.stdout.on("data", (d) => (out += d));
   const send = (m) => child.stdin.write(JSON.stringify(m) + NL);
@@ -69,8 +73,9 @@ async function exchange(tool, input) {
 }
 
 writeFileSync(file, "[]");
-const yes = await exchange("Bash", { command: "npm test" });
+const yes = await exchange("Bash", { command: "npm test", description: "Run the unit tests" });
 check("the person is asked with the job's own key, never the device token", asked?.key === "job-key" && asked?.summary === "npm test" && !("token" in asked), asked);
+check("and told in one plain line why, in the words Claude wrote for it", asked?.why === "Run the unit tests", asked);
 check("an allow lets it run, as asked", yes.behavior === "allow" && yes.updatedInput?.command === "npm test", yes);
 check("an always allow is kept on this computer as that one command", JSON.stringify(JSON.parse(readFileSync(file, "utf8"))) === JSON.stringify(["Bash(npm test)"]));
 answer = "denied";
@@ -78,7 +83,17 @@ const no = await exchange("Bash", { command: "rm -rf build" });
 check("a no stops it, and says not to try another way", no.behavior === "deny" && /another way/.test(no.message), no);
 answer = "expired";
 const late = await exchange("Bash", { command: "npm run build" });
-check("no answer in time is a no", late.behavior === "deny", late);
+check("a request whose job ended is a no", late.behavior === "deny", late);
+answer = "gone";
+// With no limit at all (as it runs for real), it still stops at once when the job is gone.
+const goneAt = Date.now();
+const gone = await exchange("Bash", { command: "npm run lint" }, { LT_WAIT_MS: "" });
+check("when the job has ended and its key with it, it stops waiting at once and says no", gone.behavior === "deny" && /ended before/.test(gone.message) && Date.now() - goneAt < 2500, { gone, ms: Date.now() - goneAt });
+answer = "allowed";
+await exchange("Write", { file_path: "C:\\x\\src\\booking.tsx", content: "x" });
+check("a file it would change is named as the reason", asked?.why === "Change booking.tsx", asked);
+await exchange("mcp__tracker__create_issue", { title: "x", description: "Run the tests" });
+check("another tool's description field is never shown as the reason", asked?.why === null, asked);
 const long = await exchange("Bash", { command: "y".repeat(SHOW_MAX + 50) });
 check("a request too long to show is refused without asking", long.behavior === "deny" && /too long/.test(long.message), long);
 longtable.close();

@@ -155,5 +155,5 @@ export const PAGE_VERSION_COLUMNS = "id, page_id, n, job_id, made_by, by_ai, not
 export const PAGE_COMMENT_COLUMNS = "id, page_id, member_id, parent_id, version, anchor, body, to_ai, resolved_at, resolved_by, deleted_at, created_at";
 
 // A request from a person's own full Claude Code, waiting for them to allow or deny it. Only they can read it.
-export type Approval = { id: string; job_id: string | null; tool: string; summary: string; status: "waiting" | "allowed" | "denied" | "expired"; created_at: string };
-export const APPROVAL_COLUMNS = "id, job_id, tool, summary, status, created_at";
+export type Approval = { id: string; job_id: string | null; tool: string; summary: string; why?: string | null; status: "waiting" | "allowed" | "denied" | "expired"; created_at: string };
+export const APPROVAL_COLUMNS = "id, job_id, tool, summary, why, status, created_at";

@@ -144,7 +144,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     else setApprovals((data as Approval[] | null) ?? []);
   }, [supabase, table.id]);
   useEffect(() => { readApprovals(); }, [readApprovals]);
-  // While something waits, look again now and then: a request expires after ten minutes, and a live push can be lost.
+  // While something waits, look again now and then: a request ends when its work does, and a live push can be lost.
   useEffect(() => {
     if (!approvals.length) return;
     const t = setInterval(readApprovals, 8000);
@@ -1292,7 +1292,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
             </form>
             <div className={styles.composerTools}>
               {myConnection?.kind === "claude" && myConnection.full_claude && (
-                <ModePick value={myConnection.mode ?? "acceptEdits"} onPick={(m) => setMode(myConnection.id, m)} />
+                <ModePick value={myConnection.mode ?? "auto"} onPick={(m) => setMode(myConnection.id, m)} />
               )}
               {notice && <span className={styles.notice} role="status">{notice}</span>}
               {/* When this person's own AI cannot answer here, say why, with the one fix. */}

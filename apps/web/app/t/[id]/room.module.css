@@ -125,6 +125,7 @@
 /* A person's own Claude asking to do something: the card, held at the bottom right wherever they are in the room. */
 .asks { position: fixed; right: 24px; bottom: 24px; z-index: 75; display: flex; flex-direction: column; gap: 10px; width: min(380px, calc(100vw / var(--zoom) - 32px)); }
 .ask { box-shadow: 0 18px 44px oklch(0.2 0.01 70 / 0.16); animation: lt-rise 0.3s var(--ease-out) both; }
+.askWhy { font-size: 14px; line-height: 1.4; color: var(--muted); margin: 0 0 6px; }
 .askWhat { font-size: 14.5px; line-height: 1.45; color: var(--ink-2); background: var(--paper); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; overflow-wrap: anywhere; white-space: pre-wrap; max-height: 220px; overflow-y: auto; }
 .askRow { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 @media (max-width: 820px) { .asks { top: 64px; bottom: auto; right: 16px; } }

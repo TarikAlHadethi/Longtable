@@ -68,10 +68,14 @@ try {
   runner = spawn(process.execPath, [bin, "run"], { env, cwd: project, stdio: "ignore", windowsHide: true });
   await page.waitForFunction(() => document.querySelectorAll("[data-ai='intro']").length >= 1, null, { timeout: 180000 });
 
-  // She turns on full Claude Code in her AI's window.
+  // Her full Claude Code is on from the start, in her own folder, in Auto.
   const token = await accessToken(owner.context);
-  const conn = (await rest(token, `connections?select=id,full_claude,in_folder&table_id=eq.${owner.tableId}&revoked_at=is.null`)).body[0];
-  check("full Claude Code starts on, working in her own folder", conn && conn.full_claude === true && conn.in_folder === true, conn);
+  const conn = (await rest(token, `connections?select=id,full_claude,in_folder,mode&table_id=eq.${owner.tableId}&revoked_at=is.null`)).body[0];
+  check("full Claude Code starts on, working in her own folder, in Auto", conn && conn.full_claude === true && conn.in_folder === true && conn.mode === "auto", conn);
+  // Auto would run a harmless command without asking; Accept edits changes files and asks about every command, which
+  // is what is checked here.
+  const asks = await rpc(token, "set_ai_mode", { conn: conn.id, mode: "acceptEdits" });
+  check("she switches to Accept edits", asks.status < 300, asks);
 
   // She asks for something that needs a command run.
   await page.fill("textarea", "Add a farewell export to greet.js that says bye. Then run `node check.js` and tell me exactly what it printed.");
@@ -81,6 +85,9 @@ try {
   const what = await card.textContent();
   results.asked = what;
   check("her Claude's request reaches her in Longtable", /wants to run/.test(what), what);
+  const why = await card.locator("[data-testid=approval-why]").textContent().catch(() => null);
+  results.why = why;
+  check("it says why in plain words, as Claude wrote it", !!why && why.trim().length > 3, why);
   check("the tab says something is waiting", /^\(\d+\) /.test(await page.title()), await page.title());
   // Always is offered only for one plain command; a chained one is allowed once.
   const plain = /^[^*()\r\n;&|`$<>]{1,500}$/.test(what.replace(/^Your Claude wants to run/, "").replace(/Allow once.*$/, "").trim());
