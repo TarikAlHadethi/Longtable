@@ -78,7 +78,7 @@ export function PeopleSettings({ tableId, me, mainOwner, myRole, people, focus, 
           body = (
             <>
               <div className={panels.switches}>
-                <Switch on={!!p.can_settings} onChange={(v) => access(p, { settings: v })} testid="may-settings" title="The table's settings" about="Name, final answers, GitHub." />
+                <Switch on={!!p.can_settings} onChange={(v) => access(p, { settings: v })} testid="may-settings" title="The table's settings" about="Name, where the code is, final answers, GitHub." />
                 <Switch on={!!p.can_invite} onChange={(v) => access(p, { invite: v })} testid="may-invite" title="Invite people" about="Teammates and clients." />
                 <Switch on={!!p.can_clients} onChange={(v) => access(p, { clients: v })} testid="may-clients" title="The clients" about="Who answers them, their copy." />
               </div>

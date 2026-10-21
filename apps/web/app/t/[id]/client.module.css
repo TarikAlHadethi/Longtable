@@ -26,6 +26,8 @@
 
 /* One turn: what they said, and what came of it. */
 .turn { display: flex; flex-direction: column; gap: 10px; animation: lt-rise 0.26s var(--ease-out) backwards; }
+/* A second answer from the team straight after the first sits close under it, with no name again. */
+.toldMore { margin-top: -14px; }
 .mine { display: flex; justify-content: flex-end; }
 .mine > div { max-width: 86%; border-radius: 18px 18px 6px 18px; }
 .back { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; max-width: 92%; animation: lt-rise 0.3s var(--ease-out) backwards; animation-delay: 70ms; }

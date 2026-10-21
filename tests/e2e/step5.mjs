@@ -5,6 +5,7 @@
 //
 //   node --experimental-websocket tests/e2e/step5.mjs     (Node 20; on Node 22 plain node works)
 
+import { execFileSync } from "node:child_process";
 import { API, KEY, accessToken, inviteLink, join, launch, listen, rest, rpc, sleep, startTable } from "./lib.mjs";
 
 const run = Date.now().toString(36);
@@ -124,6 +125,14 @@ try {
   const d = ds.find((x) => x.request_id === reqId);
   check("the decision is tied to her request", !!d && d.affects_client && d.origin === "requested by Elena Ruiz", JSON.stringify(ds));
 
+  // A reply from the team's assistant before the decision, as when an AI passed her words on: the decision must read
+  // after it, at its own time, not up beside her question.
+  const assistantSaid = "Passed on to the team for you.";
+  execFileSync("docker", ["exec", "-i", process.env.DB_CONTAINER || "supabase_db_longtable", "psql", "-U", "postgres", "-d", "postgres", "-qAt", "-c",
+    `insert into public.client_lines (table_id, member_id, who, body, by_table) select table_id, member_id, 'assistant', '${assistantSaid}', true from public.requests where id = '${reqId}'`]);
+  await elena.page.reload();
+  await elena.page.waitForFunction((w) => document.querySelector("[data-testid=client-chat]")?.textContent?.includes(w), assistantSaid, { timeout: 20000 });
+
   // The owner picks and sends. She hears the chosen option's own words, and only those, at once.
   await owner.page.locator(`[data-did='${d.id}'] button:has-text('Ship it for launch')`).click();
   await owner.page.click(`[data-did='${d.id}'] [data-testid=send-decision]`);
@@ -131,7 +140,10 @@ try {
   await elena.page.waitForFunction((w) => document.querySelector("[data-testid=client-chat]")?.textContent?.includes(w), yes, { timeout: 30000 });
   results.heardAfterSeconds = Math.round((Date.now() - decidedAt) / 100) / 10;
   await waitReq(ownerToken, reqId, "decided", 30000);
-  const timeline = await elena.page.textContent(`[data-request='${reqId}']`);
+  // A request and what the team said about it, each at its own time in the conversation.
+  const timeline = (await elena.page.$$eval(`[data-request='${reqId}']`, (els) => els.map((el) => el.textContent))).join(" ");
+  const order = await elena.page.evaluate(([said, words]) => { const t = document.querySelector("[data-testid=client-chat]")?.textContent ?? ""; return [t.indexOf(said), t.indexOf(words)]; }, [assistantSaid, yes]);
+  check("her conversation reads in order: the assistant's reply, then the decision", order[0] >= 0 && order[1] > order[0], order);
   results.timeline = timeline;
   check("she hears it at once, in the chosen words, under what she asked", results.heardAfterSeconds < 8 && [ask, yes].every((w) => timeline.includes(w)) && !timeline.includes("Passed on to the team"),
     `${results.heardAfterSeconds} s, ${timeline}`);
@@ -249,7 +261,7 @@ try {
   check("she gets the question with answers to tap", qLook.includes(question) && !qLook.includes("Build it for launch"), qLook.slice(-400));
   await elena.page.click("[data-testid=replies] button:has-text('At launch')");
   await waitReq(ownerToken, req3, "answered", 15000);
-  const answeredLine = await elena.page.textContent(`[data-request='${req3}']`);
+  const answeredLine = (await elena.page.$$eval(`[data-request='${req3}']`, (els) => els.map((el) => el.textContent))).join(" ");
   const repliesLeft = await elena.page.locator("[data-testid=replies]").count();
   check("her tap answers it, once", answeredLine.includes("You answered: At launch") && repliesLeft === 0, `${answeredLine} / ${repliesLeft} left`);
 

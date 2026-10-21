@@ -10,6 +10,7 @@ import { Inline } from "@/lib/inline";
 import { firstName } from "@/lib/names";
 import { FRAME_SANDBOX, frameDoc } from "@/lib/page-frame.mjs";
 import type { Member, Page, PageComment, PageValue, PageVersion } from "./types";
+import room from "./room.module.css";
 import s from "./pages.module.css";
 
 // One small picture per kind of page, drawn the same way as the rest of the app's icons.
@@ -384,7 +385,7 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
             </span>
           )}
           <span className={s.spacer} />
-          {!newest && mode === "view" && <button className="btn btn-quiet" disabled={busy} onClick={async () => { if (await call("restore_page_version", { p: page.id, n }, "That version was not brought back. Try again.")) setN(page.version + 1); }}>Go back to this version</button>}
+          {!newest && mode === "view" && <button className={`btn btn-quiet ${s.restore}`} disabled={busy} onClick={async () => { if (await call("restore_page_version", { p: page.id, n }, "That version was not brought back. Try again.")) setN(page.version + 1); }}>Go back to this version</button>}
           {mode === "edit" ? (
             <span className={s.editBar} data-testid="page-editing">
               <span>Editing the words</span>
@@ -435,7 +436,7 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
                   <span>Every version and comment goes with it.</span>
                   <span className={s.sureRow}>
                     <button className="btn btn-quiet" onClick={() => setMenu(null)}>Keep</button>
-                    <button className="btn" onClick={async () => { if (await call("delete_page", { p: page.id }, "The handout was not deleted. Try again.")) close(); }} data-testid="page-delete">Delete</button>
+                    <button className={`btn ${room.chatSureDelete}`} onClick={async () => { if (await call("delete_page", { p: page.id }, "The handout was not deleted. Try again.")) close(); }} data-testid="page-delete">Delete</button>
                   </span>
                 </div>
               )}

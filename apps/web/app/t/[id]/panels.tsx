@@ -9,6 +9,22 @@ import s from "./panels.module.css";
 
 type Entry = { id: number; actor: string | null; action: string; details: Record<string, string | boolean>; created_at: string };
 
+// Each kind of AI job in plain words, for the log: what it did, and what Stop ended.
+const AI_DID: Record<string, { verb: string; noun: string }> = {
+  answer: { verb: "answered", noun: "answer" },
+  answered: { verb: "answered", noun: "answer" },
+  combine: { verb: "wrote the table's answer", noun: "answer" },
+  view: { verb: "gave its view", noun: "view" },
+  plan: { verb: "planned who does what", noun: "plan" },
+  work: { verb: "did the work", noun: "work" },
+  review: { verb: "looked over the work", noun: "review" },
+  look: { verb: "looked into a question", noun: "look into a question" },
+  intro: { verb: "read the project", noun: "first read of the project" },
+  listen: { verb: "listened in", noun: "listening" },
+  client: { verb: "answered a client", noun: "answer to a client" },
+  sandbox: { verb: "worked on a client's own copy", noun: "work on a client's copy" },
+};
+
 // What was read last time, by table, shown at once while the log is read again.
 const logCache = new Map<string, Entry[]>();
 
@@ -54,7 +70,32 @@ export function LogsPanel({ table, members }: { table: { id: string; name: strin
       case "decision.delivered": return d.told_client ? `${clientName} was told the decision "${d.title}"` : `The decision "${d.title}" took effect`;
       case "connection.paired": return `${d.name ?? who(e)} connected ${d.kind === "codex" ? "ChatGPT" : "Claude"}`;
       case "connection.removed": return `${who(e)}'s ${d.kind === "codex" ? "ChatGPT" : "Claude"} was disconnected`;
-      default: return `${who(e)}: ${e.action.replace(/[._]/g, " ")}`;
+      case "table.asked": return `${who(e)} asked the table`;
+      case "client.asked": return d.title ? `${who(e)} asked for "${d.title}"` : `${who(e)} asked the team something`;
+      case "client.answered": return d.answer ? `${who(e)} answered: ${d.answer}` : `${who(e)} answered the team's question`;
+      case "member.access": {
+        // Each entry holds all three switches as they were left, so it says what they now allow.
+        const may = [d.settings && "the table's settings", d.invite && "inviting people", d.clients && "the clients"].filter(Boolean) as string[];
+        const list = may.length > 1 ? `${may.slice(0, -1).join(", ")} and ${may[may.length - 1]}` : may[0];
+        return list ? `${who(e)} set ${d.name} to manage ${list}` : `${who(e)} set ${d.name} to manage nothing beyond their own work`;
+      }
+      case "member.removed": return `${who(e)} took ${d.name} off the table`;
+      case "member.co_owner": return `${who(e)} made ${d.name} a co-owner`;
+      case "member.not_co_owner": return `${who(e)} made ${d.name} a developer again`;
+      case "settings.changed": return `${who(e)} changed the table's settings`;
+      case "settings.final_seat": return `${who(e)} changed who writes the final answer`;
+      case "github.connected": return `${who(e)} connected GitHub`;
+      case "github.disconnected": return `${who(e)} disconnected GitHub`;
+      case "sandbox.given": return `${who(e)} gave ${d.name ?? "a client"} a copy of their own`;
+      case "sandbox.taken": return `${who(e)} took back ${d.name ?? "a client"}'s own copy`;
+      case "sandbox.take": return `${who(e)} took a change from ${d.client}'s copy`;
+      case "sandbox.differently": return `${who(e)} asked for a change from ${d.client}'s copy to be done differently`;
+      case "sandbox.no": return `${who(e)} left out a change from ${d.client}'s copy`;
+      case "ai.stopped": return `${who(e)} stopped an AI's ${AI_DID[String(d.kind)]?.noun ?? "work"}`;
+      default:
+        // An AI finishing a job is logged under its person: "Sam's AI gave its view".
+        if (e.action.startsWith("ai.")) return `${who(e)}'s AI ${AI_DID[e.action.slice(3)]?.verb ?? "finished a job"}`;
+        return `${who(e)}: ${e.action.replace(/[._]/g, " ")}`;
     }
   }
 

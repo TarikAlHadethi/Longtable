@@ -112,7 +112,7 @@ try {
   const ask2 = "Could we also have a waiting list for cancelled slots?";
   await page.fill("[aria-label='Ask the team']", ask2);
   await page.press("[aria-label='Ask the team']", "Enter");
-  await page.waitForFunction(() => document.querySelectorAll("[data-request]").length >= 2);
+  await page.waitForFunction(() => document.querySelectorAll("[data-request]:not([data-told])").length >= 2);
   const req2 = (await rest(elenaToken, `requests?select=id,body&table_id=eq.${tableId}`)).body.find((r) => r.body === ask2).id;
   await dev.page.waitForSelector(`[data-request='${req2}']`);
   await pollFor(dev.page, (await rest(ownerToken, `requests?select=title&id=eq.${req2}`)).body[0].title);

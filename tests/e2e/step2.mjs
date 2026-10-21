@@ -84,7 +84,7 @@ try {
   check("client hears at once, in the words as they were sent", late.body.length === 1 && late.body[0].body === words1Sent && heardAfter < 6, JSON.stringify(late.body));
   const cardText = await dev.page.textContent(`[data-did='${d1}']`);
   check("the card has no undo", !/Undo/.test(cardText), cardText);
-  await dev.page.waitForFunction((id) => /has been told/.test(document.querySelector(`[data-did='${id}']`)?.textContent || ""), d1, { timeout: 5000 });
+  await dev.page.waitForFunction((id) => /was told/i.test(document.querySelector(`[data-did='${id}']`)?.textContent || ""), d1, { timeout: 5000 });
   check("card says the client has been told", true);
 
   // Too late to undo once it has gone out, even straight through the database.

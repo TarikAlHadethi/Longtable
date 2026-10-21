@@ -3,8 +3,8 @@
 // they open the Longtable screen that does the same, change a setting of the person's AI, or say in one line what
 // they mean at a table. A command Claude Code adds later still shows: the connection sends every name it has.
 
-const FRESH = "Nothing to clear or compact here: every answer at the table starts fresh, with the conversation and what your Claude knows.";
-const NO_SHELL = "This one needs a shell, the web or several agents running on their own, which the AIs at the table do not have. Ask in plain words and your Claude does what it can by reading and changing the code.";
+const SESSION = "Your own Claude keeps one conversation for each chat here and compacts it by itself when it gets long, as Claude Code does. With full Claude Code off, each answer starts fresh instead.";
+const NOT_YET = "This one starts Claude Code's own agents running on their own, which the table does not run yet. Ask in plain words: your own Claude runs commands here, and asks you first for anything your rules do not allow.";
 const ON_YOUR_COMPUTER = "This changes Claude Code on your own computer, not the table: run it there.";
 
 export const SLASH = {
@@ -24,20 +24,20 @@ export const SLASH = {
   color: { act: "open", where: "profile", about: "Your colour, picture and name" },
   effort: { act: "effort", about: "How hard your Claude thinks: /effort low, medium, high, xhigh or max" },
   fast: { act: "fast", about: "Fast mode for your Claude: /fast on or /fast off" },
-  compact: { act: "say", words: FRESH, about: "Not needed here: every answer starts fresh" },
-  autocompact: { act: "say", words: FRESH, about: "Not needed here: every answer starts fresh" },
-  context: { act: "say", words: FRESH, about: "Not needed here: every answer starts fresh" },
-  mcp: { act: "say", words: "Your Claude at the table runs with no MCP servers, so nothing on your computer is reached that you did not point at in a message.", about: "Not used at the table" },
-  agents: { act: "say", words: "Subagents are not used at the table: each person's own Claude does its part, and the others give views and review.", about: "Not used at the table" },
-  "list-agents": { act: "say", words: "Subagents are not used at the table: each person's own Claude does its part, and the others give views and review.", about: "Not used at the table" },
+  compact: { act: "say", words: SESSION, about: "Happens by itself here" },
+  autocompact: { act: "say", words: SESSION, about: "Happens by itself here" },
+  context: { act: "say", words: SESSION, about: "Happens by itself here" },
+  mcp: { act: "say", words: "With full Claude Code on, your own requests here use the MCP servers in your own Claude Code settings. Add or change them in Claude Code on your computer.", about: "From your own settings" },
+  agents: { act: "say", words: "With full Claude Code on, your own Claude can use your subagents here as it does at home. Add or change them in Claude Code on your computer.", about: "From your own settings" },
+  "list-agents": { act: "say", words: "With full Claude Code on, your own Claude can use your subagents here as it does at home. Add or change them in Claude Code on your computer.", about: "From your own settings" },
   loop: { act: "say", words: "Nothing runs on a timer at the table yet. Ask in plain words and your Claude does it now.", about: "Not at the table yet" },
   schedule: { act: "say", words: "Nothing runs on a timer at the table yet. Ask in plain words and your Claude does it now.", about: "Not at the table yet" },
-  batch: { act: "say", words: NO_SHELL, about: "Needs a shell" },
-  run: { act: "say", words: NO_SHELL, about: "Needs a shell" },
-  "deep-research": { act: "say", words: NO_SHELL, about: "Needs the web" },
+  batch: { act: "say", words: NOT_YET, about: "Not at the table yet" },
+  run: { act: "say", words: NOT_YET, about: "Not at the table yet" },
+  "deep-research": { act: "say", words: NOT_YET, about: "Not at the table yet" },
   ultrareview: { act: "say", words: "The multi-agent cloud review runs from Claude Code on your own computer and is billed there. Here, /security-review or /code-review reads the code at the table.", about: "Runs from Claude Code itself" },
-  "workflow-authoring": { act: "say", words: NO_SHELL, about: "Needs several agents" },
-  "workflow-launch-exec": { act: "say", words: NO_SHELL, about: "Needs several agents" },
+  "workflow-authoring": { act: "say", words: NOT_YET, about: "Not at the table yet" },
+  "workflow-launch-exec": { act: "say", words: NOT_YET, about: "Not at the table yet" },
   "update-config": { act: "say", words: ON_YOUR_COMPUTER, about: "On your own computer" },
   "fewer-permission-prompts": { act: "say", words: ON_YOUR_COMPUTER, about: "On your own computer" },
   "auto-mode-setup": { act: "say", words: ON_YOUR_COMPUTER, about: "On your own computer" },

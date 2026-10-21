@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Approval } from "./types";
 import styles from "./room.module.css";
 
@@ -14,9 +14,27 @@ export function ApprovalCards({ items, ai, onAnswer, onReply }: {
   onAnswer: (a: Approval, allow: boolean, always: boolean) => void;
   onReply: (a: Approval, words: string) => void;
 }) {
+  // Tucked away while the person looks at what is under them (on a phone they cover the top of the page); a new
+  // request brings them back.
+  const [tucked, setTucked] = useState(false);
+  const seen = useRef(items.length);
+  useEffect(() => {
+    if (items.length > seen.current) setTucked(false);
+    seen.current = items.length;
+  }, [items.length]);
   if (!items.length) return null;
+  if (tucked) {
+    return (
+      <div className={styles.asks} role="region" aria-label={`Your ${ai} is asking`} data-testid="approvals">
+        <button type="button" className={styles.asksPill} onClick={() => setTucked(false)} data-testid="approvals-show">
+          <span className={styles.asksDot} />Your {ai} is asking{items.length > 1 ? ` (${items.length})` : ""}
+        </button>
+      </div>
+    );
+  }
   return (
     <div className={styles.asks} role="region" aria-label={`Your ${ai} is asking`} data-testid="approvals">
+      <button type="button" className={`${styles.toolLink} ${styles.asksHide}`} onClick={() => setTucked(true)} data-testid="approvals-hide">Hide for now</button>
       {items.map((a) => a.kind === "question"
         ? <Question key={a.id} a={a} ai={ai} onReply={onReply} />
         : (

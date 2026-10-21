@@ -78,15 +78,19 @@ export function DecisionCard({ decision, chatName, members, clientName, now, onO
   if (d.status === "decided") {
     after = `Decided by ${decider || "you"}`;
     const verb = asks ? { done: "has been asked", doing: "asking" } : { done: "has been told", doing: "telling" };
-    if (d.affects_client) after += d.delivered_at ? ` · ${clientName} ${verb.done}` : canUndo ? ` · ${clientName} hears in ${left} s` : ` · ${verb.doing} ${clientName}…`;
+    // Once it has gone out, the words above already say who was told; only a delivery still on its way is worth a word.
+    if (d.affects_client && !d.delivered_at) after += canUndo ? ` · ${clientName} hears in ${left} s` : ` · ${verb.doing} ${clientName}…`;
   }
 
   return (
     <div className={`${styles.card} ${open ? "" : styles.cardDecided}`} data-did={d.id}>
-      <button className={styles.cardOrigin} onClick={onOpenChat} disabled={!onOpenChat}>
-        <span className={styles.cardChat}># {chatName}</span>
-        {d.origin && <span>· {d.origin}</span>}
-      </button>
+      {/* Inside its own chat the chat's name only repeats where you are; it shows where the card is seen elsewhere. */}
+      {(onOpenChat || d.origin) && (
+        <button className={styles.cardOrigin} onClick={onOpenChat} disabled={!onOpenChat}>
+          {onOpenChat && <span className={styles.cardChat}># {chatName}</span>}
+          {d.origin && <span>{onOpenChat ? "· " : ""}{d.origin}</span>}
+        </button>
+      )}
       <div className={styles.cardTitle}>{d.title}</div>
       {open && d.context && <div className={styles.cardContext}>{d.context}</div>}
       <div className={styles.options}>

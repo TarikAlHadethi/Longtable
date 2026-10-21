@@ -54,13 +54,13 @@ try {
   await page.waitForSelector("[data-testid=slash-menu]");
   const menu = await page.textContent("[data-testid=slash-menu]");
   check("typing / shows her own, the table's and Claude Code's own", ["/ship-clinic", "/review", "/compact", "/model", "/effort", "/fast", "/usage", "/clear", "/mcp", "/loop", "/brand-new-thing"].every((n) => menu.includes(n)), menu.slice(0, 400));
-  check("each says what it does here", /Not needed here: every answer starts fresh/.test(menu) && /Pick the model your Claude uses/.test(menu) && /Not at the table yet/.test(menu));
+  check("each says what it does here", /Happens by itself here/.test(menu) && /Pick the model your Claude uses/.test(menu) && /Not at the table yet/.test(menu));
 
   // Says what it means, sends nothing.
   await box.fill("/compact");
   await box.press("Enter");
   await sleep(600);
-  check("/compact says what it means here and sends nothing", /every answer at the table starts fresh/.test(await page.textContent("[role=status]").catch(() => "")) && (await count()) === before);
+  check("/compact says what it means here and sends nothing", /compacts it by itself/.test(await page.textContent("[role=status]").catch(() => "")) && (await count()) === before);
 
   // Opens her AI's window.
   await box.fill("/model");

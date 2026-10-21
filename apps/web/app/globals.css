@@ -60,6 +60,8 @@
 body { zoom: var(--zoom); }
 
 * { box-sizing: border-box; }
+/* Ticks and choices in the product's own green, never the browser's blue. */
+input[type="checkbox"], input[type="radio"] { accent-color: var(--sage); }
 
 /* A person's bubble colour, by name. One person holds each at a table (members.bubble). */
 [data-bubble="rose"] { --bubble: light-dark(oklch(0.935 0.03 15), oklch(0.34 0.04 15)); --bubble-dot: oklch(0.72 0.13 15); }

@@ -224,6 +224,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   type Item =
     | { kind: "request"; id: string; created_at: string; r: Request }
     | { kind: "change"; id: string; created_at: string; c: Change }
+    | { kind: "told"; id: string; created_at: string; r: Request; u: ClientUpdate }
     | { kind: "line"; id: string; created_at: string; me: boolean; own: boolean; desk?: boolean; text: string; question?: ClientUpdate };
   // What they just sent shows at once, and the answer starts forming under it, before the server has said a word.
   const feed = useMemo(() => {
@@ -231,6 +232,9 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
     const items: Item[] = [
       // A request that came out of a change in their copy is told under that change, not twice.
       ...requests.filter((r) => !passed.has(r.id)).map((r): Item => ({ kind: "request", id: `r-${r.id}`, created_at: r.created_at, r })),
+      // What the team said about a request sits at the time it was said, so the conversation reads in order.
+      ...requests.filter((r) => !passed.has(r.id)).flatMap((r) => updates.filter((u) => u.request_id === r.id && !isAck(u))
+        .map((u): Item => ({ kind: "told", id: `t-${u.id}`, created_at: u.created_at, r, u }))),
       ...(sandbox?.changes ?? []).map((c): Item => ({ kind: "change", id: `c-${c.id}`, created_at: c.created_at, c })),
       // Their own words to their assistant show as a line unless they became a request, which carries them.
       ...lines.filter((l) => !(l.who === "client" && l.request_id)).map((l): Item => ({ kind: "line", id: `l-${l.id}`, created_at: l.created_at, me: l.who === "client", own: true, desk: !!l.by_table, text: l.body })),
@@ -396,7 +400,19 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
                   : `Ask the team for anything about ${table.name}, in your own words. You hear back here.`}
               </div>
             )}
-            {feed.map((item) => {
+            {feed.map((item, i) => {
+              if (item.kind === "told") {
+                // A run of the team's answers reads as one turn: "The team" once, like a person's messages in a row.
+                const after = feed[i - 1]?.kind === "told";
+                return (
+                  <div key={item.id} className={`${styles.turn} ${after ? styles.toldMore : ""}`} data-request={item.r.id} data-told="">
+                    <div className={styles.back}>
+                      {!after && speaker("team")}
+                      {answers(item.u)}
+                    </div>
+                  </div>
+                );
+              }
               if (item.kind === "line") {
                 if (item.me) return <div key={item.id} className={styles.turn}>{myWords(item.text)}</div>;
                 return (
@@ -443,13 +459,6 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
                 <div key={item.id} className={styles.turn} data-request={r.id}>
                   {myWords(r.body)}
                   {r.files?.length ? <div className={styles.mineFiles}><Files supabase={supabase} files={r.files} /></div> : null}
-                  {/* What the team said about it, once they have said something: never an empty heading. */}
-                  {told(r.id).length > 0 && (
-                    <div className={styles.back}>
-                      {speaker("team")}
-                      {told(r.id).map(answers)}
-                    </div>
-                  )}
                 </div>
               );
             })}

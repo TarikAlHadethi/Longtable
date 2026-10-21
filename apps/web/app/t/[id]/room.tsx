@@ -406,9 +406,13 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           return;
         }
         known.current.add(id);
+        // What a person may change comes with the change too; anything the record leaves out keeps what was known, so
+        // a change to someone never wipes their access from the screen.
+        const access = Object.fromEntries((["can_settings", "can_invite", "can_clients"] as const)
+          .filter((k) => k in (record as object)).map((k) => [k, (record as Record<string, unknown>)[k]]));
         setMembers((prev) => (prev.some((m) => m.id === id)
-          ? prev.map((m) => (m.id === id ? fresh : m))
-          : [...prev, fresh]));
+          ? prev.map((m) => (m.id === id ? { ...m, ...fresh, ...access } : m))
+          : [...prev, { ...fresh, ...access }]));
       } else if (name === "jobs") {
         const j = record as unknown as Job;
         setJobs((prev) => [...prev.filter((x) => x.id !== j.id), j]);
@@ -1264,7 +1268,10 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                       : j.kind === "review" ? (j.status === "running" ? "looking it over" : "will look it over")
                       : j.kind === "view" ? (j.status === "running" ? "giving its view" : "will give its view")
                       : j.kind === "intro" ? "reading the project"
-                      : j.status === "running" ? "reading the code" : "waiting for its computer";
+                      : j.status === "running" ? "reading the code"
+                      // Queued behind its other work while its computer is on is "next", not "waiting for its computer".
+                      : connections.some((c) => !c.revoked_at && c.member_id === j.member_id && !!c.last_seen && Date.now() - new Date(c.last_seen).getTime() < 90000) ? "has this next"
+                      : "waiting for its computer";
                     return (
                       <div key={j.id} className={styles.brRow} style={{ "--i": i } as React.CSSProperties} data-testid="working" data-done={done ? true : undefined}>
                         <span className={styles.brAi}><AiLogo kind={kind} size={16} /></span>

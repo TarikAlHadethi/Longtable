@@ -60,6 +60,19 @@ try {
   const chat = sql(`select id from public.chats where table_id = '${T}' and is_general`);
   check("asking the table works with two owners", ok(await rpc(tok.maya, "ask_table", { c: chat, body: "Does anything break with two owners?" })));
   check("the main owner makes Lee a developer again", ok(await rpc(tok.maya, "set_co_owner", { m: leeId, co: false })) && sql(`select role from public.members where id = '${leeId}'`) === "developer");
+
+  // On the screen: a switch the owner turns on stays on once the live change comes back (it used to be wiped by it).
+  const p = owner.page;
+  await p.goto(`${p.url().split("?")[0].replace(/\/settings.*$/, "")}/settings`);
+  await p.click("button:has-text('People')");
+  await p.click("[data-person='Lee Park'] summary");
+  const lees = p.locator("[data-person='Lee Park'] [data-testid=may-invite]");
+  const before = await lees.isChecked();
+  await lees.click();
+  await p.waitForTimeout(2500);
+  const shown = await lees.isChecked();
+  const kept = sql(`select can_invite from public.members where id = '${leeId}'`);
+  check("a switch pressed in Settings stays as pressed after the live change", shown === !before && kept === (before ? "f" : "t"), { before, shown, kept });
 } catch (e) {
   check("the run did not crash", false, e.stack || e.message);
 } finally {

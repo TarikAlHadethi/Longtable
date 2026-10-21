@@ -135,6 +135,8 @@
 .versions { width: 132px; }
 .versions button[aria-haspopup] { padding: 6px 12px; border-radius: 10px; font-size: 14px; }
 .tool { border-radius: 12px; width: 36px; height: 36px; }
+/* As tall as the tools beside it, so the bar never grows when an older version is open. */
+.restore { height: 36px; padding: 0 14px; border-radius: 12px; font-size: 14px; margin-right: 4px; animation: lt-rise 0.2s var(--ease-out) both; }
 .tool svg { transition: transform 0.2s var(--ease-out); }
 .popped svg { animation: pw-pop 0.32s var(--ease-spring) both; }
 @keyframes pw-pop { 0% { transform: scale(1); } 40% { transform: scale(0.7) rotate(-12deg); } 100% { transform: scale(1); } }

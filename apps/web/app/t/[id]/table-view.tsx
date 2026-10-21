@@ -64,6 +64,16 @@ export function TableView({ table, me, members, connections, jobs, online, messa
   const working = new Set(jobs.filter((j) => j.status === "running" || j.status === "queued" || j.status === "waiting").map((j) => j.member_id));
   const seats = team.map((m) => ({ m, seat: seatOf(m.id) }));
   const busy = (id: string) => working.has(id) && !!seats.find((x) => x.m.id === id)?.seat?.on;
+  // What a busy AI is really on, short enough for its card: "Editing send.ts", else that it works or waits its turn.
+  const doing = (id: string) => {
+    const run = jobs.find((j) => j.member_id === id && j.status === "running");
+    if (!run) return "Up next…";
+    const note = run.progress ?? "";
+    if (!note || note.startsWith("\"")) return "Working…";
+    const [verb, ...rest] = note.split(" ");
+    const on = rest.join(" ").split(/[\\/]/).pop() ?? "";
+    return `${verb.charAt(0).toUpperCase()}${verb.slice(1)}${on ? ` ${on}` : "…"}`;
+  };
   // The next seat is a real place in the row, so a table of one already looks like a table.
   const cols = team.length + (onInvite ? 1 : 0) || 1;
   const onSeats = seats.filter((x) => x.seat?.on);
@@ -101,12 +111,18 @@ export function TableView({ table, me, members, connections, jobs, online, messa
     const measure = () => {
       const pad = parseFloat(getComputedStyle(w).paddingTop) + parseFloat(getComputedStyle(w).paddingBottom);
       const natural = inner.getBoundingClientRect().height / fitNow.current;
-      const f = Math.max(0.68, Math.min(1, (w.clientHeight - pad) / natural));
+      // The row of people fits across too (a phone): it may go a little smaller for width than for height.
+      // Its narrowest is 176px a seat plus the scroller's padding (table-view.module.css .tree, .scroller).
+      const row = inner.querySelector<HTMLElement>("[data-fit-row]");
+      const cols = row ? parseFloat(getComputedStyle(row).getPropertyValue("--cols")) || 0 : 0;
+      const across = cols > 0 ? w.clientWidth / (cols * 176 + 48) : 1;
+      const f = Math.min(Math.max(0.68, Math.min(1, (w.clientHeight - pad) / natural)), Math.max(0.62, Math.min(1, across)));
       if (Math.abs(f - fitNow.current) > 0.01) { fitNow.current = f; setFit(f); }
     };
     const ro = new ResizeObserver(measure);
     ro.observe(w);
     ro.observe(inner);
+
     measure();
     return () => ro.disconnect();
   }, [showcase]);
@@ -133,7 +149,7 @@ export function TableView({ table, me, members, connections, jobs, online, messa
       )}
 
       <div className={s.scroller}>
-        <div className={s.tree} style={{ "--cols": cols } as React.CSSProperties}>
+        <div className={s.tree} style={{ "--cols": cols } as React.CSSProperties} data-fit-row="">
           <div className={s.row}>
             {seats.map(({ m, seat }, i) => {
               const mine = m.id === me.id;
@@ -158,7 +174,7 @@ export function TableView({ table, me, members, connections, jobs, online, messa
                         <span className={`${s.dot} ${isBusy ? s.dotBusy : ""}`} title={!seat.on ? "Disconnected" : isBusy ? "Working" : "Connected"} />
                       </div>
                       <div className={s.aiName}>{AI_NAME[seat.conn.kind]}{plan ? ` ${plan}` : ""}</div>
-                      {isBusy ? <div className={s.model}>Reading the code…</div>
+                      {isBusy ? <div className={`${s.model} ${s.doing}`} key={doing(m.id)} title={doing(m.id)}>{doing(m.id)}</div>
                         : <span onClick={(e) => e.stopPropagation()}><ModelPick kind={seat.conn.kind} value={seat.conn.model_choice ?? ""} text={modelText(seat.conn)} reported={seat.conn.limits?.models}
                             className={s.model} canPick={(mine || showcase) && seat.on && !!onModel} onPick={(model) => onModel?.(seat.conn.id, model)} /></span>}
                       {mine && seat.removed && <button className={s.again} onClick={(e) => { e.stopPropagation(); onConnect(); }}>Connect again</button>}

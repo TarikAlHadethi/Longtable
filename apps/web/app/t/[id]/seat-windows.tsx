@@ -77,7 +77,7 @@ export function AiWindow({ tableId, me, person, conn, commands, on, busy, onSpee
         <div className={s.hero}>
           <span className={s.seatMark}>{conn ? <AiLogo kind={conn.kind} size={44} /> : <Mark size={44} />}</span>
           <h2 className={s.name}>{mine ? `Your ${ai}` : `${first}'s ${ai}`}</h2>
-          <div className={s.sub}>{!conn ? "No AI connected yet" : !live ? "Disconnected" : busy ? "Working right now" : on ? "Connected, on this person's own computer" : "Connected, but its computer is off or asleep"}</div>
+          <div className={s.sub}>{!conn ? "No AI connected yet" : !live ? "Disconnected" : busy ? "Working right now" : on ? (mine ? "Connected, on your computer" : `Connected, on ${first}'s computer`) : "Connected, but its computer is off or asleep"}</div>
         </div>
 
         {conn && (
@@ -101,7 +101,8 @@ export function AiWindow({ tableId, me, person, conn, commands, on, busy, onSpee
               </div>
             )}
             {plan && <div className={s.fact}><span>Plan</span><b>{plan}</b></div>}
-            {conn.last_seen && <div className={s.fact}><span>Last on</span><b><Time iso={conn.last_seen} style="stamp" /></b></div>}
+            {/* While it is on, the line under its name already says so; when it was last on matters only once it is off. */}
+            {conn.last_seen && !on && <div className={s.fact}><span>Last on</span><b><Time iso={conn.last_seen} style="stamp" /></b></div>}
             <div className={s.fact}><span>Runs on</span><b>{mine ? "Your computer, your own plan" : `${first}'s computer, their own plan`}</b></div>
             {conn.limits?.version && <div className={s.fact}><span>Connection</span><b>{conn.limits.version}</b></div>}
             {/* What it reads: the shared repository, or only the folder on its person's computer. */}
@@ -232,7 +233,7 @@ export function TableWindow({ me, tableName, writer, tableModel, onTableModel, p
           <ol className={s.steps}>
             <li>The table listens. People talking to each other are left alone.</li>
             <li>A question goes to the asker&apos;s own AI, on their computer, with what it knows of them.</li>
-            <li>Work is done by the asker&apos;s AI on a branch. The other AIs say what they think first and look it over after.</li>
+            <li>Work is done by the asker&apos;s own AI, in their own folder as at home, or on a branch when they turn that off. The other AIs say what they think first and look over work on a branch after.</li>
             <li>With more than one AI, the table gives one answer.</li>
           </ol>
         </div>
