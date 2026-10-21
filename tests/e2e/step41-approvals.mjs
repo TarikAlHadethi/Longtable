@@ -153,6 +153,65 @@ try {
   await rpc(tok.maya, "set_full_claude", { conn: conn.maya, full_on: true });
   const key2 = again;
 
+  // Her Claude asks her a question with choices: a card only she answers, with words.
+  const oneChoice = await anon("runner_ask_question", { key: key2, question: "Pick one", options: [{ label: "Only" }] });
+  check("a question needs at least two choices", oneChoice.status >= 400, oneChoice);
+  const qid = (await anon("runner_ask_question", { key: key2, question: "Which colour?", options: [{ label: "Red" }, { label: "Blue", about: "the darker one" }] })).body;
+  const samAnswers = await rpc(tok.sam, "answer_question", { a: qid, words: "Red" });
+  const asAllow = await rpc(tok.maya, "decide_approval", { a: qid, allow: true, always_allow: false });
+  check("only she answers her Claude's question, and with words, not allow or deny", samAnswers.status >= 400 && asAllow.status >= 400, { samAnswers, asAllow });
+  const mayaAnswers = await rpc(tok.maya, "answer_question", { a: qid, words: "Blue" });
+  const heard = (await anon("runner_approval", { key: key2, a: qid })).body;
+  check("her answer goes back to her Claude", mayaAnswers.status < 300 && heard?.status === "allowed" && heard?.answer === "Blue", { mayaAnswers, heard });
+
+  // What she says while her own request runs goes into that run, and the listener leaves it to it.
+  const chat2 = sql(`insert into public.chats (table_id, name) values ('${tableId}', 'Header') returning id`).split(/\r?\n/)[0];
+  const m1 = sql(`insert into public.messages (table_id, chat_id, member_id, body) values ('${tableId}', '${chat2}', '${mayaId}', 'make the header bigger') returning id`).split(/\r?\n/)[0];
+  const work = sql(`insert into public.jobs (table_id, member_id, kind, chat_id, question_id, status, started_at, lease_until) values ('${tableId}', '${mayaId}', 'answer', '${chat2}', '${m1}', 'running', now(), now() + interval '10 minutes') returning id`).split(/\r?\n/)[0];
+  const samId = sql(`select id from public.members where table_id = '${tableId}' and display_name = 'Sam Ali'`);
+  const m2 = sql(`insert into public.messages (table_id, chat_id, member_id, body) values ('${tableId}', '${chat2}', '${mayaId}', 'can you also make it blue while you are at it?') returning id`).split(/\r?\n/)[0];
+  sql(`insert into public.messages (table_id, chat_id, member_id, body) values ('${tableId}', '${chat2}', '${samId}', 'what does the footer do on phones these days?')`);
+  const got = (await anon("runner_inbox", { token: device.maya, job: work, open: true })).body;
+  check("her new message goes into her own run, and only hers", Array.isArray(got) && got.length === 1 && got[0].id === m2, got);
+  const again2 = (await anon("runner_inbox", { token: device.maya, job: work, open: true })).body;
+  check("each is handed over once", Array.isArray(again2) && again2.length === 0, again2);
+  const samsInbox = await anon("runner_inbox", { token: device.sam, job: work, open: true });
+  check("nobody else's connection can take her run's messages", samsInbox.status >= 400, samsInbox);
+  sql(`delete from public.jobs where chat_id = '${chat2}' and kind = 'listen'`);
+  sql(`update public.listens set due_at = now() - interval '1 second' where chat_id = '${chat2}'`);
+  sql(`select public.listen_now()`);
+  const listenFor = (who) => sql(`select count(*) from public.jobs j join public.messages q on q.id = j.question_id where j.chat_id = '${chat2}' and j.kind = 'listen' and q.member_id = '${who}'`);
+  check("while her run takes her words, the listener leaves them to it and still hears Sam", listenFor(mayaId) === "0" && listenFor(samId) === "1", { maya: listenFor(mayaId), sam: listenFor(samId) });
+  // The run ends without having read it: it goes back to be heard as usual.
+  // A message asked outright with Ctrl+Enter is a request of its own, never also handed into the run.
+  const m3 = sql(`insert into public.messages (table_id, chat_id, member_id, body) values ('${tableId}', '${chat2}', '${mayaId}', 'and check the spacing too please') returning id`).split(/\r?\n/)[0];
+  sql(`insert into public.jobs (table_id, member_id, kind, chat_id, question_id, status) values ('${tableId}', '${mayaId}', 'answer', '${chat2}', '${m3}', 'skipped')`);
+  const outright = (await anon("runner_inbox", { token: device.maya, job: work, open: true })).body;
+  check("a message asked outright is never also handed into the run", Array.isArray(outright) && outright.length === 0, outright);
+  sql(`delete from public.jobs where question_id = '${m3}'`);
+  sql(`delete from public.messages where id = '${m3}'`);
+  // The listener goes round again while her run still takes her words: Sam's message, already heard, is not heard twice.
+  sql(`update public.listens set due_at = now() - interval '1 second' where chat_id = '${chat2}'`);
+  sql(`select public.listen_now()`);
+  check("a teammate's message is heard once, however often the listener goes round", listenFor(samId) === "1", listenFor(samId));
+  await anon("runner_inbox", { token: device.maya, job: work, open: false, seen: [] });
+  sql(`update public.jobs set status = 'done' where id = '${work}'`);
+  sql(`delete from public.jobs where chat_id = '${chat2}' and kind = 'listen'`);
+  sql(`update public.listens set due_at = now() - interval '1 second' where chat_id = '${chat2}'`);
+  sql(`select public.listen_now()`);
+  check("what her run never read is heard once it ends", listenFor(mayaId) === "1" && sql(`select count(*) from public.delivered_messages where message_id = '${m2}'`) === "0");
+  // Her connection dies mid-run, so the run never says what it read: what it was handed is heard as usual.
+  sql(`delete from public.jobs where chat_id = '${chat2}' and kind = 'listen'`);
+  const work2 = sql(`insert into public.jobs (table_id, member_id, kind, chat_id, question_id, status, started_at, lease_until) values ('${tableId}', '${mayaId}', 'answer', '${chat2}', '${m1}', 'running', now(), now() + interval '10 minutes') returning id`).split(/\r?\n/)[0];
+  const m4 = sql(`insert into public.messages (table_id, chat_id, member_id, body) values ('${tableId}', '${chat2}', '${mayaId}', 'could you also bump the version number?') returning id`).split(/\r?\n/)[0];
+  const got4 = (await anon("runner_inbox", { token: device.maya, job: work2, open: true })).body;
+  sql(`update public.jobs set status = 'failed', taking = false where id = '${work2}'`);
+  sql(`update public.listens set due_at = now() - interval '1 second' where chat_id = '${chat2}'`);
+  sql(`select public.listen_now()`);
+  const heardM4 = sql(`select count(*) from public.jobs where chat_id = '${chat2}' and kind = 'listen' and question_id = '${m4}'`);
+  check("a run that died without reading what it was handed gives it back to be heard", Array.isArray(got4) && got4.some((m) => m.id === m4) && heardM4 === "1", { got4, heardM4 });
+  sql(`delete from public.jobs where chat_id = '${chat2}' and kind = 'listen'`);
+
   // The job ends: its key dies with it, and nothing of it waits any more.
   const open = (await anon("runner_ask_approval", { key: key2, tool: "Bash", summary: "npm run lint" })).body;
   sql(`update public.jobs set status = 'done' where id = '${job}'`);

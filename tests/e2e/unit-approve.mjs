@@ -40,6 +40,7 @@ check("a missing or broken file is no rules", alwaysRules(join(dir, "none.json")
 // The whole exchange, against a stand-in Longtable that answers the person's way.
 let asked = null;
 let answer = "allowed";
+let replyWords = "Blue, the darker one";
 const longtable = createServer((req, res) => {
   let body = "";
   req.on("data", (d) => (body += d));
@@ -47,10 +48,11 @@ const longtable = createServer((req, res) => {
     const args = JSON.parse(body || "{}");
     res.setHeader("Content-Type", "application/json");
     if (req.url.endsWith("/runner_ask_approval")) { asked = args; return res.end(JSON.stringify("a-1")); }
+    if (req.url.endsWith("/runner_ask_question")) { asked = args; return res.end(JSON.stringify("q-1")); }
     if (req.url.endsWith("/runner_approval")) {
       // The job ended: its key is dead, and the server says so.
       if (answer === "gone") { res.statusCode = 400; return res.end(JSON.stringify({ message: "that key is not for a running job" })); }
-      return res.end(JSON.stringify({ status: answer, always: answer === "allowed" }));
+      return res.end(JSON.stringify({ status: answer, always: answer === "allowed", answer: answer === "allowed" ? replyWords : null }));
     }
     res.statusCode = 404; res.end("{}");
   });
@@ -59,17 +61,18 @@ await new Promise((r) => longtable.listen(0, r));
 const url = `http://127.0.0.1:${longtable.address().port}`;
 const server = resolve(fileURLToPath(new URL("../../packages/connect/src/approve-server.mjs", import.meta.url)));
 
-async function exchange(tool, input, extra = {}) {
+async function exchange(tool, input, extra = {}, name = "approve") {
   const child = spawn(process.execPath, [server], { env: { ...process.env, LT_SUPABASE_URL: url, LT_KEY: "k", LT_JOB_KEY: "job-key", LT_ALWAYS: file, LT_POLL_MS: "50", LT_WAIT_MS: "3000", ...extra } });
   let out = "";
   child.stdout.on("data", (d) => (out += d));
   const send = (m) => child.stdin.write(JSON.stringify(m) + NL);
   send({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } });
-  send({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "approve", arguments: { tool_name: tool, input } } });
+  send({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name, arguments: name === "ask" ? input : { tool_name: tool, input } } });
   for (let i = 0; i < 100 && !out.includes('"id":2'); i++) await new Promise((r) => setTimeout(r, 50));
   child.kill();
   const line = out.split(NL).find((l) => l.includes('"id":2'));
-  return JSON.parse(JSON.parse(line).result.content[0].text);
+  const text = JSON.parse(line).result.content[0].text;
+  return name === "ask" ? text : JSON.parse(text);
 }
 
 writeFileSync(file, "[]");
@@ -96,6 +99,11 @@ await exchange("mcp__tracker__create_issue", { title: "x", description: "Run the
 check("another tool's description field is never shown as the reason", asked?.why === null, asked);
 const long = await exchange("Bash", { command: "y".repeat(SHOW_MAX + 50) });
 check("a request too long to show is refused without asking", long.behavior === "deny" && /too long/.test(long.message), long);
+// A question with choices: asked with the job's own key, and the answer comes back as their words.
+answer = "allowed";
+const q = await exchange("ask", { question: "Which colour?", options: [{ label: "Red" }, { label: "Blue", description: "the darker one" }] }, {}, "ask");
+check("a question goes to the person with its choices", asked?.key === "job-key" && asked?.question === "Which colour?" && asked?.options?.length === 2 && asked.options[1].about === "the darker one", asked);
+check("and their answer comes back to Claude in their words", typeof q === "string" && /They answered: Blue, the darker one/.test(q), q);
 longtable.close();
 
 console.log(JSON.stringify({ checks: results }, null, 2));

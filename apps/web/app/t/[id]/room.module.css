@@ -128,6 +128,11 @@
 .askWhy { font-size: 14px; line-height: 1.4; color: var(--muted); margin: 0 0 6px; }
 .askWhat { font-size: 14.5px; line-height: 1.45; color: var(--ink-2); background: var(--paper); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; overflow-wrap: anywhere; white-space: pre-wrap; max-height: 220px; overflow-y: auto; }
 .askRow { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.askRow .field { flex: 1 1 160px; min-width: 0; }
+.askQuestion { font-size: 15.5px; line-height: 1.45; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.askChoices { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.askChoice { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; white-space: normal; height: auto; padding: 8px 12px; }
+.askChoice span { font-size: 13.5px; color: var(--muted); font-weight: 400; }
 @media (max-width: 820px) { .asks { top: 64px; bottom: auto; right: 16px; } }
 .cardDecided { border-color: light-dark(oklch(0.86 0.03 170), oklch(0.33 0.03 170)); }
 .cardOrigin {

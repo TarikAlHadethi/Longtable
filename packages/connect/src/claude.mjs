@@ -198,9 +198,11 @@ function askOnce({ claude, cwd, prompt, system, schema, model, tools = "Read,Gre
     // any command. In plan mode the plan is its answer here: there is
     // no plan to approve, so it never asks to leave plan mode.
     // A remote with a push address of its own is not covered by git's rewrite, so then pushing is refused outright.
-    const no = [...(full.folder && !full.noPush ? [] : ["Bash(git push:*)", "Bash(git push)"]), ...(edit ? [] : ["Edit", "Write", "NotebookEdit"]), ...(full.mode === "plan" ? ["ExitPlanMode"] : [])];
+    // Its own question tool goes nowhere in a run like this; questions go to the person through Longtable's instead.
+    const no = ["AskUserQuestion", ...(full.folder && !full.noPush ? [] : ["Bash(git push:*)", "Bash(git push)"]), ...(edit ? [] : ["Edit", "Write", "NotebookEdit"]), ...(full.mode === "plan" ? ["ExitPlanMode"] : [])];
     if (no.length) args.push("--disallowedTools", ...no);
-    if (full.allow?.length) args.push("--allowedTools", ...full.allow);
+    // Asking its person a question is never itself something to ask permission for.
+    args.push("--allowedTools", "mcp__longtable__ask", ...(full.allow || []));
   }
   // A person's own chat in their own folder keeps one session, as at home: kept by Claude Code, picked up next time.
   if (session && full) {
@@ -214,7 +216,9 @@ function askOnce({ claude, cwd, prompt, system, schema, model, tools = "Read,Gre
   if (EFFORTS.has(effort)) args.push("--effort", effort);
   // On Mac and Linux commands also run in Claude Code's sandbox, and still ask: the sandbox alone never stands in for
   // the person's answer.
-  const settings = { ...(full?.project || {}), ...(fast ? { fastMode: true } : {}),
+  // full.hooks: what the person says in the chat while it works reaches it after each step (added to the hooks of their
+  // own settings, which Claude Code still runs).
+  const settings = { ...(full?.project || {}), ...(fast ? { fastMode: true } : {}), ...(full?.hooks ? { hooks: full.hooks } : {}),
     ...(full && !full.folder && process.platform !== "win32" ? { sandbox: { ...(full?.project?.sandbox || {}), enabled: true, autoAllowBashIfSandboxed: false } } : {}) };
   if (Object.keys(settings).length) args.push("--settings", JSON.stringify(settings));
   // Folders beside the working one that this job may read: only ever ones the connection chose.

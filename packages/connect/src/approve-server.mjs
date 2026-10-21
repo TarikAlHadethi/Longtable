@@ -106,6 +106,27 @@ async function decide(tool, input) {
   return { behavior: "deny", message: "This work ended before the person answered in Longtable, so it was not done. Say what you would have done, and the person can ask again." };
 }
 
+// A question with choices for the person, as Claude Code's own question tool asks at home: a card in Longtable with a
+// button for each choice and room for their own words. It waits for them as long as the job runs.
+const ASK_ABOUT = "Ask your person a question with choices, the way you would at home: they see it in Longtable as a card with a button for each choice, and can answer in their own words. It waits for their answer. Use it when you need their decision to go on.";
+async function askPerson(question, options) {
+  const opts = (Array.isArray(options) ? options : []).map((o) => ({ label: String(o?.label ?? "").slice(0, 400), about: String(o?.description ?? o?.about ?? "").slice(0, 1000) }));
+  let id;
+  try { id = await rpc("runner_ask_question", { key, question: String(question ?? "").slice(0, 4000), options: opts }); }
+  catch (e) { return `Longtable could not ask the person (${e.message}). Carry on with the safest choice and say which you took.`; }
+  for (const end = WAIT_MS ? Date.now() + WAIT_MS : Infinity; Date.now() < end;) {
+    await sleep(POLL_MS);
+    let r;
+    try { r = await rpc("runner_approval", { key, a: id }); } catch (e) {
+      if (/not for a running job|no such request/i.test(e.message)) break;
+      continue;
+    }
+    if (r?.status === "allowed" && r.answer) return `They answered: ${r.answer}`;
+    if (r?.status && r.status !== "waiting") break;
+  }
+  return "This work ended before the person answered. Say what you would have needed to know.";
+}
+
 // The MCP side: JSON-RPC over stdin and stdout, one message a line.
 function serve() {
   let buf = "";
@@ -127,7 +148,16 @@ function serve() {
         reply({ protocolVersion: m.params?.protocolVersion || "2025-06-18", capabilities: { tools: {} }, serverInfo: { name: "longtable", version: "1" } });
       } else if (m.method === "tools/list") {
         reply({ tools: [{ name: "approve", description: "Asks the person in Longtable whether their Claude may do this.",
-          inputSchema: { type: "object", properties: { tool_name: { type: "string" }, input: { type: "object" }, tool_use_id: { type: "string" } }, required: ["tool_name", "input"] } }] });
+          inputSchema: { type: "object", properties: { tool_name: { type: "string" }, input: { type: "object" }, tool_use_id: { type: "string" } }, required: ["tool_name", "input"] } },
+        { name: "ask", description: ASK_ABOUT,
+          inputSchema: { type: "object", properties: { question: { type: "string", description: "The question, in plain words." },
+            options: { type: "array", minItems: 2, maxItems: 6, items: { type: "object", properties: { label: { type: "string", description: "A short choice." }, description: { type: "string", description: "One line on what choosing it means." } }, required: ["label"] } } },
+          required: ["question", "options"] } }] });
+      } else if (m.method === "tools/call" && m.params?.name === "ask") {
+        const a = m.params?.arguments || {};
+        askPerson(a.question, a.options).then(
+          (text) => reply({ content: [{ type: "text", text }] }),
+          () => reply({ content: [{ type: "text", text: "Longtable could not ask the person. Carry on with the safest choice and say which you took." }] }));
       } else if (m.method === "tools/call") {
         const a = m.params?.arguments || {};
         decide(String(a.tool_name || "a tool"), a.input || {}).then(

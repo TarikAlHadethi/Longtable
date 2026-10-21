@@ -1088,6 +1088,11 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               setApprovals((prev) => prev.filter((x) => x.id !== a.id));
               const { error } = await supabase.rpc("decide_approval", { a: a.id, allow, always_allow: always });
               if (error) { didNotTake("That answer did not reach your Claude. Try again."); readApprovals(); }
+            }}
+            onReply={async (a, words) => {
+              setApprovals((prev) => prev.filter((x) => x.id !== a.id));
+              const { error } = await supabase.rpc("answer_question", { a: a.id, words });
+              if (error) { didNotTake("That answer did not reach your Claude. Try again."); readApprovals(); }
             }} />
 
         {view === "table" && (

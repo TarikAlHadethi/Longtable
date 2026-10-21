@@ -117,9 +117,11 @@ try {
 
   // Her next request carries on the same session, as at home: what it ran last time is still there. The command's
   // output is only in the session (she asks it not to say it), so only a session that carried on can answer.
-  const MARK2 = `SESSION-${run}`;
+  // A plain number nobody could guess (an id-like marker made it decline to repeat it).
+  const ADD = 1000 + Math.floor(Math.random() * 8000);
+  const MARK2 = String(6 * 7 + ADD);
   const count0 = await page.locator("[data-ai='true']").count();
-  await page.fill("textarea", `Run node -e "console.log('${MARK2}-' + (6 * 7))" and read what it prints yourself, but do not repeat it in your reply: just reply with the single word done.`);
+  await page.fill("textarea", `Run node -e "console.log('The number is ' + (6 * 7 + ${ADD}))" and read what it prints yourself, but do not repeat it in your reply: just reply with the single word done.`);
   await page.keyboard.press("Control+Enter");
   for (let i = 0; i < 420; i++) {
     if ((await page.locator("[data-ai='true']").count()) > count0) break;
@@ -139,10 +141,48 @@ try {
   }
   const recalled = (await page.locator("[data-ai='true']").last().textContent()) || "";
   results.session = { quiet: quiet.slice(-200), recalled: recalled.slice(-300) };
-  check("the output stayed out of the chat", !quiet.includes(`${MARK2}-42`), quiet.slice(-200));
-  check("her next request carries on the same session and knows what the command printed", recalled.includes(`${MARK2}-42`), recalled.slice(-300));
+  check("the output stayed out of the chat", !quiet.includes(MARK2), quiet.slice(-200));
+  check("her next request carries on the same session and knows what the command printed", recalled.includes(MARK2), recalled.slice(-300));
   const runLog = readFileSync(join(home, "runner.log"), "utf8");
   check("the connection says it carried the chat's session on", /carrying on this chat's session/.test(runLog));
+
+  // Her Claude asks her a question with choices: a card with a button each, and it carries on with her answer.
+  const count2 = await page.locator("[data-ai='true']").count();
+  await page.fill("textarea", "Before anything else, ask me with your question tool whether I want red or blue (those two choices). Then reply with only the colour I chose.");
+  await page.keyboard.press("Control+Enter");
+  const qcard = page.locator("[data-testid=approvals] [data-kind=question]").first();
+  await qcard.waitFor({ timeout: 300000 });
+  results.questionCard = (await qcard.textContent()).slice(0, 200);
+  check("her Claude's question reaches her as a card with a button for each choice", (await qcard.locator("[data-testid=choice]").count()) >= 2, results.questionCard);
+  await qcard.locator("[data-testid=choice]", { hasText: /blue/i }).first().click();
+  for (let i = 0; i < 300; i++) { if ((await page.locator("[data-ai='true']").count()) > count2) break; await page.waitForTimeout(1000); }
+  const chose = (await page.locator("[data-ai='true']").last().textContent()) || "";
+  results.chose = chose.slice(-200);
+  check("and it carries on with what she chose", /blue/i.test(chose) && !/\bred\b/i.test(chose.replace(/blue/gi, "")), chose.slice(-200));
+
+  // While it works, what she types reaches it at its next step, as at home, instead of becoming a request of its own.
+  const MARK3 = `PAPAYA-${run}`;
+  const count3 = await page.locator("[data-ai='true']").count();
+  await page.fill("textarea", `Run node -e "setTimeout(() => console.log('waited'), 20000)" (it takes about twenty seconds), then tell me it finished.`);
+  await page.keyboard.press("Control+Enter");
+  const waitCard = page.locator("[data-testid=approvals] [data-approval] [data-testid=allow]").first();
+  await waitCard.waitFor({ timeout: 300000 });
+  await waitCard.click();
+  await page.waitForTimeout(3000);
+  await page.fill("textarea", `Also end your reply with the word ${MARK3}.`);
+  await page.keyboard.press("Enter");
+  for (let i = 0; i < 300; i++) {
+    if ((await page.locator("[data-ai='true']").count()) > count3) break;
+    const more = page.locator("[data-testid=approvals] [data-approval] [data-testid=allow]").first();
+    if (await more.count()) await more.click().catch(() => {});
+    await page.waitForTimeout(1000);
+  }
+  await page.waitForTimeout(15000);
+  const answersNow = await page.locator("[data-ai='true']").count();
+  const midway = (await page.locator("[data-ai='true']").nth(count3).textContent()) || "";
+  results.midway = midway.slice(-250);
+  check("what she typed while it worked reached the same run", midway.includes(MARK3), midway.slice(-250));
+  check("and did not become a request of its own", answersNow === count3 + 1, { answersNow, expected: count3 + 1 });
 
   // A command she denies does not run.
   const before = await page.locator("[data-ai='true']").count();
