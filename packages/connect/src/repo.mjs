@@ -1,7 +1,7 @@
 // The connection's own clean copy of the team's code: the latest main, never the person's work folder.
 
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { home, log } from "./store.mjs";
@@ -543,7 +543,11 @@ function copyIncluded(repo, dir) {
 // hold work loses only its folder, once it has been quiet for a week; the branch and its commits stay, and a follow-up
 // lays a fresh folder. The person's own worktrees are never looked at.
 export function tidyTrees(repos, { quietDays = 7 } = {}) {
-  const ours = resolve(home, "trees").replace(/\\/g, "/").toLowerCase() + "/";
+  // Compared by real path: git names a worktree by its real path, and the same folder can be reached another way (a
+  // Mac's /var is /private/var; Windows can name a folder by its short name).
+  const real = (p) => { try { return realpathSync.native(p); } catch { return resolve(p); } };
+  const key = (p) => real(p).replace(/\\/g, "/").toLowerCase() + "/";
+  const ours = key(join(home, "trees"));
   const out = { removed: [], deleted: [], kept: [] };
   for (const repo of [...new Set((repos || []).filter(Boolean))]) {
     let list = "";
@@ -551,7 +555,7 @@ export function tidyTrees(repos, { quietDays = 7 } = {}) {
     for (const block of list.split(/\r?\n\r?\n/)) {
       const path = /^worktree (.+)$/m.exec(block)?.[1];
       const ref = /^branch (refs\/heads\/.+)$/m.exec(block)?.[1] || null;
-      if (!path || !(resolve(path).replace(/\\/g, "/").toLowerCase() + "/").startsWith(ours) || !existsSync(path)) continue;
+      if (!path || !existsSync(path) || !key(path).startsWith(ours)) continue;
       let dirty = true;
       try { dirty = tgit(path, ["status", "--porcelain"]) !== ""; } catch {}
       if (dirty) { out.kept.push({ path, why: "changes not committed" }); continue; }
