@@ -69,6 +69,9 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   const [connectOpen, setConnectOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [draft, setDraft] = useState("");
+  // What is typed in the box survives a refresh (after an update, or any other), kept only in this tab.
+  useEffect(() => { try { const kept = sessionStorage.getItem(`lt-draft:${table.id}:client`); if (kept) setDraft((d) => d || kept); } catch {} }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { try { if (draft) sessionStorage.setItem(`lt-draft:${table.id}:client`, draft); else sessionStorage.removeItem(`lt-draft:${table.id}:client`); } catch {} }, [draft]); // eslint-disable-line react-hooks/exhaustive-deps
   // What they attach goes into the folder of whoever is really signed in: themselves, or the owner trying their side.
   const attach = useAttach(supabase, table.id, viewer?.uploader ?? me.id);
   const [busy, setBusy] = useState(false);

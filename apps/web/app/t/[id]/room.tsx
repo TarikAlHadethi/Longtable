@@ -191,6 +191,9 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const [tableOpen, setTableOpen] = useState(false);
   const [slashAt, setSlashAt] = useState(0);
   const [draft, setDraft] = useState("");
+  // What is typed in the box survives a refresh (after an update, or any other), kept only in this tab.
+  useEffect(() => { try { const kept = sessionStorage.getItem(`lt-draft:${table.id}`); if (kept) setDraft((d) => d || kept); } catch {} }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { try { if (draft) sessionStorage.setItem(`lt-draft:${table.id}`, draft); else sessionStorage.removeItem(`lt-draft:${table.id}`); } catch {} }, [draft]); // eslint-disable-line react-hooks/exhaustive-deps
   const [now, setNow] = useState(() => Date.now());
   // How far this computer's clock is from the server's, measured once: deadlines the server set are counted with it.
   const skew = useRef(0);

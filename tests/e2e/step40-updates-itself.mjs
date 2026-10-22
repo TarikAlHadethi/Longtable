@@ -60,6 +60,12 @@ try {
   sql(`update public.jobs set status = 'skipped' where table_id = '${tableId}' and kind = 'intro'`);
   const connId = sql(`select id from public.connections where table_id = '${tableId}' and revoked_at is null`);
 
+  // A question is waiting for it when it starts, so it is mid-job when the newer version is first heard.
+  const mayaId = sql(`select id from public.members where table_id = '${tableId}' and display_name = 'Maya'`);
+  const general = sql(`select id from public.chats where table_id = '${tableId}' and is_general`);
+  const q = sql(`insert into public.messages (table_id, chat_id, member_id, body) values ('${tableId}', '${general}', '${mayaId}', 'In two sentences, what does this project do?') returning id`).split(/\r?\n/)[0];
+  const askJob = sql(`insert into public.jobs (table_id, chat_id, member_id, question_id, kind) values ('${tableId}', '${general}', '${mayaId}', '${q}', 'look') returning id`).split(/\r?\n/)[0];
+
   // Longtable says the newer version is wanted, then the connection runs as it would on any computer.
   sql(`update public.connect_release set version = '${NEXT}'`);
   first = spawn(process.execPath, [bin, "run"], { env, stdio: "ignore", windowsHide: true });
@@ -70,6 +76,11 @@ try {
   check("it hears the newer version, fetches it and puts it in place", log.includes(`update: ${JSON.parse(readFileSync(join(repoRoot, "packages", "connect", "package.json"), "utf8")).version} -> ${NEXT}`)
     && JSON.parse(readFileSync(join(home, "app", "package.json"), "utf8")).version === NEXT, log.split("\n").slice(-8));
   check("the old one stops and the new one starts by itself", !alive(firstPid) && /started the new version/.test(log), { firstAlive: alive(firstPid) });
+  // It never cut the question off: it waited for a quiet moment, answered, and only then moved.
+  const answered = sql(`select status || '|' || coalesce(to_char(finished_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS'), '') from public.jobs where id = '${askJob}'`);
+  const movedAt = (log.split("\n").find((l) => /started the new version/.test(l)) || "").slice(0, 23);
+  check("an update waits for the job under way to finish, never cutting it off", /waiting|first moment no job is running/.test(log) && answered.startsWith("done|") && movedAt > answered.split("|")[1],
+    { answered, movedAt });
   const pid = Number(readFileSync(join(home, "runner.pid"), "utf8").split(" ")[0]);
   second = pid;
   check("the new one is running from the updated copy", pid && pid !== firstPid && alive(pid));

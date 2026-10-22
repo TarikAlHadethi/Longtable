@@ -1,0 +1,7 @@
+/* The note that a newer Longtable is live: the toast's own look, at the top so it never sits on the message box. */
+.note { position: fixed; left: 50%; top: 14px; z-index: 90; max-width: min(520px, calc(100vw / var(--zoom) - 32px)); transform: translateX(-50%);
+  display: flex; align-items: center; gap: 12px; background: var(--ink); color: var(--paper); font-size: 14.5px; line-height: 1.4; padding: 8px 8px 8px 16px;
+  border-radius: 12px; box-shadow: 0 14px 36px oklch(0.2 0.01 70 / 0.25); animation: un-in 0.28s var(--ease-spring) both; }
+.note button { flex: none; border: 0; border-radius: 9px; padding: 6px 12px; font: inherit; font-weight: 560; cursor: pointer; background: var(--paper); color: var(--ink); }
+.note button:active { transform: scale(0.96); }
+@keyframes un-in { from { opacity: 0; transform: translate(-50%, -10px) scale(0.96); } to { opacity: 1; transform: translateX(-50%); } }

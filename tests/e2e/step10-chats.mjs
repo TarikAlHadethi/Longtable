@@ -36,6 +36,15 @@ try {
   await p.press("input[aria-label=\"The chat's name\"]", "Enter");
   await dev.page.waitForSelector("[data-chat='Launch plan']", { timeout: 8000 }).then(() => check("double-clicking the open chat renames it, for everyone", true), () => check("double-clicking the open chat renames it, for everyone", false));
 
+  // What is typed in the box survives a refresh (after an update, or any other).
+  await p.fill("textarea[aria-label='Message the table']", "half a thought about the launch");
+  await p.waitForTimeout(300);
+  await p.reload();
+  await p.waitForSelector("textarea[aria-label='Message the table']");
+  await p.waitForTimeout(800);
+  check("what was typed in the box is still there after a refresh", (await p.inputValue("textarea[aria-label='Message the table']")) === "half a thought about the launch");
+  await p.fill("textarea[aria-label='Message the table']", "");
+
   await p.hover("[data-chat='Launch plan']");
   await p.click("[data-chat='Launch plan'] button[aria-haspopup=menu]");
   if (shots) await p.screenshot({ path: `${shots}/chat-menu.png`, clip: { x: 0, y: 60, width: 420, height: 320 } });

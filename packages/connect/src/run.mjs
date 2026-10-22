@@ -1410,19 +1410,26 @@ export async function runLoop({ pollMs = 2000, backup = false } = {}) {
   if (seats.every((s) => s.gone)) throw new Error("Every table has taken this connection off. Connect again from Longtable.");
   // Each minute: nothing is sent unless the list changed (a new command written, or Claude Code's own list learned).
   setInterval(() => { for (const s of seats) if (!s.gone) tellCommands(rpc, s); }, 60 * 1000).unref?.();
-  // Keeping itself up to date: Longtable says which version to run. When it is newer, no new job is taken, the ones
-  // running finish, and the connection moves to it and starts again. Nobody has to connect again.
+  // Keeping itself up to date: Longtable says which version to run. When it is newer, the connection keeps working and
+  // moves to it at the first moment no job is running (a job being picked up counts as running), then starts again.
+  // Nothing is ever cut off mid-job, and nobody has to connect again. Only if no such moment comes for hours (an AI
+  // waiting days on its person's answer) does it stop taking new jobs and move once the running ones end.
   let busy = 0;
+  let claiming = 0;
   let pausing = false;
+  let waitingSince = 0;
   const checkRelease = async () => {
     if (pausing || process.env.LONGTABLE_NO_UPDATE) return;
     const seat = seats.find((s) => !s.gone);
     if (!seat) return;
     let want = null;
     try { want = await rpc("runner_release", { token: seat.token }); } catch (e) { log(`release check failed: ${e.message}`); return; }
-    if (!want || !newer(want, ownVersion())) return;
+    if (!want || !newer(want, ownVersion())) { waitingSince = 0; return; }
+    if (!waitingSince) { waitingSince = Date.now(); log(`update to ${want}: moving at the first moment no job is running`); }
+    const longWait = Date.now() - waitingSince > Number(process.env.LONGTABLE_UPDATE_WAIT_MS || 6 * 3600 * 1000);
+    if ((busy > 0 || claiming > 0) && !longWait) { setTimeout(checkRelease, 5000).unref?.(); return; }
     pausing = true;
-    while (busy > 0) await new Promise((r) => setTimeout(r, 2000));
+    while (busy > 0 || claiming > 0) await new Promise((r) => setTimeout(r, 2000));
     try {
       const bin = await updateTo(want);
       if (bin) restartOnNew(bin);
@@ -1430,6 +1437,7 @@ export async function runLoop({ pollMs = 2000, backup = false } = {}) {
       log(`update to ${want} did not happen: ${e.message}; trying again later`);
     }
     pausing = false;
+    waitingSince = 0;
   };
   setTimeout(checkRelease, Number(process.env.LONGTABLE_UPDATE_AFTER_MS) || 30 * 1000).unref?.();
   setInterval(checkRelease, 10 * 60 * 1000).unref?.();
@@ -1445,6 +1453,7 @@ export async function runLoop({ pollMs = 2000, backup = false } = {}) {
     for (const s of seats) {
       if (s.gone || pausing) continue;
       let job = null;
+      claiming++;
       try {
         job = await rpc("runner_claim", { token: s.token, lane: name });
         // Tests of the locked mode keep it, whatever the person's switch says (full Claude Code is on by default).
@@ -1456,9 +1465,11 @@ export async function runLoop({ pollMs = 2000, backup = false } = {}) {
         // running on idle. Connecting again starts a new one.
         if (seats.every((x) => x.gone)) { log("every table has taken this connection off; it stops. Connect again from Longtable."); stopAll(); process.exit(0); }
       }
+      // Counted as running before the claim is let go of, so an update waiting for a quiet moment never starts mid-job.
+      if (job) busy++;
+      claiming--;
       if (!job) continue;
       worked = true;
-      busy++;
       // A quick job run as their full Claude Code can wait minutes on its person's answer. It works in a tree of its
       // own, so it runs alongside, and the lane goes on hearing the table (listening, clients, views) meanwhile.
       if (name === "light" && job.full === true && !["listen", "client"].includes(job.kind) && aside < 20) {
