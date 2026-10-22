@@ -3,7 +3,8 @@
 import { Face } from "@/components/face";
 import { Crown, Gear } from "@/components/icons";
 import Link from "next/link";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { AI_NAME, AiLogo } from "@/components/ai-logo";
 import { Mark, WorkingMark } from "@/components/mark";
@@ -15,20 +16,15 @@ import { PageIcon, PagesList, PageWindow } from "./page-window";
 import { Time } from "@/components/time";
 import { Answer } from "./answer";
 import { ChatList } from "./chat-list";
-import { ConnectModal } from "./connect-modal";
 import { DecisionCard } from "./decision-card";
 import { Invite } from "./invite";
-import { NewDecision } from "./new-decision";
-import { ClientPage } from "./client-page";
 import { BugButton, LogsPanel } from "./panels";
 import { PersonWindow } from "./person-window";
-import { loadSettings, SettingsForm, type SettingsData } from "./settings/settings-form";
+import type { SettingsData } from "./settings/settings-form";
 import { ProfileMenu } from "./profile-menu";
 import { TableView } from "./table-view";
 import { UsagePanel } from "./usage-panel";
 import { elapsed, WorkPanel } from "./work-panel";
-import { SandboxReview } from "./sandbox-review";
-import { ChatSetup } from "./chat-setup";
 import {
   CONNECTION_COLUMNS, DECISION_COLUMNS, JOB_COLUMNS, MEMBER_COLUMNS, MESSAGE_COLUMNS, NOTE_COLUMNS, REQUEST_COLUMNS,
   type Chat, type Command, type Connection, type Decision, type Job, type Member, type Message, type Note, type Request,
@@ -41,6 +37,13 @@ import { ModePick } from "./mode-pick";
 import styles from "./room.module.css";
 import { firstName } from "@/lib/names";
 import { CODEX_NAMES, EFFORT_LEVELS, SLASH, slashEntry } from "@/lib/slash.mjs";
+// Windows and views opened now and then are fetched when first opened, so a room's first load carries none of them.
+const ConnectModal = dynamic(() => import("./connect-modal").then((m) => m.ConnectModal), { ssr: false });
+const NewDecision = dynamic(() => import("./new-decision").then((m) => m.NewDecision), { ssr: false });
+const ClientPage = dynamic(() => import("./client-page").then((m) => m.ClientPage), { ssr: false });
+const SettingsForm = dynamic(() => import("./settings/settings-form").then((m) => m.SettingsForm), { ssr: false });
+const SandboxReview = dynamic(() => import("./sandbox-review").then((m) => m.SandboxReview), { ssr: false });
+const ChatSetup = dynamic(() => import("./chat-setup").then((m) => m.ChatSetup), { ssr: false });
 // Names both Claude Code and Codex have: shown for a Claude too.
 const CLAUDE_ALSO: Record<string, true> = { model: true, status: true, effort: true, usage: true, rename: true, color: true, compact: true, mcp: true };
 
@@ -52,6 +55,61 @@ type View = "table" | "chat" | "client" | "logs" | "settings" | "sandbox";
 
 // Times from the server and from this computer are written differently; they are compared as moments, not as text.
 const after = (a: string, b: string) => new Date(a).getTime() > new Date(b).getTime();
+
+// One message in the chat. Kept apart and memoised so typing in the box, which redraws the room, does not redraw
+// every message: in a long chat that cost tens of milliseconds a key.
+const NONE: never[] = [];
+const MessageRow = memo(function MessageRow({ m, who, mine, follows, held, supabase, members, views, pages, onOpenPage, repo, again }: {
+  m: Message; who: Member | undefined; mine: boolean; follows: boolean; held: boolean; supabase: ReturnType<typeof browserClient>;
+  members: Map<string, Member>; views: Message[]; pages: Page[]; onOpenPage: (id: string) => void; repo: string | null; again: boolean;
+}) {
+  const name = who?.display_name ?? "Someone";
+  if (m.kind === "github") {
+    return (
+      <div className={styles.githubLine} data-mid={m.id} data-github="true">
+        <span className={styles.githubTag}>GitHub</span>
+        <span className={styles.githubText}>{m.body}</span>
+        <span className={styles.githubWhen}><Time iso={m.created_at} /></span>
+      </div>
+    );
+  }
+  if (m.kind === "client") {
+    return (
+      <div className={`${styles.clientSay} ${follows ? styles.follow : ""} ${held ? styles.held : ""}`} data-mid={m.id} data-request={m.meta?.request ?? ""} data-follows={follows || undefined}>
+        {!follows && <div className={styles.sayName} style={{ color: who?.name_color || undefined }}>{name} <span className={styles.clientTag}>client</span></div>}
+        {m.meta?.answers && m.meta.question && <div className={styles.questionQuote}>Answering: {m.meta.question}</div>}
+        <div className={styles.clientRow}>
+          <div className={`${styles.messageAvatar} ${follows ? styles.unseen : ""}`} style={{ background: who?.color ?? "var(--faint)" }} aria-hidden={follows || undefined}><Face who={who} name={name} /></div>
+          <div className={styles.bubble} data-bubble={who?.bubble ?? "stone"}>{m.body}</div>
+        </div>
+        {m.meta?.files?.length ? <div className={styles.clientFiles}><Files supabase={supabase} files={m.meta.files} /></div> : null}
+        <div className={styles.clientTools}>
+          <span className={styles.sayWhen}><Time iso={m.created_at} /></span>
+        </div>
+      </div>
+    );
+  }
+  if (m.by_ai) {
+    return <Answer m={m} members={members} views={views} follows={follows} pages={pages} onOpenPage={onOpenPage}
+      files={m.meta?.files?.length ? <div className={styles.sayFiles}><Files supabase={supabase} files={m.meta.files} /></div> : null}
+      repo={repo} again={again} />;
+  }
+  return (
+    <div className={`${styles.say} ${mine ? styles.sayMine : ""} ${m.state === "sending" ? styles.pending : ""} ${follows ? styles.follow : ""} ${held ? styles.held : ""}`} data-mid={m.id} data-follows={follows || undefined}>
+      {!mine && (
+        <div className={`${styles.messageAvatar} ${follows ? styles.unseen : ""}`} style={{ background: who?.color ?? "var(--faint)" }} aria-hidden={follows || undefined}><Face who={who} name={name} /></div>
+      )}
+      <div className={styles.sayCol}>
+        {!mine && !follows && <div className={styles.sayName} style={{ color: who?.name_color || undefined }}>{name}</div>}
+        <div className={styles.bubble} data-bubble={who?.bubble ?? "stone"}><Inline text={m.body} /></div>
+        {m.meta?.files?.length ? <div className={styles.sayFiles}><Files supabase={supabase} files={m.meta.files} /></div> : null}
+        <div className={styles.sayWhen}>
+          {m.state === "failed" ? <span className={styles.failed}>Not sent</span> : <Time iso={m.created_at} />}
+        </div>
+      </div>
+    </div>
+  );
+});
 
 export function Room({ table, me, initialMembers, initialChats, initialMessages, initialDecisions, initialJobs, initialConnections, initialNotes, initialRequests, initialChatId, initialView, initialTableModel, initialTasks, initialChanges, initialSandboxes, initialSandboxSettings, initialSandbox }: {
   table: { id: string; name: string; main_owner?: string | null };
@@ -247,12 +305,19 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (!readsSettings) return;
     let cancelled = false;
     // A failed read leaves it to Settings itself, which reads again when opened and says so if it still cannot.
-    loadSettings(supabase, table.id).then((d) => { if (!cancelled) setSettings(d); }).catch(() => {});
+    import("./settings/settings-form").then((m) => m.loadSettings(supabase, table.id)).then((d) => { if (!cancelled) setSettings(d); })
+      .catch((e: Error) => console.warn("[settings]", e.message))
+      .finally(() => { if (!cancelled) setSettingsRead(true); });
     return () => { cancelled = true; };
   }, [supabase, table.id, readsSettings]);
+  const [settingsRead, setSettingsRead] = useState(false);
   // The table's repository, so a file an AI names in its answer links to it there (the team reads it; settings keep it).
-  const [tableRepo, setTableRepo] = useState<string | null>(null);
+  // Read once here and handed to the windows that show it; undefined while it is not known yet. Whoever reads the
+  // settings already has it from them, so it is not read a second time.
+  const [tableRepo, setTableRepo] = useState<string | null | undefined>(undefined);
   useEffect(() => {
+    if (readsSettings && !settingsRead) return;
+    if (readsSettings && settings?.repo !== undefined) { setTableRepo(settings.repo); return; }
     let cancelled = false;
     supabase.from("table_code").select("repo_url").eq("table_id", table.id).maybeSingle()
       .then(({ data, error }: { data: { repo_url: string } | null; error: { code?: string } | null }) => {
@@ -260,7 +325,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         else if (!cancelled) setTableRepo(data?.repo_url ?? null);
       });
     return () => { cancelled = true; };
-  }, [supabase, table.id, settings?.repo]);
+  }, [supabase, table.id, settings?.repo, readsSettings, settingsRead]);
   const chatById = useMemo(() => new Map(chats.map((c) => [c.id, c])), [chats]);
   const requestById = useMemo(() => new Map(requests.map((r) => [r.id, r])), [requests]);
   const clients = members.filter((m) => m.role === "client");
@@ -281,8 +346,10 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     return c ? { word: c.kind === "codex" ? "Codex" : "Claude", on: !!on } : null;
   };
   const aiWord = (id: string) => { const c = connections.find((x) => !x.revoked_at && x.member_id === id); return c ? AI_NAME[c.kind] : "AI"; };
-  // The note-taker reads along quietly: its job is never shown as the AIs at work.
-  const working = jobs.filter((j) => j.chat_id === chat?.id && j.kind !== "notes" && ["queued", "running", "waiting", "failed"].includes(j.status))
+  // The note-taker reads along quietly: its job is never shown as the AIs at work. Nor is an answer started early beside
+  // the listener while the listener is still deciding: until then it is the table thinking, and it may yet be stopped.
+  const deciding = jobs.some((j) => j.chat_id === chat?.id && j.kind === "listen" && (j.status === "queued" || j.status === "running"));
+  const working = jobs.filter((j) => j.chat_id === chat?.id && j.kind !== "notes" && !(j.early && deciding) && ["queued", "running", "waiting", "failed"].includes(j.status))
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
   // The table thinking, from the moment someone says something it will hear until its reply or an AI's own work
@@ -343,32 +410,46 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   // put on the page; another read follows instead (at most a few times, so a busy table still settles).
   const pushedAt = useRef(0);
   const retries = useRef(0);
-  const catchUp = useCallback(async () => {
+  // When this page was made from the server's read, and whether the team's channel has been joined since.
+  const loadedAt = useRef(typeof performance === "undefined" ? 0 : performance.now());
+  const joined = useRef(false);
+  // A light read, every few seconds while work runs, takes only what work changes (messages, jobs, tasks, and
+  // decisions while one is on its way out); everything else is read whole at most every 30 seconds. Pages and the
+  // person's commands arrive live and change rarely, so even a whole read takes them at most once a minute.
+  const lastFull = useRef(Date.now());
+  const lastRare = useRef(Date.now());
+  const delivering = useRef(false);
+  const catchUp = useCallback(async (light = false) => {
     const mine = ++reads.current;
-    readApprovals();
     const began = performance.now();
+    if (!light) lastFull.current = Date.now();
+    const none = Promise.resolve({ data: null });
+    const ask = (go: boolean, read: () => PromiseLike<{ data: unknown }>) => (go ? read() : none);
+    if (!light) readApprovals();
     const [{ data: recent }, { data: inFlight }, { data: ds }, { data: rq }, { data: ns }, { data: cs }, { data: tk }, { data: sc }, { data: bx }, { data: ch }] = await Promise.all([
-      supabase.from("messages").select(MESSAGE_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(100),
+      supabase.from("messages").select(MESSAGE_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(light ? 40 : 100),
       supabase.from("jobs").select(JOB_COLUMNS).eq("table_id", table.id).in("status", ["queued", "running", "waiting", "failed"]).order("created_at", { ascending: false }).limit(50),
-      supabase.from("decisions").select(DECISION_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(100),
-      supabase.from("requests").select(REQUEST_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(200),
-      supabase.from("notes").select(NOTE_COLUMNS).eq("table_id", table.id),
-      supabase.from("connections").select(CONNECTION_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(60),
+      ask(!light || delivering.current, () => supabase.from("decisions").select(DECISION_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(100)),
+      ask(!light, () => supabase.from("requests").select(REQUEST_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(200)),
+      ask(!light, () => supabase.from("notes").select(NOTE_COLUMNS).eq("table_id", table.id)),
+      ask(!light, () => supabase.from("connections").select(CONNECTION_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(60)),
       supabase.from("tasks").select(TASK_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(40),
-      supabase.from("sandbox_changes").select(CHANGE_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(120),
-      supabase.from("sandboxes").select(SANDBOX_COLUMNS).eq("table_id", table.id),
-      supabase.from("chats").select(CHAT_COLUMNS).eq("table_id", table.id),
+      ask(!light, () => supabase.from("sandbox_changes").select(CHANGE_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(120)),
+      ask(!light, () => supabase.from("sandboxes").select(SANDBOX_COLUMNS).eq("table_id", table.id)),
+      ask(!light, () => supabase.from("chats").select(CHAT_COLUMNS).eq("table_id", table.id)),
     ]);
     if (mine < shown.current) return;
     if (pushedAt.current > began && retries.current < 3) {
       retries.current++;
-      setTimeout(() => catchUpRef.current?.(), 700);
+      setTimeout(() => catchUpRef.current?.(light), 700);
       return;
     }
     retries.current = 0;
     // The table was closed, or this person was taken off it, with no word reaching this page.
-    const { data: still, error: gone } = await supabase.from("members").select("id").eq("id", me.id).is("removed_at", null).maybeSingle();
-    if (!gone && !still) return setGone(true);
+    if (!light) {
+      const { data: still, error: gone } = await supabase.from("members").select("id").eq("id", me.id).is("removed_at", null).maybeSingle();
+      if (!gone && !still) return setGone(true);
+    }
     if (mine < shown.current) return;
     shown.current = mine;
     if (tk) setTasks(tk as Task[]);
@@ -386,11 +467,14 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (rq) setRequests(rq as Request[]);
     if (ns) setNotes(ns as Note[]);
     if (cs) setConnections(cs as Connection[]);
-    readCommands();
-    readPages();
+    if (!light && Date.now() - lastRare.current >= 60000) {
+      lastRare.current = Date.now();
+      readCommands();
+      readPages();
+    }
   }, [supabase, table.id, me.id, readCommands, readPages, readApprovals]);
 
-  const catchUpRef = useRef<(() => void) | null>(null);
+  const catchUpRef = useRef<((light?: boolean) => void) | null>(null);
   catchUpRef.current = catchUp;
 
   const loadDecision = useCallback(async (id: string) => {
@@ -517,8 +601,14 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           if (status === "SUBSCRIBED") {
             channelRef.current = ch;
             await ch.track({ at: Date.now(), page: null });
-            catchUp();
-            refreshMembers();
+            // The first join right after the page was made would only read again what the server just read for it
+            // (about thirty requests for nothing). Rejoining, or joining late, may have missed something, so it reads.
+            const first = !joined.current;
+            joined.current = true;
+            if (!first || performance.now() - loadedAt.current > 5000) {
+              catchUp();
+              refreshMembers();
+            }
           }
           // Refused: if this person is no longer at the table (it was closed, or they were removed), stop trying.
           if (status === "CHANNEL_ERROR") {
@@ -549,7 +639,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         const ch = supabase.channel(`room:${id}`, { config: { private: true } });
         ch.on("broadcast", { event: "INSERT" }, (m: { payload: unknown }) => handlerRef.current?.("INSERT")(m))
           .on("broadcast", { event: "UPDATE" }, (m: { payload: unknown }) => handlerRef.current?.("UPDATE")(m))
-          .subscribe((status: string) => { if (status === "SUBSCRIBED") catchUpRef.current?.(); });
+          .subscribe((status: string) => { if (status === "SUBSCRIBED" && performance.now() - loadedAt.current > 5000) catchUpRef.current?.(); });
         subs.push(ch);
       }
     })();
@@ -567,8 +657,12 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   // push only delays what anyone sees.
   const waitingOnSomething = jobs.some((j) => ["queued", "running", "waiting"].includes(j.status))
     || decisions.some((d) => d.status === "decided" && !d.delivered_at);
+  delivering.current = decisions.some((d) => d.status === "decided" && !d.delivered_at);
   useEffect(() => {
-    const t = setInterval(() => { if (document.visibilityState === "visible") catchUp(); }, waitingOnSomething ? 4000 : 30000);
+    const t = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      catchUp(waitingOnSomething && Date.now() - lastFull.current < 30000);
+    }, waitingOnSomething ? 4000 : 30000);
     return () => clearInterval(t);
   }, [waitingOnSomething, catchUp]);
 
@@ -600,6 +694,14 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     });
   }, [items]);
 
+  const pagesByJob = useMemo(() => {
+    const map = new Map<string, Page[]>();
+    for (const p of pages) {
+      const jobs = new Set([p.job_id, ...pageVersions.filter((v) => v.page_id === p.id).map((v) => v.job_id)].filter(Boolean) as string[]);
+      for (const j of jobs) map.set(j, [...(map.get(j) ?? []), p]);
+    }
+    return map;
+  }, [pages, pageVersions]);
   const viewsByRound = useMemo(() => {
     const map = new Map<string, Message[]>();
     for (const m of messages) {
@@ -730,7 +832,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     const id = ask ? (data as { message_id: string }).message_id : (data as string);
     const { data: row } = await supabase.from("messages").select(MESSAGE_COLUMNS).eq("id", id).single();
     if (row) setMessages((prev) => (prev.some((m) => m.id === (row as Message).id) ? prev.map((m) => (m.id === (row as Message).id ? (row as Message) : m)) : [...prev, row as Message]));
-    if (ask) catchUp();
+    if (ask) catchUp(true);
   }
 
   // Text pasted from somewhere else (a long block, or several lines) is noted, and where it sits in the message is sent
@@ -805,7 +907,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (row) setMessages((prev) => (prev.some((m) => m.id === (row as Message).id) ? prev : [...prev, row as Message]));
     if (!res.answered_by) setNotice("No AI is connected at this table yet, so nobody will answer. Connect yours from the table (press Longtable, top left).");
     // Learn about the job straight away, so the room keeps checking until the answer lands even if a push is lost.
-    else catchUp();
+    else catchUp(true);
   }
 
   // Their own AI's commands and skills, offered while the box holds only "/" and the start of a name.
@@ -1019,7 +1121,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   }
   // Stopping work says so when it did not stop.
   function stopJob(id: string) {
-    supabase.rpc("stop_job", { job: id }).then(({ error }: { error: unknown }) => { if (error) didNotTake("That work was not stopped. Try again."); catchUp(); });
+    supabase.rpc("stop_job", { job: id }).then(({ error }: { error: unknown }) => { if (error) didNotTake("That work was not stopped. Try again."); catchUp(true); });
   }
 
   // A test client: a pretend client seat the owner adds to try the client's side for real, and takes off again.
@@ -1263,57 +1365,10 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 const { follows, held } = runs[at] ?? { follows: false, held: false };
                 if (it.kind === "decision") return card(it.d, false);
                 const m = it.m;
-                const who = byId.get(m.member_id);
-                const name = who?.display_name ?? "Someone";
-                if (m.kind === "github") {
-                  return (
-                    <div key={m.id} className={styles.githubLine} data-mid={m.id} data-github="true">
-                      <span className={styles.githubTag}>GitHub</span>
-                      <span className={styles.githubText}>{m.body}</span>
-                      <span className={styles.githubWhen}><Time iso={m.created_at} /></span>
-                    </div>
-                  );
-                }
-                if (m.kind === "client") {
-                  return (
-                    <div key={m.id} className={`${styles.clientSay} ${follows ? styles.follow : ""} ${held ? styles.held : ""}`} data-mid={m.id} data-request={m.meta?.request ?? ""} data-follows={follows || undefined}>
-                      {!follows && <div className={styles.sayName} style={{ color: who?.name_color || undefined }}>{name} <span className={styles.clientTag}>client</span></div>}
-                      {m.meta?.answers && m.meta.question && <div className={styles.questionQuote}>Answering: {m.meta.question}</div>}
-                      <div className={styles.clientRow}>
-                        <div className={`${styles.messageAvatar} ${follows ? styles.unseen : ""}`} style={{ background: who?.color ?? "var(--faint)" }} aria-hidden={follows || undefined}><Face who={who} name={name} /></div>
-                        <div className={styles.bubble} data-bubble={who?.bubble ?? "stone"}>{m.body}</div>
-                      </div>
-                      {m.meta?.files?.length ? <div className={styles.clientFiles}><Files supabase={supabase} files={m.meta.files} /></div> : null}
-                      <div className={styles.clientTools}>
-                        <span className={styles.sayWhen}><Time iso={m.created_at} /></span>
-                      </div>
-                    </div>
-                  );
-                }
-                if (m.by_ai) {
-                  return <Answer key={m.id} m={m} members={byId} views={m.meta?.round ? viewsByRound.get(m.meta.round) ?? [] : []} follows={follows}
-                    pages={m.meta?.job ? pages.filter((p) => p.job_id === m.meta?.job || pageVersions.some((v) => v.page_id === p.id && v.job_id === m.meta?.job)) : []}
-                    onOpenPage={setOpenPage}
-                    files={m.meta?.files?.length ? <div className={styles.sayFiles}><Files supabase={supabase} files={m.meta.files} /></div> : null}
-                    repo={tableRepo}
-                    again={m.kind === "intro" && items.some((o) => o.kind !== "decision" && o.m.kind === "intro" && o.m.member_id === m.member_id && o.m.created_at < m.created_at)} />;
-                }
-                const mine = m.member_id === me.id;
-                return (
-                  <div key={m.id} className={`${styles.say} ${mine ? styles.sayMine : ""} ${m.state === "sending" ? styles.pending : ""} ${follows ? styles.follow : ""} ${held ? styles.held : ""}`} data-mid={m.id} data-follows={follows || undefined}>
-                    {!mine && (
-                      <div className={`${styles.messageAvatar} ${follows ? styles.unseen : ""}`} style={{ background: who?.color ?? "var(--faint)" }} aria-hidden={follows || undefined}><Face who={who} name={name} /></div>
-                    )}
-                    <div className={styles.sayCol}>
-                      {!mine && !follows && <div className={styles.sayName} style={{ color: who?.name_color || undefined }}>{name}</div>}
-                      <div className={styles.bubble} data-bubble={who?.bubble ?? "stone"}><Inline text={m.body} /></div>
-                      {m.meta?.files?.length ? <div className={styles.sayFiles}><Files supabase={supabase} files={m.meta.files} /></div> : null}
-                      <div className={styles.sayWhen}>
-                        {m.state === "failed" ? <span className={styles.failed}>Not sent</span> : <Time iso={m.created_at} />}
-                      </div>
-                    </div>
-                  </div>
-                );
+                return <MessageRow key={m.id} m={m} who={byId.get(m.member_id)} mine={m.member_id === me.id} follows={follows} held={held} supabase={supabase} members={byId}
+                  views={m.meta?.round ? viewsByRound.get(m.meta.round) ?? NONE : NONE} pages={m.meta?.job ? pagesByJob.get(m.meta.job) ?? NONE : NONE}
+                  onOpenPage={setOpenPage} repo={tableRepo ?? null}
+                  again={m.kind === "intro" && items.some((o) => o.kind !== "decision" && o.m.kind === "intro" && o.m.member_id === m.member_id && o.m.created_at < m.created_at)} />;
               })}
               {thinking && (
                 <div className={`${styles.message} ${styles.aiMessage}`} data-testid="thinking">
@@ -1447,7 +1502,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         ) : (
           <WorkPanel review={toReview.map((x) => ({ id: x.m.id, name: firstName(x.m.display_name), n: x.n }))} onReview={openSandbox} tasks={shownTasks} jobs={jobs} members={byId} aiWord={aiWord} open={inboxOpen}
             onOpenChat={(id) => openChat(id)} onClear={clearTasks}
-            onStop={stopJob} repo={tableRepo} />
+            onStop={stopJob} repo={tableRepo ?? null} />
         )}
       </div>
 
@@ -1476,7 +1531,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         const conn = all.find((c) => !c.revoked_at) ?? [...all].sort((a, b) => (b.revoked_at ?? "").localeCompare(a.revoked_at ?? ""))[0] ?? null;
         const on = !!conn && !conn.revoked_at && !!conn.last_seen && Date.now() - new Date(conn.last_seen).getTime() < 75000;
         return (
-          <AiWindow tableId={table.id} me={self} person={byId.get(aiOf)!} conn={conn} commands={aiOf === me.id ? myCommands : []} on={on} busy={on && jobs.some((j) => j.member_id === aiOf && (j.status === "running" || j.status === "queued"))}
+          <AiWindow tableId={table.id} tableRepo={tableRepo} me={self} person={byId.get(aiOf)!} conn={conn} commands={aiOf === me.id ? myCommands : []} on={on} busy={on && jobs.some((j) => j.member_id === aiOf && (j.status === "running" || j.status === "queued"))}
             onClose={() => setAiOf(null)} onConnect={() => setConnectOpen(true)} onDisconnect={disconnect}
             onModel={(id, model) => setModelKept(id, model)}
             onSpeed={(id, patch) => { setSpeed(id, patch); }}
@@ -1513,7 +1568,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       })()}
       {failed && <div className={styles.toast} role="alert" data-testid="did-not-take">{failed}</div>}
       {connectOpen && (
-        <ConnectModal tableId={table.id} tableName={tableName} connected={myConnection?.kind ?? null} onClose={() => setConnectOpen(false)} />
+        <ConnectModal tableId={table.id} tableRepo={tableRepo} tableName={tableName} connected={myConnection?.kind ?? null} onClose={() => setConnectOpen(false)} />
       )}
       {asking && chat && (
         <NewDecision

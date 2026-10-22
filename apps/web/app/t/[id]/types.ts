@@ -49,6 +49,7 @@ export type Job = {
   kind: "answer" | "view" | "combine" | "intro" | "client" | "work" | "review" | "listen" | "look" | "plan" | "sandbox" | "notes";
   change_id?: string | null;
   subject?: string | null;
+  early?: boolean;
   stage?: number;
   progress?: string | null;
   task_id?: string | null;
@@ -126,7 +127,7 @@ export type ClientUpdate = {
 };
 
 export const MESSAGE_COLUMNS = "id, chat_id, member_id, body, created_at, by_ai, kind, meta";
-export const JOB_COLUMNS = "id, chat_id, member_id, kind, round, status, error, created_at, stage, progress, started_at, task_id, change_id, subject";
+export const JOB_COLUMNS = "id, chat_id, member_id, kind, round, status, error, created_at, stage, progress, started_at, task_id, change_id, subject, early";
 // One change a client made in their own sandbox, as the team sees it.
 export type SandboxChange = {
   id: string; member_id: string; words: string; status: "working" | "ready" | "nothing" | "passed" | "failed" | "stopped";

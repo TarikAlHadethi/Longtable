@@ -13,8 +13,10 @@ type Way = { title: string; href: string };
 // Connect your AI: pick Claude or ChatGPT, and the window opens downward into the ways to hand that AI its setup
 // message. The person reads the message there and presses Send; their own AI does the setup. Nobody types a command.
 // A client's AI gets no copy of the code; a team member's reads its own clean copy.
-export function ConnectModal({ tableId, tableName, audience = "team", connected, onClose }: {
+export function ConnectModal({ tableId, tableRepo, tableName, audience = "team", connected, onClose }: {
   tableId: string;
+  // The table's repository as the room already read it; left out (or not known yet), the window reads it itself.
+  tableRepo?: string | null;
   tableName: string;
   audience?: "team" | "client";
   connected: AiKind | null;
@@ -27,7 +29,7 @@ export function ConnectModal({ tableId, tableName, audience = "team", connected,
   const [copied, setCopied] = useState(false);
   // Where the project's code is. With an address, the AI can be opened in any folder: the connection fetches its
   // own copy. Without one, it has to be opened in the project's own folder. undefined: still loading.
-  const [repo, setRepo] = useState<string | null | undefined>(audience === "client" ? null : undefined);
+  const [repo, setRepo] = useState<string | null | undefined>(audience === "client" ? null : tableRepo);
   const [repoDraft, setRepoDraft] = useState("");
   const [fromFolder, setFromFolder] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -35,12 +37,12 @@ export function ConnectModal({ tableId, tableName, audience = "team", connected,
   const [sent, setSent] = useState(false);
 
   useEffect(() => {
-    if (audience === "client") return;
+    if (audience === "client" || tableRepo !== undefined) return;
     let cancelled = false;
     browserClient().from("table_code").select("repo_url").eq("table_id", tableId).maybeSingle()
       .then(({ data }: { data: { repo_url: string } | null }) => { if (!cancelled) setRepo(data?.repo_url ?? null); });
     return () => { cancelled = true; };
-  }, [tableId, audience]);
+  }, [tableId, audience]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function saveRepo(e: React.FormEvent) {
     e.preventDefault();
