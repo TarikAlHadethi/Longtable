@@ -173,6 +173,7 @@ export function SandboxReview({ table, me, client, box, aiOn, changes, jobs, onS
             {c.detail && <div className={s.said}><span>For the team</span>{c.detail}</div>}
             {c.files.length > 0 && <div className={s.files}>{c.files.slice(0, 12).map((f) => <span key={f} className={s.file}>{f}</span>)}{c.files.length > 12 && <span className={s.file}>and {c.files.length - 12} more</span>}</div>}
 
+            {c.undone && <div className={s.said} data-testid="change-undone"><span>In {first}'s copy</span>{c.undone === "undoing" ? "Being taken back out." : c.undone === "undone" ? "Taken back out." : "Could not be taken back on its own: later changes build on it."}</div>}
             {c.verdict ? (
               <div className={s.verdict} data-testid="judged">
                 <b>{VERDICT[c.verdict]}</b>{c.note ? `: ${c.note}` : ""}

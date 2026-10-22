@@ -19,7 +19,7 @@ import { client } from "./api.mjs";
 import { ask, findClaude, stopAll } from "./claude.mjs";
 import { askCodex, codexLimits, findCodex } from "./codex.mjs";
 import { packCode } from "./pack.mjs";
-import { changedSoFar, closeTree, fileFolder, folderChanges, folderState, freshCopy, isAddress, pushPlan, sourceFor, trustedRepo, landTree, landWork, neverCommit, openBranch, openTree, openWork, ownFolder, patchOf, realRepo, safeTable, treeChanges, workBranch } from "./repo.mjs";
+import { changedSoFar, closeTree, fileFolder, folderChanges, folderState, freshCopy, isAddress, pushPlan, sourceFor, trustedRepo, landTree, landWork, neverCommit, openBranch, openTree, openWork, ownFolder, patchOf, realRepo, refreshBranch, safeTable, treeChanges, undoCommit, workBranch } from "./repo.mjs";
 import { alwaysRules } from "./approve-server.mjs";
 import { fileURLToPath } from "node:url";
 import { cut, hideSecrets, home, loadSecret, log, readConfig, writeWhole } from "./store.mjs";
@@ -793,7 +793,7 @@ export function sandboxSystem(job) {
     `What ${job.client} wants is between <<<CLIENT and CLIENT>>>. Make that change in this folder: how the product looks and behaves. Keep to what they asked, keep it small, and make it really work to click through, with made-up data where real data would be needed.`,
     "Change only what people see and click: pages, components, styles, wording, made-up data. Never touch how the product is built, set up or deployed, anything that runs on the server, anything about sign-in, permissions, secrets or environment values, the database, or tests. Never read a file to show what is in it, and never send anything anywhere. A change that needs any of that is the team's to make.",
     ...(job.paths ? [`The only folders you may change are: ${job.paths}.`] : []),
-    "If they ask for any of that, or for something that is not a change to try (a question, a date, a price, a decision, their real data), change nothing, set pass_on to true, and tell them kindly in one or two sentences that you have passed it to the team.",
+    "If they ask for any of that, or for something that is not a change to try (a question, a date, a price, a decision, their real data), change nothing, set pass_on to true, and tell them kindly in one or two sentences that you have passed it to the team, saying plainly why it is the team's: when it changes how the product works (a rule, a limit, who approves what, what is kept or sent), say that it changes how the product works, so the team builds it, and that they will see it here when it is done; when it is a question or a decision, say the team will answer. Never leave them wondering whether anything happened.",
     `Your reply is read by ${job.client}: plain words, what is different now and where to look. Never name a file, show code, or say anything about the team or how the product is made. The detail is read by the team only.`,
     "You cannot run anything. This folder has no .git on purpose: the connection commits and pushes what you change, so never mention committing.",
   ].join(NL);
@@ -848,6 +848,19 @@ async function workSandbox(rpc, seat, engines, job) {
   if (!engines.claude) throw new Error("Claude Code is not on this computer");
   if (!seat.source) throw new Error("this connection has no code to work on");
   freshCopy(seat.table_id, seat.source);
+  // Taking one change back out of the copy, or bringing the copy up to the team's latest: git only, no AI asked.
+  if (job.undo) {
+    const commit = undoCommit(seat.table_id, job.branch, job.commit, job.words);
+    await rpc("runner_finish", { token: seat.token, job: job.job_id, answer: "", info: { undone: !!commit, commit: commit || undefined } });
+    log(`sandbox job ${job.job_id}: ${commit ? "took a change back" : "could not take a change back cleanly"}`);
+    return;
+  }
+  if (job.refresh) {
+    const r = refreshBranch(seat.table_id, job.branch);
+    await rpc("runner_finish", { token: seat.token, job: job.job_id, answer: "", info: { commit: r?.moved ? r.commit : undefined, stale: !!r?.stale } });
+    log(`sandbox job ${job.job_id}: ${r?.moved ? "caught the copy up" : r?.stale ? "the copy no longer fits the team's latest" : "the copy was current"}`);
+    return;
+  }
   if (job.probe) {
     // Only making the place for a copy: no AI is asked anything.
     const commit = openBranch(seat.table_id, job.branch, !!job.fresh);

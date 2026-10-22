@@ -25,8 +25,10 @@ import { ClientPanel, ClientWelcome, type Overview } from "./client-panel";
 // A change in the client's own copy, as their page is given it: their words, where it stands, what they were told in
 // plain words, and what the team made of it. Nothing of the team's part.
 type Change = { id: string; words: string; status: "working" | "ready" | "nothing" | "passed" | "failed" | "stopped"; summary: string | null;
-  verdict: "take" | "differently" | "no" | null; note: string | null; request_id: string | null; created_at: string; finished_at: string | null };
-type Sandbox = { on: boolean; url: string | null; left: number | null; changes: Change[] };
+  verdict: "take" | "differently" | "no" | null; note: string | null; request_id: string | null; created_at: string; finished_at: string | null;
+  undone?: "undoing" | "undone" | "stuck" | null; did_not_build?: boolean };
+// building: their newest change is not online yet; broken: it did not build, so the copy shows the version before it.
+type Sandbox = { on: boolean; url: string | null; left: number | null; changes: Change[]; building?: boolean; broken?: boolean };
 const VERDICT = { take: "The team is building this into the real thing.", differently: "The team will do this, in a different way.", no: "The team decided against this one." } as const;
 
 const byTime = <T extends { created_at: string }>(a: T, b: T) => a.created_at.localeCompare(b.created_at);
@@ -119,9 +121,10 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
     if (ln) putLines(ln as ClientLine[]);
     if (cn) setConnections(cn as Connection[]);
     if (jb) setJobs(jb as Job[]);
-    if (viewer) {
+    // Someone of the team looking on reads the copy directly; the owner acting as the test client reads it as a client does.
+    if (viewer && !viewer.acting) {
       const [{ data: ch }, { data: box }] = await Promise.all([
-        supabase.from("sandbox_changes").select("id, words, status, summary, verdict, note, request_id, created_at, finished_at").eq("member_id", me.id).eq("test", false).order("created_at", { ascending: false }).limit(60),
+        supabase.from("sandbox_changes").select("id, words, status, summary, verdict, note, request_id, created_at, finished_at, undone").eq("member_id", me.id).eq("test", false).order("created_at", { ascending: false }).limit(60),
         supabase.from("sandboxes").select("mode, url").eq("member_id", me.id).maybeSingle(),
       ]);
       const b = box as { mode?: string; url?: string | null } | null;
@@ -133,12 +136,14 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
     await overviewRead;
     setReady(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase, table.id, me.id, putUpdates, putLines, !!viewer, readOverview]);
+  }, [supabase, table.id, me.id, putUpdates, putLines, !!viewer, !!viewer?.acting, readOverview]);
 
   // Read the database as soon as the page opens. It used to wait for its live channel to say it was ready, so with
   // live updates blocked (a strict network) a copy's button and cards could be missing for up to a minute.
   useEffect(() => {
     if (!viewer) reload();
+    // Opening the page brings their copy up to what the team has shipped (at most hourly, and only with a copy).
+    if (!viewer || viewer.acting) supabase.rpc("client_refresh_copy", { t: table.id }).then(({ error }: { error: { message: string } | null }) => { if (error) console.warn(`Their copy was not brought up to date: ${error.message}`); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -206,7 +211,10 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   const thinking = !!sent || deskBusy || open.length > 0;
   // How far along: a deeper look means the table asked one of the team's AIs, which reads the project.
   const stage = open.some((j) => (j as { stage?: number }).stage === 1) ? 1 : 0;
-  const building = !!sandbox?.changes.some((c) => c.status === "working");
+  const building = !!sandbox?.changes.some((c) => c.status === "working" || c.undone === "undoing") || !!sandbox?.building;
+  // The one change they can take back: their newest that is still in the copy.
+  const undoable = sandbox?.on ? [...(sandbox.changes || [])].filter((c) => c.status === "ready" && !c.undone).sort(byTime).pop()?.id : undefined;
+  const newestReady = [...(sandbox?.changes || [])].filter((c) => c.status === "ready").sort(byTime).pop()?.id;
 
   // Back to the tab, and every so often while something of theirs is in the works: read the database too, so a lost
   // push only delays what they see.
@@ -276,6 +284,14 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
       putUpdates([u]);
       setError(sentence(error.message));
     }
+    reload();
+  }
+
+  // Their newest change, taken back out of their copy. It shows as being taken back at once; the database decides.
+  async function undo() {
+    setError("");
+    const { error } = await supabase.rpc("client_undo_change", { t: table.id });
+    if (error) setError(sentence(error.message));
     reload();
   }
 
@@ -462,8 +478,17 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
                       {c.status === "working" && <div className={styles.formingLine} data-testid="change-status">Building it in your copy<span className={styles.formingDots}><i /><i /><i /></span></div>}
                       {c.summary && <div className={styles.said}>{c.summary}</div>}
                       {c.request_id && told(c.request_id).map(answers)}
-                      {c.status === "ready" && sandbox?.url && !c.verdict && (
-                        <a className={`btn ${styles.tryIt}`} href={sandbox.url} target="_blank" rel="noreferrer" data-testid="try-it">Try it <Arrow size={16} /></a>
+                      {c.undone === "undoing" && <div className={styles.formingLine} data-testid="change-status">Taking it back out of your copy<span className={styles.formingDots}><i /><i /><i /></span></div>}
+                      {c.undone === "undone" && <div className={styles.said} data-testid="change-undone">Taken back out of your copy.</div>}
+                      {c.undone === "stuck" && <div className={styles.said} data-testid="change-undone">This one could not be taken back on its own, because later changes build on it. The team can see it.</div>}
+                      {c.did_not_build && !c.undone && <div className={styles.said} data-testid="did-not-build">That one did not work in your copy, so it still shows the version before it. The team has it.</div>}
+                      {c.status === "ready" && !c.undone && !c.did_not_build && c.id === newestReady && sandbox?.building
+                        ? <div className={styles.formingLine} data-testid="building-copy">Building your copy, about 3 minutes<span className={styles.formingDots}><i /><i /><i /></span></div>
+                        : c.status === "ready" && sandbox?.url && !c.verdict && !c.undone && !c.did_not_build && (
+                          <a className={`btn ${styles.tryIt}`} href={sandbox.url} target="_blank" rel="noreferrer" data-testid="try-it">Try it <Arrow size={16} /></a>
+                        )}
+                      {c.id === undoable && !locked && !sandbox?.changes.some((x) => x.undone === "undoing") && (
+                        <button className={styles.other} onClick={() => undo()} data-testid="undo-change">Undo this</button>
                       )}
                       {c.verdict && <div className={`${styles.verdict} ${c.verdict === "no" ? styles.verdictNo : ""}`} data-testid="verdict">{VERDICT[c.verdict]}{c.note ? ` ${c.note}` : ""}</div>}
                     </div>

@@ -322,6 +322,53 @@ export function openBranch(tableId, branch, fresh = false) {
   return commit;
 }
 
+const LONGTABLE = { ...quiet, GIT_AUTHOR_NAME: "Longtable", GIT_AUTHOR_EMAIL: "longtable@users.noreply.github.com", GIT_COMMITTER_NAME: "Longtable", GIT_COMMITTER_EMAIL: "longtable@users.noreply.github.com" };
+
+// A client's copy brought up to what the team has shipped, their own changes kept on top, and pushed. Nothing moves
+// when it is already current; when the two no longer fit together it stays as it is and says so (stale).
+export function refreshBranch(tableId, branch) {
+  safeBranch(branch);
+  const G = join(home, "copies", safeTable(tableId), ".git");
+  try { git(["--git-dir", G, "ls-remote", "--exit-code", "origin", `refs/heads/${branch}`]); }
+  catch (e) { if (e.status === 2) return null; throw new Error("this computer could not reach the project's repository"); }
+  const main = git(["--git-dir", G, "rev-parse", "HEAD"]);
+  git(["--git-dir", G, "fetch", "--quiet", "--no-tags", "--depth", "400", "origin", "HEAD"]);
+  git(["--git-dir", G, "fetch", "--quiet", "--no-tags", "--depth", "400", "origin", `refs/heads/${branch}`]);
+  const tip = git(["--git-dir", G, "rev-parse", "FETCH_HEAD"]);
+  let common;
+  try { common = git(["--git-dir", G, "merge-base", main, tip]); } catch { return { commit: tip, moved: false, stale: true }; }
+  if (common === main) return { commit: tip, moved: false, stale: false };
+  let tree;
+  try { tree = git(["--git-dir", G, "merge-tree", "--write-tree", `--merge-base=${common}`, tip, main]).split(/\r?\n/)[0]; }
+  catch { return { commit: tip, moved: false, stale: true }; }
+  const commit = git(["--git-dir", G, "commit-tree", tree, "-p", tip, "-p", main, "-m", "Take in the team's latest"], LONGTABLE);
+  git(["--git-dir", G, "push", "--quiet", "origin", `${commit}:refs/heads/${branch}`]);
+  return { commit, moved: true, stale: false };
+}
+
+// One change taken back out of a client's copy: what that commit did is undone on top of everything since, and pushed.
+// A change that later ones have built on so that it cannot come out cleanly is left, and that is said (null).
+export function undoCommit(tableId, branch, sha, words = "") {
+  safeBranch(branch);
+  if (!/^[0-9a-f]{7,40}$/.test(String(sha || ""))) return null;
+  const G = join(home, "copies", safeTable(tableId), ".git");
+  try { git(["--git-dir", G, "fetch", "--quiet", "--no-tags", "--depth", "400", "origin", `refs/heads/${branch}`]); }
+  catch { throw new Error("this computer could not reach the project's repository"); }
+  const tip = git(["--git-dir", G, "rev-parse", "FETCH_HEAD"]);
+  let full;
+  try { full = git(["--git-dir", G, "rev-parse", "--verify", `${sha}^{commit}`]); } catch { return null; }
+  // Only a change that is really on the copy's branch.
+  try { git(["--git-dir", G, "merge-base", "--is-ancestor", full, tip]); } catch { return null; }
+  let tree;
+  try { tree = git(["--git-dir", G, "merge-tree", "--write-tree", `--merge-base=${full}`, tip, `${full}^`]).split(/\r?\n/)[0]; }
+  catch { return null; }
+  if (tree === git(["--git-dir", G, "rev-parse", `${tip}^{tree}`])) return tip;
+  const said = String(words || "").split(/\r?\n/)[0].slice(0, 60);
+  const commit = git(["--git-dir", G, "commit-tree", tree, "-p", tip, "-m", `Take back: ${said || "a change"}`], LONGTABLE);
+  git(["--git-dir", G, "push", "--quiet", "origin", `${commit}:refs/heads/${branch}`]);
+  return commit;
+}
+
 // One commit of a sandbox, as a patch the team's AI can read to see what the client ended up with.
 export function patchOf(tableId, branch, commit) {
   safeBranch(branch);

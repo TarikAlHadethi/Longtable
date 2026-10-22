@@ -133,8 +133,9 @@ export type SandboxChange = {
   id: string; member_id: string; words: string; status: "working" | "ready" | "nothing" | "passed" | "failed" | "stopped";
   summary: string | null; detail: string | null; files: string[]; commit: string | null; stale: boolean;
   verdict: "take" | "differently" | "no" | null; note: string | null; task_id: string | null; created_at: string; finished_at: string | null; test?: boolean;
+  undone?: "undoing" | "undone" | "stuck" | null;
 };
-export const CHANGE_COLUMNS = "id, member_id, words, status, summary, detail, files, commit, stale, verdict, note, task_id, created_at, finished_at, test";
+export const CHANGE_COLUMNS = "id, member_id, words, status, summary, detail, files, commit, stale, verdict, note, task_id, created_at, finished_at, test, undone";
 // One piece of work the AIs took on: its title, the branch it is on, and how it ended.
 export type Task = { id: string; chat_id: string; member_id: string | null; title: string; branch: string; status: "working" | "done" | "stopped"; result: string | null; created_at: string; finished_at: string | null };
 export const TASK_COLUMNS = "id, chat_id, member_id, title, branch, status, result, created_at, finished_at";

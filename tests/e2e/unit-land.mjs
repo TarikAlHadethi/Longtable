@@ -12,7 +12,7 @@ import { join } from "node:path";
 const scratch = mkdtempSync(join(tmpdir(), "longtable-land-"));
 process.env.LONGTABLE_HOME = join(scratch, "home");
 mkdirSync(process.env.LONGTABLE_HOME, { recursive: true });
-const { changedSoFar, fileAddress: fileAddressOf, fileFolder, folderChanges, folderState, freshCopy, ownFolder, landTree, neverCommit, openTree, openWork, landWork, safeBranch, workBranch } = await import("../../packages/connect/src/repo.mjs");
+const { changedSoFar, fileAddress: fileAddressOf, fileFolder, folderChanges, folderState, freshCopy, ownFolder, landTree, neverCommit, openTree, openWork, landWork, safeBranch, workBranch, refreshBranch, undoCommit } = await import("../../packages/connect/src/repo.mjs");
 
 const results = {};
 const check = (name, ok, detail) => { results[name] = ok ? "pass" : `FAIL ${typeof detail === "string" ? detail : JSON.stringify(detail ?? "")}`.slice(0, 500); };
@@ -391,6 +391,34 @@ try {
     check("the team's address with or without .git still goes through", push(teams.replace(/\.git$/, "")) || push(teams));
     git(mine, "config", "remote.origin.pushurl", theirs);
     check("a remote with a push address of its own refuses pushing outright", pushPlan(mine, teams, false).noPush === true);
+  }
+
+  // ---- a client's copy: taking one change back out, and catching up with the team
+  {
+    const c = repo("copy", { "page.txt": lines(10), "style.txt": "colour: grey" + NL });
+    freshCopy("tc", c.url);
+    const S = "longtable/sandbox-elena-1a2b3c4d";
+    let w = openWork("tc", S, "work", { refresh: true });
+    writeFileSync(join(w.dir, "style.txt"), "colour: blue" + NL);
+    const blue = landWork("tc", w, S, "make it blue", "Maya");
+    w = openWork("tc", S, "work", { refresh: true });
+    writeFileSync(join(w.dir, "page.txt"), lines(10).replace("line 2", "Dashboard"));
+    const dash = landWork("tc", w, S, "say Dashboard", "Maya");
+    const back = undoCommit("tc", S, blue.commit, "make it blue");
+    check("a change taken back is undone on its own, and the one after it stays", !!back && show(c, `${S}:style.txt`) === "colour: grey" && show(c, `${S}:page.txt`).includes("Dashboard"), { back, style: show(c, `${S}:style.txt`) });
+    check("taking back a change that is not on the copy does nothing", undoCommit("tc", S, "0".repeat(40)) === null);
+    check("a change that is already taken back moves nothing", undoCommit("tc", S, blue.commit) === git(scratch, "--git-dir", c.remote, "rev-parse", S));
+    check("only a plain commit name is taken", undoCommit("tc", S, "HEAD~1") === null && (() => { try { undoCommit("tc", "main", dash.commit); return false; } catch { return true; } })());
+    // The team ships something; the copy catches up and keeps the client's change on top.
+    writeFileSync(join(c.seed, "team.txt"), "shipped" + NL);
+    git(c.seed, "add", "-A");
+    git(c.seed, "-c", "user.name=T", "-c", "user.email=t@example.test", "commit", "-q", "-m", "ship");
+    git(c.seed, "push", "-q", "origin", "HEAD:main");
+    freshCopy("tc", c.url);
+    const r = refreshBranch("tc", S);
+    check("a copy catches up with what the team shipped and keeps the client's change", r?.moved && show(c, `${S}:team.txt`) === "shipped" && show(c, `${S}:page.txt`).includes("Dashboard"), r);
+    check("a copy already current is not moved", refreshBranch("tc", S)?.moved === false);
+    check("a client with no copy yet has nothing to catch up", refreshBranch("tc", "longtable/sandbox-nobody-00000000") === null);
   }
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));

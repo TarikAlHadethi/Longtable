@@ -789,7 +789,8 @@ try {
     check("11k when the hosting reports where her copy is, its address fills itself in", dep.body === "noted" && (await mine()).url === "https://sandbox-dana-abc.example.test", { dep: dep.body, url: (await mine()).url });
     const other = await send("deployment_status", { deployment_status: { state: "success", environment_url: "https://production.example.test" }, deployment: { ref: "main", sha: "b".repeat(40) }, repository: { full_name: "x/y" } });
     const evil = await send("deployment_status", { deployment_status: { state: "success", environment_url: "javascript:alert(1)" }, deployment: { ref: branch, sha: "a".repeat(40) }, repository: { full_name: "x/y" } });
-    check("11k a deployment of anything else, or an address that is not https, changes nothing", other.body === "ignored" && evil.body === "ignored" && (await mine()).url === "https://sandbox-dana-abc.example.test", { other: other.body, evil: evil.body });
+    // A build of her copy that names an address that is not https still counts as online; the address is never taken.
+    check("11k a deployment of anything else changes nothing, and an address that is not https never replaces hers", other.body === "ignored" && evil.body === "noted" && (await mine()).url === "https://sandbox-dana-abc.example.test", { other: other.body, evil: evil.body });
 
     // Taking a change with no AI on is refused, so nobody is told the team is building something it is not.
     await sayAs("Round the corners");
