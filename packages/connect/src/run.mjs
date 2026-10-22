@@ -18,7 +18,7 @@ import { client } from "./api.mjs";
 import { ask, findClaude, stopAll } from "./claude.mjs";
 import { askCodex, codexLimits, findCodex } from "./codex.mjs";
 import { packCode } from "./pack.mjs";
-import { changedSoFar, closeTree, folderChanges, folderState, freshCopy, isAddress, pushPlan, sourceFor, trustedRepo, landTree, landWork, neverCommit, openBranch, openTree, openWork, ownFolder, patchOf, realRepo, safeTable, treeChanges, workBranch } from "./repo.mjs";
+import { changedSoFar, closeTree, fileFolder, folderChanges, folderState, freshCopy, isAddress, pushPlan, sourceFor, trustedRepo, landTree, landWork, neverCommit, openBranch, openTree, openWork, ownFolder, patchOf, realRepo, safeTable, treeChanges, workBranch } from "./repo.mjs";
 import { alwaysRules } from "./approve-server.mjs";
 import { fileURLToPath } from "node:url";
 import { cut, hideSecrets, home, loadSecret, log, readConfig, writeWhole } from "./store.mjs";
@@ -339,7 +339,7 @@ export function knows(seat) {
       if (t) parts.push(`## ${label}${NL}${t.length > cap ? t.slice(0, cap) + NL + "[cut short here]" : t}`);
     } catch {}
   };
-  const folder = seat.folder || (String(seat.source || "").startsWith("file:///") ? seat.source.slice(8) : null);
+  const folder = seat.folder || fileFolder(seat.source);
   const claudeHome = process.env.LONGTABLE_CLAUDE_HOME || join(homedir(), ".claude");
   add("Your person's standing instructions", join(claudeHome, "CLAUDE.md"), 4000);
   if (folder) {
@@ -442,7 +442,7 @@ export function recentSession(folder, room = 90000) {
 }
 export function layYours(seat, dir) {
   if (seat.kind !== "claude") return false;
-  const folder = seat.folder || (String(seat.source || "").startsWith("file:///") ? seat.source.slice(8) : null);
+  const folder = seat.folder || fileFolder(seat.source);
   const claudeHome = process.env.LONGTABLE_CLAUDE_HOME || join(homedir(), ".claude");
   const dest = join(dir, YOURS);
   let any = false;

@@ -12,7 +12,7 @@ import { join } from "node:path";
 const scratch = mkdtempSync(join(tmpdir(), "longtable-land-"));
 process.env.LONGTABLE_HOME = join(scratch, "home");
 mkdirSync(process.env.LONGTABLE_HOME, { recursive: true });
-const { changedSoFar, folderChanges, folderState, freshCopy, ownFolder, landTree, neverCommit, openTree, openWork, landWork, safeBranch, workBranch } = await import("../../packages/connect/src/repo.mjs");
+const { changedSoFar, fileAddress: fileAddressOf, fileFolder, folderChanges, folderState, freshCopy, ownFolder, landTree, neverCommit, openTree, openWork, landWork, safeBranch, workBranch } = await import("../../packages/connect/src/repo.mjs");
 
 const results = {};
 const check = (name, ok, detail) => { results[name] = ok ? "pass" : `FAIL ${typeof detail === "string" ? detail : JSON.stringify(detail ?? "")}`.slice(0, 500); };
@@ -28,7 +28,7 @@ function repo(name, files) {
   git(seed, "add", "-A");
   git(seed, "-c", "user.name=T", "-c", "user.email=t@example.test", "commit", "-q", "-m", "start");
   git(seed, "push", "-q", "origin", "HEAD:main");
-  return { remote, seed, url: "file:///" + remote.replace(/\\/g, "/") };
+  return { remote, seed, url: fileAddressOf(remote) };
 }
 const show = (r, ref) => { try { return git(scratch, "--git-dir", r.remote, "show", ref); } catch { return null; } };
 const branches = (r) => git(scratch, "--git-dir", r.remote, "branch", "--list").split(/\r?\n/).map((b) => b.replace(/^[* ]+/, "")).filter(Boolean);
@@ -293,7 +293,7 @@ try {
     const lu = landTree(u, "longtable/fix-1", "A change", "Maya");
     check("full mode pushes only to where the table reads the code", lu?.pushed && (show(ours, "longtable/fix-1:a.txt") || "").includes("changed") && show(theirs, "longtable/fix-1:a.txt") === null, lu);
     // The table reads the code from the person's own folder: the work stays there, and nothing is pushed anywhere.
-    const seatLocal = { table_id: "33333333-3333-4333-8333-333333333333", folder: mine, source: "file:///" + mine.replace(/\\/g, "/") };
+    const seatLocal = { table_id: "33333333-3333-4333-8333-333333333333", folder: mine, source: fileAddressOf(mine) };
     const l = openTree(seatLocal, "longtable/fix-2", { doing: true, job: "l1" });
     check("full mode on the person's own folder starts from what they have checked out, not from origin", readFileSync(join(l.dir, "a.txt"), "utf8").startsWith("our real code"));
     writeFileSync(join(l.dir, "a.txt"), "changed here" + NL);
@@ -327,7 +327,13 @@ try {
     check("one repository written as https, ssh or with .git is one", sameAddress("https://github.com/Team/App.git", "git@github.com:team/app")
       && sameAddress("ssh://git@github.com/team/app", "https://github.com/team/app/") && !sameAddress("https://github.com/team/app", "https://github.com/team/app-evil")
       && addressKey("https://name:tok@github.com/team/app") === "github.com/team/app"
-      && sameAddress("file:///C:/scratch/remote.git", "C:\\scratch\\remote") && !sameAddress("file:///C:/scratch/remote.git", "C:\\scratch\\other.git"));
+      // A folder's file:// address both ways, for each system's shape of path.
+      && fileAddressOf("/home/maya/app") === "file:///home/maya/app" && fileFolder("file:///home/maya/app") === "/home/maya/app"
+      && fileAddressOf("C:\\Users\\maya\\app") === "file:///C:/Users/maya/app" && fileFolder("file:///C:/Users/maya/app") === "C:/Users/maya/app"
+      // A folder on this computer, as each system writes one.
+      && (process.platform === "win32"
+        ? sameAddress("file:///C:/scratch/remote.git", "C:\\scratch\\remote") && !sameAddress("file:///C:/scratch/remote.git", "C:\\scratch\\other.git")
+        : sameAddress("file:///tmp/scratch/remote.git", "/tmp/scratch/remote") && !sameAddress("file:///tmp/scratch/remote.git", "/tmp/scratch/other.git")));
 
     // A folder whose origin is somebody else's repository (a client's), with the team's as another remote.
     const theirs = join(scratch, "client-repo.git");

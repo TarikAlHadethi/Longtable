@@ -32,8 +32,18 @@ export function resolveSource(repo) {
   }
   const folder = resolve(repo);
   if (!existsSync(join(folder, ".git"))) throw new Error(`${folder} is not a git repository`);
-  return "file:///" + folder.replace(/\\/g, "/");
+  return fileAddress(folder);
 }
+
+// A folder on this computer as a file:// address (file:///C:/x on Windows, file:///home/x elsewhere, where a path
+// already starts with "/"), and back. Written plainly, as git takes it: spaces are not encoded.
+export const fileAddress = (folder) => { const p = String(folder).replace(/\\/g, "/"); return "file://" + (p.startsWith("/") ? "" : "/") + p; };
+export const fileFolder = (address) => {
+  const s = String(address || "");
+  if (!/^file:\/\//i.test(s)) return null;
+  const p = s.replace(/^file:\/\//i, "");
+  return /^\/[A-Za-z]:/.test(p) ? p.slice(1) : p;
+};
 
 export const isAddress = (s) => /^(https?:|git@|ssh:|file:)/i.test(String(s || ""));
 
