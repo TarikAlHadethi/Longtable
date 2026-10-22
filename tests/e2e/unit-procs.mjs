@@ -53,8 +53,10 @@ check("a listing that could not be taken stops nothing and says so", P.stopProcs
 // The lifetime, with real processes: a stand-in Claude runs a server through a shell, as Claude Code's Bash tool does.
 const serverJs = join(scratch, "server.js");
 writeFileSync(serverJs, "setTimeout(() => {}, 600000);");
+// On a Mac sh is bash, which hands a lone command its own place (no shell left above it); Claude Code's Bash tool
+// always runs more than one, so the stand-in does too and keeps its shell.
 const startClaude = () => spawn(process.execPath, ["-e",
-  `const c = require('child_process').spawn(${JSON.stringify(win ? "cmd.exe" : "sh")}, ${JSON.stringify(win ? ["/c", "node", serverJs] : ["-c", `node "${serverJs}"`])}, { stdio: 'ignore' }); setTimeout(() => {}, 600000);`],
+  `const c = require('child_process').spawn(${JSON.stringify(win ? "cmd.exe" : "sh")}, ${JSON.stringify(win ? ["/c", "node", serverJs] : ["-c", `node "${serverJs}"; exit 0`])}, { stdio: 'ignore' }); setTimeout(() => {}, 600000);`],
 { stdio: "ignore", windowsHide: true });
 const serverOf = async (claude, since) => {
   for (let i = 0; i < 40; i++) {
