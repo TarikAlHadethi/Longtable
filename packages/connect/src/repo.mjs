@@ -322,6 +322,17 @@ export function openBranch(tableId, branch, fresh = false) {
   return commit;
 }
 
+// The files of one commit, laid out in a folder of their own (no .git in it), for checking what a change started from.
+export function layTree(tableId, commit, name = "check") {
+  const p = places(tableId, name);
+  rmSync(p.W, { recursive: true, force: true });
+  rmSync(p.I, { force: true });
+  mkdirSync(p.W, { recursive: true });
+  wgit(p, ["read-tree", commit]);
+  wgit(p, ["checkout-index", "-a", "-f"]);
+  return p.W;
+}
+
 const LONGTABLE = { ...quiet, GIT_AUTHOR_NAME: "Longtable", GIT_AUTHOR_EMAIL: "longtable@users.noreply.github.com", GIT_COMMITTER_NAME: "Longtable", GIT_COMMITTER_EMAIL: "longtable@users.noreply.github.com" };
 
 // A client's copy brought up to what the team has shipped, their own changes kept on top, and pushed. Nothing moves

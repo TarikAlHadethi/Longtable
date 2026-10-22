@@ -6,6 +6,7 @@
 import { layPointed, pointedPaths, pointedSystem } from "./pointed.mjs";
 import { PAGE, PAGE_KINDS, PAGE_SYSTEM, pageOut, pagesPrompt } from "./pages.mjs";
 import { MARKER, inert } from "./fence.mjs";
+import { canCheck, newErrors, remember as rememberCheck, remembered as rememberedCheck, typeCheck } from "./typecheck.mjs";
 import { newer, ownDir, ownVersion, restartOnNew, updateTo } from "./update.mjs";
 import { keepStartupCurrent } from "./autostart.mjs";
 import { SESSION_IDLE_MS, endAllSessions, endIdleSessions, endSession, keepForSession, stopLeftovers, stopProcs, touchSession } from "./procs.mjs";
@@ -19,7 +20,7 @@ import { client } from "./api.mjs";
 import { ask, findClaude, stopAll } from "./claude.mjs";
 import { askCodex, codexLimits, findCodex } from "./codex.mjs";
 import { packCode } from "./pack.mjs";
-import { changedSoFar, closeTree, fileFolder, folderChanges, folderState, freshCopy, isAddress, pushPlan, sourceFor, trustedRepo, landTree, landWork, neverCommit, openBranch, openTree, openWork, ownFolder, patchOf, realRepo, refreshBranch, safeTable, treeChanges, undoCommit, workBranch } from "./repo.mjs";
+import { changedSoFar, closeTree, fileFolder, folderChanges, folderState, freshCopy, isAddress, pushPlan, sourceFor, trustedRepo, landTree, landWork, neverCommit, openBranch, openTree, openWork, ownFolder, layTree, patchOf, realRepo, refreshBranch, safeTable, treeChanges, undoCommit, workBranch } from "./repo.mjs";
 import { alwaysRules } from "./approve-server.mjs";
 import { fileURLToPath } from "node:url";
 import { cut, hideSecrets, home, loadSecret, log, readConfig, writeWhole } from "./store.mjs";
@@ -844,6 +845,25 @@ export function sandboxRefusal({ files, text, unread }, paths = "") {
 
 // One change in a client's sandbox, on the team's Claude: open the sandbox with the team's latest taken in, make the
 // change, check what was changed, and push it to the sandbox's own branch.
+// The type check on a copy's change: the errors it adds compared with the version it started from (checked once and
+// remembered). null when this project cannot be checked here (no tsconfig, or no TypeScript in their own folder).
+async function checkCopy(seat, opened) {
+  const folder = seat.folder || fileFolder(seat.source);
+  if (!folder || !canCheck(opened.dir, folder)) return null;
+  const started = Date.now();
+  const after = await typeCheck(opened.dir, folder);
+  if (!after) { log("the type check could not be run here; the change goes in unchecked"); return null; }
+  let before = after.ok ? [] : rememberedCheck(home, safeTable(seat.table_id), opened.base);
+  if (!after.ok && !before) {
+    const base = await typeCheck(layTree(seat.table_id, opened.base, "check"), folder);
+    before = base ? base.errors : [];
+    rememberCheck(home, safeTable(seat.table_id), opened.base, before);
+  }
+  const added = newErrors(after.errors, before || []);
+  log(`type check: ${after.errors.length} errors, ${added.length} new with this change, in ${Date.now() - started} ms`);
+  return { errors: after.errors, added };
+}
+
 async function workSandbox(rpc, seat, engines, job) {
   if (!engines.claude) throw new Error("Claude Code is not on this computer");
   if (!seat.source) throw new Error("this connection has no code to work on");
@@ -886,10 +906,34 @@ async function workSandbox(rpc, seat, engines, job) {
       onNote: (n) => { if (n !== note) { note = n; soon(); } },
       prompt: sandboxPrompt(job), system: sandboxSystem(job), schema: KINDS.sandbox.schema, model: seat.model || process.env.LONGTABLE_MODEL });
     if (result.is_error) throw new Error(result.result || "Claude Code reported an error");
-    const s = result.structured_output || {};
+    let s = result.structured_output || {};
     const usage = { input: result.usage?.input_tokens, output: result.usage?.output_tokens, turns: result.num_turns, wall_ms: result.wall_ms, cost_usd_equivalent: result.total_cost_usd };
-    const seen = changedSoFar(seat.table_id, opened);
-    const refused = seen.files.length ? sandboxRefusal(seen, job.paths) : null;
+    let seen = changedSoFar(seat.table_id, opened);
+    let refused = seen.files.length ? sandboxRefusal(seen, job.paths) : null;
+    // The project's own type check, before anything is pushed: a change that breaks it never reaches the copy (its
+    // build would fail and the client would wait minutes for a "that did not work"). Its AI gets one go at fixing what
+    // it broke; if the check still fails, nothing is pushed and it goes to the team.
+    let checked = null;
+    if (!refused && !s.pass_on && seen.files.length) {
+      checked = await checkCopy(seat, opened);
+      if (checked && checked.added.length) {
+        note = "fixing what the type check found"; soon();
+        const again = await ask({ claude: engines.claude, cwd: opened.dir, edit: true, long: false, control,
+          onNote: (n) => { if (n !== note) { note = n; soon(); } },
+          prompt: `${sandboxPrompt(job)}${NL}${NL}You already made this change in this folder, and it broke the project's type check, so it cannot go into their copy yet. These errors are new with your change:${NL}${checked.added.slice(0, 40).map((e) => `- ${e}`).join(NL).slice(0, 8000)}${NL}${NL}Fix them, keeping what they asked for, only in files you may change. If it cannot be done that way, put the files back as they were and pass it on to the team. Then answer as before.`,
+          system: sandboxSystem(job), schema: KINDS.sandbox.schema, model: seat.model || process.env.LONGTABLE_MODEL });
+        if (!again.is_error && again.structured_output) s = again.structured_output;
+        seen = changedSoFar(seat.table_id, opened);
+        refused = seen.files.length ? sandboxRefusal(seen, job.paths) : null;
+        checked = !refused && !s.pass_on && seen.files.length ? await checkCopy(seat, opened) : null;
+      }
+      if (checked && checked.added.length) {
+        await rpc("runner_finish", { token: seat.token, job: job.job_id, answer: "That one would have broken your copy, so it is not in. I have passed it to the team, and you will hear here what they decide.",
+          info: { pass_on: true, title: String(job.words || "").slice(0, 60), detail: `Not put in the copy: it failed the project's type check.${NL}${checked.added.slice(0, 20).join(NL)}`.slice(0, 3900), usage } });
+        log(`sandbox job ${job.job_id}: the type check failed, passed to the team`);
+        return;
+      }
+    }
     if (refused) {
       // The change itself broke a rule. Nothing lands; the team hears why, and the client hears it went to the team.
       await rpc("runner_finish", { token: seat.token, job: job.job_id, answer: "That one needs the team, so I have passed it on to them. You will hear here what they decide.",
@@ -901,6 +945,8 @@ async function workSandbox(rpc, seat, engines, job) {
     if (landed && !landed.pushed) throw new Error("git on this computer could not push the sandbox");
     // The copy moved while this was being built (another of the team's computers changed it): try again on top.
     if (landed?.apart) throw new Error("the sandbox moved while this was built");
+    // What the check found on this version is what the next change starts from.
+    if (landed && checked) rememberCheck(home, safeTable(seat.table_id), landed.sha, checked.errors);
     await rpc("runner_finish", { token: seat.token, job: job.job_id, answer: String(s.reply || "").trim() || (landed ? "It is changed. Have a look and try it." : "Nothing needed changing."),
       info: { pass_on: !!s.pass_on && !landed, title: String(s.title || "").slice(0, 60), changed: !!landed, commit: landed?.sha || null, files: landed?.files || [],
         detail: String(s.detail || ""), stale: !!opened.stale, usage } });
