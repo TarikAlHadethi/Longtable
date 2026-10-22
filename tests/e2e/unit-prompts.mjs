@@ -62,6 +62,13 @@ try {
   check("a very long conversation is cut by size from the oldest end, and says so", lw.length < 140000 && lw.includes("message 399 ") && !lw.includes("message 0 ") && lw.includes("its start is left out for length"), lw.length);
   const short = { ...base, kind: "work", history: Array.from({ length: 60 }, (_, i) => ({ name: "Maya", body: `message ${i}` })) };
   check("sixty messages are all there: nothing is cut by count", Array.from({ length: 60 }, (_, i) => `message ${i}${NL}`).every((m) => buildPrompt(short).includes(m)));
+  const laid = buildPrompt({ ...long, wholeTalkAt: ".longtable-yours/handouts/conversation.md" });
+  check("with the whole conversation laid in a file, the message carries its newest part and says where the rest is", laid.length < 50000 && laid.includes("message 399 ") && laid.includes("conversation.md"), laid.length);
+  const days = buildPrompt({ ...base, kind: "look", history: [
+    { name: "Maya", body: "old ask", created_at: "2026-10-19T09:00:00Z" }, { name: "Sam", body: "right after", created_at: "2026-10-19T09:05:00Z" },
+    { name: "Maya", body: "new ask", created_at: "2026-10-22T14:00:00Z" }] });
+  check("the time is written in before the first line and wherever more than an hour passed, not between close lines",
+    (days.match(/UTC\)/g) || []).length === 2 && days.includes("19 Oct 2026") && days.includes("22 Oct 2026"), days.match(/\(.*UTC\)/g));
   const one = buildPrompt({ ...base, kind: "work", history: [{ name: "Maya", body: "y".repeat(500000) }] });
   check("one enormous message is still handed over rather than dropped", one.length > 500000);
   const ll = listenPrompt({ ...base, history: Array.from({ length: 400 }, (_, i) => ({ name: "Maya", body: `m${i} ` + "x".repeat(900) })) });

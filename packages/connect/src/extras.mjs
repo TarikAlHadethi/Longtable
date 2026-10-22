@@ -6,6 +6,7 @@ import { homedir } from "node:os";
 import { basename, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { cut, hideSecrets } from "./store.mjs";
+import { inert } from "./fence.mjs";
 
 const NL = String.fromCharCode(10);
 const claudeHome = () => process.env.LONGTABLE_CLAUDE_HOME || join(homedir(), ".claude");
@@ -15,8 +16,7 @@ const folderOf = (seat) => {
   try { return String(seat.source || "").startsWith("file:") ? fileURLToPath(seat.source) : null; } catch { return null; }
 };
 // A file's name and a person's name come from the table like any other words (a client names their own attachment),
-// so neither may close a fence, and a name stays on its own one line. The same markers as inert() in run.mjs.
-const inert = (t) => String(t ?? "").replace(/<<<(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT|PAGES)|(TABLE|CODE|YOURS|PART|SHARED|COMMAND|CLIENT|PAGES)>>>/g, "[marker]");
+// so neither may close a fence, and a name stays on its own one line.
 const named = (t) => cut(inert(t).replace(/\s+/g, " ").replace(/"/g, "'").trim(), 200);
 
 // The top of a command or skill file: "---", lines of "key: value", "---".

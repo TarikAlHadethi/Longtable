@@ -30,6 +30,16 @@ check("the newest page is handed whole, with its open comments", told.includes("
 check("an older page only by name", told.includes("P2: \"Old\"") && !told.includes("old body"), told);
 check("nothing in a page can close the fence it is handed in", told.includes("[marker] escape") && told.trimEnd().endsWith("PAGES>>>"), told);
 check("no pages, nothing said", pagesPrompt({ pages: [] }) === "" && pagesPrompt({}) === "");
+// A message that is not about the handout leaves its HTML in a file to open; one about it gets it whole.
+const big = { pages: [{ id: "p1", title: "Booking flow mockup", version: 2, html: "<html>" + "x".repeat(50000) + "</html>", comments: [] }] };
+const wrote = [];
+const place = { write: (name, text) => { wrote.push([name, text.length]); return `.longtable-yours/handouts/${name}`; } };
+const unrelated = pagesPrompt({ ...big, question: "what does greet.js export?" }, place);
+check("an unrelated message does not carry the handout's HTML, only where to find it", unrelated.length < 2000 && unrelated.includes(".longtable-yours/handouts/P1.html") && wrote.length === 1, unrelated.length);
+const related = pagesPrompt({ ...big, question: "make the booking mockup darker" }, place);
+check("a message about the handout gets its HTML whole", related.length > 50000, related.length);
+check("so does one that says handout", pagesPrompt({ ...big, question: "can you fix the handout's header" }, place).length > 50000);
+check("without a place to leave it (no file tools), the HTML comes whole", pagesPrompt({ ...big, question: "what does greet.js export?" }).length > 50000);
 check("an update by label goes to that page's id", pageOut(job, { title: "Plan", html: "<p>new</p>", update: "p1" })?.update === job.pages[0].id);
 check("a label that is not one of them makes a new page when there are several", pageOut(job, { title: "X", html: "<p>x</p>", update: "P7" })?.update === null);
 check("with only one handout in the chat, any pointer means that one", pageOut({ pages: [job.pages[0]] }, { title: "Plan", html: "<p>x</p>", update: "P2" })?.update === job.pages[0].id);

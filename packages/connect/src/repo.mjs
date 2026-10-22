@@ -158,12 +158,6 @@ export function freshCopy(tableId, source) {
   return { dir, read: `${branch === "HEAD" ? "main" : branch} @ ${head}` };
 }
 
-export function copyIsClean(tableId) {
-  const dir = join(home, "copies", safeTable(tableId));
-  if (!existsSync(join(dir, ".git"))) return true;
-  return git(["-C", dir, "status", "--porcelain"]) === "";
-}
-
 // Work the team asked for happens in a second folder that holds the files and nothing else: no .git inside it, so
 // nothing the AI writes there can change what git itself runs. Git reaches it from outside, with its own index.
 const places = (tableId, name = "work") => ({ G: join(home, "copies", safeTable(tableId), ".git"), W: join(home, name, safeTable(tableId)), I: join(home, name, `${safeTable(tableId)}.index`) });

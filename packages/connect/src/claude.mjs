@@ -90,6 +90,11 @@ export function fullEnv(token, { hooksOff = true, pushTo = [] } = {}) {
   // A permission request waits for its person as long as they take, as at home: Claude Code's own limit on a tool call
   // (the approval is one) is set to a week, unless they set their own.
   if (!env.MCP_TOOL_TIMEOUT) env.MCP_TOOL_TIMEOUT = String(7 * 24 * 3600 * 1000);
+  // A server that never comes up held a run back for Claude Code's default 30 s before it read the prompt.
+  // Fifteen seconds leaves room for one that is slow to start (an npx server on its first run); their own setting wins. The claude.ai connectors cannot sign in with the
+  // connection's sign-in at all, so they are not tried.
+  if (!env.MCP_TIMEOUT) env.MCP_TIMEOUT = "15000";
+  if (!env.ENABLE_CLAUDEAI_MCP_SERVERS) env.ENABLE_CLAUDEAI_MCP_SERVERS = "false";
   const conf = [];
   // Git itself refuses a push from the commands this Claude runs, however the command is written (git -C, -c, an
   // alias, a script): every push address is rewritten to one no git can reach. The addresses it may push to are
@@ -153,6 +158,12 @@ export function stopAll() {
 // A client's AI gets no tools at all (tools ""): it only reads what the job hands it.
 // With `edit`, the file tools may also change files, still only inside the working folder and still with no commands:
 // that is how a person's own AI does work they asked for, in the connection's copy.
+// A server that did not come up is named in the log (names only), so a slow start can be traced to it.
+function logServers(list) {
+  const down = (Array.isArray(list) ? list : []).filter((s) => s && s.status && s.status !== "connected").map((s) => `${String(s.name).slice(0, 60)} (${String(s.status).slice(0, 30)})`);
+  if (down.length) log(`claude: MCP servers that did not connect: ${down.join(", ")}`);
+}
+
 export const EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
 
 // With `full`, the person runs their AI as their full Claude Code: their own settings, rules, hooks, MCP servers,
@@ -248,10 +259,13 @@ function askOnce({ claude, cwd, prompt, system, schema, model, tools = "Read,Gre
     // Each listing is waited for before the run reports: the last one is taken as it finishes, and what it started still
     // names it as their parent after it has gone.
     const looks = [];
-    const look = () => { if (full) looks.push(below(child.pid, started).then((list) => { for (const p of list) seen.set(`${p.pid}|${p.start}`, p); }).catch(() => {})); };
+    // Only a command can leave a program running: a run that never used one is not listed (a listing takes 0.6 to 2 s).
+    let shelled = false;
+    const look = () => { if (full && shelled) looks.push(below(child.pid, started).then((list) => { for (const p of list) seen.set(`${p.pid}|${p.start}`, p); }).catch(() => {})); };
     const lines = lineReader((e) => {
       if (full && e.type === "assistant") {
         for (const part of e.message?.content || []) {
+          if (part.type === "tool_use" && (part.name === "Bash" || part.name === "PowerShell")) shelled = true;
           if (part.type === "tool_use" && (part.name === "Bash" || part.name === "PowerShell") && (part.input?.run_in_background || LEAVES_RUNNING.test(String(part.input?.command || "")))) lingering.add(part.id);
         }
       } else if (full && e.type === "user") {
@@ -272,7 +286,7 @@ function askOnce({ claude, cwd, prompt, system, schema, model, tools = "Read,Gre
         }, 4000);
       }
       // What this Claude Code has built in, and whether fast mode can serve: the table's "/" list and the AI's window.
-      else if (e.type === "system" && e.subtype === "init" && (initAt = initAt || Date.now())) init = { commands: Array.isArray(e.slash_commands) ? e.slash_commands : [], fast: e.fast_mode_state || null, fastWhy: e.fast_mode_disabled_reason || null };
+      else if (e.type === "system" && e.subtype === "init" && (initAt = initAt || Date.now()) && (logServers(e.mcp_servers), true)) init = { commands: Array.isArray(e.slash_commands) ? e.slash_commands : [], fast: e.fast_mode_state || null, fastWhy: e.fast_mode_disabled_reason || null };
       else if (e.type === "rate_limit_event") rate = e.rate_limit_info;
       else if (onNote && e.type === "assistant") {
         // A tool call says what the AI is doing right now, and what it writes between steps ("Rebuilt, running the
