@@ -254,6 +254,19 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
     if (el) el.scrollTop = el.scrollHeight;
   }, [feed.length, thinking, building]);
 
+  // A reply that grows after it lands (the forming line, then the words) keeps the bottom in view, unless they scrolled up.
+  useEffect(() => {
+    const el = chatRef.current;
+    const inner = el?.firstElementChild;
+    if (!el || !inner || typeof ResizeObserver === "undefined") return;
+    let near = true;
+    const onScroll = () => { near = el.scrollHeight - el.scrollTop - el.clientHeight < 120; };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    const ro = new ResizeObserver(() => { if (near) el.scrollTop = el.scrollHeight; });
+    ro.observe(inner);
+    return () => { ro.disconnect(); el.removeEventListener("scroll", onScroll); };
+  }, [ready]);
+
   // One tap answers the team's question. It shows at once; the database decides whether it counts.
   async function answer(u: ClientUpdate, choice: number) {
     setError("");

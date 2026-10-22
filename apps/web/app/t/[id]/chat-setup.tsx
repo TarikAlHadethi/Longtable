@@ -57,7 +57,8 @@ export function ChatSetup({ tableId, me, people, chat, name: typed = "", onDone,
     if (!name.trim()) return setError("Give the chat a name.");
     setBusy(true);
     setError("");
-    const args = { chat_name: name.trim(), chat_about: about.trim(), who, people: who === "some" ? [...picked] : [], take_notes: notes, ai_answers: answers };
+    // How the AIs answer is a choice only alongside the note-taker; without notes they answer as usual.
+    const args = { chat_name: name.trim(), chat_about: about.trim(), who, people: who === "some" ? [...picked] : [], take_notes: notes, ai_answers: notes ? answers : "normal" };
     const { data, error } = chat
       ? await browserClient().rpc("setup_chat", { c: chat.id, ...args })
       : await browserClient().rpc("make_chat", { t: tableId, ...args });
@@ -109,8 +110,12 @@ export function ChatSetup({ tableId, me, people, chat, name: typed = "", onDone,
             </>
           )}
           <Switch on={notes} onChange={setNotes} title="An AI takes notes" about="It reads along without answering and keeps the notes as a handout." testid="setup-notes" />
-          <div className={styles.setupLabel}>The AIs answer</div>
-          <Select value={answers} options={ANSWERS} onChange={(v) => setAnswers(v as Answers)} label="How the AIs answer" />
+          {/* Greyed until notes are on: with nobody taking notes, AIs that never answer would be no use. */}
+          <div className={`${styles.setupAnswers} ${notes ? "" : styles.setupAnswersOff}`} aria-disabled={!notes} data-testid="setup-answers">
+            <div className={styles.setupLabel}>The AIs answer</div>
+            <Select value={notes ? answers : "normal"} options={ANSWERS} onChange={(v) => setAnswers(v as Answers)} label="How the AIs answer" />
+            {!notes && <div className={styles.setupHint}>Turn on notes to choose this.</div>}
+          </div>
         </div>
         {error && <div className="error">{error}</div>}
         <div className={styles.modalActions}>

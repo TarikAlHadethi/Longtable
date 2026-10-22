@@ -281,7 +281,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     return c ? { word: c.kind === "codex" ? "Codex" : "Claude", on: !!on } : null;
   };
   const aiWord = (id: string) => { const c = connections.find((x) => !x.revoked_at && x.member_id === id); return c ? AI_NAME[c.kind] : "AI"; };
-  const working = jobs.filter((j) => j.chat_id === chat?.id && ["queued", "running", "waiting", "failed"].includes(j.status))
+  // The note-taker reads along quietly: its job is never shown as the AIs at work.
+  const working = jobs.filter((j) => j.chat_id === chat?.id && j.kind !== "notes" && ["queued", "running", "waiting", "failed"].includes(j.status))
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
   // The table thinking, from the moment someone says something it will hear until its reply or an AI's own work
@@ -297,12 +298,17 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     const heard = heardFor.current?.at;
     const run = ms.slice(i).filter((m) => !heard || m.created_at > heard);
     if (!run.length) return null;
+    // As the chat is set up: never answered, nothing is "thinking"; answered only when an AI is named, only then.
+    if (chat?.set_up === false || chat?.answers === "silent") return null;
+    // Only what was just said counts: something from before (said while the room only listened) was never heard.
+    const lastAt = Date.parse(run[run.length - 1].created_at);
+    if (chat?.answers === "named") return run.filter((m) => lastAt - Date.parse(m.created_at) < 15000).some((m) => /^\s*\/[A-Za-z]/.test(m.body) || /@|\b(ai|ais|claude|chatgpt|gpt|codex|table|longtable)\b/i.test(m.body)) ? run[run.length - 1] : null;
     const prev = ms[i - 1];
     const afterAi = !!prev && Date.parse(run[0].created_at) - Date.parse(prev.created_at) < 15 * 60 * 1000;
-    const strong = run.some((m) => m.body.length >= 40 || /\?|@|(ai|ais|claude|chatgpt|gpt|codex|table|longtable)/i.test(m.body)
-      || /^\s*(can|could|would|will|please|pls|make|add|fix|change|update|remove|delete|build|write|check|look|why|how|what|where|when|which|who|should|is|are|does|do|did|implement|create|refactor|rename|move|review|explain|tell|show|find|lets|let's|try|use|set|put|run|test|ship|revert|undo)/i.test(m.body));
+    const strong = run.some((m) => m.body.length >= 40 || /\?|@|\b(ai|ais|claude|chatgpt|gpt|codex|table|longtable)\b/i.test(m.body)
+      || /^\s*(can|could|would|will|please|pls|make|add|fix|change|update|remove|delete|build|write|check|look|why|how|what|where|when|which|who|should|is|are|does|do|did|implement|create|refactor|rename|move|review|explain|tell|show|find|lets|let's|try|use|set|put|run|test|ship|revert|undo)\b/i.test(m.body));
     return afterAi || strong ? run[run.length - 1] : null;
-  }, [messages, chat?.id]);
+  }, [messages, chat?.id, chat?.answers, chat?.set_up]);
   const listening = working.some((j) => j.kind === "listen" && (j.status === "queued" || j.status === "running"));
   if (listening && said) heardFor.current = { id: said.id, at: said.created_at };
   const aisOn = connections.some((c) => !c.revoked_at && byId.get(c.member_id)?.role !== "client" && !!c.last_seen && Date.now() - new Date(c.last_seen).getTime() < 90000);
@@ -622,6 +628,16 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     const el = scrollRef.current;
     if (el && atBottom.current) el.scrollTop = el.scrollHeight;
   }, [items, view]);
+  // Anything that grows at the end keeps it in view too: the table thinking, the back room, a picture loading, a line
+  // still rising in. Only while the reader is at the bottom.
+  useEffect(() => {
+    const el = scrollRef.current;
+    const inner = el?.firstElementChild;
+    if (!el || !inner || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => { if (atBottom.current) el.scrollTop = el.scrollHeight; });
+    ro.observe(inner);
+    return () => ro.disconnect();
+  }, []);
 
   // The room's pages are views of this one page. Going to one changes the address and what is in the middle, and
   // nothing else: no request, so it is there at once.

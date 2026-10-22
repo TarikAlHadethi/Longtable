@@ -46,7 +46,7 @@ export type Job = {
   id: string;
   chat_id: string | null;
   member_id: string;
-  kind: "answer" | "view" | "combine" | "intro" | "client" | "work" | "review" | "listen" | "look" | "plan" | "sandbox";
+  kind: "answer" | "view" | "combine" | "intro" | "client" | "work" | "review" | "listen" | "look" | "plan" | "sandbox" | "notes";
   change_id?: string | null;
   subject?: string | null;
   stage?: number;

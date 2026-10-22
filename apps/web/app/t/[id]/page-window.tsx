@@ -399,7 +399,7 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
               </button>
               {/* Words are changed in place only on a page that does not build itself with its own script: saving one
                   that does would keep what its script drew as well as the script, and show it twice. */}
-              {newest && html !== null && !/<script(?![^>]*data-lt)/i.test(html) && <button className={s.mode} onClick={() => { setMode("edit"); setPlace(null); setThread(null); setList(false); }} data-testid="page-edit-mode">
+              {newest && html !== null && !/<script(?![^>]*\bdata-lt\b)/i.test(html) && <button className={s.mode} onClick={() => { setMode("edit"); setPlace(null); setThread(null); setList(false); }} data-testid="page-edit-mode">
                 <Icon d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16zM13.5 6.5l4 4" />Edit
               </button>}
             </span>

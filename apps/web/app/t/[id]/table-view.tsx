@@ -61,7 +61,7 @@ export function TableView({ table, me, members, connections, jobs, online, messa
     const on = !conn.revoked_at && !!conn.last_seen && now - new Date(conn.last_seen).getTime() < QUIET_MS;
     return { conn, on, removed: !!conn.revoked_at };
   };
-  const working = new Set(jobs.filter((j) => j.status === "running" || j.status === "queued" || j.status === "waiting").map((j) => j.member_id));
+  const working = new Set(jobs.filter((j) => j.kind !== "notes" && (j.status === "running" || j.status === "queued" || j.status === "waiting")).map((j) => j.member_id));
   const seats = team.map((m) => ({ m, seat: seatOf(m.id) }));
   const busy = (id: string) => working.has(id) && !!seats.find((x) => x.m.id === id)?.seat?.on;
   // What a busy AI is really on, short enough for its card: "Editing send.ts", else that it works or waits its turn.
