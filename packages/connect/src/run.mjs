@@ -20,7 +20,7 @@ import { client } from "./api.mjs";
 import { ask, findClaude, stopAll } from "./claude.mjs";
 import { askCodex, codexLimits, findCodex } from "./codex.mjs";
 import { packCode } from "./pack.mjs";
-import { changedSoFar, closeTree, fileFolder, folderChanges, folderState, freshCopy, isAddress, pushPlan, sourceFor, trustedRepo, landTree, landWork, neverCommit, openBranch, openTree, openWork, ownFolder, layTree, patchOf, realRepo, refreshBranch, safeTable, treeChanges, undoCommit, workBranch } from "./repo.mjs";
+import { changedSoFar, closeTree, fileFolder, folderChanges, folderState, freshCopy, isAddress, pushPlan, sourceFor, trustedRepo, landTree, landWork, neverCommit, openBranch, openTree, openWork, ownFolder, layTree, tidyTrees, patchOf, realRepo, refreshBranch, safeTable, treeChanges, undoCommit, workBranch } from "./repo.mjs";
 import { alwaysRules } from "./approve-server.mjs";
 import { fileURLToPath } from "node:url";
 import { cut, hideSecrets, home, loadSecret, log, readConfig, writeWhole } from "./store.mjs";
@@ -1571,6 +1571,17 @@ export async function runLoop({ pollMs = 1000, backup = false } = {}) {
   setInterval(checkRelease, 10 * 60 * 1000).unref?.();
   // Two lanes on one connection: long work in one, everything quick in the other, so an hour of work never keeps
   // the table from hearing people or answering a question.
+  // The working copies it left in people's own repositories are tidied at start and every six hours, only while no job
+  // runs (a job may be using one).
+  const tidy = () => {
+    if (busy > 0 || claiming > 0) return;
+    try {
+      const t = tidyTrees(seats.filter((s) => s.kind === "claude").map((s) => realRepo(s)));
+      if (t.removed.length || t.kept.length) log(`tidied its working copies: removed ${t.removed.length} (and ${t.deleted.length} empty branches), left ${t.kept.length}${t.kept.length ? ` (${[...new Set(t.kept.map((k) => k.why))].join(", ")})` : ""}`);
+    } catch (e) { log(`could not tidy its working copies: ${e.message}`); }
+  };
+  tidy();
+  setInterval(tidy, 6 * 3600 * 1000).unref?.();
   // Declared before the lanes start: they read it the moment a full-mode job arrives.
   let aside = 0;
   await Promise.all([lane("light"), lane("heavy")]);

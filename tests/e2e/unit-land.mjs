@@ -12,7 +12,7 @@ import { join } from "node:path";
 const scratch = mkdtempSync(join(tmpdir(), "longtable-land-"));
 process.env.LONGTABLE_HOME = join(scratch, "home");
 mkdirSync(process.env.LONGTABLE_HOME, { recursive: true });
-const { changedSoFar, fileAddress: fileAddressOf, fileFolder, folderChanges, folderState, freshCopy, ownFolder, landTree, neverCommit, openTree, openWork, landWork, safeBranch, workBranch, refreshBranch, undoCommit } = await import("../../packages/connect/src/repo.mjs");
+const { changedSoFar, fileAddress: fileAddressOf, fileFolder, folderChanges, folderState, freshCopy, ownFolder, landTree, neverCommit, openTree, openWork, landWork, safeBranch, workBranch, refreshBranch, undoCommit, tidyTrees } = await import("../../packages/connect/src/repo.mjs");
 
 const results = {};
 const check = (name, ok, detail) => { results[name] = ok ? "pass" : `FAIL ${typeof detail === "string" ? detail : JSON.stringify(detail ?? "")}`.slice(0, 500); };
@@ -419,6 +419,36 @@ try {
     check("a copy catches up with what the team shipped and keeps the client's change", r?.moved && show(c, `${S}:team.txt`) === "shipped" && show(c, `${S}:page.txt`).includes("Dashboard"), r);
     check("a copy already current is not moved", refreshBranch("tc", S)?.moved === false);
     check("a client with no copy yet has nothing to catch up", refreshBranch("tc", "longtable/sandbox-nobody-00000000") === null);
+  }
+
+  // ---- working copies left in a person's own repository are tidied, and nothing of value goes with them
+  {
+    const own = repo("leftovers", { "app.txt": "app" + NL });
+    const folder = own.seed;
+    const trees = join(process.env.LONGTABLE_HOME, "trees", "t9");
+    mkdirSync(trees, { recursive: true });
+    const as = ["-c", "user.name=T", "-c", "user.email=t@example.test"];
+    git(folder, "worktree", "add", "-q", "-b", "longtable/empty-aaaa1111", join(trees, "work-empty"), "HEAD");
+    git(folder, "worktree", "add", "-q", "-b", "longtable/recent-bbbb2222", join(trees, "work-recent"), "HEAD");
+    writeFileSync(join(trees, "work-recent", "new.txt"), "work" + NL);
+    git(join(trees, "work-recent"), "add", "-A");
+    git(join(trees, "work-recent"), ...as, "commit", "-q", "-m", "recent work");
+    git(folder, "worktree", "add", "-q", "-b", "longtable/old-cccc3333", join(trees, "work-old"), "HEAD");
+    writeFileSync(join(trees, "work-old", "old.txt"), "old" + NL);
+    git(join(trees, "work-old"), "add", "-A");
+    execFileSync("git", [...as, "commit", "-q", "-m", "old work"], { cwd: join(trees, "work-old"), env: { ...process.env, GIT_COMMITTER_DATE: "2026-09-01T10:00:00Z", GIT_AUTHOR_DATE: "2026-09-01T10:00:00Z" }, stdio: "ignore" });
+    git(folder, "worktree", "add", "-q", "-b", "longtable/dirty-dddd4444", join(trees, "work-dirty"), "HEAD");
+    writeFileSync(join(trees, "work-dirty", "unsaved.txt"), "not committed" + NL);
+    const mine = join(scratch, "leftovers-elsewhere");
+    git(folder, "worktree", "add", "-q", "-b", "longtable/theirs-eeee5555", mine, "HEAD");
+    const t = tidyTrees([folder]);
+    const heads = git(folder, "for-each-ref", "--format=%(refname:short)", "refs/heads/longtable/").split(/\r?\n/);
+    check("a leftover copy with nothing of its own goes, branch and all", !existsSync(join(trees, "work-empty")) && !heads.includes("longtable/empty-aaaa1111"), { t, heads });
+    check("one holding this week's work stays", existsSync(join(trees, "work-recent")) && heads.includes("longtable/recent-bbbb2222"));
+    check("one holding older work loses its folder but keeps its branch and commits", !existsSync(join(trees, "work-old")) && heads.includes("longtable/old-cccc3333") && show({ remote: join(folder, ".git") }, "longtable/old-cccc3333:old.txt") === "old", heads);
+    check("one with changes not committed is never touched", existsSync(join(trees, "work-dirty", "unsaved.txt")) && heads.includes("longtable/dirty-dddd4444"));
+    check("a worktree of the person's own, outside Longtable's folder, is never touched", existsSync(mine) && heads.includes("longtable/theirs-eeee5555"));
+    check("git no longer lists the removed copies", !git(folder, "worktree", "list").includes("work-empty") && !git(folder, "worktree", "list").includes("work-old"));
   }
 } catch (e) {
   check("the run did not crash", false, e.stack || String(e));

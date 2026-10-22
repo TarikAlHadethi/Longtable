@@ -537,6 +537,46 @@ function copyIncluded(repo, dir) {
 // Opens (or reopens) the worktree for a job. `branch` is the task's branch for work, or the branch to read for a
 // review; with no branch it reads the default one. Work on a branch that already exists picks up where it left off.
 // A job that only reads gets a worktree of its own (`job`), removed when it ends, so two jobs never share one.
+// The working copies Longtable made in a person's own repository (under ~/.longtable/trees), tidied when no job runs.
+// One with changes not committed is never touched. A clean one whose branch holds nothing of its own (every commit on
+// it is on another branch or remote too) goes, branch and all: there is nothing to lose. A clean one whose branch does
+// hold work loses only its folder, once it has been quiet for a week; the branch and its commits stay, and a follow-up
+// lays a fresh folder. The person's own worktrees are never looked at.
+export function tidyTrees(repos, { quietDays = 7 } = {}) {
+  const ours = resolve(home, "trees").replace(/\\/g, "/").toLowerCase() + "/";
+  const out = { removed: [], deleted: [], kept: [] };
+  for (const repo of [...new Set((repos || []).filter(Boolean))]) {
+    let list = "";
+    try { list = tgit(repo, ["worktree", "list", "--porcelain"]); } catch { continue; }
+    for (const block of list.split(/\r?\n\r?\n/)) {
+      const path = /^worktree (.+)$/m.exec(block)?.[1];
+      const ref = /^branch (refs\/heads\/.+)$/m.exec(block)?.[1] || null;
+      if (!path || !(resolve(path).replace(/\\/g, "/").toLowerCase() + "/").startsWith(ours) || !existsSync(path)) continue;
+      let dirty = true;
+      try { dirty = tgit(path, ["status", "--porcelain"]) !== ""; } catch {}
+      if (dirty) { out.kept.push({ path, why: "changes not committed" }); continue; }
+      const branch = ref ? ref.slice("refs/heads/".length) : null;
+      const mine = !!branch && branch.startsWith("longtable/");
+      let unique = false;
+      if (mine) {
+        try {
+          const tip = tgit(repo, ["rev-parse", ref]);
+          unique = !tgit(repo, ["for-each-ref", "--contains", tip, "--format=%(refname)"]).split(/\r?\n/).some((r) => r && !r.startsWith("refs/heads/longtable/"));
+        } catch { unique = true; }
+      }
+      if (unique) {
+        let at = 0;
+        try { at = Number(tgit(path, ["log", "-1", "--format=%ct"])) * 1000; } catch {}
+        if (Date.now() - at < quietDays * 24 * 3600 * 1000) { out.kept.push({ path, why: "work from this week" }); continue; }
+      }
+      try { tgit(repo, ["worktree", "remove", "--force", path]); out.removed.push(path); } catch { out.kept.push({ path, why: "could not be removed" }); continue; }
+      if (mine && !unique) { try { tgit(repo, ["branch", "-D", branch]); out.deleted.push(branch); } catch {} }
+    }
+    try { tgit(repo, ["worktree", "prune"]); } catch {}
+  }
+  return out;
+}
+
 export function openTree(seat, branch, { doing = false, job = "read" } = {}) {
   const table = safeTable(seat.table_id);
   if (branch) safeBranch(branch);
