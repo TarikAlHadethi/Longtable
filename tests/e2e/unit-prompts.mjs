@@ -65,7 +65,18 @@ try {
   const one = buildPrompt({ ...base, kind: "work", history: [{ name: "Maya", body: "y".repeat(500000) }] });
   check("one enormous message is still handed over rather than dropped", one.length > 500000);
   const ll = listenPrompt({ ...base, history: Array.from({ length: 400 }, (_, i) => ({ name: "Maya", body: `m${i} ` + "x".repeat(900) })) });
-  check("the listener reads far more than ten messages, within its own ceiling", ll.length < 60000 && count(ll, "Maya: m") > 40, { length: ll.length, messages: count(ll, "Maya: m") });
+  check("the listener reads far more than ten messages, within its own small ceiling", ll.length < 30000 && count(ll, "Maya: m") > 20, { length: ll.length, messages: count(ll, "Maya: m") });
+  const chatty = listenPrompt({ ...base, history: Array.from({ length: 400 }, (_, i) => ({ name: "Maya", body: `m${i} about the attendance page and what to do next` })) });
+  check("in an everyday chat the listener still reads well over a hundred messages back", count(chatty, "Maya: m") > 150, count(chatty, "Maya: m"));
+
+  // ---- the note-taker reads what is new since its notes, never the whole chat again
+  const at = (min) => new Date(Date.UTC(2026, 9, 22, 10, min)).toISOString();
+  const talked = Array.from({ length: 60 }, (_, i) => ({ name: "Maya", body: `point ${i} ` + "z".repeat(1500), created_at: at(i) }));
+  const first = notesPrompt({ ...base, kind: "notes", history: talked, pages: [] });
+  check("with no notes yet, the note-taker reads the conversation", first.includes("point 59 ") && first.includes("The conversation:"));
+  const later = notesPrompt({ ...base, kind: "notes", history: talked, pages: [{ id: "p", title: "Notes: General", html: "<p>notes</p>", touched_at: at(50) }] });
+  check("with notes written, it reads only what came after them, plus a little before for context", later.includes("point 59 ") && later.includes("point 41 ") && !later.includes("point 20 ") && later.length < first.length * 0.7, { later: later.length, first: first.length });
+  check("a message said while the notes were being written is never missed", later.split("What was said since")[1]?.includes("point 45 "));
 
   // ---- what is the person's alone
   const folder = join(scratch, "project");

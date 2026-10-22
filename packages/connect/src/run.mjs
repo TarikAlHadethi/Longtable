@@ -283,10 +283,12 @@ export function systemFor(job) {
 // The listener: the cheapest thing at the table. It sees the last few messages and nothing else, and decides
 // whether the AIs are wanted at all. No code, no tools, the smallest model.
 const short = (t, n) => (String(t ?? "").length > n ? cut(t, n) + "…" : String(t ?? ""));
+export const LISTEN_ROOM = 24000;
 export function listenPrompt(job) {
   const who = (m) => (m.by_ai ? `${m.name}'s AI` : m.client ? `${m.name} (the client)` : m.name);
-  // The conversation as far back as a generous size reaches, never a fixed number of messages.
-  const before = recent(job.history, 48000).map((m) => `${who(m)}: ${short(withPasted(m.body, m.pasted), 3000)}`).join(NL);
+  // The conversation as far back as a size reaches, never a fixed number of messages. It only decides who answers, and
+  // the AI that answers reads the whole conversation, so this stays small: it is read again for every message heard.
+  const before = recent(job.history, LISTEN_ROOM).map((m) => `${who(m)}: ${short(withPasted(m.body, m.pasted), 3000)}`).join(NL);
   const tasks = (job.tasks || []).map((t, i) => `T${i + 1}: "${t.title}" (${t.status === "working" ? "being worked on now" : t.status}, asked by ${t.asked_by || "someone"}, in ${t.chat})`).join(NL);
   return ["<<<TABLE", fenced(inert([facts(job), "", `Work the AIs have taken on lately:${NL}${tasks || "(none)"}`, "", before || "(nothing earlier)", `${job.asker}: ${short(withPasted(job.question, job.question_pasted), 6000)}`,
     ...(job.command ? ["", `That message runs ${job.asker}'s own AI command /${job.command.name}${job.command.about ? `, which is for: ${job.command.about}` : ""}. Running a command is asking for it to be done: choose look, or work when the command is about changing the project. Never silent, never reply.`] : [])].join(NL))), "TABLE>>>"].join(NL);
@@ -308,14 +310,24 @@ export function listenSystem(job) {
 
 // The note-taker of a chat that asked for notes: it reads along, says nothing in the chat, and keeps one handout of
 // notes, which it rewrites whole each time from the conversation and its notes so far.
+export const NOTES_OVERLAP_MS = 10 * 60 * 1000;
 export function notesPrompt(job) {
   const who = (m) => (m.by_ai ? `${m.name}'s AI` : m.client ? `${m.name} (the client)` : m.name);
-  const said = recent(job.history, 60000).map((m) => `${who(m)}: ${short(withPasted(m.body, m.pasted), 3000)}`).join(NL);
-  const before = (job.pages || []).find((p) => /^notes/i.test(String(p.title || "")));
+  const line = (m) => `${who(m)}: ${short(withPasted(m.body, m.pasted), 3000)}`;
+  const before = (job.pages || []).find((p) => /^notes\b/i.test(String(p.title || "")));
+  // With notes already written, what came before them is in them: only what is new is read whole, from a while before
+  // the notes were last written (so a message said while they were being written is never missed), with a little of
+  // what came before for context. Without notes yet, the whole conversation as far back as a size reaches.
+  const since = before?.html && before.touched_at ? new Date(Date.parse(before.touched_at) - NOTES_OVERLAP_MS).toISOString() : null;
+  const isNew = (m) => !!since && String(m.created_at || "") > since;
+  const fresh = since ? (job.history || []).filter(isNew) : null;
+  const context = fresh ? recent((job.history || []).filter((m) => !isNew(m)), 6000) : [];
+  const said = recent(fresh || job.history, 60000).map(line).join(NL);
   return ["<<<TABLE", fenced(inert([
     `The chat "${job.chat_name}" at "${job.table_name}".`, "",
     "The notes so far (rewrite them whole, keeping what still holds):", before?.html ? short(String(before.html), 40000) : "(none yet)", "",
-    "The conversation:", said || "(nothing yet)",
+    ...(fresh ? ["Just before what is new (already in the notes, here for context):", context.map(line).join(NL) || "(nothing)", "",
+      "What was said since the notes were last written:", said || "(nothing new)"] : ["The conversation:", said || "(nothing yet)"]),
   ].join(NL))), "TABLE>>>"].join(NL);
 }
 export function notesSystem(job) {
@@ -1358,7 +1370,7 @@ async function tellCommands(rpc, seat) {
   } catch (e) { log(`commands not sent: ${e.message}`); }
 }
 
-export async function runLoop({ pollMs = 2000, backup = false } = {}) {
+export async function runLoop({ pollMs = 1000, backup = false } = {}) {
   const config = readConfig();
   if (!config.connections?.length) throw new Error("Not connected to any table yet.");
   const engines = { claude: findClaude(), codex: findCodex() };
@@ -1481,7 +1493,7 @@ export async function runLoop({ pollMs = 2000, backup = false } = {}) {
       // tripwire and the lane goes on to the next.
       try { await work(rpc, s, engines, job); } catch (e) { log(`tripwire: job ${job.job_id} broke the lane: ${e.message}`); } finally { busy--; }
     }
-    await new Promise((r) => setTimeout(r, worked ? 100 : name === "heavy" ? pollMs * 2 : pollMs));
+    await new Promise((r) => setTimeout(r, worked ? 100 : name === "heavy" ? pollMs * 4 : pollMs));
   }
   }
 }

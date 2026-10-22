@@ -236,6 +236,7 @@ function askOnce({ claude, cwd, prompt, system, schema, model, tools = "Read,Gre
     let result = null;
     let rate = null;
     let init = null;
+    let initAt = 0;
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
     const timer = timeoutMs ? setTimeout(() => { ended = "ran out of time"; child.kill(); }, timeoutMs) : null;
@@ -258,6 +259,8 @@ function askOnce({ claude, cwd, prompt, system, schema, model, tools = "Read,Gre
       }
       if (e.type === "result") {
         result = e;
+        // Where the time went, for when an answer is slow: starting Claude Code, waiting on the model, and the rest.
+        log(`claude: started in ${initAt ? initAt - started : "?"} ms, answered after ${Date.now() - started} ms, ${e.duration_api_ms ?? "?"} ms with the model, ${e.num_turns ?? "?"} turns`);
         look();
         // Its answer is in. Claude Code can stay running after that, waiting on a program it left in the background; then
         // what it left is listed and that Claude Code ends, so the run finishes. What it started lives on (in a chat's
@@ -269,7 +272,7 @@ function askOnce({ claude, cwd, prompt, system, schema, model, tools = "Read,Gre
         }, 4000);
       }
       // What this Claude Code has built in, and whether fast mode can serve: the table's "/" list and the AI's window.
-      else if (e.type === "system" && e.subtype === "init") init = { commands: Array.isArray(e.slash_commands) ? e.slash_commands : [], fast: e.fast_mode_state || null, fastWhy: e.fast_mode_disabled_reason || null };
+      else if (e.type === "system" && e.subtype === "init" && (initAt = initAt || Date.now())) init = { commands: Array.isArray(e.slash_commands) ? e.slash_commands : [], fast: e.fast_mode_state || null, fastWhy: e.fast_mode_disabled_reason || null };
       else if (e.type === "rate_limit_event") rate = e.rate_limit_info;
       else if (onNote && e.type === "assistant") {
         // A tool call says what the AI is doing right now, and what it writes between steps ("Rebuilt, running the
