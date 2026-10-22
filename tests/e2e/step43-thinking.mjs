@@ -26,6 +26,7 @@ await sleep(8000); sql(`update public.connections set last_seen=now() where tabl
 const t1 = await o.page.locator("[data-testid=thinking]").count();
 const listen = sql(`select status from public.jobs where table_id='${o.tableId}' and kind='listen'`);
 sql(`update public.jobs set status='done' where table_id='${o.tableId}' and kind='listen'`);
+sql(`update public.jobs set status='skipped' where table_id='${o.tableId}' and early and status in ('queued','running')`); // what the listener's finish does when it says silent
 await sleep(5000);
 const t2 = await o.page.locator("[data-testid=thinking]").count();
 await o.page.locator("textarea").first().fill("ok cool"); await o.page.keyboard.press("Enter"); await sleep(600);
@@ -33,7 +34,7 @@ const t3 = await o.page.locator("[data-testid=thinking]").count();
 // A room where the AIs only listen never answers, so it never shows the table thinking; one where they answer only
 // when named shows it only when they are named.
 const general = sql(`select id from public.chats where table_id='${o.tableId}' and is_general`);
-sql(`update public.jobs set status='done' where table_id='${o.tableId}' and kind='listen' and status <> 'done'`);
+sql(`update public.jobs set status='done' where table_id='${o.tableId}' and (kind='listen' or early) and status <> 'done'`);
 sql(`update public.chats set answers='silent' where id='${general}'`);
 await o.page.reload(); await sleep(2500);
 await o.page.locator("textarea").first().fill("claude can you check the booking page?"); await o.page.keyboard.press("Enter"); await sleep(600);
@@ -43,7 +44,7 @@ sql(`update public.chats set answers='named' where id='${general}'`);
 await o.page.reload(); await sleep(2500);
 await o.page.locator("textarea").first().fill("what should we do about the booking page tomorrow?"); await o.page.keyboard.press("Enter"); await sleep(600);
 const unnamed = await o.page.locator("[data-testid=thinking]").count();
-sql(`update public.jobs set status='done' where table_id='${o.tableId}' and kind='listen' and status <> 'done'`);
+sql(`update public.jobs set status='done' where table_id='${o.tableId}' and (kind='listen' or early) and status <> 'done'`);
 await o.page.locator("textarea").first().fill("claude what should we do about the booking page?"); await o.page.keyboard.press("Enter"); await sleep(600);
 const named = await o.page.locator("[data-testid=thinking]").count();
 check("a listen-only room never shows the table thinking", silentRoom === 0, silentRoom);
