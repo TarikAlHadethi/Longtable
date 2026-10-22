@@ -28,7 +28,7 @@ type Change = { id: string; words: string; status: "working" | "ready" | "nothin
   verdict: "take" | "differently" | "no" | null; note: string | null; request_id: string | null; created_at: string; finished_at: string | null;
   undone?: "undoing" | "undone" | "stuck" | null; did_not_build?: boolean };
 // building: their newest change is not online yet; broken: it did not build, so the copy shows the version before it.
-type Sandbox = { on: boolean; url: string | null; left: number | null; changes: Change[]; building?: boolean; broken?: boolean };
+type Sandbox = { on: boolean; url: string | null; left: number | null; changes: Change[]; building?: boolean; broken?: boolean; behind?: boolean };
 const VERDICT = { take: "The team is building this into the real thing.", differently: "The team will do this, in a different way.", no: "The team decided against this one." } as const;
 
 const byTime = <T extends { created_at: string }>(a: T, b: T) => a.created_at.localeCompare(b.created_at);
@@ -503,6 +503,15 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
                 </div>
               );
             })}
+            {/* Their copy could not take in the team's latest: said plainly, last, until it catches up again. */}
+            {sandbox?.on && sandbox.behind && (
+              <div className={styles.turn} data-testid="copy-behind">
+                <div className={styles.back}>
+                  {speaker("copy")}
+                  <div className={styles.said}>Your copy is behind the real one. Some of the team&apos;s latest work clashes with your changes, so your copy still shows an older version for now. The team knows, and it catches up by itself once the two fit again.</div>
+                </div>
+              </div>
+            )}
             {/* The answer forming, the way a reply forms in Claude: the mark at work and a word on what is happening. */}
             {thinking && (
               <div className={styles.turn}>

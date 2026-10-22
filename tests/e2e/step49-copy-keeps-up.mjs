@@ -95,8 +95,22 @@ try {
   on();
   check("opening the page catches the copy up", (await rpc(tok, "client_refresh_copy", { t })).body === true
     && sql(`select count(*) from public.jobs where subject = '${client}' and kind = 'sandbox' and brief = 'refresh' and status = 'queued'`) === "1");
-  sql(`update public.jobs set status = 'done' where subject = '${client}' and brief = 'refresh'`);
   check("but not again within the hour", (await rpc(tok, "client_refresh_copy", { t })).body === false);
+  // The team's latest clashes with their changes: the copy is behind, said plainly to them and once to the team.
+  const refresh = (await anon("runner_claim", { token: device, lane: "heavy" })).body;
+  await anon("runner_finish", { token: device, job: refresh.job_id, answer: "", info: { stale: true } });
+  check("a copy that cannot take in the team's latest says it is behind", (await copy()).behind === true);
+  check("the team hears it once in General", sql(`select count(*) from public.messages where table_id = '${t}' and meta ->> 'event' = 'copy_behind'`) === "1");
+  sql(`update public.sandboxes set refreshed_at = null where member_id = '${client}'`); on();
+  await rpc(tok, "client_refresh_copy", { t });
+  const again = (await anon("runner_claim", { token: device, lane: "heavy" })).body;
+  await anon("runner_finish", { token: device, job: again.job_id, answer: "", info: { stale: true } });
+  check("still behind is not said to the team twice", sql(`select count(*) from public.messages where table_id = '${t}' and meta ->> 'event' = 'copy_behind'`) === "1");
+  sql(`update public.sandboxes set refreshed_at = null where member_id = '${client}'`); on();
+  await rpc(tok, "client_refresh_copy", { t });
+  const fits = (await anon("runner_claim", { token: device, lane: "heavy" })).body;
+  await anon("runner_finish", { token: device, job: fits.job_id, answer: "", info: { stale: false, commit: sha("e") } });
+  check("once it fits again, it is not behind any more", (await copy()).behind === false);
   // With nothing to take back, it says so.
   sql(`update public.sandbox_changes set undone = 'undone' where member_id = '${client}'`);
   const none = await rpc(tok, "client_undo_change", { t });
