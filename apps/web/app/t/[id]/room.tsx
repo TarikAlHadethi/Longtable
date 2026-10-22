@@ -1531,7 +1531,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         const conn = all.find((c) => !c.revoked_at) ?? [...all].sort((a, b) => (b.revoked_at ?? "").localeCompare(a.revoked_at ?? ""))[0] ?? null;
         const on = !!conn && !conn.revoked_at && !!conn.last_seen && Date.now() - new Date(conn.last_seen).getTime() < 75000;
         return (
-          <AiWindow tableId={table.id} tableRepo={tableRepo} me={self} person={byId.get(aiOf)!} conn={conn} commands={aiOf === me.id ? myCommands : []} on={on} busy={on && jobs.some((j) => j.member_id === aiOf && (j.status === "running" || j.status === "queued"))}
+          <AiWindow tableId={table.id} me={self} person={byId.get(aiOf)!} conn={conn} commands={aiOf === me.id ? myCommands : []} on={on} busy={on && jobs.some((j) => j.member_id === aiOf && (j.status === "running" || j.status === "queued"))}
             onClose={() => setAiOf(null)} onConnect={() => setConnectOpen(true)} onDisconnect={disconnect}
             onModel={(id, model) => setModelKept(id, model)}
             onSpeed={(id, patch) => { setSpeed(id, patch); }}
@@ -1568,7 +1568,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       })()}
       {failed && <div className={styles.toast} role="alert" data-testid="did-not-take">{failed}</div>}
       {connectOpen && (
-        <ConnectModal tableId={table.id} tableRepo={tableRepo} tableName={tableName} connected={myConnection?.kind ?? null} onClose={() => setConnectOpen(false)} />
+        <ConnectModal tableId={table.id} tableName={tableName} connected={myConnection?.kind ?? null} onClose={() => setConnectOpen(false)} />
       )}
       {asking && chat && (
         <NewDecision

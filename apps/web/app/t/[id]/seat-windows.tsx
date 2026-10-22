@@ -32,10 +32,8 @@ export function Switch({ on, disabled, onChange, title, about, testid }: { on: b
 
 // A person's AI at the table: what it is, what it runs, what it may do. Its own person can change it; everyone else
 // on the team can look.
-export function AiWindow({ tableId, tableRepo: given, me, person, conn, commands, on, busy, onSpeed, onClose, onModel, onOptions, onConnect, onDisconnect }: {
+export function AiWindow({ tableId, me, person, conn, commands, on, busy, onSpeed, onClose, onModel, onOptions, onConnect, onDisconnect }: {
   tableId: string;
-  // The table's repository as the room already read it; left out (or not known yet), the window reads it itself.
-  tableRepo?: string | null;
   me: Member;
   person: Member;
   conn: Connection | null;
@@ -55,10 +53,9 @@ export function AiWindow({ tableId, tableRepo: given, me, person, conn, commands
   const [asking, setAsking] = useState(false);
   const mine = person.id === me.id;
   // The table's repository, read when the window opens: the team reads it, whoever may change settings sets it.
-  const [readRepo, setTableRepo] = useState<string | null>(null);
-  const tableRepo = given !== undefined ? given : readRepo;
+  const [tableRepo, setTableRepo] = useState<string | null>(null);
   useEffect(() => {
-    if (!mine || conn?.kind !== "claude" || given !== undefined) return;
+    if (!mine || conn?.kind !== "claude") return;
     let cancelled = false;
     browserClient().from("table_code").select("repo_url").eq("table_id", tableId).maybeSingle()
       .then(({ data, error }: { data: { repo_url: string } | null; error: { code?: string } | null }) => {
@@ -66,7 +63,7 @@ export function AiWindow({ tableId, tableRepo: given, me, person, conn, commands
         else if (!cancelled) setTableRepo(data?.repo_url ?? null);
       });
     return () => { cancelled = true; };
-  }, [mine, conn?.kind, tableId, given]);
+  }, [mine, conn?.kind, tableId]);
   const first = firstName(person.display_name);
   const live = conn && !conn.revoked_at ? conn : null;
   const ai = conn ? AI_NAME[conn.kind] : "AI";
