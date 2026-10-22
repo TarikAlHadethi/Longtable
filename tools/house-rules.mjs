@@ -44,6 +44,18 @@ for (const path of tracked) {
 }
 check("no tracked file holds an em dash", dashed.length === 0, dashed.slice(0, 20));
 
+// A control character in code is almost always a slip: a "\b" or "\r" an editing script wrote as the character itself,
+// which silently breaks a pattern (it happened three times in one week). Tabs, line ends and pictures are fine.
+const controlled = [];
+for (const path of tracked) {
+  if (!/\.(mjs|js|ts|tsx|sql|css|json|md|yml|yaml|toml|py)$/i.test(path)) continue;
+  let text;
+  try { text = readFileSync(path, "utf8"); } catch (e) { if (e.code === "ENOENT" || e.code === "EISDIR") continue; throw e; }
+  const at = text.search(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/);
+  if (at >= 0) controlled.push(`${path}:${text.slice(0, at).split(String.fromCharCode(10)).length}`);
+}
+check("no source file holds a stray control character", controlled.length === 0, controlled.slice(0, 20));
+
 // One menu for the whole product: a screen never shows the browser's own dropdown. Every
 // choice goes through components/select.tsx (or the model picker), which keeps a hidden <select> of its own.
 const plain = [];
