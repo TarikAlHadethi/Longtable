@@ -7,7 +7,7 @@
 // in for the check and taken out again after, never a secret file, and nothing in their folder is ever changed.
 
 import { execFile, execFileSync } from "node:child_process";
-import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, rmdirSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, rmdirSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 const win = process.platform === "win32";
@@ -75,9 +75,13 @@ export function typeCheck(dir, folder, timeoutMs = 4 * 60 * 1000) {
   const made = mirrorIgnored(dir, folder);
   // A project that keeps incremental build notes writes one beside its tsconfig: it is not part of the change.
   const notes = new Set(readdirSync(dir).filter((f) => f.endsWith(".tsbuildinfo")));
+  // Run from the folder's real path: where it is reached through a link (a Mac's /var is /private/var), tsc would name
+  // files by another route and an error could not be matched to the same error on the version before.
+  let real = dir;
+  try { real = realpathSync(dir); } catch {}
   return new Promise((resolve) => {
-    execFile(process.execPath, [tsc, "--noEmit", "-p", join(dir, "tsconfig.json")],
-      { cwd: dir, windowsHide: true, timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024, env: { PATH: process.env.PATH || "", SystemRoot: process.env.SystemRoot || "", NODE_OPTIONS: "--max-old-space-size=4096" } },
+    execFile(process.execPath, [tsc, "--noEmit", "-p", join(real, "tsconfig.json")],
+      { cwd: real, windowsHide: true, timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024, env: { PATH: process.env.PATH || "", SystemRoot: process.env.SystemRoot || "", NODE_OPTIONS: "--max-old-space-size=4096" } },
       (e, stdout) => {
         unmirror(made);
         try { for (const f of readdirSync(dir)) if (f.endsWith(".tsbuildinfo") && !notes.has(f)) rmSync(join(dir, f), { force: true }); } catch {}
