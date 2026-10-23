@@ -200,6 +200,9 @@ try {
   sql(`update public.jobs set status = 'skipped' where table_id = '${tableId}' and kind = 'intro'`);
   const teamPulse = setInterval(() => anon("runner_hello", { token: teamDevice }), 8000);
   const heavy = async () => { for (let i = 0; i < 60; i++) { const j = await anon("runner_claim", { token: teamDevice, lane: "heavy" }); if (j) return j; await sleep(500); } return null; };
+  // A copy is a branch of the table's repository, which the team's Claude has said yes to.
+  sql(`insert into public.table_code (table_id, repo_url) values ('${tableId}', 'https://example.test/team/app.git') on conflict (table_id) do update set repo_url = excluded.repo_url`);
+  sql(`update public.connections set use_repo = 'https://example.test/team/app.git' where table_id = '${tableId}' and revoked_at is null`);
   await rpc(ownerToken, "prepare_client_sandbox", { m: elenaId0 });
   const place = await heavy();
   await anon("runner_finish", { token: teamDevice, job: place.job_id, answer: "", info: { commit: "a".repeat(40) } });
@@ -207,6 +210,11 @@ try {
   await rpc(ownerToken, "set_client_sandbox", { m: elenaId0, enabled: true, made_up_data: true, no_real_keys: true });
   await page.goto(`${APP}/t/${tableId}`);
   await page.waitForSelector("[data-testid=client-chat][data-with=copy]");
+  // Opening her page brings her copy up to the team's latest; the stand-in connection takes that job first, as a real
+  // one would, so the change she asks for next is the next job.
+  for (let i = 0; i < 20 && sql(`select count(*) from public.jobs where table_id = '${tableId}' and brief = 'refresh'`) === "0"; i++) await sleep(250);
+  const catchUp = await heavy();
+  if (catchUp) await anon("runner_finish", { token: teamDevice, job: catchUp.job_id, answer: "", info: { stale: false } });
   await snap(page, "a-copy-of-her-own-the-first-time");
   await page.fill("[aria-label='Ask the team']", "Make the booking button bigger and green, and put it at the top of the page.");
   await page.press("[aria-label='Ask the team']", "Enter");

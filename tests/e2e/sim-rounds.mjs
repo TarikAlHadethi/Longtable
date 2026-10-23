@@ -664,6 +664,13 @@ try {
     // Setting it up comes first: the place for the copy is made by the connection, with no AI asked anything.
     const early = await rpc(people.Maya.token, "set_client_sandbox", { m: dana.id, enabled: true, made_up_data: true, no_real_keys: true });
     check("11b0 a copy cannot be given before it is set up", early.status >= 400, early.status);
+    // A copy is a branch of the table's repository, which the Claude that keeps it has said yes to.
+    const noRepo = await rpc(people.Maya.token, "prepare_client_sandbox", { m: dana.id });
+    check("11b00 a copy cannot be set up before the table says where its code is", noRepo.status >= 400 && /where the code is/.test(JSON.stringify(noRepo.body)), noRepo.body);
+    sql(`insert into public.table_code (table_id, repo_url) values ('${table}', 'https://example.test/team/app.git') on conflict (table_id) do update set repo_url = excluded.repo_url`);
+    const noYes = await rpc(people.Maya.token, "prepare_client_sandbox", { m: dana.id });
+    check("11b01 nor before the Claude that keeps it has said yes to that repository, saying what to press", noYes.status >= 400 && /press Use it/.test(JSON.stringify(noYes.body)), noYes.body);
+    sql(`update public.connections set use_repo = 'https://example.test/team/app' where table_id = '${table}' and revoked_at is null`);
     const prepTries = { lee: await rpc(people.Lee.token, "prepare_client_sandbox", { m: dana.id }), dana: await rpc(dana.token, "prepare_client_sandbox", { m: dana.id }),
       notClient: await rpc(people.Maya.token, "prepare_client_sandbox", { m: people.Lee.id }) };
     const prep = await rpc(people.Maya.token, "prepare_client_sandbox", { m: dana.id });

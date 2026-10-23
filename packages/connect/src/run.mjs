@@ -1089,10 +1089,16 @@ async function work(rpc, seat, engines, raw) {
   // The table's repository, when the owner set one this computer knows, is where the team's code is read from and
   // where branches land, for this job and every kind of work below.
   const source = seat.source ? sourceFor(seat, job.repo, job.use_repo) : seat.source;
-  heardRepo(seat, job.repo, seat.source ? trustedRepo(seat, job.repo, job.use_repo) : null);
+  const trusted = seat.source ? trustedRepo(seat, job.repo, job.use_repo) : null;
+  heardRepo(seat, job.repo, trusted);
   if (source !== seat.source) seat = { ...seat, source };
   if (job.kind === "sandbox") {
     try {
+      // A copy lands where the team's hosting builds it. One that would only land in a folder on this computer (the
+      // table names a repository this person has not said yes to) is refused, saying what to press.
+      if (job.repo && !trusted && /^file:/i.test(String(seat.source || ""))) {
+        throw new Error(`${job.me}'s Claude has not said yes to the table's repository, so this copy would only land on this computer. In ${job.me}'s AI window, press Use it`);
+      }
       await workSandbox(rpc, { ...seat, model: await chosenModel(rpc, seat, job) }, engines, job);
     } catch (e) {
       log(`sandbox job ${job.job_id} failed: ${e.message}`);

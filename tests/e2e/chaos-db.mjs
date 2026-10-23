@@ -312,6 +312,9 @@ async function sequence(seed, steps, db, db2, log = null) {
           if (paired.ok?.token) { tokens.push({ token: paired.ok.token, m: paired.ok.member_id }); token = paired.ok.token; }
         }
         if (token) out.push(await act(null, `select public.runner_hello(${lit(token)})`, session));
+        // A copy is a branch of the table's repository, which the team's Claude has said yes to.
+        await session.json(`with c as (insert into public.table_code (table_id, repo_url) values ('${t}', 'https://example.test/chaos.git') on conflict (table_id) do update set repo_url = excluded.repo_url returning 1),
+          y as (update public.connections set use_repo = 'https://example.test/chaos.git' where table_id = '${t}' and revoked_at is null returning 1) select json_build_object('ok', true)`);
         out.push(await act(owner.u, `select to_jsonb(public.prepare_client_sandbox('${client.id}'::uuid))`, session));
         out.push(await act(owner.u, `select to_jsonb(public.set_sandbox_links('${t}'::uuid, 'https://ours.example.test', ${x.pick([null, 1, 2, 5])}, '${client.id}'::uuid, 'https://copy.example.test', null))`, session));
         out.push(await act(owner.u, `select to_jsonb(public.set_client_sandbox('${client.id}'::uuid, true, true, true))`, session));
