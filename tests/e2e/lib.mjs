@@ -21,8 +21,16 @@ process.env.LONGTABLE_FULL ??= "off";
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export function launch() {
-  return chromium.launch({ executablePath: CHROME, headless: true });
+// Next's dev build lays its own overlay over the page (a dialog with buttons, such as a notice about the Next version),
+// which catches presses and matches the tests' own [role=dialog] lookups. The tests are about the app, so every page
+// they open hides it; the production build has no overlay.
+const NO_DEV_OVERLAY = `new MutationObserver(() => document.querySelectorAll("nextjs-portal").forEach((p) => p.remove()))
+  .observe(document, { childList: true, subtree: true });`;
+export async function launch() {
+  const browser = await chromium.launch({ executablePath: CHROME, headless: true });
+  const newContext = browser.newContext.bind(browser);
+  browser.newContext = async (...args) => { const c = await newContext(...args); await c.addInitScript(NO_DEV_OVERLAY); return c; };
+  return browser;
 }
 
 async function codeFor(email) {
