@@ -259,8 +259,7 @@ export function openWork(tableId, branch, name = "work", { refresh = false } = {
       const common = git(["--git-dir", p.G, "merge-base", main, base]);
       if (common !== main) {
         const both = git(["--git-dir", p.G, "merge-tree", "--write-tree", `--merge-base=${common}`, base, main]).split(/\r?\n/)[0];
-        base = git(["--git-dir", p.G, "commit-tree", both, "-p", base, "-p", main, "-m", "Take in the team's latest"],
-          { ...quiet, GIT_AUTHOR_NAME: "Longtable", GIT_AUTHOR_EMAIL: "longtable@users.noreply.github.com", GIT_COMMITTER_NAME: "Longtable", GIT_COMMITTER_EMAIL: "longtable@users.noreply.github.com" });
+        base = git(["--git-dir", p.G, "commit-tree", both, "-p", base, "-p", main, "-m", "Take in the team's latest"], signer(p.G));
       }
     } catch {
       stale = true;
@@ -307,8 +306,7 @@ export function openBranch(tableId, branch, fresh = false) {
     if (!fresh) return tip;
     const clean = git(["--git-dir", G, "rev-parse", "HEAD^{tree}"]);
     if (git(["--git-dir", G, "rev-parse", `${tip}^{tree}`]) === clean) return tip;
-    const as = { ...quiet, GIT_AUTHOR_NAME: "Longtable", GIT_AUTHOR_EMAIL: "longtable@users.noreply.github.com", GIT_COMMITTER_NAME: "Longtable", GIT_COMMITTER_EMAIL: "longtable@users.noreply.github.com" };
-    const again = git(["--git-dir", G, "commit-tree", clean, "-p", tip, "-m", "A clean copy"], as);
+    const again = git(["--git-dir", G, "commit-tree", clean, "-p", tip, "-m", "A clean copy"], signer(G));
     git(["--git-dir", G, "push", "--quiet", "origin", `${again}:refs/heads/${branch}`]);
     return again;
   } catch (e) {
@@ -316,8 +314,7 @@ export function openBranch(tableId, branch, fresh = false) {
   }
   const head = git(["--git-dir", G, "rev-parse", "HEAD"]);
   const tree = git(["--git-dir", G, "rev-parse", `${head}^{tree}`]);
-  const who = { ...quiet, GIT_AUTHOR_NAME: "Longtable", GIT_AUTHOR_EMAIL: "longtable@users.noreply.github.com", GIT_COMMITTER_NAME: "Longtable", GIT_COMMITTER_EMAIL: "longtable@users.noreply.github.com" };
-  const commit = git(["--git-dir", G, "commit-tree", tree, "-p", head, "-m", "A copy of its own"], who);
+  const commit = git(["--git-dir", G, "commit-tree", tree, "-p", head, "-m", "A copy of its own"], signer(G));
   git(["--git-dir", G, "push", "--quiet", "origin", `${commit}:refs/heads/${branch}`]);
   return commit;
 }
@@ -334,6 +331,18 @@ export function layTree(tableId, commit, name = "check") {
 }
 
 const LONGTABLE = { ...quiet, GIT_AUTHOR_NAME: "Longtable", GIT_AUTHOR_EMAIL: "longtable@users.noreply.github.com", GIT_COMMITTER_NAME: "Longtable", GIT_COMMITTER_EMAIL: "longtable@users.noreply.github.com" };
+
+// Who a copy's own commits (its start, a clean copy, catching up, a take-back) are signed by: the person whose
+// computer makes them, as git already knows them, the same way landWork signs a change. Vercel's free plan refuses
+// to build a private repository's commit whose author is not the account's own, so a copy signed "Longtable" was
+// never put up (found on SAMS's preview, 26 Oct 2026). "Longtable" only when this computer has no git identity.
+function signer(G) {
+  let name = "";
+  let email = "";
+  try { name = git(["--git-dir", G, "config", "user.name"]); email = git(["--git-dir", G, "config", "user.email"]); } catch {}
+  if (!name || !email) return LONGTABLE;
+  return { ...quiet, GIT_AUTHOR_NAME: name, GIT_AUTHOR_EMAIL: email, GIT_COMMITTER_NAME: name, GIT_COMMITTER_EMAIL: email };
+}
 
 // A client's copy brought up to what the team has shipped, their own changes kept on top, and pushed. Nothing moves
 // when it is already current; when the two no longer fit together it stays as it is and says so (stale).
@@ -352,7 +361,7 @@ export function refreshBranch(tableId, branch) {
   let tree;
   try { tree = git(["--git-dir", G, "merge-tree", "--write-tree", `--merge-base=${common}`, tip, main]).split(/\r?\n/)[0]; }
   catch { return { commit: tip, moved: false, stale: true }; }
-  const commit = git(["--git-dir", G, "commit-tree", tree, "-p", tip, "-p", main, "-m", "Take in the team's latest"], LONGTABLE);
+  const commit = git(["--git-dir", G, "commit-tree", tree, "-p", tip, "-p", main, "-m", "Take in the team's latest"], signer(G));
   git(["--git-dir", G, "push", "--quiet", "origin", `${commit}:refs/heads/${branch}`]);
   return { commit, moved: true, stale: false };
 }
@@ -375,7 +384,7 @@ export function undoCommit(tableId, branch, sha, words = "") {
   catch { return null; }
   if (tree === git(["--git-dir", G, "rev-parse", `${tip}^{tree}`])) return tip;
   const said = String(words || "").split(/\r?\n/)[0].slice(0, 60);
-  const commit = git(["--git-dir", G, "commit-tree", tree, "-p", tip, "-m", `Take back: ${said || "a change"}`], LONGTABLE);
+  const commit = git(["--git-dir", G, "commit-tree", tree, "-p", tip, "-m", `Take back: ${said || "a change"}`], signer(G));
   git(["--git-dir", G, "push", "--quiet", "origin", `${commit}:refs/heads/${branch}`]);
   return commit;
 }

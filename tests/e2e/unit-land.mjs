@@ -12,7 +12,7 @@ import { join } from "node:path";
 const scratch = mkdtempSync(join(tmpdir(), "longtable-land-"));
 process.env.LONGTABLE_HOME = join(scratch, "home");
 mkdirSync(process.env.LONGTABLE_HOME, { recursive: true });
-const { changedSoFar, fileAddress: fileAddressOf, fileFolder, folderChanges, folderState, freshCopy, ownFolder, landTree, neverCommit, openTree, openWork, landWork, safeBranch, workBranch, refreshBranch, undoCommit, tidyTrees } = await import("../../packages/connect/src/repo.mjs");
+const { changedSoFar, fileAddress: fileAddressOf, fileFolder, folderChanges, folderState, freshCopy, ownFolder, landTree, neverCommit, openTree, openWork, landWork, safeBranch, workBranch, openBranch, refreshBranch, undoCommit, tidyTrees } = await import("../../packages/connect/src/repo.mjs");
 
 const results = {};
 const check = (name, ok, detail) => { results[name] = ok ? "pass" : `FAIL ${typeof detail === "string" ? detail : JSON.stringify(detail ?? "")}`.slice(0, 500); };
@@ -419,6 +419,25 @@ try {
     check("a copy catches up with what the team shipped and keeps the client's change", r?.moved && show(c, `${S}:team.txt`) === "shipped" && show(c, `${S}:page.txt`).includes("Dashboard"), r);
     check("a copy already current is not moved", refreshBranch("tc", S)?.moved === false);
     check("a client with no copy yet has nothing to catch up", refreshBranch("tc", "longtable/sandbox-nobody-00000000") === null);
+    // A copy's own commits are signed by the person whose computer makes them: Vercel's free plan will not build a
+    // private repository's commit by anyone else, so a copy signed "Longtable" was never put up.
+    const G = join(process.env.LONGTABLE_HOME, "copies", "tc", ".git");
+    git(scratch, "--git-dir", G, "config", "user.name", "Maya Example");
+    git(scratch, "--git-dir", G, "config", "user.email", "maya@example.test");
+    const by = (ref) => git(scratch, "--git-dir", c.remote, "log", "-1", "--format=%an <%ae>|%cn <%ce>", ref).trim();
+    const N = "longtable/sandbox-sam-5e6f7a8b";
+    openBranch("tc", N);
+    check("a new copy's first commit is signed by this computer's person", by(N) === "Maya Example <maya@example.test>|Maya Example <maya@example.test>", by(N));
+    writeFileSync(join(c.seed, "team2.txt"), "shipped again" + NL);
+    git(c.seed, "add", "-A");
+    git(c.seed, "-c", "user.name=T", "-c", "user.email=t@example.test", "commit", "-q", "-m", "ship again");
+    git(c.seed, "push", "-q", "origin", "HEAD:main");
+    freshCopy("tc", c.url);
+    git(scratch, "--git-dir", G, "config", "user.name", "Maya Example");
+    git(scratch, "--git-dir", G, "config", "user.email", "maya@example.test");
+    check("catching up is signed by this computer's person", refreshBranch("tc", S)?.moved && by(S).startsWith("Maya Example <maya@example.test>"), by(S));
+    undoCommit("tc", S, dash.commit, "say Dashboard");
+    check("a take-back is signed by this computer's person", by(S).startsWith("Maya Example <maya@example.test>") && !show(c, `${S}:page.txt`).includes("Dashboard"), by(S));
   }
 
   // ---- working copies left in a person's own repository are tidied, and nothing of value goes with them
