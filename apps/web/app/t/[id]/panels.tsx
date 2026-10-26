@@ -92,6 +92,7 @@ export function LogsPanel({ table, members }: { table: { id: string; name: strin
       case "sandbox.taken": return `${who(e)} took back ${d.name ?? "a client"}'s own copy`;
       case "sandbox.take": return `${who(e)} took a change from ${d.client}'s copy`;
       case "sandbox.differently": return `${who(e)} asked for a change from ${d.client}'s copy to be done differently`;
+      case "sandbox.rules": return d.scope === "code" ? `${who(e)} let clients' copies change the code behind the screens` : `${who(e)} kept clients' copies to screens only`;
       case "sandbox.no": return `${who(e)} left out a change from ${d.client}'s copy`;
       case "ai.stopped": return `${who(e)} stopped an AI's ${AI_DID[String(d.kind)]?.noun ?? "work"}`;
       default:

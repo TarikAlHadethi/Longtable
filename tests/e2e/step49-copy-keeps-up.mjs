@@ -115,6 +115,20 @@ try {
   sql(`update public.sandbox_changes set undone = 'undone' where member_id = '${client}'`);
   const none = await rpc(tok, "client_undo_change", { t });
   check("with nothing left in the copy, there is nothing to take back", none.status >= 400 && /nothing to take back/.test(JSON.stringify(none.body)), none);
+  // 6. The table's copy rules: screens only unless the owner says otherwise, and their own list of paths kept out.
+  const ch6 = sql(`insert into public.sandbox_changes (table_id, member_id, words, status) values ('${t}', '${client}', 'a rule check', 'working') returning id`).split("\n")[0];
+  const job6 = sql(`insert into public.jobs (table_id, member_id, kind, subject, change_id, status) values ('${t}', '${maya}', 'sandbox', '${client}', '${ch6}', 'skipped') returning id`).split("\n")[0];
+  const payload = () => JSON.parse(sql(`select public.sandbox_job_payload(j)::text from public.jobs j where id = '${job6}'`));
+  check("a copy changes screens only by default, with nothing extra kept out", payload().scope === "screens" && payload().blocked === "", payload());
+  check("someone signed out cannot set the rules", (await anon("set_copy_rules", { t, scope: "code", blocked: "" })).status >= 400);
+  check("a mode that does not exist is refused", (await rpc(tok, "set_copy_rules", { t, scope: "everything", blocked: "" })).status >= 400);
+  check("a path that climbs out is refused", (await rpc(tok, "set_copy_rules", { t, scope: "code", blocked: "../secrets, proxy.ts" })).status >= 400);
+  check("odd characters in a path are refused", (await rpc(tok, "set_copy_rules", { t, scope: "code", blocked: "prisma/; drop" })).status >= 400);
+  const set = await rpc(tok, "set_copy_rules", { t, scope: "code", blocked: " prisma/,\nsrc/infrastructure/ai/ , , proxy.ts" });
+  check("the owner sets the code rules and a tidy list", set.status < 300 && payload().scope === "code" && payload().blocked === "prisma/, src/infrastructure/ai/, proxy.ts", { set, p: payload() });
+  check("saving the other copy settings keeps the rules", (await rpc(tok, "set_sandbox_links", { t, ours: "", cap: 20, folders: "" })).status < 300 && payload().scope === "code" && payload().blocked.includes("proxy.ts"), payload());
+  check("the change is in the log", sql(`select count(*) from public.activity where table_id = '${t}' and action = 'sandbox.rules'`) !== "0");
+
   // The team never reads client_sandbox for another client's copy: it is the client's own (or the owner acting as the test client).
   check("a delivery for another branch changes nothing", (await deliver("failure", sha("d"), "longtable/someone-else")) === 204 && (await copy()).broken === false);
 } catch (e) { check("the run did not crash", false, e.stack || e.message); }

@@ -110,7 +110,7 @@ export function PeopleSettings({ tableId, me, mainOwner, myRole, people, focus, 
 export function ClientSettings({ tableId, me, people, answerers, setAnswerer, savedFor, focus, onRemoved, copies, onCopies }: {
   tableId: string; me: string; people: Person[]; answerers: Record<string, "own" | "table">; setAnswerer: (m: string, who: "own" | "table") => void;
   savedFor: string; focus?: string | null; onRemoved: (id: string) => void;
-  copies: { preview_url: string | null; cap: number | null; paths: string | null } | null | undefined; onCopies: (c: { preview_url: string | null; cap: number | null; paths: string | null }) => void;
+  copies: { preview_url: string | null; cap: number | null; paths: string | null; scope?: "screens" | "code"; blocked?: string } | null | undefined; onCopies: (c: { preview_url: string | null; cap: number | null; paths: string | null; scope?: "screens" | "code"; blocked?: string }) => void;
 }) {
   const supabase = browserClient();
   const [error, setError] = useState("");
@@ -121,6 +121,10 @@ export function ClientSettings({ tableId, me, people, answerers, setAnswerer, sa
   const [cap, setCap] = useState(copies ? (copies.cap === null ? "0" : String(copies.cap)) : "20");
   const [paths, setPaths] = useState(copies?.paths ?? "");
   const [ours, setOurs] = useState(copies?.preview_url ?? "");
+  // What a copy may change: screens only (the default), or also the code behind them, for a preview that is fully
+  // separate from the real product; and paths the owner keeps out of every copy whatever the mode.
+  const [scope, setScope] = useState<"screens" | "code">(copies?.scope ?? "screens");
+  const [blocked, setBlocked] = useState(copies?.blocked ?? "");
   const [copySaved, setCopySaved] = useState(false);
   // Shown and saved only once really read: before, a save would write the defaults over what was there.
   const read = copies !== undefined;
@@ -129,6 +133,8 @@ export function ClientSettings({ tableId, me, people, answerers, setAnswerer, sa
     setCap(copies ? (copies.cap === null ? "0" : String(copies.cap)) : "20");
     setPaths(copies?.paths ?? "");
     setOurs(copies?.preview_url ?? "");
+    setScope(copies?.scope ?? "screens");
+    setBlocked(copies?.blocked ?? "");
   }, [copies]);
   async function saveCopies(e: React.FormEvent) {
     e.preventDefault();
@@ -136,8 +142,11 @@ export function ClientSettings({ tableId, me, people, answerers, setAnswerer, sa
     setCopySaved(false);
     const { error } = await supabase.rpc("set_sandbox_links", { t: tableId, ours, cap: Number(cap), folders: paths });
     if (error) return setError(error.message);
+    const rules = await supabase.rpc("set_copy_rules", { t: tableId, scope, blocked });
+    if (rules.error) return setError(rules.error.message);
     setCopySaved(true);
-    onCopies({ preview_url: ours.trim() || null, cap: Number(cap) <= 0 ? null : Number(cap), paths: paths.trim() || null });
+    onCopies({ preview_url: ours.trim() || null, cap: Number(cap) <= 0 ? null : Number(cap), paths: paths.trim() || null, scope,
+      blocked: blocked.split(/[,\n]/).map((x) => x.trim()).filter(Boolean).join(", ") });
   }
   async function remove(p: Person) {
     setError("");
@@ -175,6 +184,12 @@ export function ClientSettings({ tableId, me, people, answerers, setAnswerer, sa
         <label className="label" htmlFor="copy-cap">Changes a day, for each client</label>
         <Select id="copy-cap" value={cap} onChange={setCap}
           options={[{ value: "5", label: "5" }, { value: "10", label: "10" }, { value: "20", label: "20" }, { value: "50", label: "50" }, { value: "0", label: "As many as they like" }]} />
+        <label className="label" htmlFor="copy-scope">What a copy may change</label>
+        <Select id="copy-scope" value={scope} onChange={(v) => setScope(v as "screens" | "code")}
+          options={[{ value: "screens", label: "Screens only" }, { value: "code", label: "Screens and the code behind them" }]} />
+        {scope === "code" && <div className="note">Only for a preview with its own made-up database and no real keys. Sign-in, the database, settings, packages and tests stay off limits, and every change is type-checked first.</div>}
+        <label className="label" htmlFor="copy-blocked">Never changed by a copy</label>
+        <input id="copy-blocked" className="field" value={blocked} onChange={(e) => setBlocked(e.target.value)} placeholder="For example prisma/, proxy.ts" />
         <label className="label" htmlFor="copy-paths">Folders a copy may change</label>
         <input id="copy-paths" className="field" value={paths} onChange={(e) => setPaths(e.target.value)} placeholder="Any the guard allows, or for example apps/web/app" />
         <label className="label" htmlFor="copy-ours">Where your own site opens</label>

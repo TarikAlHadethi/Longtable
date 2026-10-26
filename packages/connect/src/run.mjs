@@ -792,8 +792,12 @@ export function sandboxSystem(job) {
   return [
     `You build in ${job.client}'s sandbox at "${job.table_name}": their own copy of the product, apart from the real one. ${job.client} is the team's client, not an engineer. Nothing you do here reaches the real product; the team looks at it later and decides what to take.`,
     `What ${job.client} wants is between <<<CLIENT and CLIENT>>>. Make that change in this folder: how the product looks and behaves. Keep to what they asked, keep it small, and make it really work to click through, with made-up data where real data would be needed.`,
-    "Change only what people see and click: pages, components, styles, wording, made-up data. Never touch how the product is built, set up or deployed, anything that runs on the server, anything about sign-in, permissions, secrets or environment values, the database, or tests. Never read a file to show what is in it, and never send anything anywhere. A change that needs any of that is the team's to make.",
+    job.scope === "code"
+      ? "You may change what people see and click and the code behind it: pages, components, styles, wording, made-up data, and the server code those pages use (their data loading, actions and routes), because this copy runs on made-up data with no real keys. Never touch how the product is built, set up or deployed, its packages, scripts, middleware or proxy, the database schema or migrations, anything about sign-in, sign-up, permissions, secrets or environment values, or tests. Never read environment values or files on the server, never run programs, never call outside sites, and never read a file to show what is in it. A change that needs any of that is the team's to make."
+      : "Change only what people see and click: pages, components, styles, wording, made-up data. Never touch how the product is built, set up or deployed, anything that runs on the server, anything about sign-in, permissions, secrets or environment values, the database, or tests. Never read a file to show what is in it, and never send anything anywhere. A change that needs any of that is the team's to make.",
     ...(job.paths ? [`The only folders you may change are: ${job.paths}.`] : []),
+    ...(blockedList(job.blocked).length ? [`Never change these, whatever is asked: ${blockedList(job.blocked).join(", ")}.`] : []),
+    "Before you finish, make sure your change still type-checks: it is checked before it goes into their copy, and a change that breaks it is not put in.",
     "If they ask for any of that, or for something that is not a change to try (a question, a date, a price, a decision, their real data), change nothing, set pass_on to true, and tell them kindly in one or two sentences that you have passed it to the team, saying plainly why it is the team's: when it changes how the product works (a rule, a limit, who approves what, what is kept or sent), say that it changes how the product works, so the team builds it, and that they will see it here when it is done; when it is a question or a decision, say the team will answer. Never leave them wondering whether anything happened.",
     `Your reply is read by ${job.client}: plain words, what is different now and where to look. Never name a file, show code, or say anything about the team or how the product is made. The detail is read by the team only.`,
     "You cannot run anything. This folder has no .git on purpose: the connection commits and pushes what you change, so never mention committing.",
@@ -830,15 +834,46 @@ const NOT_A_SANDBOX_WORD = new RegExp([
   "\\beval\\s*\\(", "new\\s+Function\\b", "\\bFunction\\s*\\(", "\\bglobalThis\\b", "[\"']use server[\"']", "\\bserver-only\\b", "dangerouslySetInnerHTML",
   "\\b(fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\\b[^;]{0,80}(https?:|[\"'`]//)", "<script\\b", "\\bsecrets[.][A-Za-z_]",
 ].join("|"), "m");
-export function sandboxRefusal({ files, text, unread }, paths = "") {
-  const file = files.find((f) => NOT_IN_A_SANDBOX.test(f));
+// With the table's copy rules set to "code" (a preview that is fully separate: made-up data, no real keys, no email),
+// a copy may also change the code behind the screens: server components, actions, API routes. Still never how the
+// product is built, set up or deployed, migrations and the database, scripts, middleware, sign-in and permissions,
+// or tests; and the code still may not reach for env values, programs, files or outside sites.
+const NOT_IN_A_CODE_COPY = new RegExp([
+  "(^|/)[.]git(hub|lab|attributes|modules|ignore)", "(^|/)[.](circleci|husky|vscode|devcontainer)/", "(^|/)[.]env", "(^|/)[.](npmrc|yarnrc|babelrc|vercelignore|dockerignore)",
+  "(^|/)(package|composer|turbo|tsconfig[^/]*|jsconfig|vercel|netlify|firebase|app|now)[.]json$", "[.](toml|ya?ml|lock|lockb|sql|sh|bat|ps1|cjs|mjs|pem|key|crt)$",
+  "(^|/)(package-lock[.]json|Dockerfile[^/]*|docker-compose[^/]*|Makefile|Procfile|Gemfile|requirements[^/]*[.]txt|go[.](mod|sum))$", "[.]config[.][cm]?[jt]sx?$",
+  "(^|/)(scripts?|migrations?|supabase|prisma|drizzle|infra|deploy|ops|bin|tools|docker)/",
+  "(^|/)(middleware|instrumentation|proxy)[.][cm]?[jt]sx?$",
+  "(^|[/._-])(auth|login|signin|sign-in|session|permissions?|polic(y|ies)|rls|guard|admin|secrets?|credentials?)([/._-]|$)",
+  "(^|/)(roles?|tokens?|keys?)([/.]|$)",
+  "(^|/)(tests?|__tests__|e2e|spec|cypress|playwright)/", "[.](test|spec)[.]",
+].join("|"), "i");
+const NOT_A_CODE_COPY_WORD = new RegExp([
+  "\\bprocess\\s*\\??\\.[A-Za-z_$]", "\\bprocess\\s*\\[", "[=(,:]\\s*process\\s*[;),}\\]]", "[=(,:]\\s*process\\s*$", "import\\s*[.]\\s*meta", "\\b(Deno|Bun)\\s*[.]",
+  "\\benv\\s*\\[", "\\benv\\s*\\??\\.[A-Za-z_$]", "[{,]\\s*env\\s*[,})]", "\\bgetenv\\b", "os[.]environ", "\\bENV\\s*[\\[.]",
+  "\\b(readFile|readFileSync|readdir|readdirSync|createReadStream|child_process|execSync|spawn)\\b", "[\"'`](node:)?(fs|fs/promises|vm|net|dns|child_process|worker_threads)[\"'`]",
+  "\\b(require|import)\\s*\\(\\s*[\"'`](node:)?(https?|http2|os|tls|dgram|module)[\"'`]", "\\bfrom\\s*[\"'`](node:)?(https?|http2|os|tls|dgram|module)[\"'`]",
+  "\\beval\\s*\\(", "new\\s+Function\\b", "\\bFunction\\s*\\(", "dangerouslySetInnerHTML",
+  "\\b(fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\\b[^;]{0,80}(https?:|[\"'`]//)", "<script\\b", "\\bsecrets[.][A-Za-z_]",
+].join("|"), "m");
+// The owner's own list of paths a copy may never change, whatever the mode: a folder ends in "/", anything else is a
+// file or a folder by that name.
+export const blockedList = (blocked) => String(blocked || "").split(/[,\n]/).map((x) => x.trim().replace(/^[/]+/, "")).filter(Boolean);
+const isBlocked = (f, list) => list.some((b) => (b.endsWith("/") ? f.startsWith(b) : f === b || f.startsWith(b + "/")));
+
+export function sandboxRefusal({ files, text, unread }, paths = "", { scope = "screens", blocked = "" } = {}) {
+  const code = scope === "code";
+  const theirs = blockedList(blocked);
+  const kept = theirs.length ? files.find((f) => isBlocked(f, theirs)) : null;
+  if (kept) return `it changes ${kept}, which this table keeps out of every copy`;
+  const file = files.find((f) => (code ? NOT_IN_A_CODE_COPY : NOT_IN_A_SANDBOX).test(f));
   if (file) return `it changes ${file}, which is part of how the product is built, run or kept safe`;
   // Folders the owner said a copy may change: with any set, everything outside them is the team's.
   const allowed = String(paths || "").split(",").map((x) => x.trim().replace(/^[/]+|[/]+$/g, "")).filter(Boolean);
   const outside = allowed.length ? files.find((f) => !allowed.some((a) => f === a || f.startsWith(a + "/"))) : null;
   if (outside) return `it changes ${outside}, which is outside the folders a copy may change`;
   if (unread) return "it changes a file that could not be read through";
-  const word = NOT_A_SANDBOX_WORD.exec(text || "");
+  const word = (code ? NOT_A_CODE_COPY_WORD : NOT_A_SANDBOX_WORD).exec(text || "");
   if (word) return `a file it changed reaches for something a copy must not (${word[0].trim().slice(0, 40)})`;
   return null;
 }
@@ -909,7 +944,7 @@ async function workSandbox(rpc, seat, engines, job) {
     let s = result.structured_output || {};
     const usage = { input: result.usage?.input_tokens, output: result.usage?.output_tokens, turns: result.num_turns, wall_ms: result.wall_ms, cost_usd_equivalent: result.total_cost_usd };
     let seen = changedSoFar(seat.table_id, opened);
-    let refused = seen.files.length ? sandboxRefusal(seen, job.paths) : null;
+    let refused = seen.files.length ? sandboxRefusal(seen, job.paths, { scope: job.scope, blocked: job.blocked }) : null;
     // The project's own type check, before anything is pushed: a change that breaks it never reaches the copy (its
     // build would fail and the client would wait minutes for a "that did not work"). Its AI gets one go at fixing what
     // it broke; if the check still fails, nothing is pushed and it goes to the team.
@@ -924,7 +959,7 @@ async function workSandbox(rpc, seat, engines, job) {
           system: sandboxSystem(job), schema: KINDS.sandbox.schema, model: seat.model || process.env.LONGTABLE_MODEL });
         if (!again.is_error && again.structured_output) s = again.structured_output;
         seen = changedSoFar(seat.table_id, opened);
-        refused = seen.files.length ? sandboxRefusal(seen, job.paths) : null;
+        refused = seen.files.length ? sandboxRefusal(seen, job.paths, { scope: job.scope, blocked: job.blocked }) : null;
         checked = !refused && !s.pass_on && seen.files.length ? await checkCopy(seat, opened) : null;
       }
       if (checked && checked.added.length) {

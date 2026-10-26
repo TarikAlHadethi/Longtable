@@ -12,7 +12,7 @@ type Extra = { undo_seconds: number; client_chat: string | null; final_seat: str
 type Github = { connected: boolean; repo: string; last_event_at: string | null } | null;
 
 
-export type Copies = { preview_url: string | null; cap: number | null; paths: string | null };
+export type Copies = { preview_url: string | null; cap: number | null; paths: string | null; scope?: "screens" | "code"; blocked?: string };
 export type SettingsData = { extra: Extra | null; github: Github; answerers?: Record<string, "own" | "table">; copies?: Copies | null; repo?: string | null };
 type Db = ReturnType<typeof browserClient>;
 // The table's own settings and its GitHub link. The room reads these once when it opens, so Settings is complete the
@@ -22,7 +22,7 @@ export async function loadSettings(supabase: Db, tableId: string): Promise<Setti
     supabase.from("tables").select("undo_seconds, client_chat, final_seat, when_final_offline").eq("id", tableId).maybeSingle(),
     supabase.rpc("github_status", { t: tableId }),
     supabase.from("client_settings").select("member_id, answered_by").eq("table_id", tableId),
-    supabase.from("table_sandbox").select("preview_url, cap, paths").eq("table_id", tableId).maybeSingle(),
+    supabase.from("table_sandbox").select("preview_url, cap, paths, scope, blocked").eq("table_id", tableId).maybeSingle(),
     supabase.from("table_code").select("repo_url").eq("table_id", tableId).maybeSingle(),
   ]);
   // A read that failed is not settings: nothing is shown as loaded, so nothing made up can be saved over the real ones.
