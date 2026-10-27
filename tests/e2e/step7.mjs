@@ -38,6 +38,7 @@ try {
   await page.click("a:has-text('Start')");
   await signIn(page, `new-${run}@example.test`);
   await page.waitForURL(/\/start$/);
+  await page.click("[data-testid=choose-start]");
   await page.fill("#table", "Our app");
   await page.fill("#me", "Nadia");
   await page.click("text=Start the table");

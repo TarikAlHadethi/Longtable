@@ -1,4 +1,5 @@
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
+import { NotAtTable } from "@/components/not-at-table";
 import { serverClient } from "@/lib/supabase/server";
 import { UsageView, type Card } from "./usage-view";
 
@@ -14,12 +15,12 @@ export default async function Usage({ params }: { params: Promise<{ id: string }
   // A read that failed is a fault, not a table that is not there.
   const { data: table, error: tableError } = await supabase.from("tables").select("id, name").eq("id", id).maybeSingle();
   if (tableError) throw new Error("The table could not be read just now.");
-  if (!table) notFound();
+  if (!table) return <NotAtTable />;
   const { data: people, error: peopleError } = await supabase.from("members").select("id, user_id, display_name, role, color")
     .eq("table_id", id).is("removed_at", null).order("created_at");
   if (peopleError) throw new Error("The table's people could not be read just now.");
   const mine = (people ?? []).find((m) => m.user_id === user.id);
-  if (!mine) notFound();
+  if (!mine) return <NotAtTable />;
   if (mine.role === "client") redirect(`/t/${id}`);
 
   const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();

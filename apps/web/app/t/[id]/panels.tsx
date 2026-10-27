@@ -61,7 +61,11 @@ export function LogsPanel({ table, members }: { table: { id: string; name: strin
       case "table.started": return `${who(e)} started the table "${d.name}"`;
       case "table.handed_over": return `${who(e)} made ${d.name} the owner`;
       case "invite.created": return `${who(e)} made an invite link for ${d.role === "client" ? "the client" : "a developer"}`;
-      case "member.joined": return `${d.name ?? who(e)} joined as ${d.role === "client" ? "the client" : "a developer"}`;
+      case "member.joined": return `${d.name ?? who(e)} joined as ${d.role === "client" ? "the client" : "a developer"}${d.code ? ", let in with the table code" : ""}`;
+      case "join.asked": return `${d.name ?? "Someone"} asked to join with the table code`;
+      case "join.answered": return `${who(e)} did not let ${d.name ?? "someone"} in`;
+      case "join.new_code": return `${who(e)} made a new table code`;
+      case "table.locked": return `${who(e)} ${d.locked ? "locked the table" : "unlocked the table"}`;
       case "chat.renamed": return `${who(e)} renamed the chat "${d.from}" to "${d.name}"`;
       case "chat.deleted": return `${who(e)} deleted the chat "${d.name}"`;
       case "chat.set_up": return `${who(e)} set up the chat "${d.name}"`;

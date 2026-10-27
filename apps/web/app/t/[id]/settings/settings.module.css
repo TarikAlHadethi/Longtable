@@ -58,3 +58,30 @@
 .copies { display: flex; flex-direction: column; gap: 8px; margin-top: 18px; padding-top: 18px; border-top: 1px solid light-dark(oklch(0.94 0.006 80), oklch(0.266 0.006 80)); }
 /* An open row lets its menu hang below it: a dropdown inside must never be cut off. */
 .row[open]::details-content { overflow-y: visible; }
+
+/* Someone asking to join: the card stands out a little until it is answered. */
+.asking { border-color: color-mix(in oklch, var(--sage) 45%, var(--line)); box-shadow: 0 0 0 4px color-mix(in oklch, var(--sage) 8%, transparent); }
+.joiner { display: flex; flex-direction: column; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line); animation: lt-rise 0.35s var(--ease-out) both; }
+.joiner:last-child { border-bottom: 0; padding-bottom: 2px; }
+.joinerHead { display: flex; align-items: center; gap: 12px; }
+.joinerFace { width: 34px; height: 34px; border-radius: 50%; background: var(--chip); color: var(--ink-2); font-weight: 560; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.joinerWho { display: flex; flex-direction: column; min-width: 0; }
+.joinerWho b { font-weight: 560; font-size: 15.5px; }
+.joinerWho span { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.joinerNote { font-size: 14.5px; color: var(--ink-2); line-height: 1.45; padding-left: 46px; }
+.joinerAs { min-width: 170px; }
+
+/* The table code: hidden until shown, in large letters a person can read out. */
+.codeBox { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 12px; padding: 14px 16px; border-radius: 12px;
+  background: color-mix(in oklch, var(--chip) 60%, transparent); transition: opacity 0.2s ease; }
+.codeLocked { opacity: 0.5; }
+.codeLabel { font-size: 12.5px; color: var(--muted); grid-column: 1; }
+.codeValue { grid-column: 1; font-size: 24px; font-weight: 560; letter-spacing: 0.14em; font-variant-numeric: tabular-nums; }
+.codeFresh { animation: lt-pop 0.35s var(--ease-spring) both; }
+.codeTools { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 4px; }
+.codeTool { border: 1px solid var(--line-strong); background: var(--card); color: var(--ink); font: inherit; font-size: 13.5px; font-weight: 520;
+  padding: 6px 11px; border-radius: 9px; cursor: pointer; transition: border-color 0.15s ease, transform 0.12s var(--ease-out); }
+.codeTool:hover { border-color: var(--sage); }
+.codeTool:active { transform: scale(0.95); }
+@media (max-width: 520px) { .codeBox { grid-template-columns: 1fr; } .codeTools { grid-column: 1; grid-row: auto; margin-top: 8px; } }
+@media (max-width: 520px) { .joinerAs { flex: 1 1 100%; } }

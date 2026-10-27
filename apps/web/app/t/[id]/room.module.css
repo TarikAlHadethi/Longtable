@@ -712,3 +712,12 @@
   .modal { padding: 18px; gap: 14px; }
   .roleTile { padding: 10px 14px; }
 }
+
+/* Someone asking to join, for an owner: one line under People that opens where they are let in. */
+.asking { display: flex; align-items: center; gap: 9px; width: calc(100% - 4px); margin: 0 2px 6px; padding: 8px 10px; border-radius: 10px;
+  border: 1px solid color-mix(in oklch, var(--sage) 40%, var(--line)); background: color-mix(in oklch, var(--sage) 8%, var(--card));
+  color: var(--ink); font: inherit; font-size: 13.5px; font-weight: 520; text-align: left; cursor: pointer;
+  animation: lt-rise 0.35s var(--ease-out) both; transition: border-color 0.15s ease, transform 0.12s var(--ease-out); }
+.asking:hover { border-color: var(--sage); }
+.asking:active { transform: scale(0.98); }
+.askingDot { width: 8px; height: 8px; border-radius: 50%; background: var(--sage); flex-shrink: 0; animation: lt-pop 0.4s var(--ease-spring) both; }

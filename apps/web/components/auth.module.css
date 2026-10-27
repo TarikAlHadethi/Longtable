@@ -98,3 +98,34 @@
   .shell { grid-template-columns: 1fr; }
   .right { display: none; }
 }
+
+/* Start or join: two tiles, then the chosen one's form in their place. */
+.choices { display: flex; flex-direction: column; gap: 14px; padding: 6px 0; }
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.tile {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; padding: 16px; border-radius: 14px;
+  border: 1px solid var(--line-strong); background: var(--card); color: var(--ink); font: inherit; cursor: pointer;
+  animation: lt-rise 0.45s var(--ease-out) both;
+  transition: border-color 0.15s ease, transform 0.15s var(--ease-out), box-shadow 0.15s ease;
+}
+.tile + .tile { animation-delay: 70ms; }
+.tile b { font-weight: 560; font-size: 16.5px; margin-top: 8px; }
+.tile > span:last-child { font-size: 13.5px; color: var(--muted); line-height: 1.4; }
+.tile:hover { border-color: var(--sage); box-shadow: 0 0 0 4px color-mix(in oklch, var(--sage) 12%, transparent); }
+.tile:active { transform: scale(0.98); }
+.tileIcon { width: 34px; height: 34px; border-radius: 10px; background: var(--chip); display: inline-flex; align-items: center; justify-content: center; transition: transform 0.2s var(--ease-spring); }
+.tile:hover .tileIcon { transform: scale(1.08); }
+@media (max-width: 520px) { .tiles { grid-template-columns: 1fr; } .tile { flex-direction: row; align-items: center; flex-wrap: wrap; column-gap: 12px; } .tile b { margin: 0; } .tile > span:last-child { flex-basis: 100%; padding-left: 46px; margin-top: -4px; } }
+
+/* The table code: eight boxes in two fours. */
+.slotSmall { height: 50px; font-size: 21px; border-radius: 10px; }
+.slotGap { margin-left: 10px; }
+@media (max-width: 420px) { .slots { gap: 5px; } .slotSmall { height: 44px; font-size: 18px; } .slotGap { margin-left: 6px; } }
+
+/* Waiting to be let in: the table's mark at work until an owner answers. */
+.wait { cursor: default; animation: lt-rise 0.45s var(--ease-out) both; }
+.wait:hover { transform: none; box-shadow: none; border-color: var(--line-strong); }
+.waitText { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.waitWhy { font-size: 13.5px; font-weight: 400; color: var(--muted); }
+.wait[data-status="in"] { border-color: var(--sage); }
+.wait[data-status="in"] .waitWhy { color: var(--sage); }

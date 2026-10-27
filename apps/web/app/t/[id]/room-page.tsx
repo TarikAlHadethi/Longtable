@@ -1,4 +1,5 @@
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
+import { NotAtTable } from "@/components/not-at-table";
 import { serverClient } from "@/lib/supabase/server";
 import { ClientPage } from "./client-page";
 import { Room } from "./room";
@@ -36,11 +37,11 @@ export async function RoomPage({ id, wanted, view, side, sandbox }: { id: string
       .order("created_at"),
   ]);
   if (tableError) throw new Error("The table could not be read just now.");
-  if (!table) notFound();
+  if (!table) return <NotAtTable />;
   if (rowsError) throw new Error("The table's people could not be read just now.");
   const members = (rows ?? []) as MemberRow[];
   const mine = members.find((m) => m.user_id === user.id);
-  if (!mine) notFound();
+  if (!mine) return <NotAtTable />;
 
   // The client gets their own page: what they asked for and what they were told, never the team side.
   if (mine.role === "client") {

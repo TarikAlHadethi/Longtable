@@ -21,6 +21,7 @@ import { Invite } from "./invite";
 import { BugButton, LogsPanel } from "./panels";
 import { PersonWindow } from "./person-window";
 import type { SettingsData } from "./settings/settings-form";
+import type { Join } from "./settings/joining-settings";
 import { ProfileMenu } from "./profile-menu";
 import { TableView } from "./table-view";
 import { UsagePanel } from "./usage-panel";
@@ -290,6 +291,18 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const mayClients = self.role === "owner" || !!self.can_clients;
   const settingsTabs = ([...(mayTable ? ["general"] : []), ...(self.role === "owner" ? ["people"] : []), ...(mayClients ? ["clients"] : [])]) as ("general" | "people" | "clients")[];
   const maySettings = settingsTabs.length > 0;
+  // People waiting to be let in with the table's code. Only owners can read them (row level security) or answer.
+  const iOwn = self.role === "owner";
+  const [joins, setJoins] = useState<Join[]>([]);
+  const readJoins = useCallback(async () => {
+    if (!iOwn) return setJoins([]);
+    const { data, error } = await supabase.from("join_requests").select("id, name, email, note, created_at").eq("table_id", table.id).eq("status", "waiting").order("created_at");
+    if (error) console.warn("[joins] could not be read:", error.code);
+    else setJoins((data as Join[] | null) ?? []);
+  }, [supabase, table.id, iOwn]);
+  useEffect(() => { readJoins(); }, [readJoins]);
+  const readJoinsRef = useRef(readJoins);
+  readJoinsRef.current = readJoins;
   const [settingsFocus, setSettingsFocus] = useState<string | null>(null);
   const openSettings = (tab?: "general" | "people" | "clients", focus: string | null = null) => {
     const t = tab && settingsTabs.includes(tab) ? tab : settingsTabs[0];
@@ -425,7 +438,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (!light) lastFull.current = Date.now();
     const none = Promise.resolve({ data: null });
     const ask = (go: boolean, read: () => PromiseLike<{ data: unknown }>) => (go ? read() : none);
-    if (!light) readApprovals();
+    if (!light) { readApprovals(); readJoinsRef.current(); }
     const [{ data: recent }, { data: inFlight }, { data: ds }, { data: rq }, { data: ns }, { data: cs }, { data: tk }, { data: sc }, { data: bx }, { data: ch }] = await Promise.all([
       supabase.from("messages").select(MESSAGE_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(light ? 40 : 100),
       supabase.from("jobs").select(JOB_COLUMNS).eq("table_id", table.id).in("status", ["queued", "running", "waiting", "failed"]).order("created_at", { ascending: false }).limit(50),
@@ -490,6 +503,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       pushedAt.current = performance.now();
       const { table: name, record } = (payload ?? {}) as Change;
       if (!record) return;
+      if (name === "join_requests") { readJoinsRef.current(); return; }
       if (name === "messages") {
         const m = record as unknown as Message;
         setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev.map((x) => (x.id === m.id ? { ...x, ...m } : x)) : [...prev, m]));
@@ -1242,6 +1256,12 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           )}
           <div className={styles.section}>
             <div className={styles.sectionTitle}>People</div>
+            {joins.length > 0 && (
+              <button className={styles.asking} onClick={() => { setDrawerOpen(false); openSettings("people"); }} data-testid="asking-badge">
+                <i className={styles.askingDot} />
+                {joins.length === 1 ? `${firstName(joins[0].name)} is asking to join` : `${joins.length} people asking to join`}
+              </button>
+            )}
             {/* The people working first, then a quiet line, then the clients. */}
             {[...members.filter((m) => m.role !== "client"), ...clients].map((m, i, all) => (
               <Fragment key={m.id}>
@@ -1323,6 +1343,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               {view === "settings" && maySettings
                 ? <SettingsForm part={settingsTabs.includes(setTab) ? setTab : settingsTabs[0]} table={{ id: table.id, name: tableName }} me={me.id} people={members} chats={chats} data={settings} onData={setSettings}
                     mainOwner={table.main_owner ?? null} myRole={self.role} focus={settingsFocus}
+                    joins={joins} onJoinAnswered={(id) => { setJoins((prev) => prev.filter((j) => j.id !== id)); refreshMembers(); }}
                     onChanged={(id, patch) => setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)))}
                     onRenamed={setTableName} onRemoved={(id) => setMembers((prev) => prev.filter((m) => m.id !== id))} />
                 : <LogsPanel table={table} members={members} />}

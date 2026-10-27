@@ -1,5 +1,6 @@
 "use client";
 
+import { AskingToJoin, Joining, type Join } from "./joining-settings";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Select } from "@/components/select";
@@ -37,7 +38,7 @@ export async function loadSettings(supabase: Db, tableId: string): Promise<Setti
 
 // Settings in plain words: the table, who writes the final answer, GitHub, your data, and the people at the table.
 // It opens inside the room at once and fills in the table's own settings a moment later.
-export function SettingsForm({ table, me, people, chats, data, onData, onRenamed, onRemoved, onChanged, mainOwner = null, myRole = "owner", focus = null, part = "general" }: {
+export function SettingsForm({ table, me, people, chats, data, onData, onRenamed, onRemoved, onChanged, mainOwner = null, myRole = "owner", focus = null, part = "general", joins = [], onJoinAnswered }: {
   table: { id: string; name: string };
   me: string;
   part?: "general" | "people" | "clients";
@@ -51,6 +52,8 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
   mainOwner?: string | null;
   myRole?: Person["role"];
   focus?: string | null;
+  joins?: Join[];
+  onJoinAnswered?: (id: string) => void;
 }) {
   const supabase = browserClient();
   // Saving is only possible once the table's own settings are on screen: before, a failed read showed made-up
@@ -242,8 +245,10 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
         </>}
         {part === "clients" && <ClientSettings tableId={table.id} me={me} people={people} answerers={answerers} setAnswerer={setAnswerer} savedFor={saved} focus={focus} onRemoved={onRemoved}
           copies={data ? data.copies ?? null : undefined} onCopies={(c) => data && onData({ ...data, copies: c })} />}
+        {part === "people" && <AskingToJoin joins={joins} onAnswered={(id) => onJoinAnswered?.(id)} />}
         {part === "people" && <PeopleSettings tableId={table.id} me={me} mainOwner={mainOwner} myRole={myRole} people={people} focus={focus}
           onChanged={(id, patch) => onChanged?.(id, patch)} onRemoved={onRemoved} />}
+        {part === "people" && <Joining tableId={table.id} />}
         </div>
         <div className={styles.col}>
         {part === "general" && <>

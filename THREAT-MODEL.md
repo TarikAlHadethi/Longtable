@@ -38,6 +38,7 @@ the code as it is (last brought up to date 17 Oct 2026); update it with every ch
 | A client changes decisions, requests or their AI's lines | No write policies; only `client_say` and `client_reply`, which act for the caller's own seat | step 5, step 27, client AI test |
 | A team member acts as the owner | Every owner action checks `is_owner` in the database; one owner per table by a unique index | step 6 settings, step 29 |
 | A removed person keeps access | `removed_at` checked by every access helper; their AI disconnected, its work skipped, their command list and copy closed | step 6 settings, step 25, step 33 |
+| A stranger gets into a table with its code | A code only asks: an owner lets each person in (`answer_join`), seeing the address they signed in with; only owners read the code (`joining`, never the table) or who is asking; ten wrong codes an hour per person, and a wrong code names no table; a new code stops the old one; a locked table takes nobody by code or by invite link, sent before or after | step 51 |
 | Signed-out callers use the database | Signed-in functions refuse the public key; only invite preview and the connection's own functions accept it | step 5, step 26 |
 | Someone runs delivery early | `deliver_due` runs only from the scheduler or inside `decide_and_send` for a decision the caller may make | step 2, step 5 |
 

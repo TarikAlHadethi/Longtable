@@ -62,6 +62,7 @@ export async function startTable(browser, email, tableName, myName) {
   await page.goto(`${APP}/start`);
   await signIn(page, email);
   await page.waitForURL(/\/start$/);
+  await page.click("[data-testid=choose-start]");
   await page.fill("#table", tableName);
   await page.fill("#me", myName);
   await page.click("text=Start the table");
