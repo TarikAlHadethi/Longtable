@@ -129,6 +129,16 @@ try {
   check("saving the other copy settings keeps the rules", (await rpc(tok, "set_sandbox_links", { t, ours: "", cap: 20, folders: "" })).status < 300 && payload().scope === "code" && payload().blocked.includes("proxy.ts"), payload());
   check("the change is in the log", sql(`select count(*) from public.activity where table_id = '${t}' and action = 'sandbox.rules'`) !== "0");
 
+  // A question is answered by the assistant, copy or not; only a change goes to the copy.
+  const q = (w) => sql(`select public.is_question('${w.replace(/'/g, "''")}')`) === "t";
+  check("questions are told apart from changes, without a model", ["ok so whats left till it can go live", "how close are we?", "Can I book two kits at once?", "does it work on phones"].every(q)
+    && !["make the title blue", "can you make the title bigger?", "please add a search box", "the header should be green", "is it possible to add a filter?"].some(q));
+  on();
+  const asked = await rpc(tok, "client_say", { t, body: "ok so whats left till it can go live" });
+  check("with a copy, a question goes to the assistant, not the copy", asked.status < 300 && !!asked.body?.line && !asked.body?.change, asked.body);
+  const wanted = await rpc(tok, "client_say", { t, body: "make the title bigger" });
+  check("and a change still goes to the copy", wanted.status < 300 && !!wanted.body?.change, wanted.body);
+
   // The team never reads client_sandbox for another client's copy: it is the client's own (or the owner acting as the test client).
   check("a delivery for another branch changes nothing", (await deliver("failure", sha("d"), "longtable/someone-else")) === 204 && (await copy()).broken === false);
 } catch (e) { check("the run did not crash", false, e.stack || e.message); }

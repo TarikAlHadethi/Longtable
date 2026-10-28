@@ -387,13 +387,13 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   return (
     <div className={`${room.shell} ${room.shellWide} ${styles.client}`} data-testid={viewer && !viewer.preview ? "client-view" : undefined}>
       <header className={room.header}>
-        <div className={`${room.brand} ${styles.brand}`}><Mark size={26} /> Longtable</div>
+        <div className={`${room.brand} ${styles.brand}`}><Mark size={26} /> <span className={styles.brandWord}>Longtable</span></div>
         <div className={room.divider} />
         <div className={room.project}>{table.name}</div>
         <div className={room.spacer} />
         {overview && <button className={`btn btn-quiet ${styles.panelButton}`} onClick={() => setPanelOpen(true)} data-testid="open-panel">Your project</button>}
         {sandbox?.on && sandbox.url && (
-          <a className={`btn btn-quiet ${styles.openCopy}`} href={sandbox.url} target="_blank" rel="noreferrer" data-testid="open-copy">{viewer ? `Open ${first}'s copy` : "Open my copy"} <Arrow size={15} /></a>
+          <a className={`btn btn-quiet ${styles.openCopy}`} href={sandbox.url} target="_blank" rel="noreferrer" data-testid="open-copy"><span className={styles.wide}>{viewer ? `Open ${first}'s copy` : "Open my copy"}</span><span className={styles.narrow}>{viewer ? `${first}'s copy` : "My copy"}</span> <Arrow size={15} /></a>
         )}
         {viewer ? (
           <button className="btn" onClick={viewer.onBack} data-testid={viewer.preview ? undefined : "table-portal"}>Back to the table</button>
@@ -535,7 +535,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
             {!locked && <AttachTray a={attach} />}
             <form className={room.composer} onSubmit={(e) => { e.preventDefault(); if (!locked) say(); }} {...(locked ? {} : dropHandlers(attach))}>
               <textarea ref={inputRef} className={room.input} rows={1} value={draft} disabled={locked} maxLength={4000}
-                placeholder={locked ? "Only they can write here" : sandbox?.on ? "Say what you want changed" : "Write a message"} aria-label="Ask the team"
+                placeholder={locked ? "Only they can write here" : sandbox?.on ? "Ask anything, or say what to change" : "Write a message"} aria-label="Ask the team"
                 onChange={(e) => { setDraft(e.target.value); grow(); }}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (!locked) say(); } }} />
               {!locked && <AttachButtons a={attach} disabled={busy} />}

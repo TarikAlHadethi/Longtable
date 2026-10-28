@@ -160,3 +160,12 @@
 @media (prefers-reduced-motion: reduce) { .workItem { animation: none; } }
 .workItem { display: flex; align-items: center; gap: 9px; font-size: 14px; color: var(--ink); padding: 3px 0; }
 .workOn, .workDone { flex: none; }
+
+/* A phone has no room for the name beside two buttons: the mark alone, and the copy button's short words. */
+.narrow { display: none; }
+@media (max-width: 480px) {
+  .brandWord { display: none; }
+  .wide { display: none; }
+  .narrow { display: inline; }
+}
+
