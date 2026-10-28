@@ -133,7 +133,12 @@ try {
   const q = (w) => sql(`select public.is_question('${w.replace(/'/g, "''")}')`) === "t";
   check("questions are told apart from changes, without a model", ["ok so whats left till it can go live", "how close are we?", "Can I book two kits at once?", "does it work on phones"].every(q)
     && !["make the title blue", "can you make the title bigger?", "please add a search box", "the header should be green", "is it possible to add a filter?"].some(q));
+  const ch = (w) => sql(`select public.is_change('${w.replace(/'/g, "''")}')`) === "t";
+  check("only a clear change goes to the copy: not a typo, a thanks or a question", ["make the title blue", "can you make the title bigger?", "the header should be green", "so yeah change the logo"].every(ch)
+    && !["shdhshsnsbs", "thanks!", "looks good", "how do I change my password", "ok so whats left till it can go live"].some(ch));
   on();
+  const junk = await rpc(tok, "client_say", { t, body: "shdhshsnsbs" });
+  check("with a copy, a jumble of letters goes to the assistant, not the copy", junk.status < 300 && !!junk.body?.line && !junk.body?.change, junk.body);
   const asked = await rpc(tok, "client_say", { t, body: "ok so whats left till it can go live" });
   check("with a copy, a question goes to the assistant, not the copy", asked.status < 300 && !!asked.body?.line && !asked.body?.change, asked.body);
   const wanted = await rpc(tok, "client_say", { t, body: "make the title bigger" });
