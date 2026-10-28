@@ -19,6 +19,9 @@
   background: var(--card); border: 1px solid var(--line-strong); border-radius: 14px; box-shadow: 0 20px 50px oklch(0.2 0.01 70 / 0.2);
   animation: sl-open 0.14s var(--ease-out) both; transform-origin: top center;
 }
+/* Never narrower than its longest choice: in a small box the words wrapped onto two lines. */
+.menu { min-width: max-content; }
+.item { white-space: nowrap; }
 .menuUp { top: auto; bottom: calc(100% + 6px); transform-origin: bottom center; }
 .item {
   display: flex; align-items: center; justify-content: space-between; gap: 14px; width: 100%; min-height: 37px; flex-shrink: 0; border: 0; background: none;

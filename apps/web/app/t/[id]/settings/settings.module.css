@@ -60,7 +60,8 @@
 .row[open]::details-content { overflow-y: visible; }
 
 /* Someone asking to join: the card stands out a little until it is answered. */
-.asking { border-color: color-mix(in oklch, var(--sage) 45%, var(--line)); box-shadow: 0 0 0 4px color-mix(in oklch, var(--sage) 8%, transparent); }
+/* Above the cards after it: its menu opens downwards over them (each card's arrival makes its own layer). */
+.asking { position: relative; z-index: 2; border-color: color-mix(in oklch, var(--sage) 45%, var(--line)); box-shadow: 0 0 0 4px color-mix(in oklch, var(--sage) 8%, transparent); }
 .joiner { display: flex; flex-direction: column; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line); animation: lt-rise 0.35s var(--ease-out) both; }
 .joiner:last-child { border-bottom: 0; padding-bottom: 2px; }
 .joinerHead { display: flex; align-items: center; gap: 12px; }
