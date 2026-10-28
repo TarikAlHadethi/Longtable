@@ -203,10 +203,14 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   const theirs = mine?.kind ?? [...connections].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.kind ?? null;
   // Their own assistant's job is theirs to see. When the team's AI is answering, the sign is their own last words
   // still waiting: sent to it, not yet answered, not yet passed on, and not long ago.
+  // Their words the team's assistant sent on to their copy: the change carries them from then on, so the line is not
+  // shown twice and the assistant is not still "thinking" about it.
+  const toCopy = useMemo(() => new Set(lines.filter((l) => l.who === "client" && l.by_table && (sandbox?.changes ?? []).some((c) => c.words === l.body
+    && new Date(c.created_at).getTime() >= new Date(l.created_at).getTime() - 2000 && new Date(c.created_at).getTime() - new Date(l.created_at).getTime() < 600000)).map((l) => l.id)), [lines, sandbox]);
   const lastLine = lines.length ? [...lines].sort(byTime)[lines.length - 1] : null;
   // Their last words with no answer yet: the answer is forming. Waiting words wait for a team AI to come on.
   const waitingOn = !!lastLine && lastLine.who === "client" && !!lastLine.by_table && !!lastLine.waiting;
-  const deskBusy = !!lastLine && lastLine.who === "client" && !!lastLine.by_table && (waitingOn || (!lastLine.request_id && Date.now() - new Date(lastLine.created_at).getTime() < 300000));
+  const deskBusy = !!lastLine && lastLine.who === "client" && !!lastLine.by_table && !toCopy.has(lastLine.id) && (waitingOn || (!lastLine.request_id && Date.now() - new Date(lastLine.created_at).getTime() < 300000));
   const open = jobs.filter((j) => j.kind === "client" && (j.status === "queued" || j.status === "running"));
   const thinking = !!sent || deskBusy || open.length > 0;
   // How far along: a deeper look means the table asked one of the team's AIs, which reads the project.
@@ -248,7 +252,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
         .map((u): Item => ({ kind: "told", id: `t-${u.id}`, created_at: u.created_at, r, u }))),
       ...(sandbox?.changes ?? []).map((c): Item => ({ kind: "change", id: `c-${c.id}`, created_at: c.created_at, c })),
       // Their own words to their assistant show as a line unless they became a request, which carries them.
-      ...lines.filter((l) => !(l.who === "client" && l.request_id)).map((l): Item => ({ kind: "line", id: `l-${l.id}`, created_at: l.created_at, me: l.who === "client", own: true, desk: !!l.by_table, text: l.body })),
+      ...lines.filter((l) => !(l.who === "client" && (l.request_id || toCopy.has(l.id)))).map((l): Item => ({ kind: "line", id: `l-${l.id}`, created_at: l.created_at, me: l.who === "client", own: true, desk: !!l.by_table, text: l.body })),
       // What every client was told, with no request of theirs behind it.
       ...updates.filter((u) => !u.request_id).map((u): Item => ({ kind: "line", id: `u-${u.id}`, created_at: u.created_at, me: false, own: false, text: u.body, question: u.replies?.length ? u : undefined })),
     ];
@@ -260,7 +264,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
       || requests.some((r) => r.body === sent.body && new Date(r.created_at).getTime() > since));
     if (sent && !arrived) items.push({ kind: "line", id: "sent", created_at: sent.at, me: true, own: true, desk: true, text: sent.body });
     return items.sort(byTime);
-  }, [requests, lines, updates, sandbox, sent]);
+  }, [requests, lines, updates, sandbox, sent, toCopy]);
   const told = (requestId: string) => updates.filter((u) => u.request_id === requestId && !isAck(u)).sort(byTime);
 
   useEffect(() => {

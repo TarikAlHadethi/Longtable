@@ -142,7 +142,40 @@ try {
   const asked = await rpc(tok, "client_say", { t, body: "ok so whats left till it can go live" });
   check("with a copy, a question goes to the assistant, not the copy", asked.status < 300 && !!asked.body?.line && !asked.body?.change, asked.body);
   const wanted = await rpc(tok, "client_say", { t, body: "make the title bigger" });
-  check("and a change still goes to the copy", wanted.status < 300 && !!wanted.body?.change, wanted.body);
+  check("with a copy, a change goes to the assistant first too, which decides", wanted.status < 300 && !!wanted.body?.line && !!wanted.body?.job, wanted.body);
+  const deskJob = wanted.body.job;
+  check("the assistant is told the client has a copy", JSON.parse(sql(`select public.client_job_payload(j)::text from public.jobs j where id = '${deskJob}'`)).has_copy === true);
+  // The assistant finishes it as a connection does: copy, and the change is built in the copy, with nothing said by
+  // the assistant (the copy tells them how it went).
+  const take = (id) => sql(`update public.jobs set status = 'running', started_at = now(), lease_until = now() + interval '5 minutes', member_id = '${maya}' where id = '${id}'`);
+  const changesNow = () => Number(sql(`select count(*) from public.sandbox_changes where member_id = '${client}' and not test`));
+  const linesNow = () => Number(sql(`select count(*) from public.client_lines where member_id = '${client}' and who = 'assistant'`));
+  on(); take(deskJob);
+  let c0 = changesNow(), l0 = linesNow();
+  await anon("runner_finish", { token: device, job: deskJob, answer: "Trying it in your copy.", info: { pass_on: false, copy: true, title: "" } });
+  check("a change the assistant sends on is built in the copy", changesNow() === c0 + 1
+    && sql(`select words from public.sandbox_changes where member_id = '${client}' order by created_at desc limit 1`) === "make the title bigger"
+    && sql(`select count(*) from public.jobs j join public.sandbox_changes c on c.id = j.change_id where c.member_id = '${client}' and j.kind = 'sandbox' and c.words = 'make the title bigger'`) === "1", changesNow());
+  check("and the assistant writes nothing of its own for it", linesNow() === l0);
+  // An answer stays an answer.
+  const q2 = await rpc(tok, "client_say", { t, body: "is the booking page done?" });
+  on(); take(q2.body.job); c0 = changesNow(); l0 = linesNow();
+  await anon("runner_finish", { token: device, job: q2.body.job, answer: "Yes, it works today.", info: { pass_on: false, copy: false, title: "" } });
+  check("an answer from the assistant is said, and nothing is built", changesNow() === c0 && linesNow() === l0 + 1);
+  // A connection from before it could say copy (0.1.44) passes a change on: for a client with a copy, that is the copy.
+  const older = await rpc(tok, "client_say", { t, body: "put the search box at the top" });
+  on(); take(older.body.job); c0 = changesNow();
+  await anon("runner_finish", { token: device, job: older.body.job, answer: "I passed that on to the team.", info: { pass_on: true, title: "Search box at the top" } });
+  check("an older connection passing a change on sends it to the copy", changesNow() === c0 + 1);
+  // A copy that cannot take it now (the day's changes used up) passes it to the team instead.
+  sql(`insert into public.table_sandbox (table_id, cap) values ('${t}', 1) on conflict (table_id) do update set cap = 1`);
+  const full = await rpc(tok, "client_say", { t, body: "make the footer grey" });
+  on(); take(full.body.job); c0 = changesNow();
+  const reqs = () => Number(sql(`select count(*) from public.requests where member_id = '${client}'`));
+  const r0 = reqs();
+  await anon("runner_finish", { token: device, job: full.body.job, answer: "Trying it in your copy.", info: { pass_on: false, copy: true, title: "Grey footer" } });
+  check("a copy with no changes left today passes the change to the team instead", changesNow() === c0 && reqs() === r0 + 1);
+  sql(`update public.table_sandbox set cap = null where table_id = '${t}'`);
 
   // The team never reads client_sandbox for another client's copy: it is the client's own (or the owner acting as the test client).
   check("a delivery for another branch changes nothing", (await deliver("failure", sha("d"), "longtable/someone-else")) === 204 && (await copy()).broken === false);

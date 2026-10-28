@@ -644,6 +644,21 @@ try {
     const changesOf = () => JSON.parse(sql(`select coalesce(json_agg(x order by x.created_at), '[]') from (select id, words, status, summary, detail, files, commit, verdict, note, task_id, request_id, created_at from public.sandbox_changes where member_id = '${dana.id}' and not test) x`));
     const mine = async () => (await rpc(dana.token, "client_sandbox", { t: table })).body;
     const sayAs = (body) => rpc(dana.token, "client_say", { t: table, body });
+    // With a copy, her words go to the team's assistant first, which decides; here it says "a change", as the real one
+    // does for a change, and the change is built in her copy.
+    const changeAs = async (body) => {
+      const said = (await sayAs(body)).body;
+      const before = new Set(changesOf().map((c) => c.id));
+      const reqsBefore = Number(sql(`select count(*) from public.requests where member_id = '${dana.id}'`));
+      // Earlier words that waited for an AI may be answered first: those are answered and set aside.
+      let d = await take("Maya", "light");
+      for (let n = 0; d && d.question !== body && n < 5; n++) { await fin("Maya", d, "Answered.", { pass_on: false, copy: false, title: "" }); d = await take("Maya", "light"); }
+      if (d?.kind !== "client" || d.has_copy !== true) throw new Error(`the assistant was not asked about "${body}": ${d?.kind}`);
+      await fin("Maya", d, "Trying it in your copy.", { pass_on: false, copy: true, title: "" });
+      const made = changesOf().find((c) => !before.has(c.id));
+      return { ...said, change: made?.id ?? null, left: (await mine()).left,
+        passed: Number(sql(`select count(*) from public.requests where member_id = '${dana.id}'`)) > reqsBefore };
+    };
 
     // By default a client has no copy: their words go to the team as before.
     const plain = (await sayAs("Could the booking page be blue?")).body;
@@ -722,7 +737,7 @@ try {
     await fin("Maya", clean, "", { commit: "8".repeat(40) });
 
     // What they say is now a change in their copy, done by the team's Claude.
-    const said = (await sayAs("Make the header green and bigger")).body;
+    const said = await changeAs("Make the header green and bigger");
     check("11c with a copy, their words are a change there, and they are told how many are left", !!said.change && said.left === 19, said);
     check("11c the quick lane does not take it", (await claim("Maya", "light")) === null);
     const j = await take("Maya", "heavy");
@@ -741,7 +756,7 @@ try {
     check("11d she cannot read the changes table or the job itself", Array.isArray(direct) && direct.length === 0 && Array.isArray(jobsSeen) && jobsSeen.length === 0, { direct, jobsSeen });
 
     // A question, or something only the team may do, is passed on.
-    await sayAs("When does this go live?");
+    await changeAs("When does this go live?");
     const q = await take("Maya", "heavy");
     await fin("Maya", q, "That one is for the team, so I passed it on. You will hear here what they decide.", { pass_on: true, title: "When does it go live" });
     const passed = changesOf().at(-1);
@@ -750,7 +765,7 @@ try {
     check("11e and it still counts against her changes for the day, since it was a run of the team's AI", (await mine()).left === 18, (await mine()).left);
 
     // What a connection sends is cleaned and cut.
-    await sayAs("Tidy the footer");
+    await changeAs("Tidy the footer");
     const big = await take("Maya", "heavy");
     await fin("Maya", big, "x".repeat(5000) + " sk-ant-" + "Q".repeat(40), { changed: true, commit: "not a commit; drop table", files: [...Array(300)].map((_, i) => `f${i}/` + "y".repeat(600)), detail: "d".repeat(9000) });
     const cut = changesOf().at(-1);
@@ -776,12 +791,14 @@ try {
 
     // The day's limit, and a team whose computers are off.
     await rpc(people.Maya.token, "set_sandbox_links", { t: table, ours: "https://ours.example.test", cap: 3, m: dana.id, theirs: "https://dana.example.test/app" });
-    const full = (await sayAs("One more thing")).body;
-    check("11i past the day's limit her words go to the team, and she is told why", !!full.request && full.why === "full" && (await mine()).left === 0, full);
+    const full = await changeAs("One more thing");
+    check("11i past the day's limit a change goes to the team instead, and she is told why", !full.change && full.passed && (await mine()).left === 0
+      && /can't take that right now/.test(sql(`select body from public.client_lines where member_id = '${dana.id}' and who = 'assistant' order by created_at desc limit 1`)), full);
     await rpc(people.Maya.token, "set_sandbox_links", { t: table, ours: "https://ours.example.test", cap: 50, m: dana.id, theirs: "https://dana.example.test/app" });
     offline("Maya");
     const asleep = (await sayAs("Is anyone there")).body;
-    check("11i with no team Claude on, her words go to the team, and she is told why", !!asleep.request && asleep.why === "asleep", asleep);
+    check("11i with no team Claude on, her words reach the team and wait for an AI to answer", !!asleep.line && asleep.waiting === true
+      && sql(`select count(*) from public.requests r join public.client_lines l on l.id = r.from_line where l.id = '${asleep.line}'`) === "1", asleep);
     await online("Maya");
 
     // Addresses.
@@ -800,7 +817,7 @@ try {
     check("11k a deployment of anything else changes nothing, and an address that is not https never replaces hers", other.body === "ignored" && evil.body === "noted" && (await mine()).url === "https://sandbox-dana-abc.example.test", { other: other.body, evil: evil.body });
 
     // Taking a change with no AI on is refused, so nobody is told the team is building something it is not.
-    await sayAs("Round the corners");
+    await changeAs("Round the corners");
     const rc = await take("Maya", "heavy");
     await fin("Maya", rc, "Rounded.", { changed: true, commit: "e".repeat(40), files: ["a.css"] });
     const rcId = changesOf().at(-1).id;
@@ -818,7 +835,7 @@ try {
     const f2 = await rpc(people.Maya.token, "set_sandbox_links", { t: table, ours: "", cap: 50, folders: "../../etc, app" });
     const f3 = await rpc(people.Maya.token, "set_sandbox_links", { t: table, ours: "", cap: 50, folders: "app; rm -rf" });
     check("11k3 the folders a copy may change are plain paths, tidied, and nothing else is kept", f1.status < 300 && kept === "app, components, ui" && f2.status >= 400 && f3.status >= 400, { kept, f2: f2.status, f3: f3.status });
-    await sayAs("Check folders");
+    await changeAs("Check folders");
     const fj = await take("Maya", "heavy");
     check("11k3 and the connection is told them", fj?.paths === "app, components, ui", fj?.paths);
     await fin("Maya", fj, "ok", { changed: false });
@@ -831,11 +848,11 @@ try {
       && !JSON.stringify(peek.members).includes("sandbox"), { boxes: peek.boxes, settings: peek.settings });
 
     // Stop, and a job nobody takes.
-    await sayAs("Change everything");
+    await changeAs("Change everything");
     const run1 = await take("Maya", "heavy");
     await rpc(people.Lee.token, "stop_job", { job: run1.job_id });
     check("11l the team stops one: she is told it was stopped", (await until(async () => (await mine()).changes[0].status === "stopped", 30000)) === true && (await anon("runner_beat", { token: people.Maya.device, job: run1.job_id, note: "x" })).body === false, (await mine()).changes[0]);
-    await sayAs("And another");
+    await changeAs("And another");
     sql(`update public.jobs set created_at = now() - interval '11 minutes' where kind = 'sandbox' and status = 'queued' and table_id = '${table}'`);
     await sleep(14000);
     check("11l one that is only waiting behind a busy computer is kept", (await mine()).changes[0].status === "working", (await mine()).changes[0]);
