@@ -252,7 +252,13 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
       // What every client was told, with no request of theirs behind it.
       ...updates.filter((u) => !u.request_id).map((u): Item => ({ kind: "line", id: `u-${u.id}`, created_at: u.created_at, me: false, own: false, text: u.body, question: u.replies?.length ? u : undefined })),
     ];
-    if (sent) items.push({ kind: "line", id: "sent", created_at: sent.at, me: true, own: true, desk: true, text: sent.body });
+    // Shown only until the real one arrives: the live push often lands before the send has finished, and the message
+    // showed twice.
+    const since = sent ? new Date(sent.at).getTime() - 10000 : 0;
+    const arrived = !!sent && (lines.some((l) => l.who === "client" && l.body === sent.body && new Date(l.created_at).getTime() > since)
+      || (sandbox?.changes ?? []).some((c) => c.words === sent.body && new Date(c.created_at).getTime() > since)
+      || requests.some((r) => r.body === sent.body && new Date(r.created_at).getTime() > since));
+    if (sent && !arrived) items.push({ kind: "line", id: "sent", created_at: sent.at, me: true, own: true, desk: true, text: sent.body });
     return items.sort(byTime);
   }, [requests, lines, updates, sandbox, sent]);
   const told = (requestId: string) => updates.filter((u) => u.request_id === requestId && !isAck(u)).sort(byTime);
@@ -535,7 +541,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
             {!locked && <AttachTray a={attach} />}
             <form className={room.composer} onSubmit={(e) => { e.preventDefault(); if (!locked) say(); }} {...(locked ? {} : dropHandlers(attach))}>
               <textarea ref={inputRef} className={room.input} rows={1} value={draft} disabled={locked} maxLength={4000}
-                placeholder={locked ? "Only they can write here" : sandbox?.on ? "Ask anything, or say what to change" : "Write a message"} aria-label="Ask the team"
+                placeholder={locked ? "Only they can write here" : ""} aria-label="Ask the team"
                 onChange={(e) => { setDraft(e.target.value); grow(); }}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (!locked) say(); } }} />
               {!locked && <AttachButtons a={attach} disabled={busy} />}

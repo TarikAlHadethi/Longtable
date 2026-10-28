@@ -131,6 +131,11 @@ try {
   results.where = where;
   const lookedAgain = Number(sql(`select count(*) from public.jobs where table_id = '${owner.tableId}' and kind = 'client' and stage = 1`)) > before;
   check("asked where the project stands, it looks and answers, never that it does not know", lookedAgain && /greet|hello/i.test(where) && !/(don't|do not|doesn't|does not) (know|have)|not sure/i.test(where), { lookedAgain, where });
+  const beforeReady = Number(sql(`select count(*) from public.jobs where table_id = '${owner.tableId}' and kind = 'client' and stage = 1`));
+  const ready = await next("ok so i want to try it with 25 people, is it ready?");
+  results.ready = ready;
+  const lookedReady = Number(sql(`select count(*) from public.jobs where table_id = '${owner.tableId}' and kind = 'client' and stage = 1`)) > beforeReady;
+  check("asked whether it is ready, it looks and answers instead of only passing it on", lookedReady && /greet|hello/i.test(ready), { lookedReady, ready });
   const done = await next("What is finished and what are you still working on?");
   results.done = done;
   check("she hears what is finished and what is under way", /photos/i.test(done) && /trimester/i.test(done), done);
