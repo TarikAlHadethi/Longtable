@@ -136,9 +136,11 @@
 @keyframes cl-side { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
 
 @media (max-width: 1100px) {
-  .panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(360px, 92vw); z-index: 40; transform: translateX(105%); transition: transform 0.3s var(--ease-out);
+  .panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(360px, 92vw); z-index: 40; transform: translateX(105%);
+    /* Hidden once slid away: on a phone the drawer sitting off the right edge let the page be dragged sideways. */
+    visibility: hidden; transition: transform 0.3s var(--ease-out), visibility 0s linear 0.3s;
     animation: none; box-shadow: -18px 0 50px oklch(0.2 0.01 70 / 0.18); }
-  .panelOpen { transform: none; }
+  .panelOpen { transform: none; visibility: visible; transition: transform 0.3s var(--ease-out), visibility 0s; }
   .panelHead { display: flex; }
   .panelButton { display: inline-flex; }
 }

@@ -248,3 +248,8 @@ details > summary { transition: color 0.15s ease; }
   details::details-content { transition: none; }
   details[open] > :not(summary), [role="status"] { animation: none; }
 }
+
+/* No page ever moves sideways: anything that sticks out past the right edge (a drawer slid away, a long word) is cut
+   off instead of letting a phone drag the whole page left and right. Places meant to scroll sideways scroll inside. */
+html, body { overflow-x: clip; }
+
