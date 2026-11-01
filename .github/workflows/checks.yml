@@ -43,6 +43,7 @@ jobs:
       - run: node tools/house-rules.mjs
       - run: node tests/e2e/unit-scan.mjs
       - run: node tests/e2e/unit-prompts.mjs
+      - run: node tests/e2e/unit-client-rules.mjs
       - run: node tests/e2e/unit-pointed.mjs
       - run: node tests/e2e/unit-land.mjs
       - run: node tests/e2e/unit-report.mjs

@@ -13,6 +13,9 @@
   "bin": {
     "longtable": "bin/longtable.mjs"
   },
+  "scripts": {
+    "prepublishOnly": "node ../../tools/client-gate.mjs"
+  },
   "files": [
     "bin",
     "src",
