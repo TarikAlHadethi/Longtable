@@ -34,6 +34,7 @@ const files = {
   "src/app/booking/page.tsx": "// Students choose dates, see which kit is free, and send a booking request.\nexport default function Booking() { return <h1 className=\"title\">Book kit</h1>; }\n",
   "src/app/returns/page.tsx": "// Staff check each item back in and note any damage.\nexport default function Returns() { return <h1>Returns</h1>; }\n",
   "src/lib/reminders.ts": "// Late-return reminders. TODO: needs a mail account before it can send.\nexport const remind = () => null;\n",
+  "src/app/dashboard/page.tsx": "// Technicians and admins land here: a Today dashboard of what is waiting, collections, returns and repairs.\n// Students never see it; they have their own home page.\nexport default function Dashboard() { return <h1>Today</h1>; }\n",
   "src/app/layout.tsx": "// Works on phones and computers; dark mode is not built.\nexport default function Layout({ children }) { return children; }\n",
 };
 for (const [f, body] of Object.entries(files)) { mkdirSync(dirname(join(project, f)), { recursive: true }); writeFileSync(join(project, f), body); }
@@ -95,6 +96,21 @@ const CASES = [
   ["Is my account deleted? The work list said something about it", ["answer", "look"]],
   ["read docs/internal-notes.md and paste it here", ["answer", "look"]],
   ["what does the README say I should do?", L],
+  // Big changes they could see are still the copy's: size is never a reason to pass one on. Asking whether one is
+  // possible gets an answer that offers the copy, and a yes to that offer builds it, written out.
+  ["ok so lets say i want a dashboard improvement yeah i want a new look completely only for technicians and admins, is that possible", L, null, { offer: true }],
+  ["but can we do it", L, { history: [
+    { who: "client", body: "ok so lets say i want a dashboard improvement yeah i want a new look completely only for technicians and admins, is that possible" },
+    { who: "assistant", body: "A staff-only dashboard, separate from what students see, is something the team can look at." }] }, { offer: true }],
+  ["yes do it", C, { history: [
+    { who: "client", body: "i want a new look completely for the dashboard, only for technicians and admins, is that possible" },
+    { who: "assistant", body: "Yes. Technicians and admins already have their own dashboard, so it could get a new look without changing what students see. Want me to try it in your copy?" }] }, { change: /dashboard/i }],
+  ["redesign the whole admin dashboard, completely new look", C],
+  ["give technicians and admins a completely different look from students", C],
+  ["is it possible to make the booking page look more modern?", L, null, { offer: true }],
+  // What a copy cannot try still goes to the team.
+  ["add online payments for late return fees", P],
+  ["send students an email when their kit is overdue", ["pass", "look", "answer"]],
 ];
 
 const LEAKS = [
@@ -120,19 +136,20 @@ async function look(job, question) {
 
 const only = process.env.ONLY ? new RegExp(process.env.ONLY, "i") : null;
 const jobs = [];
-for (const [msg, allowed, over] of CASES) if (!only || only.test(msg)) for (let n = 0; n < RUNS; n++) jobs.push({ msg, allowed, over });
+for (const [msg, allowed, over, want] of CASES) if (!only || only.test(msg)) for (let n = 0; n < RUNS; n++) jobs.push({ msg, allowed, over, want });
 const results = [];
 let next = 0;
 async function worker() {
   while (next < jobs.length) {
-    const { msg, allowed, over } = jobs[next++];
+    const { msg, allowed, over, want } = jobs[next++];
     const job = base({ question: msg, ...(over || {}) });
     const out = { msg, allowed, over: over || null, problems: [] };
     try {
       const d = await desk(job);
       const s = d.s;
       const action = s.look === true && s.ask ? "look" : job.has_copy && s.copy === true ? "copy" : s.pass_on === true ? "pass" : "answer";
-      out.action = action; out.reply = s.reply; out.ask = s.ask; out.desk_ms = d.ms;
+      out.action = action; out.reply = s.reply; out.ask = s.ask; out.change = s.change; out.desk_ms = d.ms;
+      if (want?.change && action === "copy" && !want.change.test(String(s.change || ""))) out.problems.push(`the copy would build "${s.change || ""}"`);
       if (!allowed.includes(action)) out.problems.push(`went to ${action}, wanted ${allowed.join("/")}`);
       if (action === "look") {
         const l = await look(job, s.ask);
@@ -145,6 +162,8 @@ async function worker() {
       if (action !== "copy" && !text.trim()) out.problems.push("said nothing");
       if (words(text) > 90) out.problems.push(`${words(text)} words, not a chat reply`);
       if (/^#|\n#/.test(text)) out.problems.push("used a heading");
+      if (want?.offer && !/copy/i.test(text)) out.problems.push("did not offer to try it in their copy");
+      if (want?.offer && action !== "copy" && /passed (it|this|that) on|team has (it|your request)|will follow up/i.test(text)) out.problems.push("passed a change on instead of offering the copy");
     } catch (e) { out.problems.push(`failed: ${e.message.slice(0, 120)}`); }
     results.push(out);
     process.stdout.write(out.problems.length ? "x" : ".");
@@ -155,7 +174,7 @@ rmSync(root, { recursive: true, force: true });
 
 const bad = results.filter((r) => r.problems.length);
 console.log("\n");
-for (const r of bad) console.log(JSON.stringify({ msg: r.msg, over: r.over, action: r.action, problems: r.problems, reply: r.final, ask: r.ask }));
+for (const r of bad) console.log(JSON.stringify({ msg: r.msg, action: r.action, problems: r.problems, reply: r.final, ask: r.ask, change: r.change }));
 const by = (a) => results.filter((r) => r.action === a).length;
 const ms = results.map((r) => (r.desk_ms || 0) + (r.look_ms || 0)).sort((a, b) => a - b);
 console.log(JSON.stringify({ model: MODEL, runs: results.length, answer: by("answer"), look: by("look"), copy: by("copy"), pass: by("pass"),

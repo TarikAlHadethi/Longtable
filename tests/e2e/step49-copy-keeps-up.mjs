@@ -162,6 +162,12 @@ try {
   on(); take(q2.body.job); c0 = changesNow(); l0 = linesNow();
   await anon("runner_finish", { token: device, job: q2.body.job, answer: "Yes, it works today.", info: { pass_on: false, copy: false, title: "" } });
   check("an answer from the assistant is said, and nothing is built", changesNow() === c0 && linesNow() === l0 + 1);
+  // A yes to the assistant's offer: the copy builds the change it wrote out, not the word "yes".
+  const yes = await rpc(tok, "client_say", { t, body: "yes do it" });
+  on(); take(yes.body.job); c0 = changesNow();
+  await anon("runner_finish", { token: device, job: yes.body.job, answer: "Trying it in your copy.", info: { pass_on: false, copy: true, change: "Give the staff dashboard a completely new look", title: "" } });
+  check("a yes to an offer builds the change the assistant wrote out", changesNow() === c0 + 1
+    && sql(`select words from public.sandbox_changes where member_id = '${client}' order by created_at desc limit 1`) === "Give the staff dashboard a completely new look");
   // A connection from before it could say copy (0.1.44) passes a change on: for a client with a copy, that is the copy.
   const older = await rpc(tok, "client_say", { t, body: "put the search box at the top" });
   on(); take(older.body.job); c0 = changesNow();
