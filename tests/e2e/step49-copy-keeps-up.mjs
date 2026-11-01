@@ -174,7 +174,8 @@ try {
   const reqs = () => Number(sql(`select count(*) from public.requests where member_id = '${client}'`));
   const r0 = reqs();
   await anon("runner_finish", { token: device, job: full.body.job, answer: "Trying it in your copy.", info: { pass_on: false, copy: true, title: "Grey footer" } });
-  check("a copy with no changes left today passes the change to the team instead", changesNow() === c0 && reqs() === r0 + 1);
+  check("a copy with no changes left today passes the change to the team instead, and says so", changesNow() === c0 && reqs() === r0 + 1
+    && sql(`select body from public.client_lines where member_id = '${client}' and who = 'assistant' order by created_at desc limit 1`).startsWith("You've used today's changes for your copy"));
   sql(`update public.table_sandbox set cap = null where table_id = '${t}'`);
 
   // Copies built on one computer: hosting that builds only its owner's commits (Vercel's free plan) never builds a
@@ -203,7 +204,7 @@ try {
   await anon("runner_finish", { token: samDevice, job: offAsk.body.job, answer: "Trying it in your copy.", info: { pass_on: false, copy: true, title: "Green header" } });
   check("with the builder's computer off, a change is passed to the team, not built on another computer", changesNow() === c0
     && Number(sql(`select count(*) from public.requests where member_id = '${client}'`)) === r1 + 1
-    && sql(`select body from public.client_lines where member_id = '${client}' and who = 'assistant' order by created_at desc limit 1`).startsWith("Your copy can't take that right now"));
+    && sql(`select body from public.client_lines where member_id = '${client}' and who = 'assistant' order by created_at desc limit 1`) === "Maya's computer is off right now, so I've left them a message. You'll hear back here.");
   check("and no copy job went to the other computer", sql(`select count(*) from public.jobs where table_id = '${t}' and kind = 'sandbox' and member_id = '${samId}'`) === "0");
   check("setting a copy up says whose computer is off", JSON.stringify((await rpc(tok, "prepare_client_sandbox", { m: client })).body).includes("Maya's computer builds this table's copies"));
   // The builder's computer on: the change is built there, even when another computer is also on.

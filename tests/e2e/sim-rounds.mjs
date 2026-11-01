@@ -793,7 +793,7 @@ try {
     await rpc(people.Maya.token, "set_sandbox_links", { t: table, ours: "https://ours.example.test", cap: 3, m: dana.id, theirs: "https://dana.example.test/app" });
     const full = await changeAs("One more thing");
     check("11i past the day's limit a change goes to the team instead, and she is told why", !full.change && full.passed && (await mine()).left === 0
-      && /can't take that right now/.test(sql(`select body from public.client_lines where member_id = '${dana.id}' and who = 'assistant' order by created_at desc limit 1`)), full);
+      && /used today's changes for your copy, so I've left the team a message/.test(sql(`select body from public.client_lines where member_id = '${dana.id}' and who = 'assistant' order by created_at desc limit 1`)), full);
     await rpc(people.Maya.token, "set_sandbox_links", { t: table, ours: "https://ours.example.test", cap: 50, m: dana.id, theirs: "https://dana.example.test/app" });
     offline("Maya");
     const asleep = (await sayAs("Is anyone there")).body;
