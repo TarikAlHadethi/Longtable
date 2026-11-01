@@ -7,7 +7,7 @@
 
 import { createHmac } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { API, APP, KEY, accessToken, launch, rpc, startTable, sleep } from "./lib.mjs";
+import { API, APP, KEY, accessToken, inviteLink, join, launch, rpc, startTable, sleep } from "./lib.mjs";
 
 const sql = (q) => execFileSync("docker", ["exec", "-i", process.env.DB_CONTAINER || "supabase_db_longtable", "psql", "-U", "postgres", "-d", "postgres", "-At", "-c", q], { encoding: "utf8" }).trim();
 const anon = async (fn, args) => { const r = await fetch(`${API}/rest/v1/rpc/${fn}`, { method: "POST", headers: { apikey: KEY, "Content-Type": "application/json" }, body: JSON.stringify(args) }); return { status: r.status, body: await r.json().catch(() => null) }; };
@@ -176,6 +176,57 @@ try {
   await anon("runner_finish", { token: device, job: full.body.job, answer: "Trying it in your copy.", info: { pass_on: false, copy: true, title: "Grey footer" } });
   check("a copy with no changes left today passes the change to the team instead", changesNow() === c0 && reqs() === r0 + 1);
   sql(`update public.table_sandbox set cap = null where table_id = '${t}'`);
+
+  // Copies built on one computer: hosting that builds only its owner's commits (Vercel's free plan) never builds a
+  // change made on a teammate's computer, so the table can say whose computer builds them, and every copy job waits
+  // for it.
+  const sam = await join(browser, await inviteLink(o.page, "developer"), `sam-${run}@example.test`, "Sam Ali");
+  const samTok = await accessToken(sam.context);
+  const samCode = (await rpc(samTok, "start_pairing", { t, ai_kind: "claude" })).body;
+  const samDevice = (await anon("pair_connection", { code: samCode, device_label: "sam" })).body.token;
+  const samId = sql(`select id from public.members where table_id = '${t}' and display_name = 'Sam Ali'`);
+  sql(`update public.jobs set status = 'skipped' where table_id = '${t}' and kind = 'intro' and status in ('queued', 'waiting')`);
+  const seen = (who, ago) => sql(`update public.connections set last_seen = now() - interval '${ago}' where member_id = '${who}'`);
+  check("a developer cannot choose where copies are built", (await rpc(samTok, "set_copy_builder", { t, m: maya })).status >= 400);
+  check("copies are never built on a client's computer", (await rpc(tok, "set_copy_builder", { t, m: client })).status >= 400);
+  check("the owner chooses their own computer", (await rpc(tok, "set_copy_builder", { t, m: maya })).status < 300
+    && sql(`select builder from public.table_sandbox where table_id = '${t}'`) === maya
+    && sql(`select count(*) from public.activity where table_id = '${t}' and action = 'sandbox.builder'`) !== "0");
+  // Only Sam's computer is on: a change cannot be built now, so it goes to the team and the client is told why.
+  seen(maya, "10 minutes"); seen(samId, "0 seconds");
+  const offAsk = await rpc(tok, "client_say", { t, body: "make the header green" });
+  sql(`update public.jobs set status = 'running', started_at = now(), lease_until = now() + interval '5 minutes' where id = '${offAsk.body.job}'`);
+  c0 = changesNow();
+  const r1 = Number(sql(`select count(*) from public.requests where member_id = '${client}'`));
+  // Finished by Sam's connection, the one that is on (Maya's would mark her computer on again by finishing).
+  sql(`update public.jobs set member_id = '${samId}' where id = '${offAsk.body.job}'`);
+  await anon("runner_finish", { token: samDevice, job: offAsk.body.job, answer: "Trying it in your copy.", info: { pass_on: false, copy: true, title: "Green header" } });
+  check("with the builder's computer off, a change is passed to the team, not built on another computer", changesNow() === c0
+    && Number(sql(`select count(*) from public.requests where member_id = '${client}'`)) === r1 + 1
+    && sql(`select body from public.client_lines where member_id = '${client}' and who = 'assistant' order by created_at desc limit 1`).startsWith("Your copy can't take that right now"));
+  check("and no copy job went to the other computer", sql(`select count(*) from public.jobs where table_id = '${t}' and kind = 'sandbox' and member_id = '${samId}'`) === "0");
+  check("setting a copy up says whose computer is off", JSON.stringify((await rpc(tok, "prepare_client_sandbox", { m: client })).body).includes("Maya's computer builds this table's copies"));
+  // The builder's computer on: the change is built there, even when another computer is also on.
+  seen(maya, "0 seconds"); seen(samId, "0 seconds");
+  const onAsk = await rpc(tok, "client_say", { t, body: "make the header blue" });
+  take(onAsk.body.job); c0 = changesNow();
+  await anon("runner_finish", { token: device, job: onAsk.body.job, answer: "Trying it in your copy.", info: { pass_on: false, copy: true, title: "Blue header" } });
+  check("with the builder's computer on, the change is built on it", changesNow() === c0 + 1
+    && sql(`select j.member_id from public.jobs j join public.sandbox_changes c on c.id = j.change_id where c.words = 'make the header blue' and c.member_id = '${client}'`) === maya);
+  // Every other way a copy job is made goes to the builder too.
+  const stray = sql(`insert into public.jobs (table_id, member_id, kind, subject, brief) values ('${t}', '${samId}', 'sandbox', '${client}', 'refresh') returning member_id`).split("\n")[0];
+  check("a copy job made for another computer goes to the builder", stray === maya);
+  const moved = sql(`update public.jobs set member_id = '${samId}' where table_id = '${t}' and kind = 'sandbox' and brief = 'refresh' returning member_id`).split("\n")[0];
+  check("and cannot be moved away from it", moved === maya);
+  check("changing the builder moves the copy jobs still waiting", (await rpc(tok, "set_copy_builder", { t, m: samId })).status < 300
+    && sql(`select member_id from public.jobs where table_id = '${t}' and kind = 'sandbox' and brief = 'refresh' and status = 'queued'`) === samId);
+  // A builder taken off the team no longer holds the copies: any team computer builds them again.
+  await rpc(tok, "remove_member", { m: samId });
+  seen(maya, "0 seconds");
+  check("a builder taken off the team no longer holds the copies", sql(`select public.copy_seat('${t}')`) === maya);
+  check("back to any team computer", (await rpc(tok, "set_copy_builder", { t, m: null })).status < 300
+    && sql(`select coalesce(builder::text, '') from public.table_sandbox where table_id = '${t}'`) === "");
+  sql(`update public.jobs set status = 'skipped' where table_id = '${t}' and kind = 'sandbox' and status = 'queued'`);
 
   // The team never reads client_sandbox for another client's copy: it is the client's own (or the owner acting as the test client).
   check("a delivery for another branch changes nothing", (await deliver("failure", sha("d"), "longtable/someone-else")) === 204 && (await copy()).broken === false);

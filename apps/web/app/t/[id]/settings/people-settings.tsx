@@ -110,7 +110,7 @@ export function PeopleSettings({ tableId, me, mainOwner, myRole, people, focus, 
 export function ClientSettings({ tableId, me, people, answerers, setAnswerer, savedFor, focus, onRemoved, copies, onCopies }: {
   tableId: string; me: string; people: Person[]; answerers: Record<string, "own" | "table">; setAnswerer: (m: string, who: "own" | "table") => void;
   savedFor: string; focus?: string | null; onRemoved: (id: string) => void;
-  copies: { preview_url: string | null; cap: number | null; paths: string | null; scope?: "screens" | "code"; blocked?: string } | null | undefined; onCopies: (c: { preview_url: string | null; cap: number | null; paths: string | null; scope?: "screens" | "code"; blocked?: string }) => void;
+  copies: { preview_url: string | null; cap: number | null; paths: string | null; scope?: "screens" | "code"; blocked?: string; builder?: string | null } | null | undefined; onCopies: (c: { preview_url: string | null; cap: number | null; paths: string | null; scope?: "screens" | "code"; blocked?: string; builder?: string | null }) => void;
 }) {
   const supabase = browserClient();
   const [error, setError] = useState("");
@@ -125,6 +125,9 @@ export function ClientSettings({ tableId, me, people, answerers, setAnswerer, sa
   // separate from the real product; and paths the owner keeps out of every copy whatever the mode.
   const [scope, setScope] = useState<"screens" | "code">(copies?.scope ?? "screens");
   const [blocked, setBlocked] = useState(copies?.blocked ?? "");
+  // Whose computer builds the copies: some hosting builds only its account owner's own commits.
+  const [builder, setBuilder] = useState(copies?.builder ?? "");
+  const team = people.filter((p) => p.role === "owner" || p.role === "developer");
   const [copySaved, setCopySaved] = useState(false);
   // Shown and saved only once really read: before, a save would write the defaults over what was there.
   const read = copies !== undefined;
@@ -135,6 +138,7 @@ export function ClientSettings({ tableId, me, people, answerers, setAnswerer, sa
     setOurs(copies?.preview_url ?? "");
     setScope(copies?.scope ?? "screens");
     setBlocked(copies?.blocked ?? "");
+    setBuilder(copies?.builder ?? "");
   }, [copies]);
   async function saveCopies(e: React.FormEvent) {
     e.preventDefault();
@@ -144,9 +148,11 @@ export function ClientSettings({ tableId, me, people, answerers, setAnswerer, sa
     if (error) return setError(error.message);
     const rules = await supabase.rpc("set_copy_rules", { t: tableId, scope, blocked });
     if (rules.error) return setError(rules.error.message);
+    const built = await supabase.rpc("set_copy_builder", { t: tableId, m: builder || null });
+    if (built.error) return setError(built.error.message);
     setCopySaved(true);
     onCopies({ preview_url: ours.trim() || null, cap: Number(cap) <= 0 ? null : Number(cap), paths: paths.trim() || null, scope,
-      blocked: blocked.split(/[,\n]/).map((x) => x.trim()).filter(Boolean).join(", ") });
+      blocked: blocked.split(/[,\n]/).map((x) => x.trim()).filter(Boolean).join(", "), builder: builder || null });
   }
   async function remove(p: Person) {
     setError("");
@@ -188,6 +194,10 @@ export function ClientSettings({ tableId, me, people, answerers, setAnswerer, sa
         <Select id="copy-scope" value={scope} onChange={(v) => setScope(v as "screens" | "code")}
           options={[{ value: "screens", label: "Screens only" }, { value: "code", label: "Screens and the code behind them" }]} />
         {scope === "code" && <div className="note">Only for a preview with its own made-up database and no real keys. Sign-in, the database, settings, packages and tests stay off limits, and every change is type-checked first.</div>}
+        <label className="label" htmlFor="copy-builder">Built on</label>
+        <Select id="copy-builder" value={builder} onChange={setBuilder}
+          options={[{ value: "", label: "Any team computer that is on" }, ...team.map((p) => ({ value: p.id, label: p.id === me ? "Only my computer" : `Only ${firstName(p.display_name)}'s computer` }))]} />
+        {builder && <div className="note">Changes wait for this computer. Pick it when your hosting builds only its owner&apos;s commits, as Vercel&apos;s free plan does.</div>}
         <label className="label" htmlFor="copy-blocked">Never changed by a copy</label>
         <input id="copy-blocked" className="field" value={blocked} onChange={(e) => setBlocked(e.target.value)} placeholder="For example prisma/, proxy.ts" />
         <label className="label" htmlFor="copy-paths">Folders a copy may change</label>
