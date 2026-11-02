@@ -6,6 +6,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { AI_NAME, AiLogo } from "@/components/ai-logo";
 import { Arrow } from "@/components/icons";
 import { Mark, WorkingMark } from "@/components/mark";
+import { copyWords } from "@/lib/copy-words.mjs";
 import { downloadExport } from "@/lib/download";
 import { Prose } from "@/lib/inline";
 import { browserClient } from "@/lib/supabase/browser";
@@ -205,8 +206,8 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   // still waiting: sent to it, not yet answered, not yet passed on, and not long ago.
   // Their words the team's assistant sent on to their copy: the change carries them from then on, so the line is not
   // shown twice and the assistant is not still "thinking" about it.
-  const toCopy = useMemo(() => new Set(lines.filter((l) => l.who === "client" && l.by_table && (sandbox?.changes ?? []).some((c) => c.words === l.body
-    && new Date(c.created_at).getTime() >= new Date(l.created_at).getTime() - 2000 && new Date(c.created_at).getTime() - new Date(l.created_at).getTime() < 600000)).map((l) => l.id)), [lines, sandbox]);
+  const copied = useMemo(() => copyWords(lines, sandbox?.changes ?? []), [lines, sandbox]);
+  const toCopy = copied.lineIds;
   const lastLine = lines.length ? [...lines].sort(byTime)[lines.length - 1] : null;
   // Their last words with no answer yet: the answer is forming. Waiting words wait for a team AI to come on.
   const waitingOn = !!lastLine && lastLine.who === "client" && !!lastLine.by_table && !!lastLine.waiting;
@@ -482,7 +483,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
                 const asked = c.request_id ? requests.find((r) => r.id === c.request_id) : undefined;
                 return (
                   <div key={item.id} className={styles.turn} data-change={c.id}>
-                    {myWords(c.words)}
+                    {myWords(copied.saidFor.get(c.id) ?? c.words)}
                     <div className={styles.back}>
                       {speaker(asked ? "team" : "copy")}
                       {c.status === "working" && <div className={styles.formingLine} data-testid="change-status">Building it in your copy<span className={styles.formingDots}><i /><i /><i /></span></div>}
