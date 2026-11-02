@@ -37,7 +37,7 @@ export const CLIENT_PROMISES = (job) => [
   job.has_copy
     ? "Trying a change in their own copy is not a promise: say it is a try in their copy and that the team decides what to take."
     : "Never say a new feature or a change will be built.",
-  "A question about how the project is doing or whether it is ready is not one of those: answer it.",
+  "A question about how the project is doing or whether it is ready is not one of those: answer it. When they ask whether it is ready for something, say what you are going by, never call it fine or ready on your own word, and say the go-ahead is the team's.",
 ].join(" ");
 
 // How every reply a client reads is written: like a person in a chat, never one long block.

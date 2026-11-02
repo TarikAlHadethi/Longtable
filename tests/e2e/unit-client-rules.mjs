@@ -2,7 +2,7 @@
 // keeps every client rule in that one file. No model, no database.
 import { readFileSync } from "node:fs";
 import { PASS_REASONS, checkClientReply, clientFields, passReasons } from "../../packages/connect/src/client-rules.mjs";
-import { clientLookPrompt, clientPrompt, systemFor } from "../../packages/connect/src/run.mjs";
+import { clientLookPrompt, clientPrompt, sandboxSystem, systemFor } from "../../packages/connect/src/run.mjs";
 
 let failed = 0;
 const check = (name, ok, got) => { console.log(`${ok ? "pass" : "FAIL"}  ${name}`); if (!ok) { failed++; if (got !== undefined) console.log("      got:", JSON.stringify(got).slice(0, 400)); } };
@@ -60,6 +60,9 @@ check("a client's own assistant is told its reasons", passReasons(ownJob).every(
 check("the look with a copy offers it and never passes a change on", /offering to try it in their copy/.test(look) && !look.includes(PASS_REASONS.change));
 check("no prompt tells anyone to pass on any change", ![deskCopy, deskPlain, own, look, systemFor(copyJob)].some((p) => /anything new or a change|new feature.{0,40}team has the question/i.test(p)));
 check("with a copy, nothing says a feature will not be tried", !/Never say a new feature/.test(systemFor(copyJob)) && /try in their copy/.test(systemFor(copyJob)));
+
+check("asked whether it is ready, every prompt says the go-ahead is the team's", [systemFor(copyJob), systemFor(plainJob), systemFor(ownJob), look + systemFor({ ...copyJob, stage: 1 })].every((p) => /go-ahead is the team's/.test(p)));
+check("a copy passing something on never says it will be built", ((p) => !/will see it here when it is done/.test(p) && /never say it will be built/.test(p))(sandboxSystem({ client: "Daniel", table_name: "Kit Room" })));
 
 // One rulebook: no other source file words a client's routing
 const run = readFileSync(new URL("../../packages/connect/src/run.mjs", import.meta.url), "utf8");

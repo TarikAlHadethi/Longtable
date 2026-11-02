@@ -11,7 +11,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const PASS_FILE = join(root, "tmp", "probe-client-pass.json");
 
 export async function clientFingerprint() {
-  const { clientLookPrompt, clientPrompt, clientSchema, systemFor } = await import("../packages/connect/src/run.mjs");
+  const { clientLookPrompt, clientPrompt, clientSchema, sandboxSystem, systemFor } = await import("../packages/connect/src/run.mjs");
   const { clientFields } = await import("../packages/connect/src/client-rules.mjs");
   const base = { kind: "client", table_name: "T", me: "C", question: "Q", requests: [{ title: "R", status: "asked", timeline: ["You asked"] }],
     told: [{ words: "W" }], work: [{ title: "K", status: "done" }], history: [{ who: "client", body: "H" }] };
@@ -19,6 +19,7 @@ export async function clientFingerprint() {
     { for_team: true, has_copy: true }, { for_team: true, can_look: true, has_copy: true, already_passed: true }].map((o) => ({ ...base, ...o }));
   const parts = shapes.flatMap((j) => [clientPrompt(j), systemFor(j), JSON.stringify(clientSchema(j)), clientLookPrompt({ ...j, stage: 1, brief: "B" }),
     JSON.stringify(clientFields(j, { look: true }))]);
+  parts.push(sandboxSystem({ client: "C", table_name: "T" }));
   parts.push(readFileSync(join(root, "packages/connect/src/client-rules.mjs"), "utf8"));
   return createHash("sha256").update(parts.join("\u0000")).digest("hex");
 }
