@@ -1171,7 +1171,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         <ClientPage key={seen.id} table={{ id: table.id, name: tableName }} me={{ id: seen.id, display_name: seen.display_name, color: seen.color }}
           initialRequests={requests.filter((r) => r.member_id === seen.id)} initialEvents={[]} initialUpdates={[]} initialLines={[]}
           initialConnections={connections.filter((c) => c.member_id === seen.id && !c.revoked_at)} initialJobs={[]}
-          viewer={{ onBack: goHome, others: clients, onPick: setClientId, acting: !!seen.test && self.role === "owner", uploader: self.id,
+          viewer={{ onBack: goHome, others: clients, onPick: setClientId, acting: !!seen.test && self.role === "owner", uploader: self.id, writeAs: mayClients ? self.display_name : undefined,
             onTest: self.role === "owner" && !testClient ? addTest : undefined, onRemoveTest: seen.test && self.role === "owner" ? removeTest : undefined }} />
         </>
       );

@@ -51,6 +51,19 @@ check("no reply at all is refused", breaks(copyJob, null, /no reply/));
 check("the look: a change with a copy is not passed on", breaks(copyJob, { reply: "x", pass_on: true, reason: "change", title: "t" }, /not a reason/, { look: true }));
 check("the look: 'could not find it' is not passed on", breaks(ownJob, { reply: "x", pass_on: true, reason: "unknown", title: "t" }, /not a reason/, { look: true }));
 
+// A person on the team talking with the client: the desk may stay out of it, and only then
+const talkingJob = { ...copyJob, team_talking: true, history: [{ who: "team", name: "Maya Stone", body: "Does Tuesday work?" }] };
+const quiet = ok({ quiet: true, reply: "" });
+check("with a person talking, quiet and no reply is fine", none(talkingJob, quiet));
+check("the schema has quiet only while a person is talking", !!clientFields(talkingJob).properties.quiet && clientFields(talkingJob).required.includes("quiet") && !clientFields(copyJob).properties.quiet);
+check("quiet with nobody talking is refused", breaks(copyJob, quiet, /nobody on the team/));
+check("quiet with nobody talking still needs a reply", breaks(copyJob, quiet, /empty/));
+check("quiet with a reply is refused", breaks(talkingJob, ok({ quiet: true, reply: "Sure." }), /leave reply empty/));
+check("quiet and a copy at once is refused", breaks(talkingJob, ok({ quiet: true, reply: "", copy: true, change: "x" }), /more than one/));
+check("the desk is told about quiet only while a person is talking", /set quiet to true/.test(clientPrompt(talkingJob)) && !/set quiet to true/.test(clientPrompt(copyJob)));
+check("their line is marked as a person's, with their name", clientPrompt(talkingJob).includes("Maya Stone (a person on the team, writing here themselves): Does Tuesday work?"));
+check("the assistant is told those lines are not its own", /never say you said them/.test(systemFor(talkingJob)) && !/never say you said them/.test(systemFor(copyJob)));
+
 // The prompts say what the code checks
 const deskCopy = clientPrompt(copyJob), deskPlain = clientPrompt(plainJob), own = clientPrompt(ownJob);
 const look = clientLookPrompt({ ...copyJob, stage: 1, brief: "q" });

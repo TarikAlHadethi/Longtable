@@ -16,7 +16,8 @@ export async function clientFingerprint() {
   const base = { kind: "client", table_name: "T", me: "C", question: "Q", requests: [{ title: "R", status: "asked", timeline: ["You asked"] }],
     told: [{ words: "W" }], work: [{ title: "K", status: "done" }], history: [{ who: "client", body: "H" }] };
   const shapes = [{}, { for_team: true }, { for_team: true, can_look: true }, { for_team: true, can_look: true, has_copy: true },
-    { for_team: true, has_copy: true }, { for_team: true, can_look: true, has_copy: true, already_passed: true }].map((o) => ({ ...base, ...o }));
+    { for_team: true, has_copy: true }, { for_team: true, can_look: true, has_copy: true, already_passed: true },
+    { for_team: true, can_look: true, has_copy: true, team_talking: true, history: [{ who: "team", name: "N", body: "H" }] }].map((o) => ({ ...base, ...o }));
   const parts = shapes.flatMap((j) => [clientPrompt(j), systemFor(j), JSON.stringify(clientSchema(j)), clientLookPrompt({ ...j, stage: 1, brief: "B" }),
     JSON.stringify(clientFields(j, { look: true }))]);
   parts.push(sandboxSystem({ client: "C", table_name: "T" }));

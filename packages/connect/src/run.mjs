@@ -202,7 +202,7 @@ const fenceClient = (job) => {
   if (job.told?.length) parts.push("What the team told them, newest first:\n" + job.told.map((u) => `- ${u.words}${u.their_answer ? ` (they answered: ${u.their_answer})` : ""}`).join("\n"));
   if (job.work?.length) parts.push("What the team's AIs have taken on, newest first (titles only; \"finished\" means built and waiting for the team to check, not yet live):\n"
     + job.work.map((w) => `- "${w.title}": ${w.status === "done" ? "finished" : "under way"}`).join("\n"));
-  if (job.history?.length) parts.push("Your chat with them so far:\n" + job.history.map((l) => `${l.who === "client" ? job.me : "You"}: ${l.body ?? ""}`).join("\n"));
+  if (job.history?.length) parts.push("Your chat with them so far:\n" + job.history.map((l) => `${l.who === "client" ? job.me : l.who === "team" ? `${l.name || "Someone"} (a person on the team, writing here themselves)` : "You"}: ${l.body ?? ""}`).join("\n"));
   parts.push(`Their latest message:\n${job.question}`);
   return ["<<<TABLE", fenced(inert(parts.join("\n\n"))), "TABLE>>>"].join("\n");
 };
@@ -639,15 +639,16 @@ async function workClient(rpc, seat, engines, job) {
   const looking = !!job.can_look && s.look === true && typeof s.ask === "string" && s.ask.trim() !== "";
   const copying = !!job.has_copy && !looking && s.copy === true && String(s.change || "").trim() !== "";
   // Still empty after the second try: never leave the client with nothing, so their words go to the team.
-  const passing = !looking && !copying && (s.pass_on === true || !s.reply.trim());
+  const quiet = !!job.team_talking && !looking && !copying && s.quiet === true && s.pass_on !== true;
+  const passing = !looking && !copying && !quiet && (s.pass_on === true || !s.reply.trim());
   await rpc("runner_finish", {
     token: seat.token,
     job: job.job_id,
-    answer: looking || copying ? s.reply : s.reply.trim() || "I've passed this to the team, and you'll hear back here.",
-    info: { ...info, pass_on: passing, title: s.title || String(job.question || "").slice(0, 60), ...(looking ? { look: true, ask: s.ask.slice(0, 2000) } : {}),
+    answer: looking || copying || quiet ? s.reply : s.reply.trim() || "I've passed this to the team, and you'll hear back here.",
+    info: { ...info, ...(quiet ? { quiet: true } : {}), pass_on: passing, title: s.title || String(job.question || "").slice(0, 60), ...(looking ? { look: true, ask: s.ask.slice(0, 2000) } : {}),
       ...(job.has_copy ? { copy: copying, change: copying ? String(s.change).trim().slice(0, 2000) : "" } : {}) },
   });
-  log(`client job ${job.job_id} done, ${looking ? "asked for a deeper look" : copying ? "sent to their copy" : passing ? `passed on (${s.reason || "no reason"})` : "answered"}`);
+  log(`client job ${job.job_id} done, ${looking ? "asked for a deeper look" : copying ? "sent to their copy" : quiet ? "left to the person talking with them" : passing ? `passed on (${s.reason || "no reason"})` : "answered"}`);
   if (job.for_team) await report(rpc, seat, limits, info.model);
 }
 

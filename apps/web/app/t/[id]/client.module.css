@@ -33,6 +33,7 @@
 .back { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; max-width: 92%; animation: lt-rise 0.3s var(--ease-out) backwards; animation-delay: 70ms; }
 .from { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
 .fromName { font-weight: 560; color: var(--ink); }
+.teamWords { white-space: pre-wrap; }
 .said { font-size: 16.5px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; text-wrap: pretty; display: flex; flex-direction: column; gap: 10px; }
 /* An AI's reply, set like an answer on the team's side: paragraphs with air, real lists, the voice's face. */
 .voice { font-family: var(--font-voice); font-size: 17px; line-height: 1.5; color: var(--ink); white-space: normal; max-width: 46em; }

@@ -15,6 +15,7 @@ import {
   CONNECTION_COLUMNS, JOB_COLUMNS, LINE_COLUMNS, REQUEST_COLUMNS, UPDATE_COLUMNS,
   type ClientLine, type ClientUpdate, type Connection, type Job, type Request, type RequestEvent,
 } from "./types";
+import { Face } from "@/components/face";
 import { ProfileMenu } from "./profile-menu";
 import { AttachButtons, AttachTray, Files, dropHandlers, useAttach } from "./attach";
 import room from "./room.module.css";
@@ -60,7 +61,8 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   // Set when someone on the team is looking at this client's page. They see what the client sees and can use none of
   // it. The client's chat with their own assistant is not the team's to read, so it is not here.
   // acting: the owner is using the table's test client, so the page works; otherwise a viewer only looks.
-  viewer?: { onBack: () => void; others?: { id: string; display_name: string }[]; onPick?: (id: string) => void; preview?: boolean; acting?: boolean; uploader?: string; onTest?: () => void; onRemoveTest?: () => void };
+  // writeAs: this person may also write in the chat themselves, under their own name.
+  viewer?: { onBack: () => void; others?: { id: string; display_name: string }[]; onPick?: (id: string) => void; preview?: boolean; acting?: boolean; uploader?: string; writeAs?: string; onTest?: () => void; onRemoveTest?: () => void };
 }) {
   const supabase = useMemo(() => browserClient(), []);
   const [requests, setRequests] = useState(initialRequests);
@@ -79,6 +81,9 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   const attach = useAttach(supabase, table.id, viewer?.uploader ?? me.id);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState<{ body: string; at: string } | null>(null);
+  // The owner trying the test client's side can answer that client as themselves too, as they would a real client.
+  const [asSelf, setAsSelf] = useState(false);
+  const asTeam = !!viewer?.writeAs && !viewer.preview && (!viewer.acting || asSelf);
   const [error, setError] = useState("");
   const [gone, setGone] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
@@ -152,7 +157,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   useEffect(() => {
     if (!viewer) return;
     reload();
-    const t = setInterval(() => { if (document.visibilityState === "visible") reload(); }, viewer.preview ? 30000 : viewer.acting ? 3000 : 8000);
+    const t = setInterval(() => { if (document.visibilityState === "visible") reload(); }, viewer.preview ? 30000 : 3000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!viewer, me.id]);
@@ -206,12 +211,16 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   // still waiting: sent to it, not yet answered, not yet passed on, and not long ago.
   // Their words the team's assistant sent on to their copy: the change carries them from then on, so the line is not
   // shown twice and the assistant is not still "thinking" about it.
-  const copied = useMemo(() => copyWords(lines, sandbox?.changes ?? []), [lines, sandbox]);
+  // A person on the team writing in between does not change which of the client's lines a change came from.
+  const copied = useMemo(() => copyWords(lines.filter((l) => l.who !== "team"), sandbox?.changes ?? []), [lines, sandbox]);
   const toCopy = copied.lineIds;
-  const lastLine = lines.length ? [...lines].sort(byTime)[lines.length - 1] : null;
+  // A person on the team writing does not stop the answer forming: what the client said is still being answered. Only
+  // the assistant answering, or staying quiet because the words were for that person, does.
+  const clientLines = lines.filter((l) => l.who !== "team");
+  const lastLine = clientLines.length ? [...clientLines].sort(byTime)[clientLines.length - 1] : null;
   // Their last words with no answer yet: the answer is forming. Waiting words wait for a team AI to come on.
   const waitingOn = !!lastLine && lastLine.who === "client" && !!lastLine.by_table && !!lastLine.waiting;
-  const deskBusy = !!lastLine && lastLine.who === "client" && !!lastLine.by_table && !toCopy.has(lastLine.id) && (waitingOn || (!lastLine.request_id && Date.now() - new Date(lastLine.created_at).getTime() < 300000));
+  const deskBusy = !!lastLine && lastLine.who === "client" && !!lastLine.by_table && !toCopy.has(lastLine.id) && !lastLine.quiet && (waitingOn || (!lastLine.request_id && Date.now() - new Date(lastLine.created_at).getTime() < 300000));
   const open = jobs.filter((j) => j.kind === "client" && (j.status === "queued" || j.status === "running"));
   const thinking = !!sent || deskBusy || open.length > 0;
   // How far along: a deeper look means the table asked one of the team's AIs, which reads the project.
@@ -241,7 +250,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
     | { kind: "request"; id: string; created_at: string; r: Request }
     | { kind: "change"; id: string; created_at: string; c: Change }
     | { kind: "told"; id: string; created_at: string; r: Request; u: ClientUpdate }
-    | { kind: "line"; id: string; created_at: string; me: boolean; own: boolean; desk?: boolean; text: string; question?: ClientUpdate };
+    | { kind: "line"; id: string; created_at: string; me: boolean; own: boolean; desk?: boolean; person?: string; text: string; question?: ClientUpdate };
   // What they just sent shows at once, and the answer starts forming under it, before the server has said a word.
   const feed = useMemo(() => {
     const passed = new Set((sandbox?.changes ?? []).map((c) => c.request_id).filter(Boolean));
@@ -253,7 +262,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
         .map((u): Item => ({ kind: "told", id: `t-${u.id}`, created_at: u.created_at, r, u }))),
       ...(sandbox?.changes ?? []).map((c): Item => ({ kind: "change", id: `c-${c.id}`, created_at: c.created_at, c })),
       // Their own words to their assistant show as a line unless they became a request, which carries them.
-      ...lines.filter((l) => !(l.who === "client" && (l.request_id || toCopy.has(l.id)))).map((l): Item => ({ kind: "line", id: `l-${l.id}`, created_at: l.created_at, me: l.who === "client", own: true, desk: !!l.by_table, text: l.body })),
+      ...lines.filter((l) => !(l.who === "client" && (l.request_id || toCopy.has(l.id)))).map((l): Item => ({ kind: "line", id: `l-${l.id}`, created_at: l.created_at, me: l.who === "client", own: true, desk: !!l.by_table, person: l.who === "team" ? l.from_name ?? "The team" : undefined, text: l.body })),
       // What every client was told, with no request of theirs behind it.
       ...updates.filter((u) => !u.request_id).map((u): Item => ({ kind: "line", id: `u-${u.id}`, created_at: u.created_at, me: false, own: false, text: u.body, question: u.replies?.length ? u : undefined })),
     ];
@@ -317,6 +326,18 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   // straight to the team.
   async function say(words?: string) {
     const body = (words ?? draft).trim();
+    if (asTeam) {
+      if (!body || busy) return;
+      setBusy(true);
+      setError("");
+      setDraft("");
+      requestAnimationFrame(grow);
+      const { error } = await supabase.rpc("team_say", { m: me.id, words: body });
+      setBusy(false);
+      if (error) { setDraft(body); return setError(sentence(error.message)); }
+      await reload();
+      return;
+    }
     if ((!body && !attach.pending.length) || busy || attach.busy) return;
     setBusy(true);
     setError("");
@@ -368,7 +389,17 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
 
   const first = firstName(me.display_name);
   const locked = !!viewer && !viewer.acting;
+  const boxLocked = locked && !asTeam;
   // Who is answering on the left: their copy, their own assistant, or the team. Beside the name, the one state.
+  const person = (name: string) => {
+    const known = overview?.team.find((p) => p.name === name);
+    return (
+      <div className={styles.from} data-testid="team-person">
+        <span className={styles.face} style={{ width: 18, height: 18, fontSize: 9, background: known?.color ?? "var(--faint)" }}><Face who={{ display_name: name, avatar: known?.avatar ?? null }} /></span>
+        <span className={styles.fromName}>{firstName(name)}</span>
+      </div>
+    );
+  };
   const speaker = (who: "copy" | "assistant" | "desk" | "team") => (
     <div className={styles.from}>
       {/* An AI answers under its maker's sign; the team answers under the table's. A copy is built by the team's
@@ -420,7 +451,9 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
         <div className={styles.viewing} data-testid="viewing">
           {viewer.acting
             ? <span>You are trying the client&apos;s side as a test client. What you send here reaches your table the way a real client&apos;s words would.</span>
+            : asTeam ? <span>You are looking at {first}&apos;s side. What you send shows in their chat under your name, and their assistant reads it.</span>
             : <span>You are looking at {first}&apos;s side. Nothing here can be changed.</span>}
+          {viewer.acting && viewer.writeAs && <button className={styles.other} onClick={() => setAsSelf((v) => !v)} data-testid="write-as">{asSelf ? "Write as the test client" : `Write as ${firstName(viewer.writeAs)}`}</button>}
           {viewer.onRemoveTest && <button className={styles.other} onClick={viewer.onRemoveTest} data-testid="remove-test-client">Remove the test client</button>}
           {viewer.onTest && <button className={styles.other} onClick={viewer.onTest} data-testid="add-test-client">Try it as a test client</button>}
           {(viewer.others?.length ?? 0) > 1 && viewer.others!.map((o) => (
@@ -458,6 +491,14 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
               }
               if (item.kind === "line") {
                 if (item.me) return <div key={item.id} className={styles.turn}>{myWords(item.text)}</div>;
+                if (item.person) return (
+                  <div key={item.id} className={styles.turn} data-testid="team-line">
+                    <div className={styles.back}>
+                      {person(item.person)}
+                      <div className={`${styles.said} ${styles.teamWords}`}>{item.text}</div>
+                    </div>
+                  </div>
+                );
                 return (
                   <div key={item.id} className={styles.turn}>
                     <div className={styles.back}>
@@ -543,14 +584,14 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
 
         <div className={styles.foot}>
           <div className={styles.col}>
-            {!locked && <AttachTray a={attach} />}
-            <form className={room.composer} onSubmit={(e) => { e.preventDefault(); if (!locked) say(); }} {...(locked ? {} : dropHandlers(attach))}>
-              <textarea ref={inputRef} className={room.input} rows={1} value={draft} disabled={locked} maxLength={4000}
-                placeholder={locked ? "Only they can write here" : ""} aria-label="Ask the team"
+            {!locked && !asTeam && <AttachTray a={attach} />}
+            <form className={room.composer} onSubmit={(e) => { e.preventDefault(); if (!boxLocked) say(); }} {...(locked || asTeam ? {} : dropHandlers(attach))}>
+              <textarea ref={inputRef} className={room.input} rows={1} value={draft} disabled={boxLocked} maxLength={4000}
+                placeholder={boxLocked ? "Only they can write here" : asTeam ? `Write to ${first}` : ""} aria-label={asTeam ? `Write to ${first}` : "Ask the team"} data-testid="client-box"
                 onChange={(e) => { setDraft(e.target.value); grow(); }}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (!locked) say(); } }} />
-              {!locked && <AttachButtons a={attach} disabled={busy} />}
-              <button className="btn" disabled={locked || busy || attach.busy || attach.recording || (!draft.trim() && attach.pending.length === 0)}>Send</button>
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (!boxLocked) say(); } }} />
+              {!locked && !asTeam && <AttachButtons a={attach} disabled={busy} />}
+              <button className="btn" disabled={boxLocked || busy || attach.busy || attach.recording || (!draft.trim() && attach.pending.length === 0)}>Send</button>
             </form>
             {/* How many changes are left only matters when it is nearly none. */}
             {sandbox?.on && !viewer && sandbox.left !== null && sandbox.left <= 3 && (
