@@ -108,6 +108,49 @@ try {
   await owner.page.fill("[data-testid=client-box]", "Answering the test client");
   await owner.page.keyboard.press("Enter");
   check("the owner can answer the test client as themselves", await until(() => sql(`select count(*) from public.client_lines where member_id = '${testId}' and who = 'team' and from_name = 'Maya Stone'`) === "1"));
+
+  // "Elena wrote" under People, until they have opened the chat
+  const badge = (page) => page.locator("[data-testid=wrote-badge]", { hasText: "Elena wrote" });
+  await owner.page.goto(`${APP}/t/${t}?side=client`);
+  await owner.page.waitForSelector("[data-testid=client-chat]");
+  await owner.page.click("[data-testid=table-portal]");
+  await owner.page.waitForSelector("[data-testid=gear]");
+  await owner.page.waitForSelector("[data-live]");
+  await dev.page.goto(`${APP}/t/${t}`);
+  await dev.page.waitForSelector("[data-live]");
+  await until(async () => (await badge(owner.page).count()) === 0, 4000);
+  if (await badge(owner.page).count()) { sql(`update public.client_chat_reads set read_at = now() where client_id = '${client}'`); await owner.page.reload(); await owner.page.waitForSelector("[data-live]"); }
+  check("nothing new, no marker", (await badge(owner.page).count()) === 0);
+  await rpc(et, "client_say", { t, body: "are you there?", files: [] });
+  check("the client writing shows under People, live", await until(async () => (await badge(owner.page).count()) === 1));
+  check("the tab counts it", await until(async () => /^\(1\) /.test(await owner.page.title()), 4000), await owner.page.title());
+  check("a developer without the switch has no marker", (await dev.page.locator("[data-testid=wrote-badge]").count()) === 0);
+  check("nor can they read it", ((await rpc(dt, "clients_wrote", { t })).body ?? []).length === 0);
+  check("a client reads nothing from it", ((await rpc(et, "clients_wrote", { t })).body ?? []).length === 0);
+  check("nor does another table", ((await rpc(xt, "clients_wrote", { t })).body ?? []).length === 0);
+  check("the client cannot mark it read", !ok(await rpc(et, "client_chat_read", { m: client, upto: new Date().toISOString() })));
+  check("nor can the developer", !ok(await rpc(dt, "client_chat_read", { m: client, upto: new Date().toISOString() })));
+  const direct = await fetch(`${API}/rest/v1/client_chat_reads?select=*`, { headers: { apikey: KEY, Authorization: `Bearer ${ot}` } });
+  check("where someone has read to is not readable directly", direct.status >= 400, direct.status);
+  await badge(owner.page).click();
+  check("pressing it opens that client's chat", await until(async () => (await owner.page.locator("[data-testid=client-chat]").textContent().catch(() => "")).includes("are you there?")));
+  await owner.page.click("[data-testid=table-portal]");
+  await owner.page.waitForSelector("[data-testid=gear]");
+  check("back at the table it is gone", (await badge(owner.page).count()) === 0);
+  check("and the tab's count with it", await until(async () => !/^\(\d+\) /.test(await owner.page.title()), 4000), await owner.page.title());
+  await sleep(500);
+  await owner.page.reload();
+  await owner.page.waitForSelector("[data-live]");
+  await sleep(800);
+  check("and stays gone after a reload, on any device", (await badge(owner.page).count()) === 0);
+  sql(`insert into public.client_lines (table_id, member_id, who, body, by_table) values ('${t}', '${client}', 'client', 'private words to my own assistant', false)`);
+  await sleep(1500);
+  check("a line to the client's own assistant never shows", (await badge(owner.page).count()) === 0);
+  sql(`insert into public.client_lines (table_id, member_id, who, body, by_table) values ('${t}', '${client}', 'team', 'from the team', true)`);
+  await sleep(1000);
+  check("the team's own line is no news", (await badge(owner.page).count()) === 0);
+  await rpc(et, "client_say", { t, body: "one last thing", files: [] });
+  check("writing again brings it back", await until(async () => (await badge(owner.page).count()) === 1));
 } finally {
   await browser.close();
 }

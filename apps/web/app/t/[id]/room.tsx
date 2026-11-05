@@ -212,11 +212,6 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     const t = setInterval(readApprovals, 5000);
     return () => clearInterval(t);
   }, [approvals.length, myWorkGoing, readApprovals]);
-  // The tab says so too, so a request is seen from another tab.
-  useEffect(() => {
-    const base = document.title.replace(/^\(\d+\) /, "");
-    document.title = approvals.length ? `(${approvals.length}) ${base}` : base;
-  }, [approvals.length]);
   // The pages the table's AIs made, what each version was, what people said on them, what tools on them keep, and
   // which ones this person pinned. The team's alone: a client never reads any of it.
   const [pages, setPages] = useState<Page[]>([]);
@@ -303,6 +298,27 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   useEffect(() => { readJoins(); }, [readJoins]);
   const readJoinsRef = useRef(readJoins);
   readJoinsRef.current = readJoins;
+  // Clients who wrote since this person last opened their chat, for whoever may write back.
+  const [wrote, setWrote] = useState<{ client: string; at: string }[]>([]);
+  const readWrote = useCallback(async () => {
+    if (!mayClients) return setWrote([]);
+    const { data, error } = await supabase.rpc("clients_wrote", { t: table.id });
+    if (error) console.warn("[client wrote] could not be read:", error.code);
+    else setWrote((data as { client: string; at: string }[] | null) ?? []);
+  }, [supabase, table.id, mayClients]);
+  useEffect(() => { readWrote(); }, [readWrote]);
+  const readWroteRef = useRef(readWrote);
+  readWroteRef.current = readWrote;
+  const readClient = useCallback((client: string, upto: string) => {
+    setWrote((prev) => prev.filter((w) => w.client !== client || w.at > upto));
+    supabase.rpc("client_chat_read", { m: client, upto }).then(({ error }: { error: { code?: string } | null }) => { if (error) console.warn("[client wrote] could not be marked read:", error.code); });
+  }, [supabase]);
+  // The tab says so too, so a request or a client's message is seen from another tab.
+  const tabCount = approvals.length + wrote.length;
+  useEffect(() => {
+    const base = document.title.replace(/^\(\d+\) /, "");
+    document.title = tabCount ? `(${tabCount}) ${base}` : base;
+  }, [tabCount]);
   const [settingsFocus, setSettingsFocus] = useState<string | null>(null);
   const openSettings = (tab?: "general" | "people" | "clients", focus: string | null = null) => {
     const t = tab && settingsTabs.includes(tab) ? tab : settingsTabs[0];
@@ -438,7 +454,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (!light) lastFull.current = Date.now();
     const none = Promise.resolve({ data: null });
     const ask = (go: boolean, read: () => PromiseLike<{ data: unknown }>) => (go ? read() : none);
-    if (!light) { readApprovals(); readJoinsRef.current(); }
+    if (!light) { readApprovals(); readJoinsRef.current(); readWroteRef.current(); }
     const [{ data: recent }, { data: inFlight }, { data: ds }, { data: rq }, { data: ns }, { data: cs }, { data: tk }, { data: sc }, { data: bx }, { data: ch }] = await Promise.all([
       supabase.from("messages").select(MESSAGE_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(light ? 40 : 100),
       supabase.from("jobs").select(JOB_COLUMNS).eq("table_id", table.id).in("status", ["queued", "running", "waiting", "failed"]).order("created_at", { ascending: false }).limit(50),
@@ -504,6 +520,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       const { table: name, record } = (payload ?? {}) as Change;
       if (!record) return;
       if (name === "join_requests") { readJoinsRef.current(); return; }
+      if (name === "client_wrote") { readWroteRef.current(); return; }
       if (name === "messages") {
         const m = record as unknown as Message;
         setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev.map((x) => (x.id === m.id ? { ...x, ...m } : x)) : [...prev, m]));
@@ -1171,7 +1188,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         <ClientPage key={seen.id} table={{ id: table.id, name: tableName }} me={{ id: seen.id, display_name: seen.display_name, color: seen.color }}
           initialRequests={requests.filter((r) => r.member_id === seen.id)} initialEvents={[]} initialUpdates={[]} initialLines={[]}
           initialConnections={connections.filter((c) => c.member_id === seen.id && !c.revoked_at)} initialJobs={[]}
-          viewer={{ onBack: goHome, others: clients, onPick: setClientId, acting: !!seen.test && self.role === "owner", uploader: self.id, writeAs: mayClients ? self.display_name : undefined,
+          viewer={{ onBack: goHome, others: clients, onPick: setClientId, acting: !!seen.test && self.role === "owner", uploader: self.id, writeAs: mayClients ? self.display_name : undefined, onRead: mayClients ? (upto: string) => readClient(seen.id, upto) : undefined,
             onTest: self.role === "owner" && !testClient ? addTest : undefined, onRemoveTest: seen.test && self.role === "owner" ? removeTest : undefined }} />
         </>
       );
@@ -1207,7 +1224,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   return (
     <div className={`${styles.shell} ${noSide ? styles.shellWide : ""}`} data-live={live || undefined}>
       <header className={styles.header}>
-        <button className={styles.menuToggle} aria-label="Menu" aria-expanded={drawerOpen} onClick={() => { setDrawerOpen(!drawerOpen); setInboxOpen(false); }}>
+        <button className={styles.menuToggle} aria-label="Menu" aria-expanded={drawerOpen} data-note={wrote.length > 0 || undefined} onClick={() => { setDrawerOpen(!drawerOpen); setInboxOpen(false); }}>
           <span /><span /><span />
         </button>
         <button className={`${styles.brand} ${view === "table" ? styles.brandOn : ""}`} onClick={goHome} aria-current={view === "table" ? "page" : undefined} data-testid="home"><Mark size={26} /> Longtable</button>
@@ -1262,6 +1279,15 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 {joins.length === 1 ? `${firstName(joins[0].name)} is asking to join` : `${joins.length} people asking to join`}
               </button>
             )}
+            {wrote.map((w) => {
+              const who = clients.find((c) => c.id === w.client);
+              return who ? (
+                <button key={w.client} className={styles.asking} onClick={() => { setDrawerOpen(false); setClientId(w.client); go("client", `${base}?side=client`); }} data-testid="wrote-badge">
+                  <i className={styles.askingDot} />
+                  {who.test ? who.display_name : firstName(who.display_name)} wrote
+                </button>
+              ) : null;
+            })}
             {/* The people working first, then a quiet line, then the clients. */}
             {[...members.filter((m) => m.role !== "client"), ...clients].map((m, i, all) => (
               <Fragment key={m.id}>

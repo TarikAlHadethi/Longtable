@@ -62,7 +62,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   // it. The client's chat with their own assistant is not the team's to read, so it is not here.
   // acting: the owner is using the table's test client, so the page works; otherwise a viewer only looks.
   // writeAs: this person may also write in the chat themselves, under their own name.
-  viewer?: { onBack: () => void; others?: { id: string; display_name: string }[]; onPick?: (id: string) => void; preview?: boolean; acting?: boolean; uploader?: string; writeAs?: string; onTest?: () => void; onRemoveTest?: () => void };
+  viewer?: { onBack: () => void; others?: { id: string; display_name: string }[]; onPick?: (id: string) => void; preview?: boolean; acting?: boolean; uploader?: string; writeAs?: string; onRead?: (upto: string) => void; onTest?: () => void; onRemoveTest?: () => void };
 }) {
   const supabase = useMemo(() => browserClient(), []);
   const [requests, setRequests] = useState(initialRequests);
@@ -152,6 +152,18 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
     if (!viewer || viewer.acting) supabase.rpc("client_refresh_copy", { t: table.id }).then(({ error }: { error: { message: string } | null }) => { if (error) console.warn(`Their copy was not brought up to date: ${error.message}`); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Someone on the team reading this chat: what is on a screen in sight counts as read, not what a hidden tab holds.
+  const newestFromClient = viewer?.onRead ? [...lines.filter((l) => l.who === "client" && l.by_table), ...requests].reduce((at, x) => (x.created_at > at ? x.created_at : at), "") : "";
+  const onReadRef = useRef(viewer?.onRead);
+  onReadRef.current = viewer?.onRead;
+  useEffect(() => {
+    if (!newestFromClient) return;
+    const tell = () => { if (document.visibilityState === "visible") onReadRef.current?.(newestFromClient); };
+    tell();
+    document.addEventListener("visibilitychange", tell);
+    return () => document.removeEventListener("visibilitychange", tell);
+  }, [newestFromClient]);
 
   // A viewer has no place on the client's own channels: the page just reads again every few seconds.
   useEffect(() => {

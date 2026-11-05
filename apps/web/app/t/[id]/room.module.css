@@ -243,6 +243,8 @@
 
 /* On a phone the sidebar is a drawer, opened from the menu button. */
 .menuToggle { display: none; width: 36px; height: 36px; border: 1px solid var(--line-strong); border-radius: 9px; background: var(--card); cursor: pointer; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 0; }
+.menuToggle { position: relative; }
+.menuToggle[data-note]::after { content: ""; position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%; background: var(--sage); border: 2px solid var(--card); box-sizing: content-box; animation: lt-pop 0.4s var(--ease-spring) both; }
 .menuToggle span { display: block; width: 16px; height: 2px; border-radius: 1px; background: var(--ink-2); }
 .drawerBack { display: none; }
 .drawerProject { display: none; }
@@ -713,7 +715,7 @@
   .roleTile { padding: 10px 14px; }
 }
 
-/* Someone asking to join, for an owner: one line under People that opens where they are let in. */
+/* Someone asking to join, for an owner, or a client who wrote: one line under People that opens where to answer. */
 .asking { display: flex; align-items: center; gap: 9px; width: calc(100% - 4px); margin: 0 2px 6px; padding: 8px 10px; border-radius: 10px;
   border: 1px solid color-mix(in oklch, var(--sage) 40%, var(--line)); background: color-mix(in oklch, var(--sage) 8%, var(--card));
   color: var(--ink); font: inherit; font-size: 13.5px; font-weight: 520; text-align: left; cursor: pointer;
