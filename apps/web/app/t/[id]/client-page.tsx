@@ -21,6 +21,7 @@ import { AttachButtons, AttachTray, Files, dropHandlers, useAttach } from "./att
 import room from "./room.module.css";
 import styles from "./client.module.css";
 import { firstName } from "@/lib/names";
+import { useNeeds, type Need } from "@/lib/chime";
 import { ClientPanel, ClientWelcome, type Overview } from "./client-panel";
 
 
@@ -241,6 +242,13 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   // The one change they can take back: their newest that is still in the copy.
   const undoable = sandbox?.on ? [...(sandbox.changes || [])].filter((c) => c.status === "ready" && !c.undone).sort(byTime).pop()?.id : undefined;
   const newestReady = [...(sandbox?.changes || [])].filter((c) => c.status === "ready").sort(byTime).pop()?.id;
+
+  // A sound when the team needs them: a person of the team writing to them, or a question for them to answer.
+  const needs = useMemo<Need[]>(() => viewer ? [] : [
+    ...lines.filter((l) => l.who === "team").map((l) => ({ key: `t:${l.id}`, title: `${firstName(l.from_name ?? "The team")} wrote to you`, body: "There is a new message from the team." })),
+    ...updates.filter((u) => u.replies?.length && !u.answer).map((u) => ({ key: `q:${u.id}`, title: "The team has a question", body: "They would like your answer." })),
+  ], [lines, updates, viewer]);
+  useNeeds(needs);
 
   // Back to the tab, and every so often while something of theirs is in the works: read the database too, so a lost
   // push only delays what they see.

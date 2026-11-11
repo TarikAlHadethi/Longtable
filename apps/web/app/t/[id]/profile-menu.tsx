@@ -5,6 +5,7 @@ import { Face } from "@/components/face";
 import { Gear, Moon, Pencil, Plug, Plus, SignOut, Sun } from "@/components/icons";
 import { useEffect, useRef, useState } from "react";
 import { browserClient } from "@/lib/supabase/browser";
+import { noticesOn, setNoticesOn, setSoundOn, soundOn } from "@/lib/chime";
 import type { Member } from "./types";
 import styles from "./room.module.css";
 
@@ -29,9 +30,12 @@ export function ProfileMenu({ me, tableId, onInvite, ai, aiWord, onConnect, onDi
 }) {
   const [open, setOpen] = useState(false);
   const [dark, setDark] = useState(false);
+  const [sound, setSound] = useState(true);
+  const [notices, setNotices] = useState(false);
+  const [noticeNote, setNoticeNote] = useState("");
   const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { setDark(document.documentElement.dataset.theme === "dark"); }, []);
+  useEffect(() => { setDark(document.documentElement.dataset.theme === "dark"); setSound(soundOn()); setNotices(noticesOn()); }, []);
   useEffect(() => {
     if (!open) return;
     const away = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
@@ -45,6 +49,13 @@ export function ProfileMenu({ me, tableId, onInvite, ai, aiWord, onConnect, onDi
     setDark(next);
     document.documentElement.dataset.theme = next ? "dark" : "light";
     try { localStorage.setItem("lt-theme", next ? "dark" : "light"); } catch {}
+  }
+
+  function pickSound(on: boolean) { setSound(on); setSoundOn(on); }
+  async function pickNotices(on: boolean) {
+    const now = await setNoticesOn(on);
+    setNotices(now);
+    setNoticeNote(on && !now ? "Your browser has notices turned off for this site." : "");
   }
 
   async function signOut() {
@@ -79,6 +90,22 @@ export function ProfileMenu({ me, tableId, onInvite, ai, aiWord, onConnect, onDi
               <button className={dark ? styles.lookOn : ""} aria-pressed={dark} onClick={() => look(true)} data-testid="look-dark"><Moon size={13} />Dark</button>
             </div>
           </div>
+          {/* When someone needs them: a sound while Longtable is open, and a notice on the desktop while it is away. */}
+          <div className={styles.meLook}>
+            <span>Sound</span>
+            <div className={styles.lookSwitch} role="group" aria-label="Sound when you are needed">
+              <button className={sound ? styles.lookOn : ""} aria-pressed={sound} onClick={() => pickSound(true)} data-testid="sound-on">On</button>
+              <button className={!sound ? styles.lookOn : ""} aria-pressed={!sound} onClick={() => pickSound(false)} data-testid="sound-off">Off</button>
+            </div>
+          </div>
+          <div className={styles.meLook}>
+            <span>Desktop notices</span>
+            <div className={styles.lookSwitch} role="group" aria-label="Desktop notices when you are needed">
+              <button className={notices ? styles.lookOn : ""} aria-pressed={notices} onClick={() => pickNotices(true)} data-testid="notices-on">On</button>
+              <button className={!notices ? styles.lookOn : ""} aria-pressed={!notices} onClick={() => pickNotices(false)}>Off</button>
+            </div>
+          </div>
+          {noticeNote && <div className={styles.setupHint} style={{ padding: "0 10px 8px", margin: 0 }} role="status">{noticeNote}</div>}
           <button role="menuitem" className={`${styles.meItem} ${styles.meOut}`} onClick={signOut}><SignOut size={16} />Sign out</button>
         </div>
       )}

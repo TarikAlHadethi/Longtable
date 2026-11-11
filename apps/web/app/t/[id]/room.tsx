@@ -37,6 +37,7 @@ import { ApprovalCards } from "./approvals";
 import { ModePick } from "./mode-pick";
 import styles from "./room.module.css";
 import { firstName } from "@/lib/names";
+import { namesMe, useNeeds, type Need } from "@/lib/chime";
 import { CODEX_NAMES, EFFORT_LEVELS, SLASH, slashEntry } from "@/lib/slash.mjs";
 // Windows and views opened now and then are fetched when first opened, so a room's first load carries none of them.
 const ConnectModal = dynamic(() => import("./connect-modal").then((m) => m.ConnectModal), { ssr: false });
@@ -319,6 +320,28 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     const base = document.title.replace(/^\(\d+\) /, "");
     document.title = tabCount ? `(${tabCount}) ${base}` : base;
   }, [tabCount]);
+  // Someone naming this person in a chat they are not looking at (or while the tab is away), heard as it arrives.
+  const [mentions, setMentions] = useState<{ id: string; who: string; chat: string }[]>([]);
+  const mentionRef = useRef<(m: Message) => void>(() => {});
+  mentionRef.current = (m: Message) => {
+    if (m.member_id === me.id || m.by_ai || m.kind !== "chat" || !namesMe(m.body, firstName(self.display_name))) return;
+    if (!document.hidden && m.chat_id === chatIdRef.current && viewRef.current === "chat") return;
+    const who = byId.get(m.member_id)?.display_name ?? "Someone";
+    const where = chatById.get(m.chat_id)?.name ?? "a chat";
+    setMentions((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev.slice(-30), { id: m.id, who: firstName(who), chat: where }]));
+  };
+  // Everything that needs this person makes a sound when it is new: their AI asking, being named, a client writing,
+  // someone asking to join.
+  const needs = useMemo<Need[]>(() => [
+    ...approvals.map((a) => ({ key: `a:${a.id}`, title: "Your AI is asking", body: a.kind === "question" ? "Your AI has a question for you." : "Your AI wants your OK to go on." })),
+    ...mentions.map((x) => ({ key: `m:${x.id}`, title: `${x.who} needs you`, body: `${x.who} named you in #${x.chat}.` })),
+    ...wrote.map((w) => {
+      const who = byId.get(w.client);
+      return { key: `w:${w.client}:${w.at}`, title: "A client wrote", body: `${who ? (who.test ? who.display_name : firstName(who.display_name)) : "A client"} wrote to the table.` };
+    }),
+    ...joins.map((j) => ({ key: `j:${j.id}`, title: "Someone is asking to join", body: `${firstName(j.name)} is asking to join.` })),
+  ], [approvals, mentions, wrote, joins, byId]);
+  useNeeds(needs);
   const [settingsFocus, setSettingsFocus] = useState<string | null>(null);
   const openSettings = (tab?: "general" | "people" | "clients", focus: string | null = null) => {
     const t = tab && settingsTabs.includes(tab) ? tab : settingsTabs[0];
@@ -524,6 +547,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       if (name === "messages") {
         const m = record as unknown as Message;
         setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev.map((x) => (x.id === m.id ? { ...x, ...m } : x)) : [...prev, m]));
+        if (kind === "INSERT") mentionRef.current(m);
         if (!known.current.has(m.member_id)) refreshMembers();
       } else if (name === "members") {
         const { id, display_name, role, color, created_at, avatar, name_color, status, bubble, test } = record as unknown as Member;
