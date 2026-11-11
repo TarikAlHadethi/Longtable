@@ -34,6 +34,7 @@ import {
   APPROVAL_COLUMNS, type Approval, CHAT_COLUMNS,
 } from "./types";
 import { ApprovalCards } from "./approvals";
+import { isQuiet, ReconnectWindow } from "./reconnect-window";
 import { ModePick } from "./mode-pick";
 import styles from "./room.module.css";
 import { firstName } from "@/lib/names";
@@ -388,6 +389,18 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const unset = chat?.set_up === false;
   const liveAI = new Set(connections.filter((c) => !c.revoked_at).map((c) => c.member_id));
   const myConnection = connections.find((c) => !c.revoked_at && c.member_id === me.id);
+  // Coming back to Longtable with your own AI off: the reconnect window, once a tab (Close means not again here). A
+  // drop while the page is open needs no window: the connection comes back by itself.
+  const [reconnecting, setReconnecting] = useState<Connection | null>(null);
+  const shutKey = `lt-reconnect-shut-${table.id}`;
+  useEffect(() => {
+    const mine = initialConnections.find((c) => !c.revoked_at && c.member_id === me.id);
+    let shut = false;
+    try { shut = sessionStorage.getItem(shutKey) === "1"; } catch {}
+    if (mine && isQuiet(mine) && !shut) setReconnecting(mine);
+    // Only as the page opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // What to call a person's AI: Claude or ChatGPT once it is connected, their AI before that.
   // Under each person in the sidebar: their AI, connected (a green dot) or not (a grey one). Nothing for someone who
   // never connected one.
@@ -1639,6 +1652,10 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         );
       })()}
       {failed && <div className={styles.toast} role="alert" data-testid="did-not-take">{failed}</div>}
+      {reconnecting && (
+        <ReconnectWindow conn={reconnecting} onConnectAgain={() => setConnectOpen(true)}
+          onClose={() => { setReconnecting(null); try { sessionStorage.setItem(shutKey, "1"); } catch {} }} />
+      )}
       {connectOpen && (
         <ConnectModal tableId={table.id} tableName={tableName} connected={myConnection?.kind ?? null} onClose={() => setConnectOpen(false)} />
       )}

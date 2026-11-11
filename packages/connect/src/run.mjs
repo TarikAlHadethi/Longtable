@@ -9,7 +9,7 @@ import { MARKER, inert } from "./fence.mjs";
 import { CLIENT_PROMISES, CLIENT_STYLE, DESK, LOOK_PASS, OWN_TASK, checkClientReply, clientFields, clientSystem, tryAgain } from "./client-rules.mjs";
 import { canCheck, newErrors, remember as rememberCheck, remembered as rememberedCheck, typeCheck } from "./typecheck.mjs";
 import { newer, ownDir, ownVersion, restartOnNew, updateTo } from "./update.mjs";
-import { keepStartupCurrent } from "./autostart.mjs";
+import { keepStartupCurrent, keepWakeLink } from "./autostart.mjs";
 import { SESSION_IDLE_MS, endAllSessions, endIdleSessions, endSession, keepForSession, stopLeftovers, stopProcs, touchSession } from "./procs.mjs";
 import { forgetSession, giveBackSession, sessionInUse, newSessionId, remember as rememberSession, sessionFor, tableSessionIds, takeSession, unseen } from "./sessions.mjs";
 import { attachedPrompt, commandPrompt, fetchAttachments, loadCommand, materialsPrompt, scanCommands, shareable } from "./extras.mjs";
@@ -532,13 +532,16 @@ export function cleanSources(dir, sources) {
   return out.slice(0, 6);
 }
 
+// Whether longtable:// on this computer starts the connection (keepWakeLink, at start).
+let wakeLink = false;
+
 // After each job, the person's plan limits go to the table, so its Usage page shows real numbers.
 // The model that did the work goes with them, so the table's home shows what each person's AI is running.
 async function report(rpc, seat, limits, model) {
   if (!limits && !model) return;
   // Whether fast mode can serve this person's Claude, as Claude Code itself last said, so their AI's window can say so.
   const fast = seat.kind === "claude" && claudeSays.fast ? { fast: claudeSays.fast, fast_why: claudeSays.fastWhy } : {};
-  try { await rpc("runner_report", { token: seat.token, limits: { ai: seat.kind, ...(limits || {}), ...fast, version: ownVersion(), reads: readsOf(seat), tools: toolsHere(), ...(model ? { model } : {}) } }); } catch (e) { log(`limits report failed: ${e.message}`); }
+  try { await rpc("runner_report", { token: seat.token, limits: { ai: seat.kind, ...(limits || {}), ...fast, version: ownVersion(), wake: wakeLink, reads: readsOf(seat), tools: toolsHere(), ...(model ? { model } : {}) } }); } catch (e) { log(`limits report failed: ${e.message}`); }
 }
 
 // What its AI window says it reads: the repository's address (never a sign-in in it), the name of their own folder
@@ -1547,6 +1550,8 @@ export async function runLoop({ pollMs = 1000, backup = false } = {}) {
   process.on("unhandledRejection", (e) => log(`tripwire: unhandled ${e?.stack?.split(String.fromCharCode(10)).slice(0, 3).join(" | ") || e}`));
   // The computer's start-up entry as this version writes it (with its watchdog), once per version.
   try { keepStartupCurrent(process.execPath, join(ownDir(), "bin", "longtable.mjs"), ownVersion()); } catch (e) { log(`start-up entry not refreshed: ${e.message}`); }
+  // The reconnect link the website's Reconnect button opens; the table hears whether this computer has it.
+  try { wakeLink = keepWakeLink(); } catch (e) { log(`reconnect link not written: ${e.message}`); }
   for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) process.on(sig, () => { stopAll(); unlock(); process.exit(0); });
   // Starting with no network yet (right after sign-in) is normal: keep trying. A table that took this connection
   // off is skipped, and the others carry on.

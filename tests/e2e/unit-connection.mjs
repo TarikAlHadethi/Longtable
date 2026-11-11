@@ -162,6 +162,12 @@ try {
     const after = process.platform === "win32" ? spawnSync("schtasks", ["/query", "/tn", "Longtable connection"], { windowsHide: true }).status : null;
     const how = enableAutostart(process.execPath, join(process.cwd(), "packages", "connect", "bin", "longtable.mjs"));
     check("a connection in a folder of its own leaves the computer's start-up entry alone", before === after && how.started === false, { before, after, how });
+    // The same for the reconnect link: a test's connection never writes or removes the person's longtable:// entry.
+    const { keepWakeLink } = await import("../../packages/connect/src/autostart.mjs");
+    const link = () => (process.platform === "win32" ? spawnSync("reg", ["query", "HKCU\\Software\\Classes\\longtable"], { windowsHide: true }).status : null);
+    const had = link();
+    const wrote = keepWakeLink();
+    check("and never writes the reconnect link", wrote === false && link() === had, { wrote, had, now: link() });
   }
 
   // ---- finding Claude Code: the Claude app's own copy, also where Windows really keeps it for the packaged app

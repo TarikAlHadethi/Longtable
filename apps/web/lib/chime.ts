@@ -64,6 +64,9 @@ export function chime(force = false) {
   }
 }
 
+// A desktop notice now, if they turned notices on and Longtable is in the background.
+export const noticeNow = (title: string, body: string) => notice(title, body);
+
 function notice(title: string, body: string) {
   if (!noticesOn() || !document.hidden) return;
   try {

@@ -722,3 +722,24 @@
 .asking:hover { border-color: var(--sage); }
 .asking:active { transform: scale(0.98); }
 .askingDot { width: 8px; height: 8px; border-radius: 50%; background: var(--sage); flex-shrink: 0; animation: lt-pop 0.4s var(--ease-spring) both; }
+
+/* Coming back with your AI off: the reconnect window, its line that runs across while the connection comes back, and
+   the confetti when it is back. */
+.reconnect { position: relative; overflow: visible; max-width: 440px; }
+.reconnectHead { display: flex; align-items: center; gap: 12px; }
+.reconnectLine { position: relative; height: 4px; border-radius: 4px; background: var(--line); overflow: hidden; margin: 6px 0 2px; }
+.reconnectLine i { position: absolute; inset: 0 auto 0 0; width: 34%; border-radius: 4px; opacity: 0;
+  background: linear-gradient(90deg, transparent, var(--sage) 45%, var(--sage) 55%, transparent);
+  box-shadow: 0 0 10px var(--sage); transition: opacity 0.25s ease, width 0.4s var(--ease-out); }
+.reconnectLine[data-on] i { opacity: 1; animation: lt-pass 1.5s cubic-bezier(0.45, 0, 0.25, 1) infinite; }
+.reconnectLine[data-done] i { opacity: 1; width: 100%; background: var(--sage); box-shadow: none; }
+@keyframes lt-pass { from { transform: translateX(-110%); } to { transform: translateX(310%); } }
+.confetti { position: absolute; left: 50%; top: 40%; width: 0; height: 0; pointer-events: none; z-index: 2; }
+.confetti i { position: absolute; width: 8px; height: 12px; border-radius: 2px; opacity: 0;
+  animation: lt-confetti 1.5s cubic-bezier(0.15, 0.6, 0.35, 1) both; }
+@keyframes lt-confetti {
+  0% { opacity: 1; transform: translate(0, 0) rotate(0); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--x), calc(var(--y) + 120px)) rotate(var(--r)); }
+}
+@media (prefers-reduced-motion: reduce) { .reconnectLine[data-on] i { animation: none; width: 100%; } .confetti { display: none; } }

@@ -160,8 +160,78 @@ export function keepStartupCurrent(nodePath, binPath, version) {
   } catch (e) { console.error(`keeping the start-up task current failed: ${e.message}`); }
 }
 
+// The reconnect link: longtable:// on this computer starts the connection when none is running, so the website's
+// Reconnect button can bring it back (the browser asks the person first). It carries nothing: whatever follows the
+// scheme is ignored, and it never replaces a running connection. Written by the RUNNING connection, which Windows'
+// own task starts outside the Claude app: from inside that app the registry entry could stay in the app's own copy,
+// where no browser looks. Returns whether the link is there.
+const desktopFile = () => join(homedir(), ".local", "share", "applications", "longtable-wake.desktop");
+const wakeApp = () => join(homedir(), "Applications", "Longtable Wake.app");
+const LSREGISTER = "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister";
+const WIN_KEY = "HKCU\\Software\\Classes\\longtable";
+
+export function keepWakeLink() {
+  if (!ownsStartup()) return false;
+  if (process.platform === "win32") {
+    const starter = join(home, "start.vbs");
+    if (!existsSync(starter)) return false;
+    const command = `wscript.exe "${starter}"`;
+    const now = spawnSync("reg", ["query", `${WIN_KEY}\\shell\\open\\command`, "/ve"], { windowsHide: true, encoding: "utf8" });
+    if (now.status === 0 && now.stdout.includes(command)) return true;
+    const add = (args) => spawnSync("reg", ["add", ...args, "/f"], { windowsHide: true, encoding: "utf8" });
+    const steps = [
+      add([WIN_KEY, "/ve", "/d", "URL:Longtable"]),
+      add([WIN_KEY, "/v", "URL Protocol", "/d", ""]),
+      add([`${WIN_KEY}\\shell\\open\\command`, "/ve", "/d", command]),
+    ];
+    const bad = steps.find((r) => r.status !== 0);
+    if (bad) throw new Error(`the reconnect link was not written: ${(bad.stderr || bad.stdout || "").trim().slice(0, 200)}`);
+    return true;
+  }
+  if (process.platform === "darwin") {
+    const app = wakeApp();
+    const exe = join(app, "Contents", "MacOS", "wake");
+    if (existsSync(exe)) return true;
+    mkdirSync(join(app, "Contents", "MacOS"), { recursive: true });
+    writeFileSync(join(app, "Contents", "Info.plist"), `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>chat.longtable.wake</string>
+<key>CFBundleName</key><string>Longtable Wake</string>
+<key>CFBundleExecutable</key><string>wake</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>LSBackgroundOnly</key><true/>
+<key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>Longtable</string><key>CFBundleURLSchemes</key><array><string>longtable</string></array></dict></array>
+</dict></plist>
+`);
+    // launchd already knows the connection: asking it to start the agent starts it only when it is not running.
+    writeFileSync(exe, `#!/bin/sh\nlaunchctl kickstart "gui/$(id -u)/chat.longtable.connection" >/dev/null 2>&1\nexit 0\n`, { mode: 0o755 });
+    spawnSync(LSREGISTER, ["-f", app], { stdio: "ignore" });
+    return true;
+  }
+  if (process.platform === "linux") {
+    if (existsSync(desktopFile())) return true;
+    mkdirSync(dirname(desktopFile()), { recursive: true });
+    writeFileSync(desktopFile(), "[Desktop Entry]\nType=Application\nName=Longtable Wake\nNoDisplay=true\nExec=systemctl --user start longtable.service\nMimeType=x-scheme-handler/longtable;\n");
+    spawnSync("xdg-mime", ["default", "longtable-wake.desktop", "x-scheme-handler/longtable"], { stdio: "ignore" });
+    spawnSync("update-desktop-database", [dirname(desktopFile())], { stdio: "ignore" });
+    return true;
+  }
+  return false;
+}
+
+function removeWakeLink() {
+  if (process.platform === "win32") spawnSync("reg", ["delete", WIN_KEY, "/f"], { windowsHide: true, stdio: "ignore" });
+  if (process.platform === "darwin" && existsSync(wakeApp())) {
+    spawnSync(LSREGISTER, ["-u", wakeApp()], { stdio: "ignore" });
+    rmSync(wakeApp(), { recursive: true, force: true });
+  }
+  if (process.platform === "linux" && existsSync(desktopFile())) rmSync(desktopFile(), { force: true });
+}
+
 export function disableAutostart() {
   if (!ownsStartup()) return;
+  removeWakeLink();
   if (process.platform === "win32") {
     removeTask(TASK);
     rmSync(join(home, "start.vbs"), { force: true });
