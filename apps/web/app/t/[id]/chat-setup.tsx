@@ -10,12 +10,13 @@ import type { Chat, Member } from "./types";
 import styles from "./room.module.css";
 
 type Who = "everyone" | "some" | "me";
-type Answers = "normal" | "named" | "silent";
+type Answers = "normal" | "named" | "silent" | "off";
 
 const ANSWERS: { value: Answers; label: string }[] = [
   { value: "normal", label: "When they are needed" },
   { value: "named", label: "Only when someone names an AI" },
   { value: "silent", label: "Never: they only read" },
+  { value: "off", label: "No AI: nothing said here reaches one" },
 ];
 
 // Setting a chat up: its name and what it is for, who is in it (everyone, people picked, or just you), whether an AI
@@ -57,8 +58,8 @@ export function ChatSetup({ tableId, me, people, chat, name: typed = "", onDone,
     if (!name.trim()) return setError("Give the chat a name.");
     setBusy(true);
     setError("");
-    // How the AIs answer is a choice only alongside the note-taker; without notes they answer as usual.
-    const args = { chat_name: name.trim(), chat_about: about.trim(), who, people: who === "some" ? [...picked] : [], take_notes: notes, ai_answers: notes ? answers : "normal" };
+    // Saved exactly as picked: a room set to no AI must never quietly become one the AIs hear.
+    const args = { chat_name: name.trim(), chat_about: about.trim(), who, people: who === "some" ? [...picked] : [], take_notes: notes && answers !== "off", ai_answers: answers };
     const { data, error } = chat
       ? await browserClient().rpc("setup_chat", { c: chat.id, ...args })
       : await browserClient().rpc("make_chat", { t: tableId, ...args });
@@ -109,13 +110,16 @@ export function ChatSetup({ tableId, me, people, chat, name: typed = "", onDone,
               </Grow>
             </>
           )}
-          <Switch on={notes} onChange={setNotes} title="An AI takes notes" about="It reads along without answering and keeps the notes as a handout." testid="setup-notes" />
-          {/* Greyed until notes are on: with nobody taking notes, AIs that never answer would be no use. */}
-          <div className={`${styles.setupAnswers} ${notes ? "" : styles.setupAnswersOff}`} aria-disabled={!notes} data-testid="setup-answers">
+          <div className={styles.setupAnswers} data-testid="setup-answers">
             <div className={styles.setupLabel}>The AIs answer</div>
-            <Select value={notes ? answers : "normal"} options={ANSWERS} onChange={(v) => setAnswers(v as Answers)} label="How the AIs answer" />
-            {!notes && <div className={styles.setupHint}>Turn on notes to choose this.</div>}
+            <Select value={answers} options={chat?.is_general ? ANSWERS.filter((a) => a.value !== "off") : ANSWERS} onChange={(v) => setAnswers(v as Answers)} label="How the AIs answer" />
+            {answers === "off" && <div className={styles.setupHint}>No AI reads, answers or takes notes here, now or later.</div>}
           </div>
+          <Grow>
+            {answers !== "off" && (
+              <Switch on={notes} onChange={setNotes} title="An AI takes notes" about="It reads along without answering and keeps the notes as a handout." testid="setup-notes" />
+            )}
+          </Grow>
         </div>
         {error && <div className="error">{error}</div>}
         <div className={styles.modalActions}>

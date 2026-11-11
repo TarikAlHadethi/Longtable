@@ -395,7 +395,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     const run = ms.slice(i).filter((m) => !heard || m.created_at > heard);
     if (!run.length) return null;
     // As the chat is set up: never answered, nothing is "thinking"; answered only when an AI is named, only then.
-    if (chat?.set_up === false || chat?.answers === "silent") return null;
+    if (chat?.set_up === false || chat?.answers === "silent" || chat?.answers === "off") return null;
     // Only what was just said counts: something from before (said while the room only listened) was never heard.
     const lastAt = Date.parse(run[run.length - 1].created_at);
     if (chat?.answers === "named") return run.filter((m) => lastAt - Date.parse(m.created_at) < 15000).some((m) => /^\s*\/[A-Za-z]/.test(m.body) || /@|\b(ai|ais|claude|chatgpt|gpt|codex|table|longtable)\b/i.test(m.body)) ? run[run.length - 1] : null;
@@ -1403,7 +1403,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                     <div className={styles.emptyNote} data-testid="chat-setup-note">
                       {[chat.private ? "Only the people in it see this chat." : "",
                         chat.notes ? "An AI keeps notes of it as a handout." : "",
-                        chat.answers === "silent" ? "The AIs only read here." : chat.answers === "named" ? "The AIs answer when someone names one." : ""].filter(Boolean).join(" ")}
+                        chat.answers === "off" ? "No AI hears this chat." : chat.answers === "silent" ? "The AIs only read here." : chat.answers === "named" ? "The AIs answer when someone names one." : ""].filter(Boolean).join(" ")}
                     </div>
                   )}
                 </div>
@@ -1525,12 +1525,13 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               <button className="btn" disabled={(!draft.trim() && attach.pending.length === 0) || attach.busy || attach.recording}>Send</button>
             </form>
             <div className={styles.composerTools}>
-              {myConnection?.kind === "claude" && myConnection.full_claude && (
+              {chat?.answers !== "off" && myConnection?.kind === "claude" && myConnection.full_claude && (
                 <ModePick value={myConnection.mode ?? "auto"} onPick={(m) => setMode(myConnection.id, m)} />
               )}
               {notice && <span className={styles.notice} role="status">{notice}</span>}
               {/* When this person's own AI cannot answer here, say why, with the one fix. */}
-              {!notice && self.role !== "client" && (() => {
+              {!notice && chat?.answers === "off" && <span className={styles.notice} data-testid="no-ai">No AI hears this chat.</span>}
+              {!notice && chat?.answers !== "off" && self.role !== "client" && (() => {
                 if (!myConnection) return <span className={styles.notice} data-testid="ai-status">Your AI is not connected. <button className={styles.toolLink} onClick={() => setConnectOpen(true)}>Connect your AI</button></span>;
                 const quiet = !myConnection.last_seen || Date.now() - new Date(myConnection.last_seen).getTime() > 90000;
                 return quiet ? <span className={styles.notice} data-testid="ai-status">Your computer&apos;s connection is off. It rejoins by itself once your computer is awake.</span> : null;

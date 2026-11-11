@@ -8,7 +8,7 @@ export const SANDBOX_COLUMNS = "member_id, mode, branch, url, opened_at, checked
 
 export type Chat = { id: string; name: string; about: string; is_general: boolean; created_at: string; created_by?: string | null;
   // How it is set up: only its people see a private one; notes kept by an AI; how the AIs answer; whether it is set up.
-  private?: boolean; notes?: boolean; answers?: "normal" | "named" | "silent"; set_up?: boolean; notes_page?: string | null;
+  private?: boolean; notes?: boolean; answers?: "normal" | "named" | "silent" | "off"; set_up?: boolean; notes_page?: string | null;
   // On this screen only: a chat just named, shown at once while the table makes it, and the key it keeps after.
   pending?: boolean; local_key?: string };
 export const CHAT_COLUMNS = "id, name, about, is_general, created_at, created_by, private, notes, answers, set_up, notes_page";

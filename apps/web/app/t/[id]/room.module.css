@@ -681,7 +681,6 @@
 @media (max-width: 520px) { .roleTiles3 { grid-template-columns: 1fr; } }
 .setupLabel { font-size: 13px; font-weight: 560; color: var(--ink-2); margin: 4px 0 -4px; }
 .setupAnswers { display: flex; flex-direction: column; gap: 12px; transition: opacity 0.2s ease; }
-.setupAnswersOff { opacity: 0.45; pointer-events: none; }
 .setupHint { font-size: 13px; color: var(--muted); margin-top: -6px; }
 .setupPeople { display: flex; flex-direction: column; gap: 2px; padding: 4px 2px 2px; max-height: 200px; overflow-y: auto; }
 .setupPerson { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 9px; font-size: 15px; cursor: pointer; }
