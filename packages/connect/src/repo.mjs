@@ -335,7 +335,7 @@ const LONGTABLE = { ...quiet, GIT_AUTHOR_NAME: "Longtable", GIT_AUTHOR_EMAIL: "l
 // Who a copy's own commits (its start, a clean copy, catching up, a take-back) are signed by: the person whose
 // computer makes them, as git already knows them, the same way landWork signs a change. Vercel's free plan refuses
 // to build a private repository's commit whose author is not the account's own, so a copy signed "Longtable" was
-// never put up (found on SAMS's preview, 26 Oct 2026). "Longtable" only when this computer has no git identity.
+// never put up (found on a real team's preview hosting, 26 Oct 2026). "Longtable" only when this computer has no git identity.
 function signer(G) {
   let name = "";
   let email = "";

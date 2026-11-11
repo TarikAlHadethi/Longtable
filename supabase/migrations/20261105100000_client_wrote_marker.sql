@@ -1,4 +1,4 @@
--- "Daniel wrote" under People, for whoever may write in a client's chat, until they have opened it. Where each person
+-- "Elena wrote" under People, for whoever may write in a client's chat, until they have opened it. Where each person
 -- has read to is kept here, so opening the chat on a phone clears it on the computer too. Lines a client wrote to an
 -- assistant of their own stay private: they never count, and the team's channel never hears of them.
 create table public.client_chat_reads (

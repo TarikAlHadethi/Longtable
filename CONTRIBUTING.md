@@ -22,13 +22,27 @@ npm run dev
 The app is at http://localhost:3000; sign-in codes arrive in the local mail catcher at http://127.0.0.1:54324. Copy
 `apps/web/.env.example` to `apps/web/.env.local` and fill it from `npx supabase status`.
 
+Before changing code, read [ARCHITECTURE.md](ARCHITECTURE.md): where each part lives, how a message moves, and the
+rules that are easy to break.
+
+To try the connection against your local app, set `NEXT_PUBLIC_CONNECT_COMMAND` in `apps/web/.env.local` to
+`node <path to this repo>/packages/connect/bin/longtable.mjs`, so the Connect window runs your copy instead of the one
+on npm.
+
 ## Tests
 
-- **Unit suites** need no database and no AI: `node tests/e2e/unit-connection.mjs` and the other `unit-*.mjs` files,
-  plus `node tests/e2e/chaos-connect.mjs`. They run in CI on Ubuntu, macOS and Windows.
-- **Database and browser suites** (`tests/e2e/step*.mjs`, `sim-rounds.mjs`) need the local stack running.
-- **Real-model suites** need Claude Code (or Codex) signed in on your computer; they cost a little of your own plan.
+| Kind | Files | Needs | Cost |
+| --- | --- | --- | --- |
+| Unit | `tests/e2e/unit-*.mjs`, `chaos-connect.mjs` | nothing | free, seconds |
+| Database and browser | most `step*.mjs`, `sim-rounds.mjs`, `look-*.mjs` | the local stack, `npm run dev`, Chrome | free |
+| Real model | `step3`, `step4`, `step12` to `step18`, `step21`, `step36`, `step42`, `probe-*.mjs` and others that connect an AI | Claude Code or Codex signed in | a little of your own plan |
+
+- Run one with `node --experimental-websocket tests/e2e/<suite>.mjs` (the flag is needed on Node 20).
+- The list CI runs against a database is in `.github/workflows/database.yml`; the unit list is in `checks.yml`.
 - `node tools/house-rules.mjs` checks the repository's own rules.
+- A real-model suite can miss now and then on the model's judgement or a slow reply: run it again before believing a
+  failure.
+- Two real-model suites at once can trip the local sign-in mail limit: run them one at a time.
 
 A change to who can see or do what needs a test that proves it, and a line in [THREAT-MODEL.md](THREAT-MODEL.md).
 

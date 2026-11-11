@@ -10,7 +10,7 @@
     "dev": "npm run dev --workspace @longtable/web",
     "build": "npm run build --workspace @longtable/web",
     "typecheck": "npm run typecheck --workspace @longtable/web",
-    "db:start": "supabase start -x storage-api,imgproxy,edge-runtime,logflare,vector,supavisor,studio,postgres-meta",
+    "db:start": "supabase start -x imgproxy,edge-runtime,logflare,vector,supavisor,studio,postgres-meta",
     "db:reset": "supabase db reset",
     "probe:sign-in": "node probes/sign-in.mjs",
     "probe:headless": "node probes/headless.mjs",

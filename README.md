@@ -93,6 +93,7 @@ npm run dev
 The app is at http://localhost:3000, and sign-in codes arrive in the local mail catcher at http://127.0.0.1:54324.
 Copy `apps/web/.env.example` to `apps/web/.env.local` and fill it from `npx supabase status`.
 
+- [ARCHITECTURE.md](ARCHITECTURE.md) is the map of the code; [CONTRIBUTING.md](CONTRIBUTING.md) lists the tests.
 - `node tests/e2e/<suite>.mjs` runs one suite; the unit suites need no database and no AI.
 - The real-model suites need Claude Code (or Codex) signed in on the computer.
 - To be the operator of your own Longtable, add your email in SQL:
