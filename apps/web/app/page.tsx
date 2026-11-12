@@ -53,10 +53,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           <div className={`${s.small} rise`} style={i(4)}>Free during early access, and free for life for teams that join now. No passwords.</div>
         </section>
 
-        {/* The demo is the live picture itself, right under the opening lines: there is no separate one to start. */}
-        <div id="demo" className={`${s.stage} rise`} style={i(6)}><Fit width={1120}><Stage /></Fit></div>
-        {/* The table as a team sees it, right under the live picture. */}
-        <div id="table" className={s.tableShow}><Fit width={1120}><LandingTable /></Fit></div>
+        {/* The table first: who sits at it says what Longtable is before the chat shows how it moves. */}
+        <div id="table" className={`${s.tableShow} rise`} style={i(6)}><Fit width={1120}><LandingTable /></Fit></div>
+        {/* The demo is the live picture itself: there is no separate one to start. */}
+        <div id="demo" className={`${s.stage} ${s.below}`}><Fit width={1120}><Stage /></Fit></div>
 
         <section id="how" className={s.section}>
           <Reveal><div className={s.eyebrow}>How it works</div><h2 className={s.h2}>Three steps, no setup guide.</h2></Reveal>
