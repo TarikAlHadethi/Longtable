@@ -217,6 +217,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         <span className={s.spacer} />
         <a href="#demo">Demo</a>
         <a href="https://github.com/TarikAlHadethi/Longtable">Open source, MIT</a>
+        <Link href="/ai-group-chat">AI group chat</Link>
         <Link href="/privacy">Privacy</Link>
         <Link href="/terms">Terms</Link>
         <Link href="/security">Security</Link>
