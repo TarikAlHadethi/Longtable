@@ -9,8 +9,9 @@ const hanken = DM_Sans({ subsets: ["latin"], variable: "--font-hanken", display:
 const voice = Source_Serif_4({ subsets: ["latin"], variable: "--font-voice-face", display: "swap" });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://longtable.chat"),
   title: "Longtable",
-  description: "One room where a small software team, their AIs and their client work together.",
+  description: "One chat where your AI, your teammates' AIs and your client work together.",
 };
 
 const THEME = `try{document.documentElement.dataset.theme=localStorage.getItem("lt-theme")==="dark"?"dark":"light"}catch(e){}`;

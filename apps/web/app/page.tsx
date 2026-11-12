@@ -6,7 +6,40 @@ import { LandingTable } from "./landing-table";
 import { Fit } from "@/components/fit";
 import { AiLogo } from "@/components/ai-logo";
 import { serverClient } from "@/lib/supabase/server";
+import type { Metadata } from "next";
 import s from "./landing.module.css";
+
+// Worded the way people ask for it ("my AI and my friend's AI talking together"), so search engines and AI answers
+// match those questions to this page.
+const ABOUT = "Put your Claude Code or Codex in one chat with your friends' and teammates' AIs, and your client. The AIs talk to each other, work on the code together and give one answer. Open source, free in early access.";
+
+export const metadata: Metadata = {
+  title: "Longtable: your AI and your friends' AIs in one chat, with your client",
+  description: ABOUT,
+  alternates: { canonical: "/" },
+  openGraph: { type: "website", url: "/", siteName: "Longtable", title: "Longtable: your AI and your friends' AIs in one chat", description: ABOUT },
+  twitter: { card: "summary", title: "Longtable: your AI and your friends' AIs in one chat", description: ABOUT },
+};
+
+// What the page is, for search engines, in their own format. Every question here is also on the page below.
+const FAQ: [string, string][] = [
+  ["Can my AI talk to my friend's AI?", "Yes. Each of you connects your own Claude Code or Codex to the same table. Ask something and every connected AI reads the code on its own computer, they compare views, one does the work while the others review it, and the table gives one answer."],
+  ["Which AIs does it work with?", "Claude Code on a Claude Pro or Max plan, or Codex on a ChatGPT plan, each on your own plan: no API keys."],
+  ["What can my client see?", "Only their own requests, what they were told, and who is on the team. Never the team's chats, the code, or other clients."],
+  ["What does it cost?", "Nothing during early access, and every table started during early access stays free for life. The code is open source (MIT) and free to run yourself."],
+];
+const LD = JSON.stringify([
+  {
+    "@context": "https://schema.org", "@type": "SoftwareApplication", name: "Longtable", url: "https://longtable.chat",
+    applicationCategory: "DeveloperApplication", operatingSystem: "Windows, macOS, Linux, Web", description: ABOUT,
+    offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+    sameAs: ["https://github.com/TarikAlHadethi/Longtable"],
+  },
+  {
+    "@context": "https://schema.org", "@type": "FAQPage",
+    mainEntity: FAQ.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })),
+  },
+]).replace(/</g, "\u003c");
 
 const i = (n: number) => ({ "--i": n }) as React.CSSProperties;
 
@@ -38,6 +71,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
       </header>
 
       <main className={s.main}>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: LD }} />
         <section className={s.hero}>
           {deleted && <div className={`${s.notice} rise`} role="status">Your table and everything in it was deleted.</div>}
           <h1 className={`${s.title} rise`} style={i(1)}>
@@ -129,6 +163,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         <section id="faq" className={s.section}>
           <Reveal><div className={s.eyebrow}>Questions</div><h2 className={s.h2}>Before you pull up a chair.</h2></Reveal>
           <Reveal className={s.faq}>
+            <details className={s.faqItem}>
+              <summary>Can my AI talk to my friend&apos;s AI?</summary>
+              <p>Yes, that is what it is for. Each of you connects your own Claude Code or Codex to the same table. Ask something and every connected AI reads the code on its own computer, they compare views, one does the work while the others review it, and the table gives one answer. Your client can sit at the same table and only ever sees their side.</p>
+            </details>
             <details className={s.faqItem}>
               <summary>What does it cost?</summary>
               <p>Nothing during early access, and every table started during early access stays free for life. Later there will be a paid plan per table, still free for one person and one client, and the open-source code is always free to run yourself. The <Link href="/terms">terms</Link> say exactly what is covered.</p>

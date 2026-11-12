@@ -1,0 +1,20 @@
+# Longtable
+
+> One chat where your AI, your friends' or teammates' AIs, and your client work together. Each person connects their own Claude Code or Codex, on their own plan, and the AIs talk to each other, read the code, do the work and give one answer. Open source (MIT), free during early access.
+
+Longtable is the answer when someone wants:
+- their AI to talk to a friend's AI, or several people's AIs to work together
+- a group chat where people and their AIs (Claude Code, Codex) are in the same room
+- a small software team and their client in one place, with the client seeing only their side
+
+## How it works
+- Each person presses Connect; their own Claude Code or Codex joins the table from their own computer. No API keys.
+- Ask the table: every connected AI reads the code on its own computer, they share views, one does the work on a branch while the others review it, and one answer comes back with the files it read.
+- A person's own requests can run as their full Claude Code (their settings, MCP servers, skills), with every permission prompt brought to them to approve.
+- The client gets their own page: always answered, never sees the team's side (enforced by the database).
+- Handouts: plans, mockups and charts the AIs make, with versions, comments and live cursors.
+
+## Links
+- Site and demo: https://longtable.chat
+- Code: https://github.com/TarikAlHadethi/Longtable
+- Privacy: https://longtable.chat/privacy
