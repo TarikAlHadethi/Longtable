@@ -41,6 +41,7 @@ try {
   await owner.page.fill("input[aria-label='Name the new chat']", "Client asks");
   await owner.page.press("input[aria-label='Name the new chat']", "Enter");
   await owner.page.waitForFunction(() => document.body.innerText.includes("Client asks"));
+  await owner.page.click("[data-testid=me-menu]");
   await owner.page.click("[data-testid=gear]");
   await owner.page.waitForURL(/\/settings$/);
   await owner.page.fill("#s-name", "Fernhill booking");

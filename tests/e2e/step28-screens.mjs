@@ -39,6 +39,7 @@ try {
   check("a chat opened from the table's home is at its newest message, not its oldest", fromEnd < 80, fromEnd);
 
   // ---- the Connect window names the table as it is called now
+  await p.click("[data-testid=me-menu]");
   await p.click("[data-testid=gear]");
   await p.waitForURL(/\/settings$/);
   await p.fill("#s-name", "Fernhill booking");

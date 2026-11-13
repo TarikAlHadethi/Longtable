@@ -573,6 +573,8 @@
    with what is behind them. Up and down they stay in the middle of the screen. */
 .shell { --pane-left: 264px; --pane-right: 360px; }
 .shellWide { --pane-right: 0px; }
+/* A page with no panel on the right (a client's copy, settings, the client page) centres its windows on the screen. */
+.shellWide { --pane-left: 0px; }
 .modalBack { padding-left: calc(var(--pane-left, 0px) + 16px); padding-right: calc(var(--pane-right, 0px) + 16px); }
 /* The right panel is already off to the side below 1180px, so windows no longer make room for it there. */
 @media (max-width: 1180px) { .shell { --pane-right: 0px; } }
@@ -650,14 +652,8 @@
 @media (max-width: 520px) { .modeItem small { white-space: normal; } }
 
 /* The sidebar's foot: the table's settings and the feedback button, side by side at the bottom left. */
-.sideFoot { margin-top: auto; display: flex; align-items: flex-end; justify-content: space-between; gap: 2px; }
+.sideFoot { margin-top: auto; display: flex; align-items: flex-end; justify-content: flex-end; gap: 2px; }
 .sideFoot > * { margin-top: 0; }
-.gear { width: 40px; height: 40px; margin-bottom: -6px; border-radius: 10px; border: 1px solid transparent; background: transparent; color: var(--faint); display: grid; place-items: center; cursor: pointer;
-  transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease, transform 0.15s var(--ease-out); }
-.gear:hover { background: var(--card); color: var(--ink); border-color: var(--line-strong); }
-.gear:active { transform: scale(0.9); }
-.gear svg { transition: transform 0.4s var(--ease-out); }
-.gear:hover svg { transform: rotate(45deg); }
 
 /* A window fades out as it closes, the way it came in. */
 .modalBack.closing { animation: lt-fade-out 0.17s ease both; }

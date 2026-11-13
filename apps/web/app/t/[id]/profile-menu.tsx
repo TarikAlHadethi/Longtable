@@ -12,7 +12,7 @@ import styles from "./room.module.css";
 const ROLE_WORD = { owner: "Owner", developer: "Developer", client: "Client" } as const;
 
 // The person's own menu, behind their picture: invite, settings, the light or dark look, and signing out.
-export function ProfileMenu({ me, tableId, onInvite, ai, aiWord, onConnect, onDisconnect, onMe, onSettings, onLogs, onDownload, privacy }: {
+export function ProfileMenu({ me, tableId, onInvite, ai, aiWord, onConnect, onDisconnect, onMe, onSettings, onLogs, onDownload, privacy, onTable, tableWord }: {
   me: Member;
   tableId: string;
   onInvite?: () => void;
@@ -27,6 +27,9 @@ export function ProfileMenu({ me, tableId, onInvite, ai, aiWord, onConnect, onDi
   // For a client: a copy of what is theirs, and the privacy page.
   onDownload?: () => void;
   privacy?: boolean;
+  // Everything about the table: its settings for whoever may change them, the logs for everyone else.
+  onTable?: () => void;
+  tableWord?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [dark, setDark] = useState(false);
@@ -77,8 +80,9 @@ export function ProfileMenu({ me, tableId, onInvite, ai, aiWord, onConnect, onDi
             {onMe && <span className={styles.mePencil}><Pencil size={15} /></span>}
           </button>
           {onInvite && <button role="menuitem" className={styles.meItem} onClick={() => { setOpen(false); onInvite(); }}><Plus size={16} />Invite people</button>}
-          {/* Their own settings: their AI and how it works. The table's are behind the gear at the bottom left. */}
+          {/* Their own settings: their AI and how it works. Then the table's. */}
           {onSettings && <button role="menuitem" className={styles.meItem} onClick={() => { setOpen(false); onSettings(); }} data-testid="my-settings"><Gear size={16} />Settings</button>}
+          {onTable && <button role="menuitem" className={styles.meItem} onClick={() => { setOpen(false); onTable(); }} data-testid="gear" aria-label={tableWord}><Gear size={16} />{tableWord}</button>}
           {onConnect && !ai && <button role="menuitem" className={styles.meItem} onClick={() => { setOpen(false); onConnect(); }}><Plug size={16} />Connect my {aiWord ?? "AI"}</button>}
           {onDisconnect && ai && <button role="menuitem" className={styles.meItem} onClick={() => { setOpen(false); onDisconnect(); }}><Plug size={16} />Disconnect my {AI_NAME[ai]}</button>}
           {onDownload && <button role="menuitem" className={styles.meItem} onClick={() => { setOpen(false); onDownload(); }}><Gear size={16} />Download what&apos;s mine</button>}

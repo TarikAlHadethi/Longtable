@@ -1,7 +1,7 @@
 "use client";
 
 import { Face } from "@/components/face";
-import { Crown, Gear } from "@/components/icons";
+import { Crown } from "@/components/icons";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -1280,7 +1280,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         </button>}
         <ProfileMenu me={self} tableId={table.id} onInvite={mayInvite ? () => setInviting(true) : undefined}
           onMe={() => openPerson(me.id, true)} onSettings={() => (myConnection ? setAiOf(me.id) : openPerson(me.id, true))}
-          ai={myConnection?.kind ?? null} onConnect={() => setConnectOpen(true)} onDisconnect={() => myConnection && disconnect(myConnection.id)} />
+          ai={myConnection?.kind ?? null} onConnect={() => setConnectOpen(true)} onDisconnect={() => myConnection && disconnect(myConnection.id)}
+          tableWord={maySettings ? "Table settings" : "Logs"} onTable={() => { setDrawerOpen(false); if (maySettings) openSettings(); else go("logs", `${base}/activity`); }} />
       </header>
 
       <div className={`${styles.grid} ${noSide ? styles.gridWide : ""}`}>
@@ -1349,10 +1350,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           </div>
           {/* On a phone the top bar has no room, so the same button lives in the menu. */}
           {(clients.length > 0 || self.role === "owner") && <button className={`btn btn-quiet ${styles.clientSideMenu}`} onClick={() => { setDrawerOpen(false); go("client", `${base}?side=client`); }}>Client side</button>}
-          {/* Everything about the table, in one place: its settings for the owner, the logs for everyone else. */}
-          <div className={styles.sideFoot}>
-            <button className={styles.gear} aria-label={maySettings ? "Table settings" : "Logs"} title={maySettings ? "Table settings" : "Logs"} data-testid="gear"
-              onClick={() => { setDrawerOpen(false); if (maySettings) openSettings(); else go("logs", `${base}/activity`); }}><Gear size={21} /></button>
+                    <div className={styles.sideFoot}>
             <BugButton tableId={table.id} place={view} />
           </div>
         </aside>

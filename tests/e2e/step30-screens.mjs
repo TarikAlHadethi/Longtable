@@ -82,6 +82,7 @@ try {
   const doomed = (await rpc(token, "create_chat", { t: tableId, chat_name: `gone-${run}` })).body;
   await p.goto(`${APP}/t/${tableId}?c=${doomed}`);
   await p.waitForSelector("textarea");
+  await p.click("[data-testid=me-menu]");
   await p.click("[data-testid=gear]");
   await p.waitForURL(/\/settings$/);
   await rpc(token, "delete_chat", { c: doomed });

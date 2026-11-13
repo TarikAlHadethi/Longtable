@@ -114,7 +114,7 @@ try {
   await owner.page.goto(`${APP}/t/${t}?side=client`);
   await owner.page.waitForSelector("[data-testid=client-chat]");
   await owner.page.click("[data-testid=table-portal]");
-  await owner.page.waitForSelector("[data-testid=gear]");
+  await owner.page.waitForSelector("[data-testid=me-menu]");
   await owner.page.waitForSelector("[data-live]");
   await dev.page.goto(`${APP}/t/${t}`);
   await dev.page.waitForSelector("[data-live]");
@@ -135,7 +135,7 @@ try {
   await badge(owner.page).click();
   check("pressing it opens that client's chat", await until(async () => (await owner.page.locator("[data-testid=client-chat]").textContent().catch(() => "")).includes("are you there?")));
   await owner.page.click("[data-testid=table-portal]");
-  await owner.page.waitForSelector("[data-testid=gear]");
+  await owner.page.waitForSelector("[data-testid=me-menu]");
   check("back at the table it is gone", (await badge(owner.page).count()) === 0);
   check("and the tab's count with it", await until(async () => !/^\(\d+\) /.test(await owner.page.title()), 4000), await owner.page.title());
   await sleep(500);

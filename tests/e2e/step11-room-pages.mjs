@@ -29,6 +29,7 @@ try {
   check("clicking a person opens their window, with when they joined", /Sam/.test(sam) && /Developer/.test(sam) && /Joined\s*\d{1,2} \w+ 20\d\d/.test(sam), sam.slice(0, 200));
   await p.click("[data-testid=person-window] button:has-text('Close')");
 
+  await p.click("[data-testid=me-menu]");
   await p.click("[data-testid=gear]");
   await p.waitForSelector("form[aria-label='The table']");
   check("Settings opens inside the room, from the gear, at its own address", p.url().endsWith("/settings") && await p.isVisible("aside[aria-label=Menu]"), p.url());
