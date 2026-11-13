@@ -38,7 +38,7 @@ import { isQuiet, ReconnectWindow } from "./reconnect-window";
 import { ModePick } from "./mode-pick";
 import styles from "./room.module.css";
 import { firstName } from "@/lib/names";
-import { namesMe, useNeeds, type Need } from "@/lib/chime";
+import { namesMe, pingsMe, useNeeds, type Need } from "@/lib/chime";
 import { CODEX_NAMES, EFFORT_LEVELS, SLASH, slashEntry } from "@/lib/slash.mjs";
 // Windows and views opened now and then are fetched when first opened, so a room's first load carries none of them.
 const ConnectModal = dynamic(() => import("./connect-modal").then((m) => m.ConnectModal), { ssr: false });
@@ -62,6 +62,9 @@ const after = (a: string, b: string) => new Date(a).getTime() > new Date(b).getT
 // One message in the chat. Kept apart and memoised so typing in the box, which redraws the room, does not redraw
 // every message: in a long chat that cost tens of milliseconds a key.
 const NONE: never[] = [];
+// The first names a message can ping with @: the team's people, never a client.
+const pingNames = (members: Map<string, Member>) => [...members.values()].filter((p) => p.role !== "client" && !p.test).map((p) => firstName(p.display_name));
+
 const MessageRow = memo(function MessageRow({ m, who, mine, follows, held, supabase, members, views, pages, onOpenPage, repo, again }: {
   m: Message; who: Member | undefined; mine: boolean; follows: boolean; held: boolean; supabase: ReturnType<typeof browserClient>;
   members: Map<string, Member>; views: Message[]; pages: Page[]; onOpenPage: (id: string) => void; repo: string | null; again: boolean;
@@ -104,7 +107,7 @@ const MessageRow = memo(function MessageRow({ m, who, mine, follows, held, supab
       )}
       <div className={styles.sayCol}>
         {!mine && !follows && <div className={styles.sayName} style={{ color: who?.name_color || undefined }}>{name}</div>}
-        <div className={styles.bubble} data-bubble={who?.bubble ?? "stone"}><Inline text={m.body} /></div>
+        <div className={styles.bubble} data-bubble={who?.bubble ?? "stone"}><Inline text={m.body} pings={pingNames(members)} /></div>
         {m.meta?.files?.length ? <div className={styles.sayFiles}><Files supabase={supabase} files={m.meta.files} /></div> : null}
         <div className={styles.sayWhen}>
           {m.state === "failed" ? <span className={styles.failed}>Not sent</span> : <Time iso={m.created_at} />}
@@ -326,7 +329,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const mentionRef = useRef<(m: Message) => void>(() => {});
   mentionRef.current = (m: Message) => {
     if (m.member_id === me.id || m.by_ai || m.kind !== "chat" || !namesMe(m.body, firstName(self.display_name))) return;
-    if (!document.hidden && m.chat_id === chatIdRef.current && viewRef.current === "chat") return;
+    const pinged = pingsMe(m.body, firstName(self.display_name));
+    if (!pinged && !document.hidden && m.chat_id === chatIdRef.current && viewRef.current === "chat") return;
     const who = byId.get(m.member_id)?.display_name ?? "Someone";
     const where = chatById.get(m.chat_id)?.name ?? "a chat";
     setMentions((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev.slice(-30), { id: m.id, who: firstName(who), chat: where }]));
@@ -1000,6 +1004,17 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const slashBuiltAt = slash.findIndex((c) => slashRank(c) === 1);
   const slashOwnAt = slash.findIndex((c) => slashRank(c) === 2);
   const slashIndex = Math.min(slashAt, Math.max(0, slash.length - 1));
+  // "@" and the start of a name offers the team's people to ping; picking one sounds a chime for them when it is sent.
+  const atWord = slash.length ? undefined : draft.match(/(?:^|\s)@([\p{L}\p{N}]*)$/u)?.[1];
+  const pingable = members.filter((p) => p.role !== "client" && !p.test && p.id !== me.id);
+  const atList = atWord === undefined ? [] : pingable.filter((p) => firstName(p.display_name).toLowerCase().startsWith(atWord.toLowerCase())
+    || p.display_name.toLowerCase().includes(atWord.toLowerCase())).slice(0, 8);
+  const atIndex = Math.min(slashAt, Math.max(0, atList.length - 1));
+  function pickAt(p: Member) {
+    setSlashAt(0);
+    setDraft((d) => d.replace(/@[\p{L}\p{N}]*$/u, `@${firstName(p.display_name)} `));
+    requestAnimationFrame(() => { grow(); inputRef.current?.focus(); });
+  }
   function pickSlash(name: string) {
     setSlashAt(0);
     const e = slashEntry(name, runnable(name));
@@ -1528,6 +1543,16 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 ))}
               </div>
             )}
+            {atList.length > 0 && (
+              <div className={styles.slash} role="listbox" aria-label="Ping someone" data-testid="at-menu">
+                {atList.map((p, i) => (
+                  <button key={p.id} type="button" role="option" aria-selected={i === atIndex} className={`${styles.slashItem} ${i === atIndex ? styles.slashOn : ""}`} style={{ "--i": i } as React.CSSProperties}
+                    onMouseMove={() => { if (i !== atIndex) setSlashAt(i); }} onMouseDown={(e) => { e.preventDefault(); pickAt(p); }}>
+                    <b>@{firstName(p.display_name)}</b><span>{p.display_name}{p.role === "owner" ? ", owner" : ""}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <form className={styles.composer} onSubmit={(e) => { e.preventDefault(); send(); }}>
               <textarea
                 ref={inputRef}
@@ -1548,6 +1573,10 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                     if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); return setSlashAt((slashIndex + (e.key === "ArrowDown" ? 1 : slash.length - 1)) % slash.length); }
                     if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") { e.preventDefault(); return pickSlash(slash[slashIndex].name); }
                     if (e.key === "Escape") { e.preventDefault(); return setDraft(""); }
+                  }
+                  if (atList.length > 0) {
+                    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); return setSlashAt((atIndex + (e.key === "ArrowDown" ? 1 : atList.length - 1)) % atList.length); }
+                    if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") { e.preventDefault(); return pickAt(atList[atIndex]); }
                   }
                   if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                     e.preventDefault();

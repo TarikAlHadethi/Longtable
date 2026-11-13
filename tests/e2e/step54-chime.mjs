@@ -1,4 +1,4 @@
-// A sound when someone is needed, on the screen: being named in the chat in front of you makes none, a message that
+// A sound when someone is needed, on the screen: being named in the chat in front of you makes none (an @ ping does), a message that
 // does not name you makes none, being named in another chat chimes, a client writing chimes, what was already there
 // when a page opened makes none, the team writing to a client chimes on their page, and Sound off in the picture
 // menu stops it and is kept.
@@ -45,6 +45,21 @@ try {
   await say(launchChat, "the build is green");
   await sleep(2000);
   check("a message that does not name you makes no sound", (await chimes(owner.page)) === at, { at, now: await chimes(owner.page) });
+
+  await settle();
+  at = await chimes(owner.page);
+  await say(design, "@Maya quick look at this one?");
+  check("an @ ping chimes even in the chat in front of you", await until(async () => (await chimes(owner.page)) > at), { at, now: await chimes(owner.page) });
+  check("the ping stands out in the message", await until(() => owner.page.locator(".ping", { hasText: "@Maya" }).count()));
+
+  // "@" in the box offers the team's people (never a client), and picking one writes the ping.
+  await owner.page.fill("textarea[aria-label='Message the table']", "hey @s");
+  await owner.page.waitForSelector("[data-testid=at-menu]");
+  const offered = await owner.page.locator("[data-testid=at-menu] [role=option]").allInnerTexts();
+  check("@ offers the team's people", offered.some((t) => t.includes("@Sam")) && !offered.some((t) => t.includes("Elena")), offered);
+  await owner.page.keyboard.press("Enter");
+  check("picking one writes the ping", (await owner.page.inputValue("textarea[aria-label='Message the table']")) === "hey @Sam ");
+  await owner.page.fill("textarea[aria-label='Message the table']", "");
 
   await settle();
   at = await chimes(owner.page);

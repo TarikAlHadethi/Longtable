@@ -100,3 +100,11 @@ export function namesMe(body: string, first: string) {
   const safe = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`(^|[^\\p{L}\\p{N}])@?${safe}(?![\\p{L}\\p{N}])`, "iu").test(body);
 }
+
+// A ping: @ and their first name. Unlike being named in passing, a ping sounds even in the chat they are looking at.
+export function pingsMe(body: string, first: string) {
+  const name = first.trim();
+  if (name.length < 2) return false;
+  const safe = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^\\p{L}\\p{N}])@${safe}(?![\\p{L}\\p{N}])`, "iu").test(body);
+}

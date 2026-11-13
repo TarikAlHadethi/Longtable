@@ -4,13 +4,26 @@ import { Fragment, type ReactNode } from "react";
 // text, so nothing in a message is ever treated as HTML.
 // `link`, when given, turns a `code` piece into a link when it names something it can point at (a file in the team's
 // repository); the address is built by the caller, never taken from the text.
-export function Inline({ text, link }: { text: string; link?: (code: string) => string | null }) {
+// `pings`, when given, are first names whose @ is set apart, so a ping stands out in the message.
+export function Inline({ text, link, pings }: { text: string; link?: (code: string) => string | null; pings?: string[] }) {
   const out: ReactNode[] = [];
+  const names = (pings ?? []).filter((n) => n.length > 1).map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const at = names.length ? new RegExp(`(?<![\\p{L}\\p{N}])@(?:${names.join("|")})(?![\\p{L}\\p{N}])`, "giu") : null;
+  const plain = (part: string) => {
+    if (!at || !part.includes("@")) return out.push(<Fragment key={key++}>{part}</Fragment>);
+    let from = 0;
+    for (const p of part.matchAll(at)) {
+      if (p.index! > from) out.push(<Fragment key={key++}>{part.slice(from, p.index)}</Fragment>);
+      out.push(<span key={key++} className="ping">{p[0]}</span>);
+      from = p.index! + p[0].length;
+    }
+    if (from < part.length) out.push(<Fragment key={key++}>{part.slice(from)}</Fragment>);
+  };
   const pattern = /(`[^`\n]+`|\*\*[^*\n]+\*\*)/g;
   let last = 0;
   let key = 0;
   for (const m of text.matchAll(pattern)) {
-    if (m.index! > last) out.push(<Fragment key={key++}>{text.slice(last, m.index)}</Fragment>);
+    if (m.index! > last) plain(text.slice(last, m.index));
     const token = m[0];
     if (token.startsWith("`")) {
       const inner = token.slice(1, -1);
@@ -20,7 +33,7 @@ export function Inline({ text, link }: { text: string; link?: (code: string) => 
     else out.push(<strong key={key++}>{token.slice(2, -2)}</strong>);
     last = m.index! + token.length;
   }
-  if (last < text.length) out.push(<Fragment key={key++}>{text.slice(last)}</Fragment>);
+  if (last < text.length) plain(text.slice(last));
   return <>{out}</>;
 }
 

@@ -179,14 +179,16 @@ button { font: inherit; }
 }
 
 .inline-code {
-.code-link { text-decoration: none; color: inherit; }
-.code-link:hover .inline-code { text-decoration: underline; text-underline-offset: 2px; }
   font-family: var(--font-ui);
   font-size: 0.86em;
   padding: 1px 5px;
   border-radius: 5px;
   background: light-dark(oklch(0.94 0.006 80), oklch(0.266 0.006 80));
 }
+.code-link { text-decoration: none; color: inherit; }
+.code-link:hover .inline-code { text-decoration: underline; text-underline-offset: 2px; }
+/* A ping (@ and a teammate's name) stands out in a message. */
+.ping { font-weight: 600; color: var(--sage); background: color-mix(in oklch, var(--sage) 14%, transparent); border-radius: 5px; padding: 0 3px; }
 
 /* Motion. Things arrive, respond to a press, and ease between states; nothing loops for decoration. Everything
    here switches off for people who ask their system for less motion. */
