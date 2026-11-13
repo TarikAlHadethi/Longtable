@@ -186,7 +186,7 @@ export function ClientSettings({ tableId, me, people, answerers, setAnswerer, sa
       ))}
       <form className={styles.copies} onSubmit={saveCopies} aria-label="Their own copies">
         <div className={styles.cardTitle}>Their own copies</div>
-        <div className="note">A client given a copy changes it freely; you decide what to take. Give one from their row&apos;s person window.</div>
+        <div className="note">A client given a copy changes it freely; you decide what to take. Give one from Client side, under their copy.</div>
         <label className="label" htmlFor="copy-cap">Changes a day, for each client</label>
         <Select id="copy-cap" value={cap} onChange={setCap}
           options={[{ value: "5", label: "5" }, { value: "10", label: "10" }, { value: "20", label: "20" }, { value: "50", label: "50" }, { value: "0", label: "As many as they like" }]} />

@@ -652,7 +652,7 @@
 @media (max-width: 520px) { .modeItem small { white-space: normal; } }
 
 /* The sidebar's foot: the table's settings and the feedback button, side by side at the bottom left. */
-.sideFoot { margin-top: auto; display: flex; align-items: flex-end; justify-content: flex-end; gap: 2px; }
+.sideFoot { margin-top: auto; display: flex; align-items: flex-end; justify-content: flex-start; gap: 2px; }
 .sideFoot > * { margin-top: 0; }
 
 /* A window fades out as it closes, the way it came in. */
