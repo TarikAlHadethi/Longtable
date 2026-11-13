@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { NotAtTable } from "@/components/not-at-table";
 import { serverClient } from "@/lib/supabase/server";
+import { signedInUser } from "@/lib/signed-in.mjs";
 import { UsageView, type Card } from "./usage-view";
 
 type Limits = { ai?: string; plan?: string | null; status?: string; windows?: { name: string; used: number; resets: string | null }[] };
@@ -10,7 +11,7 @@ type Limits = { ai?: string; plan?: string | null; status?: string; windows?: { 
 export default async function Usage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await serverClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await signedInUser(supabase);
   if (!user) redirect(`/sign-in?next=/t/${id}/usage`);
   // A read that failed is a fault, not a table that is not there.
   const { data: table, error: tableError } = await supabase.from("tables").select("id, name").eq("id", id).maybeSingle();

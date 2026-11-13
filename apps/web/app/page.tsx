@@ -6,6 +6,7 @@ import { LandingTable } from "./landing-table";
 import { Fit } from "@/components/fit";
 import { AiLogo } from "@/components/ai-logo";
 import { serverClient } from "@/lib/supabase/server";
+import { signedInOrNull } from "@/lib/signed-in.mjs";
 import type { Metadata } from "next";
 import s from "./landing.module.css";
 
@@ -48,7 +49,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   const deleted = (await searchParams).deleted === "1";
   // Someone already signed in is shown the way to their tables, not asked to sign in again.
   const supabase = await serverClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await signedInOrNull(supabase);
   return (
     <div className={s.page}>
       <div className={s.glow} aria-hidden="true"><i /><i /><i /><i /></div>

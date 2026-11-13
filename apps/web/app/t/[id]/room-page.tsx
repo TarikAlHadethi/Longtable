@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { NotAtTable } from "@/components/not-at-table";
 import { serverClient } from "@/lib/supabase/server";
+import { signedInUser } from "@/lib/signed-in.mjs";
 import { ClientPage } from "./client-page";
 import { Room } from "./room";
 import {
@@ -18,7 +19,7 @@ export type RoomView = "table" | "chat" | "logs" | "settings";
 // are this one page: moving between them inside the room never goes back to the server.
 export async function RoomPage({ id, wanted, view, side, sandbox }: { id: string; wanted?: string | string[]; view?: "logs" | "settings"; side?: boolean; sandbox?: string | string[] }) {
   const supabase = await serverClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await signedInUser(supabase);
   if (!user) {
     const chat = typeof wanted === "string" && /^[0-9a-z-]{1,40}$/.test(wanted) ? wanted : "";
     const query = side ? "?side=client" : chat ? `?c=${chat}` : "";

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AuthShell } from "@/components/auth-shell";
 import s from "@/components/auth.module.css";
 import { serverClient } from "@/lib/supabase/server";
+import { signedInUser } from "@/lib/signed-in.mjs";
 import { JoinForm } from "./join-form";
 
 type Preview = { table_name: string; role: "owner" | "developer" | "client"; expired: boolean; used: boolean; name: string };
@@ -12,7 +13,7 @@ export default async function Join({ params }: { params: Promise<{ token: string
   const supabase = await serverClient();
   const { data } = await supabase.rpc("invite_preview", { token });
   const preview = (data as Preview[] | null)?.[0];
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await signedInUser(supabase);
 
   let body: React.ReactNode;
   if (!preview) {

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Mark } from "@/components/mark";
 import { serverClient } from "@/lib/supabase/server";
+import { signedInUser } from "@/lib/signed-in.mjs";
 import { AuthShell } from "@/components/auth-shell";
 import s from "@/components/auth.module.css";
 import { StartChoices, type Wait } from "./start-choices";
@@ -14,7 +15,7 @@ export default async function Start({ searchParams }: { searchParams: Promise<Re
   const q = await searchParams;
   const given = String((Array.isArray(q.code) ? q.code[0] : q.code) ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
   const supabase = await serverClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await signedInUser(supabase);
   if (!user) redirect(`/sign-in?next=${encodeURIComponent(given ? `/start?code=${given}` : q.join ? "/start?join=1" : "/start")}`);
 
   const [{ data, error }, { data: waitRows }] = await Promise.all([
