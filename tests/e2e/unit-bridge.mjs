@@ -1,8 +1,8 @@
 // A person's own computer from their own page: the bridge serves only Longtable's own site, sent to this computer by
-// name, with that table's key and only for a table Longtable allowed; the terminal runs a line, keeps a plain `cd`,
-// passes input to what is running, refuses a "!" while something runs, and Stop ends it with what it started; the
-// browser (when this computer has Chrome, Edge or Brave) shows a page, takes a click and typing, and goes where it is
-// told only for web addresses. No database, no AI.
+// name, with that table's key and only for a table Longtable allowed; the terminal is their real shell in a real
+// terminal (keys as typed, a colour terminal, its size, Ctrl+C, a "!" line, the screen kept for a page opened later,
+// closing ends it); the browser (when this computer has Chrome, Edge or Brave) shows a page, takes a click and typing,
+// goes where it is told only for web addresses, and keeps as many tabs as are opened. No database, no AI.
 //
 //   node tests/e2e/unit-bridge.mjs
 
@@ -12,7 +12,7 @@ import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startBridge, fromPage, keyOk, bridgeKey } from "../../packages/connect/src/local.mjs";
-import { cdTarget, shellFor, termEnv } from "../../packages/connect/src/terminal.mjs";
+import { shellFor, termEnv } from "../../packages/connect/src/terminal.mjs";
 import { Browser, addressFor, findBrowser } from "../../packages/connect/src/browser.mjs";
 
 const results = {};
@@ -30,12 +30,9 @@ check("only Longtable's own site, sent here by name", fromPage({ host: "127.0.0.
 const k = bridgeKey();
 check("a key of the shape Longtable keeps", /^[A-Za-z0-9_-]{32,64}$/.test(k));
 check("the key must match exactly", keyOk(`Bearer ${k}`, k) && !keyOk(`Bearer ${k.slice(1)}x`, k) && !keyOk("", k) && !keyOk(`Bearer ${k}`, null));
-check("a plain cd is kept, anything longer runs in the shell", cdTarget("cd src", "/a")?.to?.replace(/\\/g, "/").endsWith("/a/src")
-  && cdTarget("cd", "/a")?.show === true && cdTarget('cd "my folder"', "/a")?.to?.replace(/\\/g, "/").endsWith("/a/my folder")
-  && cdTarget("cd ~/x", "/a", "/home/me")?.to?.replace(/\\/g, "/").endsWith("/home/me/x") && cdTarget("cd src && ls", "/a") === null
-  && cdTarget("npm test", "/a") === null);
-check("PowerShell on Windows, their own shell elsewhere", shellFor("ls", "win32").cmd === "powershell.exe" && shellFor("ls", "linux", { SHELL: "/bin/zsh" }).cmd === "/bin/zsh");
-check("the connection's own settings stay out of the terminal", !("LONGTABLE_HOME" in termEnv({ LONGTABLE_HOME: "x", LT_JOB_KEY: "y", PATH: "p" })) && !("LT_JOB_KEY" in termEnv({ LT_JOB_KEY: "y" })) && termEnv({ PATH: "p" }).PATH === "p");
+check("PowerShell on Windows, their own login shell elsewhere", shellFor("win32").cmd === "powershell.exe" && shellFor("linux", { SHELL: "/bin/zsh" }).cmd === "/bin/zsh" && shellFor("linux", { SHELL: "/bin/zsh" }).args[0] === "-l");
+check("the connection's own settings stay out of the terminal, and it is a colour terminal", !("LONGTABLE_HOME" in termEnv({ LONGTABLE_HOME: "x", PATH: "p" })) && !("LT_JOB_KEY" in termEnv({ LT_JOB_KEY: "y" }))
+  && termEnv({ PATH: "p" }).PATH === "p" && termEnv({ NO_COLOR: "1" }).NO_COLOR === undefined && termEnv({}).TERM === "xterm-256color");
 check("the browser goes only to web addresses", addressFor("example.com") === "https://example.com/" && addressFor("localhost:3000") === "http://localhost:3000/"
   && addressFor("http://127.0.0.1:8080/x") === "http://127.0.0.1:8080/x" && addressFor("file:///etc/passwd") === null && addressFor("javascript:alert(1)") === null
   && addressFor("chrome://settings") === null && addressFor("") === null);
@@ -74,51 +71,54 @@ check("a table Longtable did not allow is closed, even with its key", (await raw
 const pre = await raw(`/term${t(mine)}`, { method: "OPTIONS" });
 check("the page's preflight is answered for Longtable only", pre.status === 204 && pre.headers["access-control-allow-origin"] === APP && pre.headers["access-control-allow-private-network"] === "true");
 
-// Listen to the terminal the way the page does.
-let heard = "";
-const listening = new Promise((ready) => {
-  const req = request({ host: "127.0.0.1", port: bridge.port, path: `/term${t(mine)}`, headers: { Host: `127.0.0.1:${bridge.port}`, Origin: APP, Authorization: `Bearer ${mine.local.key}` } }, (res) => {
+// Listen to the terminal the way the page does: what it printed so far, then everything it prints.
+const listen = (cols = 100, rows = 30) => {
+  const got = { text: "", events: [] };
+  const req = request({ host: "127.0.0.1", port: bridge.port, path: `/term${t(mine)}&cols=${cols}&rows=${rows}`, headers: { Host: `127.0.0.1:${bridge.port}`, Origin: APP, Authorization: `Bearer ${mine.local.key}` } }, (res) => {
+    let buf = "";
     res.setEncoding("utf8");
-    res.on("data", (d) => { heard += d; });
-    ready(req);
+    res.on("data", (d) => {
+      buf += d;
+      let i;
+      while ((i = buf.indexOf("\n")) >= 0) { const l = buf.slice(0, i).trim(); buf = buf.slice(i + 1); if (l) { const e = JSON.parse(l); got.events.push(e); if (e.data) got.text += e.data; } }
+    });
   });
   req.end();
-});
-const stream = await listening;
-const said = () => heard.split("\n").filter(Boolean).map((l) => JSON.parse(l));
-await until(() => said().some((e) => e.state));
-check("opening the terminal hears where it is", said().find((e) => e.state)?.state.cwd === folder);
-
-await post("/term", mine, { line: "echo hello-from-the-table" });
-check("a line runs and its output comes back", await until(() => said().some((e) => e.text?.includes("hello-from-the-table") && !e.text.includes("echo"))));
-await until(() => said().some((e) => e.running === false));
-
-await post("/term", mine, { line: "cd src" });
-check("a plain cd is kept for the next line", await until(() => said().some((e) => e.cwd?.endsWith("src"))));
-heard = "";
-await post("/term", mine, { line: win ? "(Get-Location).Path" : "pwd" });
-check("the next line runs there", await until(() => said().some((e) => e.text?.replace(/\\/g, "/").includes("project/src") && !e.text.includes(">"))));
-await until(() => said().some((e) => e.running === false));
-await post("/term", mine, { line: "cd nowhere-at-all" });
-check("a cd to nowhere says so and stays", await until(() => said().some((e) => e.text?.includes("No such folder"))));
-
-// Something that waits for input takes the next line as its input; a "!" meanwhile is refused.
-heard = "";
-await post("/term", mine, { line: win ? "$n = [Console]::In.ReadLine(); \"got $n\"" : "read n; echo \"got $n\"" });
-await until(() => said().some((e) => e.running === true));
-check("a \"!\" from the chat waits while something runs", (await post("/term", mine, { line: "echo second", fresh: true })).busy === true);
-await post("/term", mine, { line: "banana" });
-check("what is typed next is its input", await until(() => said().some((e) => e.text?.includes("got banana"))));
-await until(() => said().some((e) => e.running === false));
-
-// Stop ends a long command.
-heard = "";
-await post("/term", mine, { line: win ? "Start-Sleep -Seconds 60" : "sleep 60" });
-await until(() => said().some((e) => e.running === true));
-const stoppedAt = Date.now();
+  got.close = () => req.destroy();
+  return got;
+};
+// What a command printed, told apart from the command as typed: its words are joined only when it runs.
+const plain = (s) => s.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "").replace(/\x1b\][^\x07]*\x07/g, "");
+const shows = (got, word) => until(() => plain(got.text).split(/\r?\n/).some((l) => l.trim().endsWith(word) && !l.includes("+") && !l.includes("'")), 15000);
+const typeIn = (data) => post("/term", mine, { data });
+const term = listen();
+check("opening the terminal starts with the screen as it was (empty at first)", await until(() => term.events[0]?.all === true && term.events[0].data === ""));
+await sleep(1500);
+await typeIn(win ? `echo ('hello'+'-pty')\r` : `echo 'hello''-pty'\r`);
+check("keys go to their real shell, and what it prints comes back", await shows(term, "hello-pty"), term.text.slice(-300));
+await typeIn(win ? `echo ('term-'+$env:TERM)\r` : `echo 'term-'"$TERM"\r`);
+check("it is a colour terminal", await shows(term, "term-xterm-256color"), term.text.slice(-300));
+await post("/term/size", mine, { cols: 120, rows: 40 });
+await sleep(500);
+await typeIn(win ? `echo ('cols-'+$Host.UI.RawUI.WindowSize.Width)\r` : `echo 'cols-'"$(tput cols)"\r`);
+check("it takes the size of the page's terminal", await shows(term, "cols-120"), term.text.slice(-300));
+await typeIn(win ? "Start-Sleep -Seconds 60\r" : "sleep 60\r");
+await sleep(1500);
+await typeIn("\x03");
+await sleep(800);
+await typeIn(win ? `echo ('after'+'-stop')\r` : `echo 'after''-stop'\r`);
+check("Ctrl+C stops what runs, and the shell carries on", await shows(term, "after-stop"), term.text.slice(-300));
+await post("/term", mine, { line: win ? "echo ('from'+'-the-chat')" : "echo 'from''-the-chat'" });
+check("a \"!\" line from the chat runs in it", await shows(term, "from-the-chat"), term.text.slice(-300));
+const later = listen();
+check("a page opened later sees the screen as it was", await until(() => later.events[0]?.all === true && later.events[0].data.includes("from-the-chat")));
+later.close();
 await post("/term/stop", mine, {});
-check("Stop ends what is running", await until(() => said().some((e) => e.running === false), 8000) && Date.now() - stoppedAt < 8000);
-stream.destroy();
+term.close();
+const fresh = listen();
+check("closing the terminal ends it: the next one starts clean", await until(() => fresh.events[0]?.all === true && !fresh.events[0].data.includes("hello-pty")));
+fresh.close();
+await post("/term/stop", mine, {});
 
 // The browser, where this computer has one.
 const exe = findBrowser();
@@ -154,6 +154,17 @@ if (!exe) {
     await browser.call("Runtime.evaluate", { expression: "document.title='x'" }, browser.page.sessionId);
     await post("/browser", mine, { do: "click", x: 0.5, y: 0.25 });
     check("and a click still lands where it was pressed at that size", await until(async () => (await title()) === "clicked"));
+    // Tabs: as many as are opened, each one shown when picked, gone when closed.
+    const tabs = () => [...events].reverse().find((e) => e.tabs)?.tabs ?? [];
+    await post("/browser", mine, { do: "newtab", url: page });
+    check("a new tab opens and is the one shown", await until(() => tabs().length === 2 && [...events].reverse().find((e) => e.tabs)?.active === browser.page?.targetId && browser.page.url === page));
+    for (let i = 0; i < 11; i++) await post("/browser", mine, { do: "newtab" });
+    check("there is no limit on tabs", await until(() => tabs().length === 13 && browser.tabs.size === 13), tabs().length);
+    const first = tabs()[0].id;
+    await post("/browser", mine, { do: "tab", id: first });
+    check("picking a tab shows it", await until(() => browser.page?.targetId === first));
+    for (const tb of tabs().slice(1)) await post("/browser", mine, { do: "closetab", id: tb.id });
+    check("closing tabs takes them away", await until(() => tabs().length === 1 && browser.tabs.size === 1), tabs().length);
     const refused = await raw(`/browser${t(mine)}`, { method: "POST", key: mine.local.key, body: { do: "go", url: "file:///etc/passwd" } });
     check("it refuses to open a file of this computer", refused.status === 500 && /not a web address/.test(refused.body));
     const port = await browser.hold();

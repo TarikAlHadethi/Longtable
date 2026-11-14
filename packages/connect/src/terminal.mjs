@@ -1,117 +1,85 @@
-import { spawn, spawnSync } from "node:child_process";
-import { statSync } from "node:fs";
 import { homedir } from "node:os";
-import { resolve } from "node:path";
+import { loadPty } from "./pty.mjs";
 
-// A terminal on the person's own computer, reached only from their own page through the bridge (local.mjs). Each line
-// runs as its own command in the folder the terminal is in, as Claude Code's own shell tool does: a plain `cd` is kept
-// between lines, a running command takes what is typed next as its input, and Stop ends it with everything it started.
-// There is no pseudo-terminal (that needs a native package, and the self-updating connection carries only plain
-// files), so a program that draws the whole screen does not draw here.
+// A terminal on the person's own computer, reached only from their own page through the bridge (local.mjs): their
+// own shell in a real pseudo-terminal (pty.mjs), as in any terminal app. Colours, prompts, arrow keys, Tab completion,
+// Ctrl+C and full-screen programs all work, because the page runs a real terminal (xterm.js) and every key goes
+// straight to the shell. It starts in the folder they connected from and lives until it exits or they close it; what it
+// printed is kept, so a page opened later sees the screen as it was.
 
-const KEEP = 200_000; // characters of output kept, for a page opened later
-const LINE_MAX = 8000;
+const KEEP = 400_000; // characters of output kept for a page that opens later
 
-export function shellFor(line, platform = process.platform, env = process.env) {
-  if (platform === "win32") {
-    return { cmd: "powershell.exe", args: ["-NoLogo", "-NoProfile", "-Command", `[Console]::OutputEncoding = [Text.Encoding]::UTF8; ${line}`] };
-  }
-  return { cmd: env.SHELL || "/bin/bash", args: ["-lc", line] };
+export function shellFor(platform = process.platform, env = process.env) {
+  if (platform === "win32") return { cmd: "powershell.exe", args: ["-NoLogo"] };
+  return { cmd: env.SHELL || "/bin/bash", args: ["-l"] };
 }
 
-// What the commands run with: the person's own environment, minus the connection's own settings, and asked for plain
-// text (the page shows no colours).
+// What the shell runs with: the person's own environment, minus the connection's own settings, as a colour terminal.
 export function termEnv(env = process.env) {
   const out = {};
-  for (const [k, v] of Object.entries(env)) if (!/^(LONGTABLE_|LT_)/i.test(k)) out[k] = v;
-  return { ...out, NO_COLOR: "1", FORCE_COLOR: "0", TERM: "dumb" };
+  for (const [k, v] of Object.entries(env)) if (!/^(LONGTABLE_|LT_)/i.test(k) && k !== "NO_COLOR" && k !== "FORCE_COLOR") out[k] = v;
+  return { ...out, TERM: "xterm-256color", COLORTERM: "truecolor" };
 }
 
-// Where a plain `cd` goes, or null when it is not a plain `cd` (a `cd` inside a longer line runs in the shell, and
-// the folder after it is not kept).
-export function cdTarget(line, cwd, home = homedir()) {
-  const m = line.trim().match(/^(?:cd|chdir)(?:\s+(?:\/d\s+)?(.+))?$/i);
-  if (!m || /[;&|<>]/.test(m[1] || "")) return null;
-  let to = (m[1] || "").trim().replace(/^(["'])(.*)\1$/, "$2");
-  if (!to) return { show: true };
-  if (to === "~" || to.startsWith("~/") || to.startsWith("~\\")) to = home + to.slice(1);
-  return { to: resolve(cwd, to) };
-}
+const size = (n, lo, hi, d) => Math.max(lo, Math.min(hi, Math.round(Number(n)) || d));
 
 export class Terminal {
-  constructor(cwd, emit) {
+  constructor(cwd, emit, load = loadPty) {
     this.cwd = cwd || homedir();
-    this.text = "";
-    this.child = null;
     this.emit = emit;
+    this.load = load;
+    this.text = "";
+    this.proc = null;
+    this.starting = null;
+    this.cols = 100;
+    this.rows = 30;
   }
 
-  state() { return { cwd: this.cwd, running: !!this.child, text: this.text }; }
-
-  out(text) {
-    this.text = (this.text + text).slice(-KEEP);
-    this.emit({ text });
+  // The shell, started when first needed (and again after it exited).
+  open(cols, rows) {
+    if (cols) this.resize(cols, rows);
+    if (this.proc) return Promise.resolve();
+    this.starting ??= (async () => {
+      const pty = await this.load();
+      const { cmd, args } = shellFor();
+      const proc = pty.spawn(cmd, args, { name: "xterm-256color", cols: this.cols, rows: this.rows, cwd: this.cwd, env: termEnv() });
+      this.proc = proc;
+      proc.onData((d) => {
+        this.text = (this.text + d).slice(-KEEP);
+        this.emit({ data: d });
+      });
+      proc.onExit(({ exitCode }) => {
+        if (this.proc !== proc) return;
+        this.proc = null;
+        const line = `\r\n[the shell ended${exitCode ? ` with ${exitCode}` : ""}; press a key to start a new one]\r\n`;
+        this.text = (this.text + line).slice(-KEEP);
+        this.emit({ data: line, exited: true });
+      });
+    })().finally(() => { this.starting = null; });
+    return this.starting;
   }
 
-  // `fresh`: a command from the chat's "!", which never goes into a program already running.
-  run(raw, { fresh = false } = {}) {
-    const line = String(raw ?? "").replace(/\r/g, "").slice(0, LINE_MAX);
-    if (this.child) {
-      if (fresh) return { busy: true };
-      this.out(`${line}\n`);
-      this.child.stdin.write(`${line}\n`, () => {});
-      return { ok: true };
-    }
-    this.out(`${this.cwd}> ${line}\n`);
-    if (!line.trim()) return { ok: true };
-    if (/^\s*(clear|cls)\s*$/i.test(line)) { this.text = ""; this.emit({ clear: true }); return { ok: true }; }
-    const cd = cdTarget(line, this.cwd);
-    if (cd) {
-      if (cd.show) this.out(`${this.cwd}\n`);
-      else {
-        let dir = false;
-        try { dir = statSync(cd.to).isDirectory(); } catch {}
-        if (dir) { this.cwd = cd.to; this.emit({ cwd: this.cwd }); } else this.out(`No such folder: ${cd.to}\n`);
-      }
-      return { ok: true };
-    }
-    const { cmd, args } = shellFor(line);
-    let child;
-    try {
-      child = spawn(cmd, args, { cwd: this.cwd, env: termEnv(), windowsHide: true, detached: process.platform !== "win32" });
-    } catch (e) {
-      this.out(`Could not start it: ${e.message}\n`);
-      return { ok: false };
-    }
-    this.child = child;
-    this.emit({ running: true });
-    child.stdout.setEncoding("utf8");
-    child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (d) => this.out(d));
-    child.stderr.on("data", (d) => this.out(d));
-    child.stdin.on("error", () => {});
-    let done = false;
-    const finish = (code, why) => {
-      if (done) return;
-      done = true;
-      if (this.child === child) this.child = null;
-      if (why) this.out(`${why}\n`);
-      else if (code) this.out(`(exit ${code})\n`);
-      this.emit({ running: false });
-    };
-    child.on("error", (e) => finish(1, `Could not start it: ${e.message}`));
-    child.on("close", (code) => finish(code));
-    return { ok: true };
+  // Keys, exactly as typed (a shell that ended starts again on the next key).
+  async write(data) {
+    const s = String(data ?? "");
+    if (!s) return;
+    if (!this.proc) await this.open();
+    this.proc.write(s.slice(0, 64 * 1024));
   }
 
-  // Stop, as Ctrl+C would: the command and everything it started.
+  // A command from the chat's "!": typed in and run, as if it were typed here.
+  run(line) { return this.write(`${String(line ?? "").replace(/[\r\n]+/g, " ").slice(0, 8000)}\r`); }
+
+  resize(cols, rows) {
+    this.cols = size(cols, 20, 500, this.cols);
+    this.rows = size(rows, 5, 200, this.rows);
+    try { this.proc?.resize(this.cols, this.rows); } catch {}
+  }
+
+  // Closed for good from the page, or when the connection stops: the shell and everything it started.
   stop() {
-    const child = this.child;
-    if (!child?.pid) return;
-    try {
-      if (process.platform === "win32") spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
-      else process.kill(-child.pid, "SIGTERM");
-    } catch { try { child.kill(); } catch {} }
-    this.out("^C\n");
+    const p = this.proc;
+    this.proc = null;
+    try { p?.kill(); } catch {}
   }
 }

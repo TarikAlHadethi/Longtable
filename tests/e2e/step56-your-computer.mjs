@@ -15,6 +15,7 @@ import { bridgeKey, startBridge } from "../../packages/connect/src/local.mjs";
 import { Browser } from "../../packages/connect/src/browser.mjs";
 
 const run = Date.now().toString(36);
+const win = process.platform === "win32";
 const results = {};
 const check = (name, ok, detail) => { results[name] = ok ? "pass" : `FAIL ${JSON.stringify(detail ?? "").slice(0, 300)}`; };
 const sql = (q) => execFileSync("docker", ["exec", "-i", process.env.DB_CONTAINER || "supabase_db_longtable", "psql", "-U", "postgres", "-d", "postgres", "-At", "-c", q], { encoding: "utf8" }).trim();
@@ -84,17 +85,59 @@ try {
   check("the mode menu offers Bypass", (await page.locator("[role=option]", { hasText: "Bypass" }).count()) === 1);
   await page.keyboard.press("Escape");
 
+  // The terminal: a real one, in a window of its own, opened from its icon under the box.
+  check("the terminal and browser are icons under the box", (await page.locator("[data-testid=open-terminal] svg").count()) === 1 && (await page.locator("[data-testid=open-browser] svg").count()) === 1
+    && ((await page.locator("[data-testid=open-terminal]").textContent()) || "").trim() === "");
+  const screen = () => page.locator("[data-testid=term-out] .xterm-rows").innerText().catch(() => "");
+  const shows = (word) => until(async () => (await screen()).split("\n").some((l) => l.trim() === word), 20000);
   await page.click("[data-testid=open-terminal]");
-  await page.fill("[data-testid=term-line]", "echo typed-in-longtable");
-  await page.press("[data-testid=term-line]", "Enter");
-  check("a line typed in the terminal runs on their computer", await until(async () => (await page.locator("[data-testid=term-out]").textContent())?.split("\n").some((l) => l.trim() === "typed-in-longtable")));
-  await page.click("[data-testid=computer] [aria-label=Close]");
-  check("the panel closes", (await page.locator("[data-testid=computer]").count()) === 0);
+  await page.waitForSelector("[data-testid=term-out] .xterm-rows");
+  await sleep(2500);
+  await page.click("[data-testid=term-out]");
+  await page.keyboard.type(win ? "echo ('typed-in'+'-longtable')" : "echo 'typed-in''-longtable'");
+  await page.keyboard.press("Enter");
+  check("what is typed in the terminal runs in their real shell", await shows("typed-in-longtable"), (await screen()).slice(-300));
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("Enter");
+  check("arrow keys reach the shell (Up brings the last command back)", await until(async () => (await screen()).split("\n").filter((l) => l.trim() === "typed-in-longtable").length >= 2, 15000));
 
+  // A window of its own, moved by its top bar.
+  const box = async (sel) => page.locator(sel).boundingBox();
+  const termWin = "[data-testid=window-terminal]";
+  const was = await box(termWin);
+  await page.mouse.move(was.x + 120, was.y + 18);
+  await page.mouse.down();
+  await page.mouse.move(was.x - 80, was.y + 120, { steps: 6 });
+  await page.mouse.up();
+  const now = await box(termWin);
+  check("the window moves where it is dragged", Math.abs(now.x - (was.x - 200)) < 4 && Math.abs(now.y - (was.y + 102)) < 4, { was, now });
+
+  // The browser in a window of its own; the two put together as tabs of one window, and taken apart again.
+  await page.click("[data-testid=open-browser]");
+  await page.waitForSelector("[data-testid=window-browser]");
+  check("the browser opens in its own window, beside the terminal", (await page.locator("[data-testid^=window-]").count()) === 2);
+  await page.click("[data-testid=window-browser] [data-testid=combine]");
+  check("put together, they are tabs of one window", await until(async () => (await page.locator("[data-testid^=window-]").count()) === 1 && (await page.locator("[data-testid=tab-browser]").count()) === 1 && (await page.locator("[data-testid=tab-terminal]").count()) === 1));
+  await page.click("[data-testid=tab-terminal]");
+  check("the terminal keeps its screen as a tab", await shows("typed-in-longtable"));
+  await page.click("[data-testid=separate-browser]");
+  check("taken apart, each has its own window again", await until(async () => (await page.locator("[data-testid=window-terminal]").count()) === 1 && (await page.locator("[data-testid=window-browser]").count()) === 1));
+
+  // Tabs in the browser, with no limit: past ten it says so, and still opens more.
+  await until(async () => (await page.locator("[data-testid=browser-tab]").count()) >= 1, 20000);
+  for (let i = 0; i < 11; i++) { await page.click("[data-testid=browser-newtab]"); await sleep(150); }
+  check("past ten tabs it warns, and opens them all the same", await until(async () => (await page.locator("[data-testid=browser-tab]").count()) === 12 && (await page.locator("[data-testid=many-tabs]").count()) === 1, 20000),
+    await page.locator("[data-testid=browser-tab]").count());
+  await page.click("[data-testid=window-browser] [data-testid=close-window]");
+
+  // Closing the terminal ends its shell; the next one starts clean. "!" in the box runs there and never reaches the chat.
+  await page.click("[data-testid=window-terminal] [data-testid=close-window]");
+  check("the window closes", (await page.locator("[data-testid^=window-]").count()) === 0);
   const before = sql(`select count(*) from public.messages where table_id = '${T}'`);
-  await page.fill("textarea[aria-label='Message the table']", "!echo from-the-box");
+  await page.fill("textarea[aria-label='Message the table']", win ? "!echo ('from'+'-the-box')" : "!echo 'from''-the-box'");
   await page.press("textarea[aria-label='Message the table']", "Enter");
-  check("\"!\" in the box runs it in their terminal", await until(async () => (await page.locator("[data-testid=term-out]").textContent().catch(() => ""))?.split("\n").some((l) => l.trim() === "from-the-box")));
+  check("\"!\" in the box opens the terminal and runs it there", await shows("from-the-box"), (await screen()).slice(-300));
+  check("the shell was new: what was typed before is gone", !(await screen()).includes("typed-in-longtable"));
   check("and nothing reaches the chat", sql(`select count(*) from public.messages where table_id = '${T}'`) === before && (await page.inputValue("textarea[aria-label='Message the table']")) === "");
 
   // A teammate has no way to it.

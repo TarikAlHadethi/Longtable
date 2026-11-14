@@ -50,3 +50,6 @@ export const Bug = (p: Props) => (
     <path d="M12 11v8.500M7.500 12H4M7.500 16H4.500M16.500 12H20M16.500 16h3M8 9 5.500 6.500M16 9l2.500-2.500" />
   </Svg>
 );
+// A terminal: a window with a prompt and a cursor line. A browser: a globe.
+export const TerminalIcon = (p: Props) => <Svg {...p}><rect x="3" y="4.5" width="18" height="15" rx="2.5" /><path d="M7.5 9.5l3 2.5-3 2.5M12.5 15h4" /></Svg>;
+export const Globe = (p: Props) => <Svg {...p}><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5s-1.2 6.1-3.6 8.5c-2.4-2.4-3.6-5.2-3.6-8.5S9.6 5.9 12 3.5z" /></Svg>;

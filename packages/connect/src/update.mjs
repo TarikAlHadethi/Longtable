@@ -49,6 +49,7 @@ export function untar(gz) {
     const head = buf.subarray(pos, pos + 512);
     if (head.every((b) => b === 0)) break;
     const size = parseInt(str(head.subarray(124, 136)).trim() || "0", 8);
+    const mode = parseInt(str(head.subarray(100, 108)).trim() || "644", 8);
     if (!Number.isFinite(size) || size < 0) throw new Error("a broken tar header");
     const type = String.fromCharCode(head[156] || 48);
     const prefix = str(head.subarray(345, 500));
@@ -59,7 +60,7 @@ export function untar(gz) {
     longName = null;
     if (type === "x") { const m = body.toString("utf8").match(/(?:^|\n)\d+ path=([^\n]*)\n/); if (m) longName = m[1]; continue; }
     if (type === "L") { longName = str(body); continue; }
-    if (type === "0" || type === "\0" || type === "7") files.push({ name, data: Buffer.from(body) });
+    if (type === "0" || type === "\0" || type === "7") files.push({ name, data: Buffer.from(body), exec: (mode & 0o111) !== 0 });
   }
   return files;
 }
@@ -73,25 +74,31 @@ export function keepFile(name) {
   return null;
 }
 
-// Fetch that exact version from the registry, checked against the registry's fingerprint. Returns its files.
-export async function fetchRelease(version) {
-  if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`not a version: ${version}`);
-  const metaRes = await fetch(`${REGISTRY}/${NAME}/${version}`, { headers: { accept: "application/json" } });
-  if (!metaRes.ok) throw new Error(`the registry has no ${NAME} ${version} yet (${metaRes.status})`);
+// One exact version of one package from the registry, checked against the registry's own sha512 fingerprint and
+// found where the registry keeps that package. Returns the files of its tarball.
+export async function fetchChecked(name, version, max = MAX_TARBALL) {
+  const metaRes = await fetch(`${REGISTRY}/${name.replace("/", "%2f")}/${version}`, { headers: { accept: "application/json" } });
+  if (!metaRes.ok) throw new Error(`the registry has no ${name} ${version} yet (${metaRes.status})`);
   const meta = await metaRes.json();
   const tarball = meta?.dist?.tarball;
   const integrity = String(meta?.dist?.integrity || "");
-  if (meta?.name !== NAME || meta?.version !== version) throw new Error("the registry answered for something else");
-  if (typeof tarball !== "string" || !tarball.startsWith(`${REGISTRY}/${NAME}/-/`)) throw new Error("the package is not where the registry keeps it");
+  if (meta?.name !== name || meta?.version !== version) throw new Error("the registry answered for something else");
+  if (typeof tarball !== "string" || !tarball.startsWith(`${REGISTRY}/${name}/-/`)) throw new Error("the package is not where the registry keeps it");
   const want = integrity.match(/^sha512-([A-Za-z0-9+/=]+)$/)?.[1];
   if (!want) throw new Error("the registry gave no sha512 fingerprint");
   const res = await fetch(tarball);
-  if (!res.ok) throw new Error(`could not download ${version} (${res.status})`);
+  if (!res.ok) throw new Error(`could not download ${name} ${version} (${res.status})`);
   const gz = Buffer.from(await res.arrayBuffer());
-  if (gz.length > MAX_TARBALL) throw new Error("the package is far bigger than it should be");
+  if (gz.length > max) throw new Error("the package is far bigger than it should be");
   if (createHash("sha512").update(gz).digest("base64") !== want) throw new Error("the download does not match the registry's fingerprint");
+  return untar(gz);
+}
+
+// Fetch that exact version of the connection, keeping only its own parts. Returns its files.
+export async function fetchRelease(version) {
+  if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`not a version: ${version}`);
   const files = [];
-  for (const f of untar(gz)) { const rel = keepFile(f.name); if (rel) files.push({ rel, data: f.data }); }
+  for (const f of await fetchChecked(NAME, version)) { const rel = keepFile(f.name); if (rel) files.push({ rel, data: f.data }); }
   const pkg = files.find((f) => f.rel === "package.json");
   if (!pkg || JSON.parse(pkg.data.toString("utf8")).version !== version) throw new Error("the package says it is another version");
   if (!files.some((f) => f.rel === "bin/longtable.mjs")) throw new Error("the package has no connection in it");

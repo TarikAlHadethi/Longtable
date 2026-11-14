@@ -67,10 +67,11 @@ for (const path of tracked) {
 }
 check("every dropdown is the product's own menu, never the browser's", plain.length === 0, plain);
 
-// No code-style typeface anywhere on the site: file names, branches and code are set in the product's own face.
+// No code-style typeface anywhere on the site: file names, branches and code are set in the product's own face. The one
+// exception is the terminal, which draws on a grid of equal cells and cannot work in any other face.
 const mono = [];
 for (const path of tracked) {
-  if (!/^apps\/web\/.*\.(css|tsx|ts|mjs)$/.test(path)) continue;
+  if (!/^apps\/web\/.*\.(css|tsx|ts|mjs)$/.test(path) || path === "apps/web/app/t/[id]/computer.tsx") continue;
   let text;
   try { text = readFileSync(path, "utf8"); } catch { continue; }
   text.split(String.fromCharCode(10)).forEach((l, i) => { if (/monospace|--font-mono|Mono\b.*from "next\/font/i.test(l)) mono.push(`${path}:${i + 1}`); });

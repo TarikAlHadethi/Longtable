@@ -36,7 +36,8 @@ import {
 import { ApprovalCards } from "./approvals";
 import { isQuiet, ReconnectWindow } from "./reconnect-window";
 import { ModePick } from "./mode-pick";
-import { ComputerPanel, bridge, useLocal } from "./computer";
+import { ComputerWindows, bridge, openPane, togglePane, useLocal, type Win } from "./computer";
+import { Globe, TerminalIcon } from "@/components/icons";
 import styles from "./room.module.css";
 import { firstName } from "@/lib/names";
 import { namesMe, pingsMe, useNeeds, type Need } from "@/lib/chime";
@@ -398,8 +399,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   // can already run commands there with their approval.
   const canComputer = self.role !== "client" && myConnection?.kind === "claude" && !!myConnection.full_claude;
   const { local, refresh: refreshLocal } = useLocal(supabase, table.id, canComputer);
-  const [computer, setComputer] = useState<null | "terminal" | "browser">(null);
-  const closeComputer = useCallback(() => setComputer(null), []);
+  const [wins, setWins] = useState<Win[]>([]);
   // "!" and a command runs it in their terminal, as in Claude Code; nothing goes to the chat. ("!!!" is just words.)
   async function bang(body: string) {
     const line = canComputer ? body.match(/^!\s*([^!\s][\s\S]*)$/)?.[1] : null;
@@ -407,11 +407,10 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (!local) { setNotice("Your terminal opens once your computer's connection is on and up to date."); return true; }
     setDraft("");
     requestAnimationFrame(grow);
-    setComputer("terminal");
+    setWins((all) => openPane(all, "terminal"));
     try {
-      const r = await bridge(local, table.id, "/term", { line, fresh: true });
-      if (r.busy) { setDraft(body); setNotice("Your terminal is still running something. Stop it first."); }
-      else setNotice("");
+      await bridge(local, table.id, "/term", { line });
+      setNotice("");
     } catch (e) {
       setDraft(body);
       refreshLocal();
@@ -1620,10 +1619,14 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               {chat?.answers !== "off" && myConnection?.kind === "claude" && myConnection.full_claude && (
                 <ModePick value={myConnection.mode ?? "auto"} onPick={(m) => setMode(myConnection.id, m)} />
               )}
-              {canComputer && local && <>
-                <button type="button" className={styles.toolLink} onClick={() => setComputer(computer === "terminal" ? null : "terminal")} data-testid="open-terminal">Terminal</button>
-                <button type="button" className={styles.toolLink} onClick={() => setComputer(computer === "browser" ? null : "browser")} data-testid="open-browser">Browser</button>
-              </>}
+              {canComputer && local && (["terminal", "browser"] as const).map((p) => {
+                const Icon = p === "terminal" ? TerminalIcon : Globe;
+                const name = p === "terminal" ? "Terminal" : "Browser";
+                return (
+                  <button key={p} type="button" className={`${styles.toolIcon} ${wins.some((w) => w.panes.includes(p)) ? styles.toolIconOn : ""}`} onClick={() => setWins((all) => togglePane(all, p))}
+                    aria-label={name} title={name} data-testid={`open-${p}`}><Icon size={18} /></button>
+                );
+              })}
               {notice && <span className={styles.notice} role="status">{notice}</span>}
               {/* When this person's own AI cannot answer here, say why, with the one fix. */}
               {!notice && chat?.answers === "off" && <span className={styles.notice} data-testid="no-ai">No AI hears this chat.</span>}
@@ -1636,8 +1639,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           </div>
         </main>
 
-        {computer && canComputer && (
-          <ComputerPanel tab={computer} onTab={setComputer} onClose={closeComputer} local={local} table={table.id} onLost={refreshLocal} setNotice={setNotice} />
+        {canComputer && (
+          <ComputerWindows wins={wins} setWins={setWins} local={local} table={table.id} onLost={refreshLocal} setNotice={setNotice} />
         )}
         {view === "settings" || view === "logs" || view === "sandbox" ? null : view === "table" ? (
           <aside className={`${styles.inbox} ${inboxOpen ? styles.inboxOpen : ""}`} aria-label="Usage">

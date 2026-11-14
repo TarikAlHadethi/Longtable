@@ -53,7 +53,9 @@ export class Browser {
     this.log = log;
     this.viewers = new Set();
     this.users = 0;
-    this.page = null;      // { targetId, sessionId, url, title }
+    this.page = null;      // the tab shown: { targetId, sessionId, url, title }
+    this.tabs = new Map(); // every tab, by id: { id, url, title }; as many as they or their AI open
+    this.sessions = new Map(); // tab id -> the session it is spoken to on
     this.size = { w: 1280, h: 800 };
     this.fit = null;       // the size of the picture on their screen, while someone watches
     this.starting = null;
@@ -98,6 +100,8 @@ export class Browser {
       this.ready = false;
       this.port = 0;
       this.page = null;
+      this.tabs.clear();
+      this.sessions.clear();
       for (const { fail } of this.calls.values()) fail(new Error("the browser closed"));
       this.calls.clear();
       this.tell({ closed: true });
@@ -112,7 +116,8 @@ export class Browser {
       if (!this.port) throw new Error("the browser did not say where it listens");
       await this.call("Target.setDiscoverTargets", { discover: true });
       const { targetInfos } = await this.call("Target.getTargets");
-      const page = targetInfos.find((t) => t.type === "page");
+      for (const t of targetInfos) this.note(t);
+      const page = targetInfos.find((t) => this.tabs.has(t.targetId));
       await this.show(page ? page.targetId : (await this.call("Target.createTarget", { url: "about:blank" })).targetId);
     } catch (e) {
       this.close();
@@ -135,6 +140,8 @@ export class Browser {
     this.proc = null;
     this.port = 0;
     this.page = null;
+    this.tabs.clear();
+    this.sessions.clear();
     if (p) { try { p.kill(); } catch {} }
   }
 
@@ -161,31 +168,69 @@ export class Browser {
       this.size = { w: p.metadata.deviceWidth, h: p.metadata.deviceHeight };
       return this.tell({ frame: p.data });
     }
-    // A tab their AI opened is the one shown, as it would be in front of them.
-    if (msg.method === "Target.targetCreated" && this.ready && p.targetInfo?.type === "page" && p.targetInfo.targetId !== this.page?.targetId) {
-      return this.show(p.targetInfo.targetId).catch((e) => this.log(`browser: could not show a new tab: ${e.message}`));
+    // A new tab, theirs or their AI's, is the one shown, as it would be in front of them.
+    if (msg.method === "Target.targetCreated" && this.note(p.targetInfo)) {
+      this.tellTabs();
+      if (this.ready) this.show(p.targetInfo.targetId).catch((e) => this.log(`browser: could not show a new tab: ${e.message}`));
+      return;
     }
-    if (msg.method === "Target.targetInfoChanged" && p.targetInfo?.targetId === this.page?.targetId) {
-      this.page.url = p.targetInfo.url;
-      this.page.title = p.targetInfo.title;
-      return this.tell({ url: this.page.url, title: this.page.title });
+    if (msg.method === "Target.targetInfoChanged" && this.note(p.targetInfo)) {
+      this.tellTabs();
+      if (p.targetInfo.targetId === this.page?.targetId) {
+        this.page.url = p.targetInfo.url;
+        this.page.title = p.targetInfo.title;
+        this.tell({ url: this.page.url, title: this.page.title });
+      }
+      return;
     }
-    if (msg.method === "Target.targetDestroyed" && p.targetId === this.page?.targetId) {
+    if (msg.method === "Target.targetDestroyed" && this.tabs.delete(p.targetId)) {
+      this.sessions.delete(p.targetId);
+      this.tellTabs();
+      if (p.targetId !== this.page?.targetId) return;
       this.page = null;
-      return this.call("Target.getTargets").then(({ targetInfos }) => {
-        const other = targetInfos.find((t) => t.type === "page");
-        return other ? this.show(other.targetId) : this.call("Target.createTarget", { url: "about:blank" });
-      }).catch((e) => this.log(`browser: no tab left to show: ${e.message}`));
+      this.casting = null;
+      // The last tab closed: a blank one takes its place, as a browser window would keep one open.
+      const next = [...this.tabs.keys()].pop();
+      return (next ? this.show(next) : this.call("Target.createTarget", { url: "about:blank" }))
+        .catch((e) => this.log(`browser: no tab left to show: ${e.message}`));
     }
   }
 
-  async show(targetId) {
-    const { sessionId } = await this.call("Target.attachToTarget", { targetId, flatten: true });
+  // A page target is a tab (never the browser's own pages, such as DevTools). Kept with its address and title.
+  note(t) {
+    if (!t || t.type !== "page" || /^(devtools|chrome-extension):/.test(t.url || "")) return false;
+    this.tabs.set(t.targetId, { id: t.targetId, url: t.url || "", title: t.title || "" });
+    return true;
+  }
+
+  tellTabs() { this.tell({ tabs: [...this.tabs.values()], active: this.page?.targetId || null }); }
+
+  // One switch at a time, in the order asked: a tab picked just after others opened is the one left showing.
+  show(targetId) {
+    this.showing = (this.showing || Promise.resolve()).catch(() => {}).then(() => this.showNow(targetId));
+    return this.showing;
+  }
+
+  async showNow(targetId) {
+    if (this.page?.targetId === targetId || !this.proc) return;
+    // The tab shown before stops sending pictures.
+    if (this.page && this.casting) { this.call("Page.stopScreencast", {}, this.page.sessionId).catch(() => {}); this.casting = null; }
+    let sessionId = this.sessions.get(targetId);
+    if (!sessionId) {
+      ({ sessionId } = await this.call("Target.attachToTarget", { targetId, flatten: true }));
+      this.sessions.set(targetId, sessionId);
+      await this.call("Page.enable", {}, sessionId);
+    }
     const { targetInfo } = await this.call("Target.getTargetInfo", { targetId });
     this.page = { targetId, sessionId, url: targetInfo?.url || "", title: targetInfo?.title || "" };
-    await this.call("Page.enable", {}, sessionId);
     this.tell({ url: this.page.url, title: this.page.title });
-    if (this.viewers.size) { await this.fitTo(); await this.cast(); }
+    this.tellTabs();
+    if (this.viewers.size) {
+      await this.fitTo();
+      await this.cast();
+      const { data } = await this.call("Page.captureScreenshot", { format: "jpeg", quality: 70 }, sessionId);
+      this.tell({ frame: data });
+    }
   }
 
   // The page laid out at the size it is shown at, sharp on their screen, as in Claude's own browser. With nobody
@@ -214,6 +259,7 @@ export class Browser {
     this.used = Date.now();
     await this.start();
     viewer({ url: this.page?.url || "", title: this.page?.title || "" });
+    viewer({ tabs: [...this.tabs.values()], active: this.page?.targetId || null });
     await this.fitTo();
     await this.cast();
     // A still page sends no new frame, so the one on screen is asked for.
@@ -265,6 +311,10 @@ export class Browser {
         return e ? this.call("Page.navigateToHistoryEntry", { entryId: e.id }, s) : null;
       }
       case "reload": return this.call("Page.reload", {}, s);
+      // Tabs, with no limit: their page warns past a sensible number, nothing here refuses one.
+      case "tab": return this.tabs.has(a.id) ? this.show(a.id) : null;
+      case "newtab": return this.call("Target.createTarget", { url: addressFor(a.url) || "about:blank" });
+      case "closetab": return this.tabs.has(a.id) ? this.call("Target.closeTarget", { targetId: a.id }) : null;
       case "click": {
         const x = at(a.x, this.size.w), y = at(a.y, this.size.h);
         await this.call("Input.dispatchMouseEvent", { type: "mouseMoved", x, y }, s);

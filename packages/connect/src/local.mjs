@@ -65,17 +65,22 @@ export function startBridge({ app, seats, home, browser, log }) {
         return send(res, 401, { error: "not yours" });
       }
       const path = url.pathname;
+      // The terminal: what it printed so far, then everything it prints. Opening it starts the shell at the page's size.
       if (req.method === "GET" && path === "/term") {
         const t = termFor(seat);
-        return stream(req, res, { state: t.term.state() }, (w) => t.listeners.add(w), (w) => t.listeners.delete(w));
+        return stream(req, res, { data: t.term.text, all: true }, async (w) => { t.listeners.add(w); await t.term.open(url.searchParams.get("cols"), url.searchParams.get("rows")); },
+          (w) => t.listeners.delete(w));
       }
       if (req.method === "GET" && path === "/browser") {
         return stream(req, res, null, (w) => browser.watch(w), (w) => browser.unwatch(w));
       }
       if (req.method !== "POST") return send(res, 404, { error: "nothing here" });
       const b = await body(req);
-      if (path === "/term") return send(res, 200, termFor(seat).term.run(b.line, { fresh: b.fresh === true }));
-      if (path === "/term/stop") { termFor(seat).term.stop(); return send(res, 200, { ok: true }); }
+      // Keys as typed, or a whole command from the chat's "!".
+      if (path === "/term") { const t = termFor(seat).term; await (typeof b.line === "string" ? t.run(b.line) : t.write(b.data)); return send(res, 200, { ok: true }); }
+      if (path === "/term/size") { termFor(seat).term.resize(b.cols, b.rows); return send(res, 200, { ok: true }); }
+      // Closed from the page: the shell goes, and so does what it printed.
+      if (path === "/term/stop") { const t = termFor(seat); t.term.stop(); terms.delete(seat.table_id); return send(res, 200, { ok: true }); }
       if (path === "/browser") { await browser.act(b); return send(res, 200, { ok: true }); }
       return send(res, 404, { error: "nothing here" });
     } catch (e) {
