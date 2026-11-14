@@ -122,7 +122,7 @@
 .toolLink { border: 0; background: transparent; padding: 0; font-size: 14px; font-weight: 560; color: var(--link); cursor: pointer; }
 .toolLink:hover { color: light-dark(oklch(0.35 0.07 170), oklch(0.87 0.07 170)); }
 /* A tool under the box drawn as an icon (the terminal, the browser): quiet until pointed at, coloured while open. */
-.toolIcon { position: relative; z-index: 47; border: 0; background: transparent; padding: 3px; margin: -3px 0; border-radius: 7px; color: var(--muted); cursor: pointer; display: inline-grid; place-items: center; transition: color 0.15s, background 0.15s; }
+.toolIcon { border: 0; background: transparent; padding: 3px; margin: -3px 0; border-radius: 7px; color: var(--muted); cursor: pointer; display: inline-grid; place-items: center; transition: color 0.15s, background 0.15s; }
 .toolIcon:hover { color: var(--ink); background: var(--hover); }
 .toolIconOn { color: var(--link); }
 

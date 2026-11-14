@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import "@xterm/xterm/css/xterm.css";
+import { BackIcon, ForwardIcon, Globe, Plus, ReloadIcon } from "@/components/icons";
 import styles from "./computer.module.css";
 
 // The person's own computer, from their own page: a terminal and a browser served by their connection's bridge on that
@@ -90,12 +91,12 @@ function useStream(local: Local | null, table: string, path: string, on: boolean
   return down;
 }
 
-// The colours a terminal draws in: Windows Terminal's own set (what PowerShell and git were made to look right in),
-// on the table's dark green.
+// The colours a terminal draws in: Windows Terminal's own default scheme (Campbell), exactly, so PowerShell, git and
+// everything else look as they do there.
 const THEME = {
-  background: "#14211e", foreground: "#e6e4df", cursor: "#8fd1b9", cursorAccent: "#14211e", selectionBackground: "#35534b",
-  black: "#0c0c0c", red: "#e05561", green: "#4ec27a", yellow: "#e8c95e", blue: "#4f9cf0", magenta: "#c678dd", cyan: "#4cc2c9", white: "#cccccc",
-  brightBlack: "#7a8580", brightRed: "#ff6b74", brightGreen: "#6fdc95", brightYellow: "#f9e27a", brightBlue: "#74b5ff", brightMagenta: "#d896ec", brightCyan: "#6fe0e6", brightWhite: "#f2f2f2",
+  background: "#0c0c0c", foreground: "#cccccc", cursor: "#ffffff", cursorAccent: "#0c0c0c", selectionBackground: "#ffffff40",
+  black: "#0c0c0c", red: "#c50f1f", green: "#13a10e", yellow: "#c19c00", blue: "#0037da", magenta: "#881798", cyan: "#3a96dd", white: "#cccccc",
+  brightBlack: "#767676", brightRed: "#e74856", brightGreen: "#16c60c", brightYellow: "#f9f1a5", brightBlue: "#3b78ff", brightMagenta: "#b4009e", brightCyan: "#61d6d6", brightWhite: "#f2f2f2",
 };
 
 // A real terminal (xterm.js, as in VS Code) on their own shell. Every key goes to the shell as typed; Ctrl+C with
@@ -127,7 +128,7 @@ export function TerminalPane({ local, table, onLost }: { local: Local | null; ta
       const [{ Terminal: XTerm }, { FitAddon }] = await Promise.all([import("@xterm/xterm"), import("@xterm/addon-fit")]);
       if (gone) return;
       // A terminal draws on a grid of equal cells, so it is the one place the product uses a fixed-width face.
-      const t = new XTerm({ fontFamily: "'Cascadia Mono', Consolas, 'SF Mono', Menlo, monospace", fontSize: 13.5, lineHeight: 1.15, cursorBlink: true, scrollback: 5000,
+      const t = new XTerm({ fontFamily: "'Cascadia Mono', Consolas, 'SF Mono', Menlo, monospace", fontSize: 14, lineHeight: 1.2, cursorBlink: true, scrollback: 5000,
         theme: THEME, allowProposedApi: false });
       const fit = new FitAddon();
       t.loadAddon(fit);
@@ -170,7 +171,12 @@ export function TerminalPane({ local, table, onLost }: { local: Local | null; ta
 
 type Tab = { id: string; url: string; title: string };
 
-export function BrowserPane({ local, table, on, onLost, setNotice }: { local: Local | null; table: string; on: boolean; onLost: () => void; setNotice: (s: string) => void }) {
+// Like a browser's own window: its row of tabs is the top bar it is moved by (`grab`), with its minus and cross
+// (`tools`) at the end; under it the address bar, then the page.
+export function BrowserPane({ local, table, on, onLost, setNotice, grab, tools }: {
+  local: Local | null; table: string; on: boolean; onLost: () => void; setNotice: (s: string) => void;
+  grab?: { onPointerDown: (e: React.PointerEvent) => void; onDoubleClick: (e: React.MouseEvent) => void }; tools?: React.ReactNode;
+}) {
   const [frame, setFrame] = useState("");
   const [url, setUrl] = useState("");
   const [tabs, setTabs] = useState<Tab[]>([]);
@@ -217,20 +223,23 @@ export function BrowserPane({ local, table, on, onLost, setNotice }: { local: Lo
   const name = (t: Tab) => t.title && t.title !== t.url ? t.title : t.url === "about:blank" || !t.url ? "New tab" : t.url.replace(/^https?:\/\//, "");
   return (
     <div className={styles.browser}>
-      <div className={styles.tabStrip} role="tablist" aria-label="Browser tabs">
+      <div className={styles.tabStrip} data-head {...grab}>
+        <div className={styles.tabList} role="tablist" aria-label="Browser tabs">
         {tabs.map((t) => (
           <div key={t.id} role="tab" aria-selected={t.id === active} className={`${styles.btab} ${t.id === active ? styles.btabOn : ""} ${closing.has(t.id) ? styles.btabGone : ""}`} onClick={() => act({ do: "tab", id: t.id })} title={t.url} data-testid="browser-tab">
             <span>{name(t)}</span>
             <button type="button" className={styles.btabX} aria-label="Close tab" onClick={(e) => { e.stopPropagation(); closeTab(t.id); }}>×</button>
           </div>
         ))}
-        <button type="button" className={styles.newTab} aria-label="New tab" onClick={() => act({ do: "newtab" })} data-testid="browser-newtab">+</button>
+        <button type="button" className={styles.newTab} aria-label="New tab" onClick={() => act({ do: "newtab" })} data-testid="browser-newtab"><Plus size={16} /></button>
+        </div>
+        {tools}
       </div>
       {tabs.length > MANY_TABS && <p className={styles.many} role="status" data-testid="many-tabs">{tabs.length} tabs open. Past {MANY_TABS}, your computer may start to slow down.</p>}
       <form className={styles.bar} onSubmit={(e) => { e.preventDefault(); if (typed?.trim()) act({ do: "go", url: typed }); setTyped(null); (document.activeElement as HTMLElement)?.blur(); }}>
-        <button type="button" className={styles.barBtn} aria-label="Back" onClick={() => act({ do: "back" })}>‹</button>
-        <button type="button" className={styles.barBtn} aria-label="Forward" onClick={() => act({ do: "forward" })}>›</button>
-        <button type="button" className={styles.barBtn} aria-label="Reload" onClick={() => act({ do: "reload" })}>↻</button>
+        <button type="button" className={styles.barBtn} aria-label="Back" title="Back" onClick={() => act({ do: "back" })}><BackIcon size={18} /></button>
+        <button type="button" className={styles.barBtn} aria-label="Forward" title="Forward" onClick={() => act({ do: "forward" })}><ForwardIcon size={18} /></button>
+        <button type="button" className={styles.barBtn} aria-label="Reload" title="Reload" onClick={() => act({ do: "reload" })}><ReloadIcon size={17} /></button>
         <input className={styles.address} value={typed ?? (url === "about:blank" ? "" : url)} onChange={(e) => setTyped(e.target.value)} onFocus={(e) => e.target.select()}
           onBlur={() => setTyped(null)} placeholder="Type an address, or localhost:3000" aria-label="Address" spellCheck={false} data-testid="browser-address" />
       </form>
@@ -247,6 +256,8 @@ export function BrowserPane({ local, table, on, onLost, setNotice }: { local: Lo
         onPaste={(e) => { const t = e.clipboardData.getData("text/plain"); if (t) { e.preventDefault(); act({ do: "type", text: t }); } }}>
         {down ? <p className={styles.empty}>{UNREACHABLE}</p>
           : error ? <p className={styles.empty}>{error}</p>
+          // A new tab is the browser's own blank page, drawn dark in a dark-mode system: shown as a new tab here instead.
+          : url === "about:blank" ? <div className={styles.newPage} data-testid="new-tab-page"><Globe size={34} /><span>Type an address above</span></div>
           : frame ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img className={styles.frame} alt={url || "Your browser"} src={`data:image/jpeg;base64,${frame}`} draggable={false}

@@ -55,3 +55,7 @@ export const TerminalIcon = (p: Props) => <Svg {...p}><rect x="3" y="4.5" width=
 export const Globe = (p: Props) => <Svg {...p}><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5s-1.2 6.1-3.6 8.5c-2.4-2.4-3.6-5.2-3.6-8.5S9.6 5.9 12 3.5z" /></Svg>;
 // The sidebar: a panel with its left part set off.
 export const SidebarIcon = (p: Props) => <Svg {...p}><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" /><path d="M9.5 4.5v15" /></Svg>;
+// A browser's own: back, forward, reload.
+export const BackIcon = (p: Props) => <Svg {...p}><path d="M19 12H5M11 6l-6 6 6 6" /></Svg>;
+export const ForwardIcon = (p: Props) => <Svg {...p}><path d="M5 12h14M13 6l6 6-6 6" /></Svg>;
+export const ReloadIcon = (p: Props) => <Svg {...p}><path d="M20 12a8 8 0 1 1-2.35-5.65" /><path d="M20 4.5V9h-4.5" /></Svg>;
