@@ -1,0 +1,42 @@
+/* The person's own computer: a card floating at the top right, over the side panel and clear of the message box, so
+   the chat stays usable beside it. */
+.panel {
+  position: fixed; right: 16px; top: 68px; z-index: 44; display: flex; flex-direction: column;
+  width: min(640px, calc(100vw / var(--zoom, 1) - 32px)); height: min(560px, calc(100dvh / var(--zoom, 1) - 220px));
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+  box-shadow: 0 18px 48px oklch(0.2 0.01 70 / 0.18); animation: lt-rise 0.28s var(--ease-spring) both;
+}
+@keyframes lt-rise { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: none; } }
+@media (max-width: 520px) { .panel { right: 8px; left: 8px; top: 64px; width: auto; } }
+
+.head { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px 6px 10px; border-bottom: 1px solid var(--line); }
+.tabs { display: flex; gap: 2px; }
+.tab { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 14px; font-weight: 560; padding: 6px 10px; border-radius: 8px; cursor: pointer; transition: background 0.15s, color 0.15s; }
+.tab:hover { background: var(--hover); color: var(--ink); }
+.tabOn { background: var(--chip); color: var(--ink); }
+.close { border: 0; background: transparent; color: var(--muted); font-size: 22px; line-height: 1; width: 30px; height: 30px; border-radius: 8px; cursor: pointer; }
+.close:hover { background: var(--hover); color: var(--ink); }
+.body { flex: 1; min-height: 0; display: flex; }
+.body[hidden] { display: none; }
+
+/* The terminal: light text on the table's dark green, in either theme. */
+.term { flex: 1; display: flex; flex-direction: column; min-height: 0; background: oklch(0.2 0.012 170); color: oklch(0.93 0.006 80); cursor: text; }
+.termOut { flex: 1; margin: 0; padding: 12px 14px 4px; overflow: auto; white-space: pre-wrap; word-break: break-word; font: 13.5px/1.5 var(--font-ui); font-variant-numeric: tabular-nums; }
+.termLine { display: flex; align-items: center; gap: 8px; padding: 6px 14px 12px; }
+.termWhere { color: oklch(0.75 0.08 170); font-size: 13.5px; white-space: nowrap; }
+.termInput { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: inherit; font: 13.5px/1.5 var(--font-ui); }
+.termInput::placeholder { color: oklch(0.6 0.01 80); }
+.stop { border: 1px solid oklch(0.45 0.02 170); background: transparent; color: inherit; font: inherit; font-size: 13px; padding: 3px 10px; border-radius: 7px; cursor: pointer; }
+.stop:hover { background: oklch(0.3 0.015 170); }
+
+/* The browser: its address bar, then what it shows. */
+.browser { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.bar { display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.barBtn { border: 0; background: transparent; color: var(--muted); font-size: 18px; width: 30px; height: 30px; border-radius: 8px; cursor: pointer; }
+.barBtn:hover { background: var(--hover); color: var(--ink); }
+.address { flex: 1; min-width: 0; height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); color: var(--ink); font: inherit; font-size: 14px; }
+.address:focus { outline: 2px solid color-mix(in oklch, var(--sage) 45%, transparent); outline-offset: -1px; }
+.view { flex: 1; min-height: 0; display: flex; align-items: flex-start; justify-content: center; overflow: auto; background: var(--paper); outline: 0; }
+.view:focus-visible { box-shadow: inset 0 0 0 2px color-mix(in oklch, var(--sage) 45%, transparent); }
+.frame { display: block; width: 100%; height: auto; cursor: default; user-select: none; }
+.empty { margin: auto; padding: 24px; max-width: 360px; text-align: center; color: var(--muted); font-size: 14px; line-height: 1.5; }

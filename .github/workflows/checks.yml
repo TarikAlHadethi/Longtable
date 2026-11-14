@@ -59,6 +59,7 @@ jobs:
       - run: node tests/e2e/unit-copy-words.mjs
       - run: node tests/e2e/unit-signed-in.mjs
       - run: node tests/e2e/unit-typecheck.mjs
+      - run: node tests/e2e/unit-bridge.mjs
       - run: node tests/e2e/chaos-connect.mjs
 
   # The connection starting at login and starting again after an update, for real, on a Mac (launchd) and on Linux

@@ -5,13 +5,14 @@ import { Check } from "@/components/icons";
 import menu from "@/components/select.module.css";
 import styles from "./room.module.css";
 
-// How their own full Claude Code asks before acting, the same four ways as in Claude Code. The menu is the product's
+// How their own full Claude Code asks before acting, the same five ways as in Claude Code. The menu is the product's
 // one menu; it opens upward, since it sits under the message box.
 const MODES = [
   { value: "manual", label: "Manual", about: "Asks before anything your rules don't allow" },
   { value: "acceptEdits", label: "Accept edits", about: "Changes files, asks before commands" },
   { value: "auto", label: "Auto", about: "Claude decides what is safe, asks about the rest" },
   { value: "plan", label: "Plan", about: "Reads and proposes, changes nothing" },
+  { value: "bypass", label: "Bypass", about: "Runs everything without asking. Only for work you trust" },
 ];
 
 export function ModePick({ value, onPick }: { value: string; onPick: (mode: string) => void }) {

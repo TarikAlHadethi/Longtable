@@ -66,6 +66,8 @@ the code as it is (last brought up to date 17 Oct 2026); update it with every ch
 | A request is approved without its person seeing it whole | Shown whole or refused (over 2,000 characters is a no); keys hidden; "always allow" only ever adds that one plain command, never a tool or a pattern, and rules written into its file by anything else are dropped | unit-approve, step 41 |
 | The branch being worked on changes the person's settings | Their settings come from their own computer (user settings, and their project's settings read from their own folder, without its hooks or its switch for loading the folder's MCP servers), never from the branch other AIs push to; no hook in the branch runs | step 42 |
 | Requests bury their person | Five waiting per job, twenty per connection, sixty an hour; a job's key asks only about that job and dies when it ends | step 41 |
+| Bypass runs commands nobody approved | It is a mode only its person picks (`set_ai_mode`), for their own requests only, like the other four; deny rules (no `git push` from a worktree) still hold in it. On Windows there is no sandbox, so with Bypass on, a planted instruction their Claude follows runs unasked: the menu says it is only for work they trust | step 56 |
+| Someone else uses a person's terminal or browser | The connection's bridge listens on 127.0.0.1 only; it serves a request only from Longtable's own site (the browser's Origin), sent to this computer by name (the Host, so DNS rebinding fails), with that table's own key (a fresh one each start), for a table whose Longtable allows it: their own Claude, run as their full Claude Code, at the table as a team member. The key is in a column nobody can read and never on a live channel; `my_local` hands it only to its own person. What is typed there, passwords included, goes from their page to their computer and never through Longtable | unit-bridge, step 56 |
 | A client's own copy reaches past the front end | A guard on the person's computer refuses changes to build, server, sign-in, database and test files and reads every changed file whole; the owner ticks that previews hold no real data or keys before giving a copy | unit-prompts, sim-rounds, step 17 |
 
 ### Files, handouts and the browser
@@ -111,6 +113,12 @@ Client messages (30 an hour, 60 with a copy), new tables (10 a day), connect cod
   person's own rules allow, or that auto mode judges safe. On Mac and Linux the sandbox limits what such a command can
   reach; on Windows the person's own rules and answers are the only wall. Manual mode asks about every command their
   rules do not already allow.
+- **The terminal and browser trust Longtable's site.** Whoever controls longtable.chat's code, or signs in as the
+  person, can run commands on that person's computer through their bridge, as they already could by approving their
+  full Claude Code's requests in their name: the bridge adds no new kind of reach, which is why it opens only with full
+  Claude Code on. A page that already has the key keeps it until the connection starts again or, within a minute,
+  turning full Claude Code off closes the bridge for that table. The browser's profile (its sign-ins) is shared by the
+  person and their AI, as in Claude's own browser, and is readable by any program on that computer, as any browser's is.
 - **The push rule in a person's own folder is a seatbelt, not a wall.** It is git configuration in the environment of
   the commands their Claude runs, so a command can still get past it: one that clears that environment, changes a
   remote's push address and then pushes, or pushes with a tool other than git. Each of those is a command their own

@@ -27,6 +27,11 @@ try {
   await anon("runner_hello", { token: device });
   const conn = sql(`select id from public.connections where table_id = '${T}' and revoked_at is null`);
   const page = owner.page;
+  // The link itself is not followed: on a computer where longtable:// is registered, the browser's "Open Longtable?"
+  // prompt would take every later click. The window's own part (pressing it, waiting, hearing it back) is what is tested.
+  await owner.context.addInitScript(() => document.addEventListener("click", (e) => {
+    if (e.target instanceof Element && e.target.closest("a[href^='longtable:']")) e.preventDefault();
+  }, true));
   const open = async () => { await page.goto(`${APP}/t/${T}`); await page.waitForSelector("[data-testid=messages]", { state: "attached" }); await sleep(1500); };
 
   await open();

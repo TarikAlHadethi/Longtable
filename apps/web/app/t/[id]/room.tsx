@@ -36,6 +36,7 @@ import {
 import { ApprovalCards } from "./approvals";
 import { isQuiet, ReconnectWindow } from "./reconnect-window";
 import { ModePick } from "./mode-pick";
+import { ComputerPanel, bridge, useLocal } from "./computer";
 import styles from "./room.module.css";
 import { firstName } from "@/lib/names";
 import { namesMe, pingsMe, useNeeds, type Need } from "@/lib/chime";
@@ -393,6 +394,31 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const unset = chat?.set_up === false;
   const liveAI = new Set(connections.filter((c) => !c.revoked_at).map((c) => c.member_id));
   const myConnection = connections.find((c) => !c.revoked_at && c.member_id === me.id);
+  // Their own computer's terminal and browser (computer.tsx): only while their AI runs as their full Claude Code, which
+  // can already run commands there with their approval.
+  const canComputer = self.role !== "client" && myConnection?.kind === "claude" && !!myConnection.full_claude;
+  const { local, refresh: refreshLocal } = useLocal(supabase, table.id, canComputer);
+  const [computer, setComputer] = useState<null | "terminal" | "browser">(null);
+  const closeComputer = useCallback(() => setComputer(null), []);
+  // "!" and a command runs it in their terminal, as in Claude Code; nothing goes to the chat. ("!!!" is just words.)
+  async function bang(body: string) {
+    const line = canComputer ? body.match(/^!\s*([^!\s][\s\S]*)$/)?.[1] : null;
+    if (!line) return false;
+    if (!local) { setNotice("Your terminal opens once your computer's connection is on and up to date."); return true; }
+    setDraft("");
+    requestAnimationFrame(grow);
+    setComputer("terminal");
+    try {
+      const r = await bridge(local, table.id, "/term", { line, fresh: true });
+      if (r.busy) { setDraft(body); setNotice("Your terminal is still running something. Stop it first."); }
+      else setNotice("");
+    } catch (e) {
+      setDraft(body);
+      refreshLocal();
+      setNotice(`Your computer did not take it: ${(e as Error).message}`);
+    }
+    return true;
+  }
   // Coming back to Longtable with your own AI off: the reconnect window, once a tab (Close means not again here). A
   // drop while the page is open needs no window: the connection comes back by itself.
   const [reconnecting, setReconnecting] = useState<Connection | null>(null);
@@ -932,6 +958,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     // A poll (what a client is told, or a question to the team) is made from "/poll", not from a button.
     if (/^\/poll\s*$/i.test(body)) { setDraft(""); requestAnimationFrame(grow); setAskingFor(null); setAsking(true); return; }
     if (body.startsWith("/") && doSlash(body)) { setDraft(""); requestAnimationFrame(grow); return; }
+    if (body.startsWith("!") && await bang(body)) return;
     setDraft("");
     requestAnimationFrame(grow);
     atBottom.current = true;
@@ -963,6 +990,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     // A poll (what a client is told, or a question to the team) is made from "/poll", not from a button.
     if (/^\/poll\s*$/i.test(body)) { setDraft(""); requestAnimationFrame(grow); setAskingFor(null); setAsking(true); return; }
     if (body.startsWith("/") && doSlash(body)) { setDraft(""); requestAnimationFrame(grow); return; }
+    if (body.startsWith("!") && await bang(body)) return;
     setDraft("");
     setNotice("");
     requestAnimationFrame(grow);
@@ -1592,6 +1620,10 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               {chat?.answers !== "off" && myConnection?.kind === "claude" && myConnection.full_claude && (
                 <ModePick value={myConnection.mode ?? "auto"} onPick={(m) => setMode(myConnection.id, m)} />
               )}
+              {canComputer && local && <>
+                <button type="button" className={styles.toolLink} onClick={() => setComputer(computer === "terminal" ? null : "terminal")} data-testid="open-terminal">Terminal</button>
+                <button type="button" className={styles.toolLink} onClick={() => setComputer(computer === "browser" ? null : "browser")} data-testid="open-browser">Browser</button>
+              </>}
               {notice && <span className={styles.notice} role="status">{notice}</span>}
               {/* When this person's own AI cannot answer here, say why, with the one fix. */}
               {!notice && chat?.answers === "off" && <span className={styles.notice} data-testid="no-ai">No AI hears this chat.</span>}
@@ -1604,6 +1636,9 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           </div>
         </main>
 
+        {computer && canComputer && (
+          <ComputerPanel tab={computer} onTab={setComputer} onClose={closeComputer} local={local} table={table.id} onLost={refreshLocal} setNotice={setNotice} />
+        )}
         {view === "settings" || view === "logs" || view === "sandbox" ? null : view === "table" ? (
           <aside className={`${styles.inbox} ${inboxOpen ? styles.inboxOpen : ""}`} aria-label="Usage">
             <div className={styles.inboxHead}><div className={styles.inboxTitle}>Usage</div></div>

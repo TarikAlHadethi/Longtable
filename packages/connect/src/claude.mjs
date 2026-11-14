@@ -171,11 +171,11 @@ export const EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
 // through the approval server (`full.mcp`, the MCP config that starts it), where the person allows or denies each one.
 // Their "always allow" answers come back as `full.allow`. On Mac and Linux, commands also run in Claude Code's sandbox.
 // A job that only reads may not change files (`edit` false).
-// A run asked for in Auto on an account that cannot use it goes again in Accept edits, rather than failing.
+// A run asked for in Auto or Bypass on an account that cannot use it goes again in Accept edits, rather than failing.
 export function ask(opts) {
   return askOnce(opts).catch((e) => {
     if (!e.noAuto) throw e;
-    log("Auto mode is not available to this Claude Code; running in Accept edits");
+    log(`${opts.full?.mode} mode is not available to this Claude Code; running in Accept edits`);
     return askOnce({ ...opts, full: { ...opts.full, mode: "acceptEdits" } });
   });
 }
@@ -193,7 +193,7 @@ function askOnce({ claude, cwd, prompt, system, schema, model, tools = "Read,Gre
   const args = full
     ? ["-p", "--output-format", "stream-json", "--verbose", "--no-session-persistence",
       // Their own choice of how it asks (manual, accept edits, auto, plan), else as before: edits go ahead in work.
-      "--permission-mode", full.mode === "plan" ? "plan" : full.mode === "auto" ? "auto" : full.mode === "manual" ? "default" : full.mode === "acceptEdits" || edit ? "acceptEdits" : "default",
+      "--permission-mode", full.mode === "plan" ? "plan" : full.mode === "auto" ? "auto" : full.mode === "bypass" ? "bypassPermissions" : full.mode === "manual" ? "default" : full.mode === "acceptEdits" || edit ? "acceptEdits" : "default",
       "--permission-prompt-tool", "mcp__longtable__approve",
       "--mcp-config", full.mcp, "--max-turns", edit && !long ? "200" : "10000"]
     : ["-p", "--output-format", "stream-json", "--verbose", "--no-session-persistence", "--restricted", "--permission-mode", edit ? "acceptEdits" : "dontAsk",
@@ -326,11 +326,12 @@ function askOnce({ claude, cwd, prompt, system, schema, model, tools = "Read,Gre
       lines.end();
       const procs = [...seen.values()];
       if (ended) return reject(Object.assign(new Error(ended), { procs }));
-      // Asked for Auto on an account or model that cannot use it: said so, so the run is tried again without it.
-      const noAuto = full?.mode === "auto" && /auto/i.test(`${err} ${result?.is_error ? result.result || "" : ""}`)
+      // Asked for Auto or Bypass on an account or model that cannot use it (an organisation can turn Bypass off): said
+      // so, so the run is tried again without it.
+      const noAuto = (full?.mode === "auto" || full?.mode === "bypass") && (full.mode === "auto" ? /auto/i : /bypass/i).test(`${err} ${result?.is_error ? result.result || "" : ""}`)
         && /not (available|supported|enabled)|unavailable|unsupported|requires|disabled/i.test(`${err} ${result?.result || ""}`)
         && (!result || result.is_error);
-      if (noAuto) return reject(Object.assign(new Error("Auto mode is not available here"), { noAuto: true }));
+      if (noAuto) return reject(Object.assign(new Error(`${full.mode} mode is not available here`), { noAuto: true }));
       // A session that is gone (deleted, or never written) cannot be picked up: said so, so the request starts a new one.
       if (session?.resume && (!result || result.is_error) && /no conversation found with session id/i.test(`${err} ${result?.result || ""}`)) {
         return reject(Object.assign(new Error("that session could not be picked up"), { noSession: true }));

@@ -23,6 +23,8 @@ import { askCodex, codexLimits, findCodex } from "./codex.mjs";
 import { packCode } from "./pack.mjs";
 import { changedSoFar, closeTree, fileFolder, folderChanges, folderState, freshCopy, isAddress, pushPlan, sourceFor, trustedRepo, landTree, landWork, neverCommit, openBranch, openTree, openWork, ownFolder, layTree, tidyTrees, patchOf, realRepo, refreshBranch, safeTable, treeChanges, undoCommit, workBranch } from "./repo.mjs";
 import { alwaysRules } from "./approve-server.mjs";
+import { Browser } from "./browser.mjs";
+import { bridgeKey, startBridge } from "./local.mjs";
 import { fileURLToPath } from "node:url";
 import { cut, hideSecrets, home, loadSecret, log, readConfig, writeWhole } from "./store.mjs";
 
@@ -531,6 +533,9 @@ export function cleanSources(dir, sources) {
   }
   return out.slice(0, 6);
 }
+
+// The person's browser at the table: their page shows it and their AI uses it (browser.mjs). Started when first used.
+const sharedBrowser = new Browser(home, log);
 
 // Whether longtable:// on this computer starts the connection (keepWakeLink, at start).
 let wakeLink = false;
@@ -1411,7 +1416,7 @@ async function work(rpc, seat, engines, raw) {
   } finally {
     if (beat) clearInterval(beat);
     if (pending) clearTimeout(pending);
-    if (fullRun) { try { rmSync(fullRun.mcp, { force: true }); if (fullRun.browserDir) rmSync(fullRun.browserDir, { recursive: true, force: true }); } catch {} }
+    if (fullRun) { try { rmSync(fullRun.mcp, { force: true }); if (fullRun.browserDir) rmSync(fullRun.browserDir, { recursive: true, force: true }); } catch {} if (fullRun.shared) sharedBrowser.release(); }
     if (tree) closeTree(tree);
     if (side) { try { rmSync(side, { recursive: true, force: true }); } catch {} }
     if (inbox) await inbox.close();
@@ -1429,10 +1434,12 @@ const PLANNING = "Your person has you in plan mode: read what you need, then ans
 // own browser profile) and its screenshots kept in a folder of the connection's. Run through npm's own npx beside this
 // Node when it is there (a .cmd cannot be started directly on Windows), else npx on the PATH.
 export const PLAYWRIGHT_MCP = "@playwright/mcp@0.0.83";
-export function browserServer(out) {
+// With `cdp`, it drives the person's browser at the table (browser.mjs), the one their page shows them, instead of a
+// fresh one of its own.
+export function browserServer(out, cdp = null) {
   // Beside node.exe on Windows; under lib/ beside the node binary on Mac and Linux.
   const npxCli = [join(dirname(process.execPath), "node_modules", "npm", "bin", "npx-cli.js"), join(dirname(process.execPath), "..", "lib", "node_modules", "npm", "bin", "npx-cli.js")].find((p) => existsSync(p));
-  const args = ["-y", PLAYWRIGHT_MCP, "--headless", "--isolated", "--output-dir", out];
+  const args = ["-y", PLAYWRIGHT_MCP, ...(cdp ? ["--cdp-endpoint", cdp] : ["--headless", "--isolated"]), "--output-dir", out];
   return npxCli ? { command: process.execPath, args: [npxCli, ...args] } : { command: "npx", args };
 }
 
@@ -1445,13 +1452,20 @@ async function fullSetup(rpc, seat, job, inFolder = false, workDir = null) {
   const server = fileURLToPath(new URL("./approve-server.mjs", import.meta.url));
   // Screenshots go outside ~/.longtable, which is never shared, so the person's Claude can put one on its answer.
   const browserDir = join(tmpdir(), `longtable-browser-${String(job.job_id).replace(/[^a-f0-9-]/gi, "")}`);
-  const browser = job.browser === true ? browserServer(browserDir) : null;
+  // Their browser at the table when it can be started, so they can watch it and take over; else one of its own.
+  let shared = false;
+  let browser = null;
+  if (job.browser === true) {
+    let port = 0;
+    try { port = await sharedBrowser.hold(); shared = true; } catch (e) { log(`job ${job.job_id}: their browser could not be used, so it gets one of its own: ${e.message}`); }
+    browser = browserServer(browserDir, port ? `http://127.0.0.1:${port}` : null);
+  }
   writeWhole(mcp, JSON.stringify({ mcpServers: { longtable: { command: process.execPath, args: [server],
     // What it may put on its answer: files in the folder it works in, and its own screenshots. Nothing else.
     env: { LT_SUPABASE_URL: rpc.base, LT_KEY: rpc.key, LT_JOB_KEY: key, LT_ALWAYS: always, LT_SHARE_ROOTS: [workDir, browser ? browserDir : null].filter(Boolean).join(delimiter) } }, ...(browser ? { playwright: browser } : {}) } }));
   // In their own folder Claude Code reads the project's settings itself, as at home. With their browser on, its tools
   // are theirs to use without asking each time, as they turned it on.
-  return { mcp, browserDir: browser ? browserDir : null, allow: [...alwaysRules(always), ...(browser ? ["mcp__playwright"] : [])], project: inFolder ? {} : projectSettings(seat) };
+  return { mcp, shared, browserDir: browser ? browserDir : null, allow: [...alwaysRules(always), ...(browser ? ["mcp__playwright"] : [])], project: inFolder ? {} : projectSettings(seat) };
 }
 
 // Their project's own Claude Code settings, from their own folder (shared, then their local ones on top): what their
@@ -1520,6 +1534,29 @@ async function tellCommands(rpc, seat) {
   } catch (e) { log(`commands not sent: ${e.message}`); }
 }
 
+// The bridge for each person's own terminal and browser (local.mjs). Longtable hears where it listens, with a key for
+// each table, at start and every minute, and says for each whether this connection may serve it there (their own full
+// Claude Code only). A bridge that cannot open is written down; everything else goes on as before.
+async function openBridge(rpc, config, seats) {
+  const mine = seats.filter((s) => s.kind === "claude" && !s.gone);
+  if (!mine.length || !config.app) return;
+  for (const s of mine) s.local = { key: bridgeKey(), allowed: false };
+  for (const s of mine) s.terminalFolder = ownFolder(s) || homedir();
+  let bridge;
+  try { bridge = await startBridge({ app: config.app, seats: mine, home: homedir(), browser: sharedBrowser, log }); }
+  catch (e) { return log(`the terminal and browser bridge did not open: ${e.message}`); }
+  process.on("exit", () => bridge.close());
+  const tell = async () => {
+    for (const s of mine) {
+      if (s.gone) continue;
+      try { s.local.allowed = await rpc("runner_local", { token: s.token, port: bridge.port, key: s.local.key }) === true; }
+      catch (e) { log(`bridge not reported: ${e.message}`); }
+    }
+  };
+  await tell();
+  setInterval(tell, 60 * 1000).unref?.();
+}
+
 export async function runLoop({ pollMs = 1000, backup = false } = {}) {
   const config = readConfig();
   if (!config.connections?.length) throw new Error("Not connected to any table yet.");
@@ -1538,7 +1575,7 @@ export async function runLoop({ pollMs = 1000, backup = false } = {}) {
   if (old && old !== process.pid) { endConnection(old); log(`ended the connection that was already running (${old})`); }
   writeFileSync(lock, `${process.pid} ${Date.now()}`);
   const unlock = () => { try { if (runningConnection() === process.pid) rmSync(lock, { force: true }); } catch {} };
-  process.on("exit", () => { stopAll(); endAllSessions("the connection stopped"); unlock(); });
+  process.on("exit", () => { stopAll(); sharedBrowser.close(); endAllSessions("the connection stopped"); unlock(); });
   // Which common tools its Claude will find here, looked for once at start and shown in its AI window.
   setTimeout(() => { lookForTools().catch((e) => log(`could not look for tools: ${e.message}`)); }, 2000).unref?.();
   // What an earlier connection's sessions left running is stopped, and a session nobody uses for a while ends.
@@ -1572,6 +1609,7 @@ export async function runLoop({ pollMs = 1000, backup = false } = {}) {
     }
   }
   if (seats.every((s) => s.gone)) throw new Error("Every table has taken this connection off. Connect again from Longtable.");
+  openBridge(rpc, config, seats);
   // Each minute: nothing is sent unless the list changed (a new command written, or Claude Code's own list learned).
   setInterval(() => { for (const s of seats) if (!s.gone) tellCommands(rpc, s); }, 60 * 1000).unref?.();
   // Keeping itself up to date: Longtable says which version to run. When it is newer, the connection keeps working and
