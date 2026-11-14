@@ -4,8 +4,8 @@ import { release } from "node:os";
 import { Terminal } from "./terminal.mjs";
 
 // The bridge: a small server on this computer only (127.0.0.1), which the person's own Longtable page reaches
-// directly, for their terminal and their browser. Nothing sent through it passes through Longtable, so a password typed
-// into the terminal or a sign-in in the browser stays on this computer.
+// directly, for their terminal. Nothing sent through it passes through Longtable, so a password typed into the terminal
+// stays on this computer.
 // Who may use it: a page on Longtable's own address (the browser says which site a request comes from, and no site can
 // pretend), sent to this computer by name (so a web address made to point here cannot reach it), carrying the key of a
 // table whose Longtable says this connection may serve it (runner_local: only their own full Claude Code, which can
@@ -25,7 +25,7 @@ export function fromPage({ host, origin }, { port, app }) {
 // And carrying the table's key.
 export const keyOk = (auth, key) => !!key && same(String(auth || "").replace(/^Bearer /, ""), key);
 
-export function startBridge({ app, seats, home, browser, log }) {
+export function startBridge({ app, seats, home, log }) {
   const origin = new URL(app).origin;
   // Each table's terminals, as many as the person opens (tabs on their page), by a name the page gives each.
   const terms = new Map(); // "<table>:<terminal>" -> { term, listeners, id }
@@ -83,9 +83,6 @@ export function startBridge({ app, seats, home, browser, log }) {
         return stream(req, res, { data: t.term.text, all: true, os: SYSTEM }, async (w) => { t.listeners.add(w); await t.term.open(url.searchParams.get("cols"), url.searchParams.get("rows")); },
           (w) => t.listeners.delete(w));
       }
-      if (req.method === "GET" && path === "/browser") {
-        return stream(req, res, null, (w) => browser.watch(w), (w) => browser.unwatch(w));
-      }
       if (req.method !== "POST") return send(res, 404, { error: "nothing here" });
       const b = await body(req);
       // Keys as typed, or a whole command from the chat's "!".
@@ -93,7 +90,6 @@ export function startBridge({ app, seats, home, browser, log }) {
       if (path === "/term/size") { termFor(seat, termId(url)).term.resize(b.cols, b.rows); return send(res, 200, { ok: true }); }
       // A terminal's tab closed: that shell ends, as closing a tab in a terminal app does.
       if (path === "/term/close") { const key = `${seat.table_id}:${termId(url)}`; terms.get(key)?.term.stop(); terms.delete(key); return send(res, 200, { ok: true }); }
-      if (path === "/browser") { await browser.act(b); return send(res, 200, { ok: true }); }
       return send(res, 404, { error: "nothing here" });
     } catch (e) {
       log(`bridge: ${e.message}`);

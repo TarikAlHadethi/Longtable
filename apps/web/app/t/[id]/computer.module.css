@@ -42,36 +42,6 @@
 .termBox { flex: 1; min-height: 0; }
 .termNote { position: absolute; left: 12px; right: 12px; bottom: 10px; margin: 0; padding: 8px 12px; border-radius: 8px; background: oklch(0.3 0.03 30); color: oklch(0.95 0.01 80); font-size: 13.5px; line-height: 1.45; }
 
-/* The browser: its tabs, its address bar, then what it shows. */
-.browser { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-/* The row of tabs is the window's top bar: what is not a tab or a button moves it. */
-.tabStrip { display: flex; align-items: stretch; gap: 0; height: 34px; padding: 0; background: var(--paper); border-bottom: 1px solid var(--line); user-select: none; touch-action: none; }
-.tabStrip .headTools { align-self: center; }
-.tabList { display: flex; align-items: stretch; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-.btab { display: flex; align-items: center; gap: 4px; min-width: 60px; max-width: 200px; flex: 0 1 200px; padding: 0 4px 0 12px; font-size: 13px; color: var(--muted); cursor: default; border-right: 1px solid var(--line); animation: tab-in 0.14s ease-out both; }
-.btab > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.btab:hover { background: var(--hover); color: var(--ink); }
-@keyframes tab-in { from { opacity: 0; } to { opacity: 1; } }
-
-.btabOn { background: var(--card); color: var(--ink); box-shadow: inset 0 -1px 0 var(--card); margin-bottom: -1px; }
-.btabX { border: 0; background: transparent; color: var(--faint); font-size: 15px; line-height: 1; width: 20px; height: 20px; border-radius: 4px; cursor: pointer; flex-shrink: 0; }
-.btabX:hover { background: var(--line); color: var(--ink); }
-.newTab { border: 0; background: transparent; color: var(--muted); width: 34px; cursor: pointer; flex-shrink: 0; display: grid; place-items: center; }
-.newTab:hover { background: var(--hover); color: var(--ink); }
-.many { margin: 0; padding: 4px 12px; font-size: 12.5px; color: var(--muted); border-bottom: 1px solid var(--line); }
-.bar { display: flex; align-items: center; gap: 0; padding: 3px 6px; border-bottom: 1px solid var(--line); background: var(--card); }
-.barBtn { border: 0; background: transparent; color: var(--ink-2, var(--muted)); width: 30px; height: 28px; border-radius: 6px; cursor: pointer; display: grid; place-items: center; transition: background 0.12s; }
-.barBtn:active { background: var(--line); }
-.barBtn:hover { background: var(--hover); color: var(--ink); }
-.address { flex: 1; min-width: 0; height: 28px; margin-left: 6px; padding: 0 12px; border: 1px solid transparent; border-radius: 14px; background: var(--chip); color: var(--ink); font: inherit; font-size: 13.5px; }
-.address:focus { outline: 2px solid color-mix(in oklch, var(--sage) 45%, transparent); outline-offset: -1px; }
-.view { flex: 1; min-height: 0; display: flex; position: relative; overflow: hidden; background: #ffffff; outline: 0; }
-.view:focus-visible { box-shadow: inset 0 0 0 2px color-mix(in oklch, var(--sage) 45%, transparent); }
-.frame { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: fill; cursor: default; user-select: none; }
-.empty { margin: auto; padding: 24px; max-width: 360px; text-align: center; color: var(--muted); font-size: 14px; line-height: 1.5; }
-.newPage { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: var(--card); color: var(--faint); font-size: 14px; animation: body-in 0.2s ease both; }
-@keyframes body-in { from { opacity: 0; } to { opacity: 1; } }
-
 /* The terminal's tabs, as in Windows Terminal: flat in its dark bar, the one in front the terminal's own black. */
 .ttabs { display: flex; align-items: stretch; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .ttab { display: flex; align-items: center; gap: 4px; min-width: 70px; max-width: 200px; flex: 0 1 200px; padding: 0 4px 0 12px; font-size: 13px; color: #9a9a9a; cursor: default; animation: tab-in 0.14s ease-out both; }
@@ -81,6 +51,6 @@
 .ttabX { border: 0; background: transparent; color: #8a8a8a; font-size: 15px; line-height: 1; width: 20px; height: 20px; border-radius: 4px; cursor: pointer; flex-shrink: 0; }
 .ttabX:hover { background: #3a3a3a; color: #ffffff; }
 .ttabNew { border: 0; background: transparent; color: #a8a8a8; width: 34px; cursor: pointer; flex-shrink: 0; display: grid; place-items: center; }
-.ttabNew:hover, .newTab:hover { background: var(--hover); color: var(--ink); }
 .ttabNew:hover { background: #262626; color: #ffffff; }
 .term[hidden] { display: none; }
+@keyframes tab-in { from { opacity: 0; } to { opacity: 1; } }

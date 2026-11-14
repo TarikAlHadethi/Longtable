@@ -1,16 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type Ref } from "react";
-import { BrowserPane, TerminalTabs, type Local, type TerminalRun } from "./computer";
+import { TerminalTabs, type Local, type TerminalRun } from "./computer";
 import styles from "./computer.module.css";
 
-// The windows of a person's own computer, like windows on a desktop: the terminal and the browser, each its own window,
-// moved by its top bar and sized from any edge, always wholly on the screen and clear of the icons that bring them back.
-// Dragged to a side of the screen a window fills that half (both on one side: the browser above, the terminal below),
-// to the top the whole screen. The minus sends a window into its icon under the message box, as on a Mac, and the icon
-// brings it back as it was; the cross closes it. Neither ends the shell or the browser: they stay on their computer.
+// The terminal's window on a person's own computer, like a window on a desktop: moved by its top bar and sized from any
+// edge, always wholly on the screen and clear of the icon that brings it back. Dragged to a side of the screen it fills
+// that half, to the top the whole screen. The minus sends it into its icon under the message box, as on a Mac, and the
+// icon brings it back as it was; the cross closes it. Neither ends its shells: they stay on their computer.
 
-export type Pane = "terminal" | "browser";
+export type Pane = "terminal";
 type Box = { x: number; y: number; w: number; h: number };
 type Snap = "left" | "right" | "max";
 type Win = Box & { pane: Pane; z: number; hidden: boolean; snap: Snap | null; before: Box | null };
@@ -41,20 +40,14 @@ export function inside(b: Box): Box {
   const h = clamp(b.h, Math.min(MIN_H, floor - TOP), floor - TOP);
   return { w, h, x: clamp(b.x, GAP, W - w - GAP), y: clamp(b.y, TOP, floor - h) };
 }
-// Where a window filling a side goes: the whole side, or with the other window on the same side, the browser's top
-// half and the terminal's bottom half.
-function snapped(pane: Pane, snap: Snap, sharing: boolean): Box {
+// Where a window filling a side goes.
+function snapped(snap: Snap): Box {
   const { W, floor } = room();
   if (snap === "max") return { x: GAP, y: TOP, w: W - 2 * GAP, h: floor - TOP };
   const w = (W - 3 * GAP) / 2;
-  const x = snap === "left" ? GAP : GAP * 2 + w;
-  if (!sharing) return { x, y: TOP, w, h: floor - TOP };
-  const h = (floor - TOP - GAP) / 2;
-  return { x, w, h, y: pane === "browser" ? TOP : TOP + h + GAP };
+  return { x: snap === "left" ? GAP : GAP * 2 + w, y: TOP, w, h: floor - TOP };
 }
-const boxOf = (w: Win, all: Win[]): Box => w.snap
-  ? snapped(w.pane, w.snap, w.snap !== "max" && all.some((x) => x.pane !== w.pane && !x.hidden && x.snap === w.snap))
-  : w;
+const boxOf = (w: Win): Box => (w.snap ? snapped(w.snap) : w);
 
 // Where each window last was on this device, so it opens there again.
 const PLACES = "lt-computer-places";
@@ -67,7 +60,7 @@ function firstPlace(p: Pane): Box {
   const saved = places()[p];
   if (saved && [saved.x, saved.y, saved.w, saved.h].every(Number.isFinite)) return inside(saved);
   const { W } = room();
-  return inside({ x: W - 680 - (p === "browser" ? 40 : 0), y: TOP + 6 + (p === "browser" ? 40 : 0), w: 660, h: p === "browser" ? 560 : 420 });
+  return inside({ x: W - 680, y: TOP + 6, w: 660, h: 420 });
 }
 const nextZ = (wins: Win[]) => wins.reduce((z, w) => Math.max(z, w.z), 0) + 1;
 
@@ -95,8 +88,8 @@ function genie(el: HTMLElement, pane: Pane, out: boolean): Animation {
 
 type Drag = { kind: "move" | "size"; pane: Pane; edge?: string; sx: number; sy: number; start: Box; grabX: number };
 
-export function ComputerWindows({ api, local, table, onLost, setNotice, onPanes }: {
-  api: Ref<ComputerApi>; local: Local | null; table: string; onLost: () => void; setNotice: (s: string) => void; onPanes: (shown: Pane[]) => void;
+export function ComputerWindows({ api, local, table, onLost, onPanes }: {
+  api: Ref<ComputerApi>; local: Local | null; table: string; onLost: () => void; onPanes: (shown: Pane[]) => void;
 }) {
   const [wins, setWinsState] = useState<Win[]>([]);
   const winsRef = useRef(wins);
@@ -189,15 +182,15 @@ export function ComputerWindows({ api, local, table, onLost, setNotice, onPanes 
     e.preventDefault();
     front(pane);
     const z = pageZoom();
-    const b = boxOf(w, winsRef.current);
+    const b = boxOf(w);
     drag.current = { kind, pane, edge, sx: e.clientX, sy: e.clientY, start: b, grabX: (e.clientX / z - b.x) / b.w };
     document.documentElement.classList.add(styles.dragging);
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp, { once: true });
   };
-  const setPreview = (s: Snap | null, pane: Pane) => {
+  const setPreview = (s: Snap | null) => {
     previewSnap.current = s;
-    setPreviewState(s ? snapped(pane, s, s !== "max" && winsRef.current.some((x) => x.pane !== pane && !x.hidden && x.snap === s)) : null);
+    setPreviewState(s ? snapped(s) : null);
   };
   const move = (m: PointerEvent) => {
     const d = drag.current;
@@ -226,7 +219,7 @@ export function ComputerWindows({ api, local, table, onLost, setNotice, onPanes 
       return;
     }
     const near: Snap | null = m.clientY / z < TOP + 2 ? "max" : m.clientX / z < 6 ? "left" : m.clientX / z > W - 6 ? "right" : null;
-    if (near !== previewSnap.current) setPreview(near, w.pane);
+    if (near !== previewSnap.current) setPreview(near);
     setWins((all) => all.map((x) => (x.pane === w.pane ? { ...x, ...inside({ ...d.start, x: d.start.x + dx, y: d.start.y + dy }) } : x)));
   };
   const up = () => {
@@ -235,7 +228,7 @@ export function ComputerWindows({ api, local, table, onLost, setNotice, onPanes 
     const d = drag.current;
     drag.current = null;
     const s = previewSnap.current;
-    setPreview(null, "terminal");
+    setPreview(null);
     if (!d) return;
     const w = winsRef.current.find((x) => x.pane === d.pane);
     if (!w) return;
@@ -263,8 +256,8 @@ export function ComputerWindows({ api, local, table, onLost, setNotice, onPanes 
     <>
       {preview && <div className={styles.snapPreview} style={{ left: preview.x, top: preview.y, width: preview.w, height: preview.h }} aria-hidden="true" data-testid="snap-preview" />}
       {wins.map((win) => {
-        const b = boxOf(win, wins);
-        // What moves it and puts it away: the terminal's own top bar, the browser's row of tabs.
+        const b = boxOf(win);
+        // What moves it: its top bar, where it is not a tab or a button.
         const grab = {
           onPointerDown: (e: React.PointerEvent) => { if (!(e.target as HTMLElement).closest("button,[role=tab],input")) begin(e, win.pane, "move"); },
           onDoubleClick: (e: React.MouseEvent) => { if (!(e.target as HTMLElement).closest("button,[role=tab],input")) toggleMax(win.pane); },
@@ -280,13 +273,9 @@ export function ComputerWindows({ api, local, table, onLost, setNotice, onPanes 
           <section key={win.pane} ref={(el) => { if (el) els.current.set(win.pane, el); else els.current.delete(win.pane); }}
             className={`${styles.window} ${win.pane === "terminal" ? styles.windowDark : ""} ${easing === win.pane ? styles.easing : ""}`}
             style={{ left: b.x, top: b.y, width: b.w, height: b.h, zIndex: 41 + wins.filter((x) => x.z < win.z).length, visibility: win.hidden ? "hidden" : undefined, pointerEvents: win.hidden ? "none" : undefined }}
-            onPointerDownCapture={() => front(win.pane)} aria-label={win.pane === "terminal" ? "Terminal" : "Browser"} aria-hidden={win.hidden || undefined}
+            onPointerDownCapture={() => front(win.pane)} aria-label="Terminal" aria-hidden={win.hidden || undefined}
             data-testid="computer-window" data-pane={win.pane} data-hidden={win.hidden || undefined} data-snap={win.snap ?? undefined}>
-            {win.pane === "terminal" ? (
-              <TerminalTabs local={local} table={table} onLost={onLost} grab={grab} tools={tools} runner={runner} onEmpty={() => away("terminal", true)} />
-            ) : (
-              <div className={styles.body}><BrowserPane local={local} table={table} on onLost={onLost} setNotice={setNotice} grab={grab} tools={tools} /></div>
-            )}
+            <TerminalTabs local={local} table={table} onLost={onLost} grab={grab} tools={tools} runner={runner} onEmpty={() => away("terminal", true)} />
             {!win.hidden && ["n", "s", "e", "w", "ne", "nw", "se", "sw"].map((edge) => (
               <div key={edge} className={`${styles.edge} ${styles[`edge_${edge}`]}`} onPointerDown={(e) => begin(e, win.pane, "size", edge)} aria-hidden="true" />
             ))}

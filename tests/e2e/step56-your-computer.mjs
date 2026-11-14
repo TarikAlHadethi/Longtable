@@ -1,7 +1,7 @@
 // A person's own computer from their own page, and Bypass. The table keeps where their connection's bridge listens and
 // its key only for their own full Claude Code, hands it to them alone (never a teammate, never on a live channel, never
 // for a client's or a ChatGPT connection, gone when full Claude Code is off); Bypass is theirs to pick. On the screen:
-// Terminal and Browser under the box, a line typed in the terminal runs on their computer, and "!" in the box runs there
+// a Terminal icon under the box, a line typed in the terminal runs on their computer, and "!" in the box runs there
 // too without reaching the chat. The bridge is the connection's real one, started here. No AI.
 //
 //   node --experimental-websocket tests/e2e/step56-your-computer.mjs
@@ -12,7 +12,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { accessToken, API, APP, KEY, inviteLink, join as joinTable, launch, listen, rest, rpc, sleep, startTable } from "./lib.mjs";
 import { bridgeKey, startBridge } from "../../packages/connect/src/local.mjs";
-import { Browser } from "../../packages/connect/src/browser.mjs";
 
 const run = Date.now().toString(36);
 const win = process.platform === "win32";
@@ -99,7 +98,7 @@ try {
 
   // The screen, with the connection's real bridge on this computer.
   const seat = { table_id: T, local: { key: bridgeKey(), allowed: true }, terminalFolder: scratch };
-  bridge = await startBridge({ app: APP, seats: [seat], home: scratch, browser: new Browser(join(scratch, "home"), () => {}), log: () => {} });
+  bridge = await startBridge({ app: APP, seats: [seat], home: scratch, log: () => {} });
   check("the real bridge is allowed", (await anon("runner_local", { token: device, port: bridge.port, key: seat.local.key })).body === true);
   const page = owner.page;
   // His screen: wide enough that the site scales itself to 125%, where windows used to run off the edge.
@@ -113,7 +112,7 @@ try {
   await page.keyboard.press("Escape");
 
   // The terminal: a real one, opened from its icon under the box.
-  check("the terminal and browser are icons under the box", (await page.locator("[data-testid=open-terminal] svg").count()) === 1 && (await page.locator("[data-testid=open-browser] svg").count()) === 1
+  check("the terminal is an icon under the box, and there is no browser", (await page.locator("[data-testid=open-terminal] svg").count()) === 1 && (await page.locator("[data-testid=open-browser]").count()) === 0
     && ((await page.locator("[data-testid=open-terminal]").textContent()) || "").trim() === "");
   const OUT = "[data-testid=term-out]:visible";
   const screen = () => page.locator(`${OUT} .xterm-rows`).innerText().catch(() => "");
@@ -185,30 +184,7 @@ try {
   await drag({ x: r2.x + r2.width - 130, y: r2.y + 16 }, { x: vw - 1, y: 500 });
   check("to the right edge, the right half", (await winOf("terminal").getAttribute("data-snap")) === "right" && (await rect()).x > vw / 2 - 20);
 
-  // The browser: its row of tabs is its top bar, with its minus and cross; on the same side, it goes above the terminal.
-  await page.click("[data-testid=open-browser]");
-  await until(async () => (await shown().count()) === 2, 5000);
-  await settle();
-  check("the browser is a window of its own, its tabs its top bar", (await winOf("browser").locator("[data-head] [data-testid=browser-newtab]").count()) === 1
-    && (await winOf("browser").locator("[data-head] [data-testid=minimize]").count()) === 1 && (await page.locator("[data-testid=computer-window] [role=tab][aria-label=Terminal]").count()) === 0);
-  check("the browser has drawn back, forward and reload buttons", (await winOf("browser").locator("button[aria-label=Back] svg, button[aria-label=Forward] svg, button[aria-label=Reload] svg").count()) === 3);
-  const bh = await headOf("browser").boundingBox();
-  await drag({ x: bh.x + bh.width - 140, y: bh.y + 10 }, { x: vw - 1, y: 500 });
-  const top = await rect("browser"), bottom = await rect("terminal");
-  check("both on the right: the browser above, the terminal below", (await winOf("browser").getAttribute("data-snap")) === "right" && top.y < bottom.y && Math.abs(top.x - bottom.x) < 3
-    && top.y + top.height <= bottom.y + 2 && bottom.y + bottom.height <= icons.y, { top, bottom });
-  // Minimize one, and the other has the side to itself; back again, they share it.
-  await page.click("[data-testid=computer-window][data-pane=browser] [data-testid=minimize]");
-  await until(async () => (await shown().count()) === 1, 3000);
-  await sleep(300);
-  check("with the browser put away, the terminal has the whole side", (await rect("terminal")).height > vh - 220);
-  await page.click("[data-testid=open-browser]");
-  await until(async () => (await shown().count()) === 2, 3000);
-  await settle();
-  check("and with it back, they share it again", (await rect("terminal")).y > (await rect("browser")).y + 100);
-  // Dragged away, each goes back to its own size; a double-click on its top bar fills the screen and back.
-  r = await rect("browser");
-  await drag({ x: r.x + r.width - 140, y: r.y + 10 }, { x: 800, y: 400 });
+  // Dragged away, it goes back to its own size; a double-click on its top bar fills the screen and back.
   r = await rect("terminal");
   await drag({ x: r.x + r.width - 130, y: r.y + 16 }, { x: 700, y: 360 });
   r2 = await rect();
@@ -256,36 +232,6 @@ try {
   check("the cross closes the window, and it does not come back", after.indexOf(0) >= 0 && after.slice(after.indexOf(0)).every((n) => n === 0), after);
   await page.click("[data-testid=open-terminal]");
   check("and the terminal is not lost: opened again, it is as it was", await shows("typed-in-longtable"));
-
-  // Its address bar reads what is typed as a browser does: an address opens, anything else is searched on Google.
-  const activeUrl = async () => (await winOf("browser").locator("[role=tab][aria-selected=true]").getAttribute("title")) || "";
-  const go = async (words) => { await page.fill("[data-testid=browser-address]", words); await page.press("[data-testid=browser-address]", "Enter"); };
-  await go("hi");
-  check("words are searched on Google", await until(async () => decodeURIComponent(await activeUrl()).includes("google.com/search?q=hi"), 15000), await activeUrl());
-  await go("google");
-  check("a single word too", await until(async () => decodeURIComponent(await activeUrl()).includes("google.com/search?q=google"), 15000), await activeUrl());
-  await go("example.com");
-  check("an address opens as an address", await until(async () => (await activeUrl()).startsWith("https://example.com"), 15000), await activeUrl());
-  const site = `127.0.0.1:${bridge.port}`;
-  await go(`localhost:${bridge.port}/nothing`);
-  check("a local address opens as one", await until(async () => (await activeUrl()).startsWith(`http://localhost:${bridge.port}/nothing`), 15000), await activeUrl());
-  // Switching tabs answers at once and never shows the other tab's page on the way.
-  await page.click("[data-testid=browser-newtab]");
-  check("a new tab is in front, as a new tab", await until(async () => (await page.locator("[data-testid=browser-tab]").count()) === 2 && (await page.locator("[data-testid=new-tab-page]").count()) === 1, 5000));
-  const t0 = Date.now();
-  await page.locator("[data-testid=browser-tab]").first().dispatchEvent("mousedown");
-  const switched = await until(async () => (await page.locator("[data-testid=browser-tab]").first().getAttribute("aria-selected")) === "true" && (await page.locator("[data-testid=new-tab-page]").count()) === 0, 2000);
-  check("pressing a tab shows it at once, with its own page", switched && Date.now() - t0 < 600 && (await page.locator("[data-testid=browser-view] img").count()) === 1, Date.now() - t0);
-  void site;
-
-  // Tabs in the browser, with no limit: past ten it says so, and still opens more.
-  await until(async () => (await page.locator("[data-testid=browser-tab]").count()) >= 1, 20000);
-  for (let i = 0; i < 11; i++) { await page.click("[data-testid=browser-newtab]"); await sleep(150); }
-  check("past ten tabs it warns, and opens them all the same", await until(async () => (await page.locator("[data-testid=browser-tab]").count()) === 13 && (await page.locator("[data-testid=many-tabs]").count()) === 1, 20000),
-    await page.locator("[data-testid=browser-tab]").count());
-  for (let i = 0; i < 12; i++) { await page.locator("[data-testid=browser-tab] button").last().click(); await sleep(120); }
-  check("closing tabs takes them away", await until(async () => (await page.locator("[data-testid=browser-tab]").count()) === 1, 15000), await page.locator("[data-testid=browser-tab]").count());
-  await page.click("[data-testid=computer-window][data-pane=browser] [data-testid=close-window]");
 
   // "!" in the box runs in the terminal and never reaches the chat.
   const before = sql(`select count(*) from public.messages where table_id = '${T}'`);

@@ -3,20 +3,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import "@xterm/xterm/css/xterm.css";
-import { BackIcon, ForwardIcon, Globe, Plus, ReloadIcon } from "@/components/icons";
+import { Plus } from "@/components/icons";
 import styles from "./computer.module.css";
 
-// The person's own computer, from their own page: a terminal and a browser served by their connection's bridge on that
-// computer (packages/connect/src/local.mjs). The page talks to it directly on 127.0.0.1, so what is typed here, a
+// The person's own computer, from their own page: their terminal, served by their connection's bridge on that computer
+// (packages/connect/src/local.mjs). The page talks to it directly on 127.0.0.1, so what is typed here, a
 // password included, never passes through Longtable. Longtable only hands this person where it listens and its key
 // (`my_local`), and only while their AI runs as their full Claude Code.
-// The windows they sit in are computer-windows.tsx.
+// The window it sits in is computer-windows.tsx.
 
 export type Local = { port: number; key: string };
 
 const UNREACHABLE = "Longtable could not reach your computer from this browser. Use it on the computer your Claude runs on, and allow it if your browser asks.";
-// Past this many tabs a browser starts to weigh on a computer: said once, never a limit.
-export const MANY_TABS = 10;
 
 export function useLocal(supabase: SupabaseClient, table: string, on: boolean) {
   const [local, setLocal] = useState<Local | null>(null);
@@ -50,15 +48,6 @@ async function bridgeGet<T>(local: Local, table: string, path: string): Promise<
   const res = await fetch(at(local, path, table), { headers: { Authorization: `Bearer ${local.key}` } });
   if (!res.ok) throw new Error(`your computer said no (${res.status})`);
   return res.json() as Promise<T>;
-}
-
-// What is typed in a browser's address bar, as a browser reads it: an address opens, anything else is searched.
-export function toAddress(typed: string): string {
-  const t = typed.trim();
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(t)) return t;
-  if (/^(localhost|127\.0\.0\.1|\[::1\]|\d{1,3}(\.\d{1,3}){3})(:\d+)?(\/\S*)?$/i.test(t)) return t;
-  if (/^[^\s/?#]+\.[a-z]{2,}(:\d+)?([/?#]\S*)?$/i.test(t)) return t;
-  return `https://www.google.com/search?q=${encodeURIComponent(t)}`;
 }
 
 // Lines of JSON from the bridge, until the page stops listening or the connection goes away.
@@ -257,129 +246,5 @@ export function TerminalTabs({ local, table, onLost, grab, tools, runner, onEmpt
         ))}
       </div>
     </>
-  );
-}
-
-type Tab = { id: string; url: string; title: string };
-
-// Like a browser's own window: its row of tabs is the top bar it is moved by (`grab`), with its minus and cross
-// (`tools`) at the end; under it the address bar, then the page. Pressing a tab, opening or closing one answers at once
-// on the page; the browser on their computer follows. Each tab keeps its last picture, so switching never shows
-// another tab's page on the way.
-export function BrowserPane({ local, table, on, onLost, setNotice, grab, tools }: {
-  local: Local | null; table: string; on: boolean; onLost: () => void; setNotice: (s: string) => void; grab?: Grab; tools?: React.ReactNode;
-}) {
-  const [tabs, setTabs] = useState<Tab[]>([]);
-  const [active, setActive] = useState<string | null>(null);
-  const frames = useRef(new Map<string, string>());
-  const [, drawn] = useState(0);
-  const picked = useRef(0); // when this page last picked a tab itself, so the browser's word does not undo it meanwhile
-  const [typed, setTyped] = useState<string | null>(null);
-  const [error, setError] = useState("");
-  const down = useStream(local, table, "/browser", on, (e) => {
-    if (typeof e.frame === "string") {
-      // A picture belongs to the tab it was drawn for (older connections do not say: then the tab in front).
-      const tab = typeof e.tab === "string" ? e.tab : activeRef.current;
-      if (tab) { frames.current.set(tab, e.frame); if (tab === activeRef.current) drawn((n) => n + 1); }
-      setError("");
-    }
-    if (Array.isArray(e.tabs)) {
-      const list = e.tabs as Tab[];
-      setTabs(list);
-      for (const id of [...frames.current.keys()]) if (!list.some((t) => t.id === id)) frames.current.delete(id);
-      if (typeof e.active === "string" && Date.now() - picked.current > 800) setActive(e.active);
-    }
-    if (typeof e.error === "string") setError(e.error);
-    if (e.closed) { frames.current.clear(); setTabs([]); }
-  }, onLost);
-  const activeRef = useRef(active);
-  activeRef.current = active;
-  const act = (body: object) => { if (local) bridge(local, table, "/browser", body).catch((e) => setNotice(`Your browser: ${(e as Error).message}`)); };
-  const pick = (id: string) => { picked.current = Date.now(); setActive(id); act({ do: "tab", id }); };
-  const closeTab = (id: string) => {
-    const at = tabs.findIndex((t) => t.id === id);
-    const rest = tabs.filter((t) => t.id !== id);
-    setTabs(rest);
-    if (id === active && rest.length) { picked.current = Date.now(); setActive(rest[Math.min(at, rest.length - 1)].id); }
-    act({ do: "closetab", id });
-  };
-  const current = tabs.find((t) => t.id === active);
-  const url = current?.url ?? "";
-  const frame = active ? frames.current.get(active) : undefined;
-  const point = (e: React.MouseEvent<HTMLImageElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
-  };
-  const wheel = useRef(0);
-  // The page is laid out at the size it is shown at (the bridge sets the browser to it), so it reads as it would in a
-  // window this size, sharp on this screen.
-  const view = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = view.current;
-    if (!el || !local || !on || down) return;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const tell = () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        const { width, height } = el.getBoundingClientRect();
-        if (width > 50 && height > 50) bridge(local, table, "/browser", { do: "size", w: width, h: height, dpr: devicePixelRatio }).catch((e) => console.warn("[computer] browser size not set:", (e as Error).message));
-      }, 150);
-    };
-    const watch = new ResizeObserver(tell);
-    watch.observe(el);
-    return () => { watch.disconnect(); if (timer) clearTimeout(timer); };
-  }, [local, table, on, down]);
-  const name = (t: Tab) => (t.title && t.title !== t.url ? t.title : t.url === "about:blank" || !t.url ? "New tab" : t.url.replace(/^https?:\/\//, ""));
-  return (
-    <div className={styles.browser}>
-      <div className={styles.tabStrip} data-head {...grab}>
-        <div className={styles.tabList} role="tablist" aria-label="Browser tabs">
-          {tabs.map((t) => (
-            <div key={t.id} role="tab" aria-selected={t.id === active} className={`${styles.btab} ${t.id === active ? styles.btabOn : ""}`} onMouseDown={() => pick(t.id)} title={t.url} data-testid="browser-tab">
-              <span>{name(t)}</span>
-              <button type="button" className={styles.btabX} aria-label="Close tab" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); closeTab(t.id); }}>×</button>
-            </div>
-          ))}
-          <button type="button" className={styles.newTab} aria-label="New tab" title="New tab" onClick={() => act({ do: "newtab" })} data-testid="browser-newtab"><Plus size={15} /></button>
-        </div>
-        {tools}
-      </div>
-      {tabs.length > MANY_TABS && <p className={styles.many} role="status" data-testid="many-tabs">{tabs.length} tabs open. Past {MANY_TABS}, your computer may start to slow down.</p>}
-      <form className={styles.bar} onSubmit={(e) => { e.preventDefault(); if (typed?.trim()) act({ do: "go", url: toAddress(typed) }); setTyped(null); (document.activeElement as HTMLElement)?.blur(); }}>
-        <button type="button" className={styles.barBtn} aria-label="Back" title="Back" onClick={() => act({ do: "back" })}><BackIcon size={17} /></button>
-        <button type="button" className={styles.barBtn} aria-label="Forward" title="Forward" onClick={() => act({ do: "forward" })}><ForwardIcon size={17} /></button>
-        <button type="button" className={styles.barBtn} aria-label="Reload" title="Reload" onClick={() => act({ do: "reload" })}><ReloadIcon size={16} /></button>
-        <input className={styles.address} value={typed ?? (url === "about:blank" ? "" : url)} onChange={(e) => setTyped(e.target.value)} onFocus={(e) => e.target.select()}
-          onBlur={() => setTyped(null)} placeholder="Search Google or type an address" aria-label="Address" spellCheck={false} data-testid="browser-address" />
-      </form>
-      <div ref={view} className={styles.view} tabIndex={0} data-testid="browser-view"
-        onKeyDown={(e) => {
-          if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); return act({ do: "type", text: e.key }); }
-          if (["Shift", "Control", "Alt", "Meta"].includes(e.key)) return;
-          if (e.key.length > 1 || e.ctrlKey || e.metaKey) {
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") return; // the paste event sends the words
-            e.preventDefault();
-            act({ do: "key", key: e.key, ctrl: e.ctrlKey, meta: e.metaKey, shift: e.shiftKey, alt: e.altKey });
-          }
-        }}
-        onPaste={(e) => { const t = e.clipboardData.getData("text/plain"); if (t) { e.preventDefault(); act({ do: "type", text: t }); } }}>
-        {down ? <p className={styles.empty}>{UNREACHABLE}</p>
-          : error ? <p className={styles.empty}>{error}</p>
-          // A new tab is the browser's own blank page, drawn dark in a dark-mode system: shown as a new tab here instead.
-          : url === "about:blank" ? <div className={styles.newPage} data-testid="new-tab-page"><Globe size={34} /><span>Search Google or type an address above</span></div>
-          : frame ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img className={styles.frame} alt={url || "Your browser"} src={`data:image/jpeg;base64,${frame}`} draggable={false}
-              onClick={(e) => { (e.currentTarget.parentElement as HTMLElement).focus(); act({ do: "click", ...point(e) }); }}
-              onWheel={(e) => {
-                // At most one scroll every 60 ms, carrying everything turned meanwhile.
-                const now = Date.now();
-                if (now - wheel.current < 60) return;
-                wheel.current = now;
-                act({ do: "scroll", ...point(e as unknown as React.MouseEvent<HTMLImageElement>), dy: e.deltaY });
-              }} />
-          ) : tabs.length ? null : <p className={styles.empty}>Starting your browser…</p>}
-      </div>
-    </div>
   );
 }

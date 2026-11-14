@@ -38,7 +38,7 @@ import { isQuiet, ReconnectWindow } from "./reconnect-window";
 import { ModePick } from "./mode-pick";
 import { useLocal } from "./computer";
 import { ComputerWindows, type ComputerApi, type Pane } from "./computer-windows";
-import { Globe, SidebarIcon, TerminalIcon } from "@/components/icons";
+import { SidebarIcon, TerminalIcon } from "@/components/icons";
 import styles from "./room.module.css";
 import { firstName } from "@/lib/names";
 import { namesMe, pingsMe, useNeeds, type Need } from "@/lib/chime";
@@ -405,7 +405,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const unset = chat?.set_up === false;
   const liveAI = new Set(connections.filter((c) => !c.revoked_at).map((c) => c.member_id));
   const myConnection = connections.find((c) => !c.revoked_at && c.member_id === me.id);
-  // Their own computer's terminal and browser (computer.tsx): only while their AI runs as their full Claude Code, which
+  // Their own computer's terminal (computer.tsx): only while their AI runs as their full Claude Code, which
   // can already run commands there with their approval.
   const canComputer = self.role !== "client" && myConnection?.kind === "claude" && !!myConnection.full_claude;
   const { local, refresh: refreshLocal } = useLocal(supabase, table.id, canComputer);
@@ -1627,14 +1627,10 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               {chat?.answers !== "off" && myConnection?.kind === "claude" && myConnection.full_claude && (
                 <ModePick value={myConnection.mode ?? "auto"} onPick={(m) => setMode(myConnection.id, m)} />
               )}
-              {canComputer && local && (["terminal", "browser"] as const).map((p) => {
-                const Icon = p === "terminal" ? TerminalIcon : Globe;
-                const name = p === "terminal" ? "Terminal" : "Browser";
-                return (
-                  <button key={p} type="button" className={`${styles.toolIcon} ${shownPanes.includes(p) ? styles.toolIconOn : ""}`} onClick={() => computer.current?.press(p)}
-                    aria-label={name} title={name} data-testid={`open-${p}`} data-computer-icon={p}><Icon size={18} /></button>
-                );
-              })}
+              {canComputer && local && (
+                <button type="button" className={`${styles.toolIcon} ${shownPanes.includes("terminal") ? styles.toolIconOn : ""}`} onClick={() => computer.current?.press("terminal")}
+                  aria-label="Terminal" title="Terminal" data-testid="open-terminal" data-computer-icon="terminal"><TerminalIcon size={18} /></button>
+              )}
               {notice && <span className={styles.notice} role="status">{notice}</span>}
               {/* When this person's own AI cannot answer here, say why, with the one fix. */}
               {!notice && chat?.answers === "off" && <span className={styles.notice} data-testid="no-ai">No AI hears this chat.</span>}
@@ -1648,7 +1644,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         </main>
 
         {canComputer && (
-          <ComputerWindows api={computer} local={local} table={table.id} onLost={refreshLocal} setNotice={setNotice} onPanes={setShownPanes} />
+          <ComputerWindows api={computer} local={local} table={table.id} onLost={refreshLocal} onPanes={setShownPanes} />
         )}
         {view === "settings" || view === "logs" || view === "sandbox" ? null : view === "table" ? (
           <aside className={`${styles.inbox} ${inboxOpen ? styles.inboxOpen : ""}`} aria-label="Usage">
