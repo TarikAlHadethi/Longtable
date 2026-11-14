@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type Ref } from "react";
-import { BrowserPane, TerminalPane, type Local } from "./computer";
+import { BrowserPane, TerminalTabs, type Local, type TerminalRun } from "./computer";
 import styles from "./computer.module.css";
 
 // The windows of a person's own computer, like windows on a desktop: the terminal and the browser, each its own window,
@@ -14,7 +14,7 @@ export type Pane = "terminal" | "browser";
 type Box = { x: number; y: number; w: number; h: number };
 type Snap = "left" | "right" | "max";
 type Win = Box & { pane: Pane; z: number; hidden: boolean; snap: Snap | null; before: Box | null };
-export type ComputerApi = { press: (p: Pane) => void; show: (p: Pane) => void };
+export type ComputerApi = { press: (p: Pane) => void; show: (p: Pane) => void; run: (line: string) => void };
 
 const GAP = 8;      // the margin kept on every side
 const TOP = 64;     // and below the top bar
@@ -162,7 +162,16 @@ export function ComputerWindows({ api, local, table, onLost, setNotice, onPanes 
     show(pane);
   }, [show, away]);
 
-  useImperativeHandle(api, () => ({ press, show }), [press, show]);
+  // A "!" line from the chat: the terminal brought out, and the line run in the terminal in front (once it is drawn).
+  const runner = useRef<TerminalRun | null>(null);
+  const pending = useRef<string[]>([]);
+  const run = useCallback((line: string) => {
+    show("terminal");
+    if (runner.current) runner.current.run(line); else pending.current.push(line);
+  }, [show]);
+  useEffect(() => { if (runner.current) for (const line of pending.current.splice(0)) runner.current.run(line); });
+
+  useImperativeHandle(api, () => ({ press, show, run }), [press, show, run]);
 
   // A screen made smaller (a window resized, a phone turned) keeps every window in its room.
   useEffect(() => {
@@ -199,10 +208,12 @@ export function ComputerWindows({ api, local, table, onLost, setNotice, onPanes 
     if (!w) return;
     if (d.kind === "size") {
       const b = { ...d.start };
-      if (d.edge!.includes("e")) b.w = Math.max(MIN_W, d.start.w + dx);
-      if (d.edge!.includes("s")) b.h = Math.max(MIN_H, d.start.h + dy);
-      if (d.edge!.includes("w")) { b.w = Math.max(MIN_W, d.start.w - dx); b.x = d.start.x + d.start.w - b.w; }
-      if (d.edge!.includes("n")) { b.h = Math.max(MIN_H, d.start.h - dy); b.y = d.start.y + d.start.h - b.h; }
+      // Each edge stops at its own wall; the opposite side stays where it is.
+      const { floor } = room();
+      if (d.edge!.includes("e")) b.w = clamp(d.start.w + dx, MIN_W, W - GAP - d.start.x);
+      if (d.edge!.includes("s")) b.h = clamp(d.start.h + dy, MIN_H, floor - d.start.y);
+      if (d.edge!.includes("w")) { b.w = clamp(d.start.w - dx, MIN_W, d.start.x + d.start.w - GAP); b.x = d.start.x + d.start.w - b.w; }
+      if (d.edge!.includes("n")) { b.h = clamp(d.start.h - dy, MIN_H, d.start.y + d.start.h - TOP); b.y = d.start.y + d.start.h - b.h; }
       return setWins((all) => all.map((x) => (x.pane === d.pane ? { ...x, ...inside(b), snap: null, before: null } : x)));
     }
     // A window filling a side first goes back to its own size, still under the pointer where it was held.
@@ -272,10 +283,7 @@ export function ComputerWindows({ api, local, table, onLost, setNotice, onPanes 
             onPointerDownCapture={() => front(win.pane)} aria-label={win.pane === "terminal" ? "Terminal" : "Browser"} aria-hidden={win.hidden || undefined}
             data-testid="computer-window" data-pane={win.pane} data-hidden={win.hidden || undefined} data-snap={win.snap ?? undefined}>
             {win.pane === "terminal" ? (
-              <>
-                <header data-head className={`${styles.head} ${styles.headDark}`} {...grab}><span />{tools}</header>
-                <div className={styles.body}><TerminalPane local={local} table={table} onLost={onLost} /></div>
-              </>
+              <TerminalTabs local={local} table={table} onLost={onLost} grab={grab} tools={tools} runner={runner} onEmpty={() => away("terminal", true)} />
             ) : (
               <div className={styles.body}><BrowserPane local={local} table={table} on onLost={onLost} setNotice={setNotice} grab={grab} tools={tools} /></div>
             )}

@@ -36,7 +36,7 @@ import {
 import { ApprovalCards } from "./approvals";
 import { isQuiet, ReconnectWindow } from "./reconnect-window";
 import { ModePick } from "./mode-pick";
-import { bridge, useLocal } from "./computer";
+import { useLocal } from "./computer";
 import { ComputerWindows, type ComputerApi, type Pane } from "./computer-windows";
 import { Globe, SidebarIcon, TerminalIcon } from "@/components/icons";
 import styles from "./room.module.css";
@@ -412,21 +412,14 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const computer = useRef<ComputerApi>(null);
   const [shownPanes, setShownPanes] = useState<Pane[]>([]);
   // "!" and a command runs it in their terminal, as in Claude Code; nothing goes to the chat. ("!!!" is just words.)
-  async function bang(body: string) {
+  function bang(body: string) {
     const line = canComputer ? body.match(/^!\s*([^!\s][\s\S]*)$/)?.[1] : null;
     if (!line) return false;
     if (!local) { setNotice("Your terminal opens once your computer's connection is on and up to date."); return true; }
     setDraft("");
     requestAnimationFrame(grow);
-    computer.current?.show("terminal");
-    try {
-      await bridge(local, table.id, "/term", { line });
-      setNotice("");
-    } catch (e) {
-      setDraft(body);
-      refreshLocal();
-      setNotice(`Your computer did not take it: ${(e as Error).message}`);
-    }
+    computer.current?.run(line);
+    setNotice("");
     return true;
   }
   // Coming back to Longtable with your own AI off: the reconnect window, once a tab (Close means not again here). A
@@ -968,7 +961,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     // A poll (what a client is told, or a question to the team) is made from "/poll", not from a button.
     if (/^\/poll\s*$/i.test(body)) { setDraft(""); requestAnimationFrame(grow); setAskingFor(null); setAsking(true); return; }
     if (body.startsWith("/") && doSlash(body)) { setDraft(""); requestAnimationFrame(grow); return; }
-    if (body.startsWith("!") && await bang(body)) return;
+    if (body.startsWith("!") && bang(body)) return;
     setDraft("");
     requestAnimationFrame(grow);
     atBottom.current = true;
@@ -1000,7 +993,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     // A poll (what a client is told, or a question to the team) is made from "/poll", not from a button.
     if (/^\/poll\s*$/i.test(body)) { setDraft(""); requestAnimationFrame(grow); setAskingFor(null); setAsking(true); return; }
     if (body.startsWith("/") && doSlash(body)) { setDraft(""); requestAnimationFrame(grow); return; }
-    if (body.startsWith("!") && await bang(body)) return;
+    if (body.startsWith("!") && bang(body)) return;
     setDraft("");
     setNotice("");
     requestAnimationFrame(grow);

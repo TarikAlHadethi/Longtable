@@ -27,13 +27,17 @@ export const keyOk = (auth, key) => !!key && same(String(auth || "").replace(/^B
 
 export function startBridge({ app, seats, home, browser, log }) {
   const origin = new URL(app).origin;
-  const terms = new Map(); // table id -> { term, listeners }
-  const termFor = (seat) => {
-    let t = terms.get(seat.table_id);
+  // Each table's terminals, as many as the person opens (tabs on their page), by a name the page gives each.
+  const terms = new Map(); // "<table>:<terminal>" -> { term, listeners, id }
+  const termId = (url) => { const id = url.searchParams.get("id") || "1"; if (!/^[A-Za-z0-9_-]{1,40}$/.test(id)) throw new Error("not a terminal"); return id; };
+  const termFor = (seat, id) => {
+    const key = `${seat.table_id}:${id}`;
+    let t = terms.get(key);
     if (!t) {
+      if ([...terms.keys()].filter((k) => k.startsWith(`${seat.table_id}:`)).length >= 30) throw new Error("thirty terminals are open already");
       const listeners = new Set();
-      t = { listeners, term: new Terminal(seat.terminalFolder || home, (e) => { for (const l of listeners) l(e); }) };
-      terms.set(seat.table_id, t);
+      t = { id, listeners, term: new Terminal(seat.terminalFolder || home, (e) => { for (const l of listeners) l(e); }) };
+      terms.set(key, t);
     }
     return t;
   };
@@ -70,8 +74,12 @@ export function startBridge({ app, seats, home, browser, log }) {
       }
       const path = url.pathname;
       // The terminal: what it printed so far, then everything it prints. Opening it starts the shell at the page's size.
+      // Which terminals this table has running, so a page opened later shows them all as tabs.
+      if (req.method === "GET" && path === "/terms") {
+        return send(res, 200, [...terms.entries()].filter(([k, t]) => k.startsWith(`${seat.table_id}:`) && t.term.proc).map(([, t]) => ({ id: t.id })));
+      }
       if (req.method === "GET" && path === "/term") {
-        const t = termFor(seat);
+        const t = termFor(seat, termId(url));
         return stream(req, res, { data: t.term.text, all: true, os: SYSTEM }, async (w) => { t.listeners.add(w); await t.term.open(url.searchParams.get("cols"), url.searchParams.get("rows")); },
           (w) => t.listeners.delete(w));
       }
@@ -81,8 +89,10 @@ export function startBridge({ app, seats, home, browser, log }) {
       if (req.method !== "POST") return send(res, 404, { error: "nothing here" });
       const b = await body(req);
       // Keys as typed, or a whole command from the chat's "!".
-      if (path === "/term") { const t = termFor(seat).term; await (typeof b.line === "string" ? t.run(b.line) : t.write(b.data)); return send(res, 200, { ok: true }); }
-      if (path === "/term/size") { termFor(seat).term.resize(b.cols, b.rows); return send(res, 200, { ok: true }); }
+      if (path === "/term") { const t = termFor(seat, termId(url)).term; await (typeof b.line === "string" ? t.run(b.line) : t.write(b.data)); return send(res, 200, { ok: true }); }
+      if (path === "/term/size") { termFor(seat, termId(url)).term.resize(b.cols, b.rows); return send(res, 200, { ok: true }); }
+      // A terminal's tab closed: that shell ends, as closing a tab in a terminal app does.
+      if (path === "/term/close") { const key = `${seat.table_id}:${termId(url)}`; terms.get(key)?.term.stop(); terms.delete(key); return send(res, 200, { ok: true }); }
       if (path === "/browser") { await browser.act(b); return send(res, 200, { ok: true }); }
       return send(res, 404, { error: "nothing here" });
     } catch (e) {

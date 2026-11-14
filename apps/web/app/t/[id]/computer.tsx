@@ -39,11 +39,26 @@ export function useLocal(supabase: SupabaseClient, table: string, on: boolean) {
 
 const at = (local: Local, path: string, table: string, extra = "") => `http://127.0.0.1:${local.port}${path}?t=${encodeURIComponent(table)}${extra}`;
 
-export async function bridge(local: Local, table: string, path: string, body: object) {
-  const res = await fetch(at(local, path, table), { method: "POST", headers: { Authorization: `Bearer ${local.key}`, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+export async function bridge(local: Local, table: string, path: string, body: object, query = "") {
+  const res = await fetch(at(local, path, table, query), { method: "POST", headers: { Authorization: `Bearer ${local.key}`, "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const out = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(out.error || `your computer said no (${res.status})`);
   return out as { ok?: boolean };
+}
+
+async function bridgeGet<T>(local: Local, table: string, path: string): Promise<T> {
+  const res = await fetch(at(local, path, table), { headers: { Authorization: `Bearer ${local.key}` } });
+  if (!res.ok) throw new Error(`your computer said no (${res.status})`);
+  return res.json() as Promise<T>;
+}
+
+// What is typed in a browser's address bar, as a browser reads it: an address opens, anything else is searched.
+export function toAddress(typed: string): string {
+  const t = typed.trim();
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(t)) return t;
+  if (/^(localhost|127\.0\.0\.1|\[::1\]|\d{1,3}(\.\d{1,3}){3})(:\d+)?(\/\S*)?$/i.test(t)) return t;
+  if (/^[^\s/?#]+\.[a-z]{2,}(:\d+)?([/?#]\S*)?$/i.test(t)) return t;
+  return `https://www.google.com/search?q=${encodeURIComponent(t)}`;
 }
 
 // Lines of JSON from the bridge, until the page stops listening or the connection goes away.
@@ -99,13 +114,19 @@ const THEME = {
   brightBlack: "#767676", brightRed: "#e74856", brightGreen: "#16c60c", brightYellow: "#f9f1a5", brightBlue: "#3b78ff", brightMagenta: "#b4009e", brightCyan: "#61d6d6", brightWhite: "#f2f2f2",
 };
 
-// A real terminal (xterm.js, as in VS Code) on their own shell. Every key goes to the shell as typed; Ctrl+C with
-// words picked copies them, Ctrl+V pastes, as in Windows Terminal.
-export function TerminalPane({ local, table, onLost }: { local: Local | null; table: string; onLost: () => void }) {
+// A real terminal (xterm.js, as in VS Code) on one of their own shells. Every key goes to the shell as typed; Ctrl+C
+// with words picked copies them, Ctrl+V pastes, as in Windows Terminal.
+export function TerminalPane({ local, table, id, shown, onLost, onTitle }: {
+  local: Local | null; table: string; id: string; shown: boolean; onLost: () => void; onTitle?: (title: string) => void;
+}) {
   const box = useRef<HTMLDivElement>(null);
-  const term = useRef<{ write: (s: string) => void; reset: () => void; cols: number; rows: number } | null>(null);
+  const term = useRef<{ write: (s: string) => void; reset: () => void; focus: () => void; cols: number; rows: number } | null>(null);
+  const fitRef = useRef<() => void>(() => {});
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
+  const q = `&id=${encodeURIComponent(id)}`;
+  const titled = useRef(onTitle);
+  titled.current = onTitle;
   // Keys go out in order, gathered while one is on its way.
   const send = useRef<{ queue: string; busy: boolean }>({ queue: "", busy: false });
   const flush = useCallback(async () => {
@@ -114,10 +135,10 @@ export function TerminalPane({ local, table, onLost }: { local: Local | null; ta
     s.busy = true;
     const data = s.queue;
     s.queue = "";
-    try { await bridge(local, table, "/term", { data }); } catch (e) { console.warn("[computer] a key did not reach your terminal:", (e as Error).message); }
+    try { await bridge(local, table, "/term", { data }, q); } catch (e) { console.warn("[computer] a key did not reach your terminal:", (e as Error).message); }
     s.busy = false;
     flush();
-  }, [local, table]);
+  }, [local, table, q]);
   useEffect(() => {
     const el = box.current;
     if (!el) return;
@@ -134,6 +155,7 @@ export function TerminalPane({ local, table, onLost }: { local: Local | null; ta
       t.loadAddon(fit);
       t.open(el);
       fit.fit();
+      fitRef.current = () => { try { fit.fit(); } catch {} };
       t.attachCustomKeyEventHandler((e) => {
         if (e.type !== "keydown" || !(e.ctrlKey || e.metaKey)) return true;
         const k = e.key.toLowerCase();
@@ -142,16 +164,19 @@ export function TerminalPane({ local, table, onLost }: { local: Local | null; ta
         return true;
       });
       const data = t.onData((d) => { send.current.queue += d; flush(); });
-      const sized = t.onResize(({ cols, rows }) => { if (local) bridge(local, table, "/term/size", { cols, rows }).catch(() => {}); });
-      const watch = new ResizeObserver(() => { try { fit.fit(); } catch {} });
+      const sized = t.onResize(({ cols, rows }) => { if (local) bridge(local, table, "/term/size", { cols, rows }, q).catch(() => {}); });
+      const title = t.onTitleChange((s) => titled.current?.(s));
+      // Only a terminal on screen is measured: a hidden one has no size, and keeps the one it had.
+      const watch = new ResizeObserver(() => { if (el.offsetWidth) fitRef.current(); });
       watch.observe(el);
       term.current = t;
       setReady(true);
-      t.focus();
-      cleanup = () => { watch.disconnect(); data.dispose(); sized.dispose(); t.dispose(); term.current = null; };
+      cleanup = () => { watch.disconnect(); data.dispose(); sized.dispose(); title.dispose(); t.dispose(); term.current = null; };
     })();
     return () => { gone = true; cleanup(); };
-  }, [local, table, flush]);
+  }, [local, table, flush, q]);
+  // Brought in front: sized to where it now is, and typed into.
+  useEffect(() => { if (shown && ready) { fitRef.current(); term.current?.focus(); } }, [shown, ready]);
   const down = useStream(local, table, "/term", ready, (e) => {
     if (typeof e.error === "string") return setError(e.error);
     setError("");
@@ -160,37 +185,127 @@ export function TerminalPane({ local, table, onLost }: { local: Local | null; ta
     const os = e.os as { platform?: string; build?: number } | undefined;
     if (os?.platform === "win32" && term.current) (term.current as unknown as { options: { windowsPty?: object } }).options.windowsPty = { backend: "conpty", buildNumber: os.build };
     if (typeof e.data === "string") term.current?.write(e.data);
-  }, onLost, () => `&cols=${term.current?.cols ?? 100}&rows=${term.current?.rows ?? 30}`);
+  }, onLost, () => `${q}&cols=${term.current?.cols ?? 100}&rows=${term.current?.rows ?? 30}`);
   return (
-    <div className={styles.term} onMouseDown={() => setTimeout(() => (box.current?.querySelector("textarea") as HTMLTextAreaElement | null)?.focus(), 0)}>
-      <div ref={box} className={styles.termBox} data-testid="term-out" />
+    <div className={styles.term} hidden={!shown} onMouseDown={() => setTimeout(() => term.current?.focus(), 0)}>
+      <div ref={box} className={styles.termBox} data-testid="term-out" data-term={id} />
       {(down || error) && <p className={styles.termNote}>{down ? UNREACHABLE : `Your terminal could not start: ${error}`}</p>}
     </div>
+  );
+}
+
+type Grab = { onPointerDown: (e: React.PointerEvent) => void; onDoubleClick: (e: React.MouseEvent) => void };
+export type TerminalRun = { run: (line: string) => void };
+
+// The terminal window's own content: as many terminals as they open, each its own shell, as tabs in its top bar (as in
+// Windows Terminal). The cross on a tab ends that shell; the last one closed closes the window. Shells already running
+// on their computer come back as tabs when the window opens.
+export function TerminalTabs({ local, table, onLost, grab, tools, runner, onEmpty }: {
+  local: Local | null; table: string; onLost: () => void; grab: Grab; tools: React.ReactNode; runner: { current: TerminalRun | null }; onEmpty: () => void;
+}) {
+  const [tabs, setTabs] = useState<{ id: string; title: string }[] | null>(null);
+  const [active, setActive] = useState("1");
+  const waiting = useRef<string[]>([]);
+  useEffect(() => {
+    if (!local || tabs) return;
+    bridgeGet<{ id: string }[]>(local, table, "/terms")
+      .then((list) => list.map((x) => x.id))
+      .catch((e) => { console.warn("[computer] could not list your terminals:", (e as Error).message); return [] as string[]; })
+      .then((ids) => { const all = ids.length ? ids : ["1"]; setTabs(all.map((id) => ({ id, title: "" }))); setActive(all[all.length - 1]); });
+  }, [local, table, tabs]);
+  const add = () => {
+    const id = `t${Date.now().toString(36)}`;
+    setTabs((list) => [...(list ?? []), { id, title: "" }]);
+    setActive(id);
+  };
+  const close = (id: string) => {
+    if (local) bridge(local, table, "/term/close", {}, `&id=${encodeURIComponent(id)}`).catch((e) => console.warn("[computer] the shell was not ended:", (e as Error).message));
+    const rest = (tabs ?? []).filter((t) => t.id !== id);
+    if (!rest.length) { onEmpty(); setTabs(null); return; }
+    setTabs(rest);
+    if (active === id) setActive(rest[rest.length - 1].id);
+  };
+  // A "!" line from the chat runs in the terminal in front.
+  const runNow = useCallback((line: string) => { if (local) bridge(local, table, "/term", { line }, `&id=${encodeURIComponent(active)}`).catch((e) => console.warn("[computer] the command did not reach your terminal:", (e as Error).message)); }, [local, table, active]);
+  useEffect(() => {
+    runner.current = { run: (line) => (tabs ? runNow(line) : waiting.current.push(line)) };
+    if (tabs) for (const line of waiting.current.splice(0)) runNow(line);
+  }, [runner, runNow, tabs]);
+  // Its name, as the shell sets it (a program running, a folder), with the shell's own named plainly.
+  const name = (t: { title: string }, i: number) => {
+    const title = t.title.replace(/^.*[\\/]/, "").trim();
+    return title && !/^(windows )?(powershell|pwsh)(\.exe)?$/i.test(title) ? title : `PowerShell${i ? ` ${i + 1}` : ""}`;
+  };
+  return (
+    <>
+      <header data-head className={`${styles.head} ${styles.headDark}`} {...grab}>
+        <div className={styles.ttabs} role="tablist" aria-label="Terminals">
+          {(tabs ?? []).map((t, i) => (
+            <div key={t.id} role="tab" aria-selected={t.id === active} className={`${styles.ttab} ${t.id === active ? styles.ttabOn : ""}`} onClick={() => setActive(t.id)} data-testid="term-tab">
+              <span>{name(t, i)}</span>
+              <button type="button" className={styles.ttabX} aria-label="Close this terminal" onClick={(e) => { e.stopPropagation(); close(t.id); }}>×</button>
+            </div>
+          ))}
+          <button type="button" className={styles.ttabNew} aria-label="New terminal" title="New terminal" onClick={add} data-testid="term-new"><Plus size={15} /></button>
+        </div>
+        {tools}
+      </header>
+      <div className={styles.body}>
+        {(tabs ?? []).map((t) => (
+          <TerminalPane key={t.id} local={local} table={table} id={t.id} shown={t.id === active} onLost={onLost}
+            onTitle={(title) => setTabs((list) => (list ?? []).map((x) => (x.id === t.id ? { ...x, title } : x)))} />
+        ))}
+      </div>
+    </>
   );
 }
 
 type Tab = { id: string; url: string; title: string };
 
 // Like a browser's own window: its row of tabs is the top bar it is moved by (`grab`), with its minus and cross
-// (`tools`) at the end; under it the address bar, then the page.
+// (`tools`) at the end; under it the address bar, then the page. Pressing a tab, opening or closing one answers at once
+// on the page; the browser on their computer follows. Each tab keeps its last picture, so switching never shows
+// another tab's page on the way.
 export function BrowserPane({ local, table, on, onLost, setNotice, grab, tools }: {
-  local: Local | null; table: string; on: boolean; onLost: () => void; setNotice: (s: string) => void;
-  grab?: { onPointerDown: (e: React.PointerEvent) => void; onDoubleClick: (e: React.MouseEvent) => void }; tools?: React.ReactNode;
+  local: Local | null; table: string; on: boolean; onLost: () => void; setNotice: (s: string) => void; grab?: Grab; tools?: React.ReactNode;
 }) {
-  const [frame, setFrame] = useState("");
-  const [url, setUrl] = useState("");
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [active, setActive] = useState<string | null>(null);
+  const frames = useRef(new Map<string, string>());
+  const [, drawn] = useState(0);
+  const picked = useRef(0); // when this page last picked a tab itself, so the browser's word does not undo it meanwhile
   const [typed, setTyped] = useState<string | null>(null);
   const [error, setError] = useState("");
   const down = useStream(local, table, "/browser", on, (e) => {
-    if (typeof e.frame === "string") { setFrame(e.frame); setError(""); }
-    if (typeof e.url === "string") setUrl(e.url);
-    if (Array.isArray(e.tabs)) { setTabs(e.tabs as Tab[]); setActive((e.active as string) ?? null); }
+    if (typeof e.frame === "string") {
+      // A picture belongs to the tab it was drawn for (older connections do not say: then the tab in front).
+      const tab = typeof e.tab === "string" ? e.tab : activeRef.current;
+      if (tab) { frames.current.set(tab, e.frame); if (tab === activeRef.current) drawn((n) => n + 1); }
+      setError("");
+    }
+    if (Array.isArray(e.tabs)) {
+      const list = e.tabs as Tab[];
+      setTabs(list);
+      for (const id of [...frames.current.keys()]) if (!list.some((t) => t.id === id)) frames.current.delete(id);
+      if (typeof e.active === "string" && Date.now() - picked.current > 800) setActive(e.active);
+    }
     if (typeof e.error === "string") setError(e.error);
-    if (e.closed) { setFrame(""); setTabs([]); }
+    if (e.closed) { frames.current.clear(); setTabs([]); }
   }, onLost);
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const act = (body: object) => { if (local) bridge(local, table, "/browser", body).catch((e) => setNotice(`Your browser: ${(e as Error).message}`)); };
+  const pick = (id: string) => { picked.current = Date.now(); setActive(id); act({ do: "tab", id }); };
+  const closeTab = (id: string) => {
+    const at = tabs.findIndex((t) => t.id === id);
+    const rest = tabs.filter((t) => t.id !== id);
+    setTabs(rest);
+    if (id === active && rest.length) { picked.current = Date.now(); setActive(rest[Math.min(at, rest.length - 1)].id); }
+    act({ do: "closetab", id });
+  };
+  const current = tabs.find((t) => t.id === active);
+  const url = current?.url ?? "";
+  const frame = active ? frames.current.get(active) : undefined;
   const point = (e: React.MouseEvent<HTMLImageElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
@@ -208,40 +323,34 @@ export function BrowserPane({ local, table, on, onLost, setNotice, grab, tools }
       timer = setTimeout(() => {
         const { width, height } = el.getBoundingClientRect();
         if (width > 50 && height > 50) bridge(local, table, "/browser", { do: "size", w: width, h: height, dpr: devicePixelRatio }).catch((e) => console.warn("[computer] browser size not set:", (e as Error).message));
-      }, 200);
+      }, 150);
     };
     const watch = new ResizeObserver(tell);
     watch.observe(el);
     return () => { watch.disconnect(); if (timer) clearTimeout(timer); };
   }, [local, table, on, down]);
-  // A closing tab shrinks away first, then the browser is told.
-  const [closing, setClosing] = useState<Set<string>>(new Set());
-  const closeTab = (id: string) => {
-    setClosing((c) => new Set(c).add(id));
-    setTimeout(() => { act({ do: "closetab", id }); setClosing((c) => { const n = new Set(c); n.delete(id); return n; }); }, 160);
-  };
-  const name = (t: Tab) => t.title && t.title !== t.url ? t.title : t.url === "about:blank" || !t.url ? "New tab" : t.url.replace(/^https?:\/\//, "");
+  const name = (t: Tab) => (t.title && t.title !== t.url ? t.title : t.url === "about:blank" || !t.url ? "New tab" : t.url.replace(/^https?:\/\//, ""));
   return (
     <div className={styles.browser}>
       <div className={styles.tabStrip} data-head {...grab}>
         <div className={styles.tabList} role="tablist" aria-label="Browser tabs">
-        {tabs.map((t) => (
-          <div key={t.id} role="tab" aria-selected={t.id === active} className={`${styles.btab} ${t.id === active ? styles.btabOn : ""} ${closing.has(t.id) ? styles.btabGone : ""}`} onClick={() => act({ do: "tab", id: t.id })} title={t.url} data-testid="browser-tab">
-            <span>{name(t)}</span>
-            <button type="button" className={styles.btabX} aria-label="Close tab" onClick={(e) => { e.stopPropagation(); closeTab(t.id); }}>×</button>
-          </div>
-        ))}
-        <button type="button" className={styles.newTab} aria-label="New tab" onClick={() => act({ do: "newtab" })} data-testid="browser-newtab"><Plus size={16} /></button>
+          {tabs.map((t) => (
+            <div key={t.id} role="tab" aria-selected={t.id === active} className={`${styles.btab} ${t.id === active ? styles.btabOn : ""}`} onMouseDown={() => pick(t.id)} title={t.url} data-testid="browser-tab">
+              <span>{name(t)}</span>
+              <button type="button" className={styles.btabX} aria-label="Close tab" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); closeTab(t.id); }}>×</button>
+            </div>
+          ))}
+          <button type="button" className={styles.newTab} aria-label="New tab" title="New tab" onClick={() => act({ do: "newtab" })} data-testid="browser-newtab"><Plus size={15} /></button>
         </div>
         {tools}
       </div>
       {tabs.length > MANY_TABS && <p className={styles.many} role="status" data-testid="many-tabs">{tabs.length} tabs open. Past {MANY_TABS}, your computer may start to slow down.</p>}
-      <form className={styles.bar} onSubmit={(e) => { e.preventDefault(); if (typed?.trim()) act({ do: "go", url: typed }); setTyped(null); (document.activeElement as HTMLElement)?.blur(); }}>
-        <button type="button" className={styles.barBtn} aria-label="Back" title="Back" onClick={() => act({ do: "back" })}><BackIcon size={18} /></button>
-        <button type="button" className={styles.barBtn} aria-label="Forward" title="Forward" onClick={() => act({ do: "forward" })}><ForwardIcon size={18} /></button>
-        <button type="button" className={styles.barBtn} aria-label="Reload" title="Reload" onClick={() => act({ do: "reload" })}><ReloadIcon size={17} /></button>
+      <form className={styles.bar} onSubmit={(e) => { e.preventDefault(); if (typed?.trim()) act({ do: "go", url: toAddress(typed) }); setTyped(null); (document.activeElement as HTMLElement)?.blur(); }}>
+        <button type="button" className={styles.barBtn} aria-label="Back" title="Back" onClick={() => act({ do: "back" })}><BackIcon size={17} /></button>
+        <button type="button" className={styles.barBtn} aria-label="Forward" title="Forward" onClick={() => act({ do: "forward" })}><ForwardIcon size={17} /></button>
+        <button type="button" className={styles.barBtn} aria-label="Reload" title="Reload" onClick={() => act({ do: "reload" })}><ReloadIcon size={16} /></button>
         <input className={styles.address} value={typed ?? (url === "about:blank" ? "" : url)} onChange={(e) => setTyped(e.target.value)} onFocus={(e) => e.target.select()}
-          onBlur={() => setTyped(null)} placeholder="Type an address, or localhost:3000" aria-label="Address" spellCheck={false} data-testid="browser-address" />
+          onBlur={() => setTyped(null)} placeholder="Search Google or type an address" aria-label="Address" spellCheck={false} data-testid="browser-address" />
       </form>
       <div ref={view} className={styles.view} tabIndex={0} data-testid="browser-view"
         onKeyDown={(e) => {
@@ -257,7 +366,7 @@ export function BrowserPane({ local, table, on, onLost, setNotice, grab, tools }
         {down ? <p className={styles.empty}>{UNREACHABLE}</p>
           : error ? <p className={styles.empty}>{error}</p>
           // A new tab is the browser's own blank page, drawn dark in a dark-mode system: shown as a new tab here instead.
-          : url === "about:blank" ? <div className={styles.newPage} data-testid="new-tab-page"><Globe size={34} /><span>Type an address above</span></div>
+          : url === "about:blank" ? <div className={styles.newPage} data-testid="new-tab-page"><Globe size={34} /><span>Search Google or type an address above</span></div>
           : frame ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img className={styles.frame} alt={url || "Your browser"} src={`data:image/jpeg;base64,${frame}`} draggable={false}
@@ -269,7 +378,7 @@ export function BrowserPane({ local, table, on, onLost, setNotice, grab, tools }
                 wheel.current = now;
                 act({ do: "scroll", ...point(e as unknown as React.MouseEvent<HTMLImageElement>), dy: e.deltaY });
               }} />
-          ) : <p className={styles.empty}>Starting your browser…</p>}
+          ) : tabs.length ? null : <p className={styles.empty}>Starting your browser…</p>}
       </div>
     </div>
   );

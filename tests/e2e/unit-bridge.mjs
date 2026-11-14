@@ -74,9 +74,9 @@ const pre = await raw(`/term${t(mine)}`, { method: "OPTIONS" });
 check("the page's preflight is answered for Longtable only", pre.status === 204 && pre.headers["access-control-allow-origin"] === APP && pre.headers["access-control-allow-private-network"] === "true");
 
 // Listen to the terminal the way the page does: what it printed so far, then everything it prints.
-const listen = (cols = 100, rows = 30) => {
+const listen = (cols = 100, rows = 30, id = "1") => {
   const got = { text: "", events: [] };
-  const req = request({ host: "127.0.0.1", port: bridge.port, path: `/term${t(mine)}&cols=${cols}&rows=${rows}`, headers: { Host: `127.0.0.1:${bridge.port}`, Origin: APP, Authorization: `Bearer ${mine.local.key}` } }, (res) => {
+  const req = request({ host: "127.0.0.1", port: bridge.port, path: `/term${t(mine)}&id=${id}&cols=${cols}&rows=${rows}`, headers: { Host: `127.0.0.1:${bridge.port}`, Origin: APP, Authorization: `Bearer ${mine.local.key}` } }, (res) => {
     let buf = "";
     res.setEncoding("utf8");
     res.on("data", (d) => {
@@ -117,6 +117,20 @@ check("a page opened later sees the screen as it was", await until(() => later.e
 later.close();
 term.close();
 
+// Several terminals, each its own shell, listed for a page that opens later; closing one ends only that one.
+const second = listen(100, 30, "two");
+await sleep(1500);
+await raw(`/term${t(mine)}&id=two`, { method: "POST", key: mine.local.key, body: { data: win ? "echo ('second'+'-shell')\r" : "echo 'second''-shell'\r" } });
+check("a second terminal is a shell of its own", await shows(second, "second-shell") && !plain(second.text).includes("hello-pty"), plain(second.text).slice(-200));
+const listed = JSON.parse((await raw(`/terms${t(mine)}`, { key: mine.local.key })).body);
+check("the terminals running are listed for a page opened later", listed.map((x) => x.id).sort().join(",") === "1,two", listed);
+await raw(`/term/close${t(mine)}&id=two`, { method: "POST", key: mine.local.key, body: {} });
+second.close();
+await sleep(500);
+const after = JSON.parse((await raw(`/terms${t(mine)}`, { key: mine.local.key })).body);
+check("closing a terminal's tab ends that shell only", after.map((x) => x.id).join(",") === "1", after);
+check("a terminal name that is not one is refused", (await raw(`/term${t(mine)}&id=..%2Fx`, { method: "POST", key: mine.local.key, body: { data: "x" } })).status === 500);
+
 // The browser, where this computer has one.
 const exe = findBrowser();
 if (!exe) {
@@ -154,6 +168,7 @@ if (!exe) {
     // Tabs: as many as are opened, each one shown when picked, gone when closed.
     const tabs = () => [...events].reverse().find((e) => e.tabs)?.tabs ?? [];
     await post("/browser", mine, { do: "newtab", url: page });
+    check("every picture says which tab it is of", events.filter((e) => e.frame).every((e) => typeof e.tab === "string"));
     check("a new tab opens and is the one shown", await until(() => tabs().length === 2 && [...events].reverse().find((e) => e.tabs)?.active === browser.page?.targetId && browser.page.url === page));
     for (let i = 0; i < 11; i++) await post("/browser", mine, { do: "newtab" });
     check("there is no limit on tabs", await until(() => tabs().length === 13 && browser.tabs.size === 13), tabs().length);

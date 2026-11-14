@@ -166,7 +166,7 @@ export class Browser {
       this.call("Page.screencastFrameAck", { sessionId: p.sessionId }, msg.sessionId).catch(() => {});
       if (msg.sessionId !== this.page?.sessionId) return;
       this.size = { w: p.metadata.deviceWidth, h: p.metadata.deviceHeight };
-      return this.tell({ frame: p.data });
+      return this.tell({ frame: p.data, tab: this.page.targetId });
     }
     // A new tab, theirs or their AI's, is the one shown, as it would be in front of them.
     if (msg.method === "Target.targetCreated" && this.note(p.targetInfo)) {
@@ -229,7 +229,7 @@ export class Browser {
       await this.fitTo();
       await this.cast();
       const { data } = await this.call("Page.captureScreenshot", { format: "jpeg", quality: 70 }, sessionId);
-      this.tell({ frame: data });
+      this.tell({ frame: data, tab: targetId });
     }
   }
 
@@ -264,7 +264,7 @@ export class Browser {
     await this.cast();
     // A still page sends no new frame, so the one on screen is asked for.
     const { data } = await this.call("Page.captureScreenshot", { format: "jpeg", quality: 70 }, this.page.sessionId);
-    viewer({ frame: data });
+    viewer({ frame: data, tab: this.page.targetId });
   }
 
   unwatch(viewer) {
