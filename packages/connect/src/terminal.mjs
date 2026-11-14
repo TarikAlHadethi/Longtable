@@ -1,4 +1,6 @@
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
+import { delimiter, join } from "node:path";
 import { loadPty } from "./pty.mjs";
 
 // A terminal on the person's own computer, reached only from their own page through the bridge (local.mjs): their
@@ -9,8 +11,14 @@ import { loadPty } from "./pty.mjs";
 
 const KEEP = 400_000; // characters of output kept for a page that opens later
 
-export function shellFor(platform = process.platform, env = process.env) {
-  if (platform === "win32") return { cmd: "powershell.exe", args: ["-NoLogo"] };
+// The shell their own terminal opens: on Windows PowerShell 7 when it is installed (what Windows Terminal opens then),
+// else Windows PowerShell; elsewhere their login shell.
+export function shellFor(platform = process.platform, env = process.env, exists = existsSync) {
+  if (platform === "win32") {
+    const dirs = [...String(env.PATH || env.Path || "").split(delimiter), join(env.ProgramFiles || "C:\\Program Files", "PowerShell", "7")];
+    const pwsh = dirs.filter(Boolean).map((d) => join(d, "pwsh.exe")).find((p) => exists(p));
+    return { cmd: pwsh || "powershell.exe", args: ["-NoLogo"] };
+  }
   return { cmd: env.SHELL || "/bin/bash", args: ["-l"] };
 }
 

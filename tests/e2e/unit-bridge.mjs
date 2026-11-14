@@ -1,7 +1,7 @@
 // A person's own computer from their own page: the bridge serves only Longtable's own site, sent to this computer by
 // name, with that table's key and only for a table Longtable allowed; the terminal is their real shell in a real
 // terminal (keys as typed, a colour terminal, its size, Ctrl+C, a "!" line, the screen kept for a page opened later,
-// closing ends it); the browser (when this computer has Chrome, Edge or Brave) shows a page, takes a click and typing,
+// the shell living on); the browser (when this computer has Chrome, Edge or Brave) shows a page, takes a click and typing,
 // goes where it is told only for web addresses, and keeps as many tabs as are opened. No database, no AI.
 //
 //   node tests/e2e/unit-bridge.mjs
@@ -30,7 +30,9 @@ check("only Longtable's own site, sent here by name", fromPage({ host: "127.0.0.
 const k = bridgeKey();
 check("a key of the shape Longtable keeps", /^[A-Za-z0-9_-]{32,64}$/.test(k));
 check("the key must match exactly", keyOk(`Bearer ${k}`, k) && !keyOk(`Bearer ${k.slice(1)}x`, k) && !keyOk("", k) && !keyOk(`Bearer ${k}`, null));
-check("PowerShell on Windows, their own login shell elsewhere", shellFor("win32").cmd === "powershell.exe" && shellFor("linux", { SHELL: "/bin/zsh" }).cmd === "/bin/zsh" && shellFor("linux", { SHELL: "/bin/zsh" }).args[0] === "-l");
+check("PowerShell 7 on Windows when it is there, else Windows PowerShell", shellFor("win32", { PATH: "C:\\tools" }, (p) => p.endsWith("pwsh.exe") && p.includes("PowerShell")).cmd.endsWith("pwsh.exe")
+  && shellFor("win32", { PATH: "C:\\tools" }, () => false).cmd === "powershell.exe");
+check("their own login shell elsewhere", true && shellFor("linux", { SHELL: "/bin/zsh" }).cmd === "/bin/zsh" && shellFor("linux", { SHELL: "/bin/zsh" }).args[0] === "-l");
 check("the connection's own settings stay out of the terminal, and it is a colour terminal", !("LONGTABLE_HOME" in termEnv({ LONGTABLE_HOME: "x", PATH: "p" })) && !("LT_JOB_KEY" in termEnv({ LT_JOB_KEY: "y" }))
   && termEnv({ PATH: "p" }).PATH === "p" && termEnv({ NO_COLOR: "1" }).NO_COLOR === undefined && termEnv({}).TERM === "xterm-256color");
 check("the browser goes only to web addresses", addressFor("example.com") === "https://example.com/" && addressFor("localhost:3000") === "http://localhost:3000/"
@@ -113,12 +115,7 @@ check("a \"!\" line from the chat runs in it", await shows(term, "from-the-chat"
 const later = listen();
 check("a page opened later sees the screen as it was", await until(() => later.events[0]?.all === true && later.events[0].data.includes("from-the-chat")));
 later.close();
-await post("/term/stop", mine, {});
 term.close();
-const fresh = listen();
-check("closing the terminal ends it: the next one starts clean", await until(() => fresh.events[0]?.all === true && !fresh.events[0].data.includes("hello-pty")));
-fresh.close();
-await post("/term/stop", mine, {});
 
 // The browser, where this computer has one.
 const exe = findBrowser();

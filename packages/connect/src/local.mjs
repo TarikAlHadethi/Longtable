@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { randomBytes, timingSafeEqual } from "node:crypto";
+import { release } from "node:os";
 import { Terminal } from "./terminal.mjs";
 
 // The bridge: a small server on this computer only (127.0.0.1), which the person's own Longtable page reaches
@@ -9,6 +10,9 @@ import { Terminal } from "./terminal.mjs";
 // pretend), sent to this computer by name (so a web address made to point here cannot reach it), carrying the key of a
 // table whose Longtable says this connection may serve it (runner_local: only their own full Claude Code, which can
 // already run commands here with their approval). Each table has its own key, handed only to its own person.
+
+// Which system the shell runs on, so the page's terminal draws as that system's terminal does (ConPTY on Windows).
+const SYSTEM = { platform: process.platform, build: Number(release().split(".")[2]) || 0 };
 
 export function bridgeKey() { return randomBytes(24).toString("base64url"); }
 
@@ -68,7 +72,7 @@ export function startBridge({ app, seats, home, browser, log }) {
       // The terminal: what it printed so far, then everything it prints. Opening it starts the shell at the page's size.
       if (req.method === "GET" && path === "/term") {
         const t = termFor(seat);
-        return stream(req, res, { data: t.term.text, all: true }, async (w) => { t.listeners.add(w); await t.term.open(url.searchParams.get("cols"), url.searchParams.get("rows")); },
+        return stream(req, res, { data: t.term.text, all: true, os: SYSTEM }, async (w) => { t.listeners.add(w); await t.term.open(url.searchParams.get("cols"), url.searchParams.get("rows")); },
           (w) => t.listeners.delete(w));
       }
       if (req.method === "GET" && path === "/browser") {
@@ -79,8 +83,6 @@ export function startBridge({ app, seats, home, browser, log }) {
       // Keys as typed, or a whole command from the chat's "!".
       if (path === "/term") { const t = termFor(seat).term; await (typeof b.line === "string" ? t.run(b.line) : t.write(b.data)); return send(res, 200, { ok: true }); }
       if (path === "/term/size") { termFor(seat).term.resize(b.cols, b.rows); return send(res, 200, { ok: true }); }
-      // Closed from the page: the shell goes, and so does what it printed.
-      if (path === "/term/stop") { const t = termFor(seat); t.term.stop(); terms.delete(seat.table_id); return send(res, 200, { ok: true }); }
       if (path === "/browser") { await browser.act(b); return send(res, 200, { ok: true }); }
       return send(res, 404, { error: "nothing here" });
     } catch (e) {

@@ -67,6 +67,30 @@ try {
     && (await rpc(tok.maya, "my_local", { t: T })).body === null && sql(`select local is null from public.connections where id = '${conn}'`) === "t");
   await rpc(tok.maya, "set_full_claude", { conn, full_on: true });
 
+  // Their AI's browser is theirs alone: a teammate's question that lands on their AI never runs as their full Claude
+  // Code, so it never gets the browser; their own question does.
+  await rpc(tok.maya, "set_browser", { conn, on_: true });
+  const generalChat = sql(`select id from public.chats where table_id = '${T}' and name = 'General'`);
+  const claimFor = async (from) => {
+    const q = sql(`select id from public.messages where table_id = '${T}' and body = '${from}' order by created_at desc limit 1`);
+    for (let i = 0; i < 6; i++) {
+      const j = (await anon("runner_claim", { token: device, lane: null })).body;
+      if (!j) break;
+      if (j.question === from) return j;
+      sql(`update public.jobs set status = 'done' where id = '${j.job_id}'`);
+    }
+    return { question: q, none: true };
+  };
+  await rpc(tok.sam, "ask_table", { c: generalChat, body: "sam asks: open example.com in the browser", files: [] });
+  const samJob = await until(() => claimFor("sam asks: open example.com in the browser"), 8000);
+  check("a teammate's question on their AI never runs as their full Claude Code (so never with their browser)", samJob && !samJob.none && samJob.full === false, samJob);
+  if (samJob?.job_id) sql(`update public.jobs set status = 'done' where id = '${samJob.job_id}'`);
+  await rpc(tok.maya, "ask_table", { c: generalChat, body: "maya asks: check the home page", files: [] });
+  const mayaJob = await until(() => claimFor("maya asks: check the home page"), 8000);
+  check("their own question does, with their browser", mayaJob && !mayaJob.none && mayaJob.full === true && mayaJob.browser === true, mayaJob);
+  if (mayaJob?.job_id) sql(`update public.jobs set status = 'done' where id = '${mayaJob.job_id}'`);
+  await rpc(tok.maya, "set_browser", { conn, on_: false });
+
   // Bypass: theirs to pick, and only theirs.
   check("Bypass can be picked", (await rpc(tok.maya, "set_ai_mode", { conn, mode: "bypass" })).status < 300 && sql(`select mode from public.connections where id = '${conn}'`) === "bypass");
   check("not by a teammate", (await rpc(tok.sam, "set_ai_mode", { conn, mode: "manual" })).status >= 400);
@@ -78,18 +102,23 @@ try {
   bridge = await startBridge({ app: APP, seats: [seat], home: scratch, browser: new Browser(join(scratch, "home"), () => {}), log: () => {} });
   check("the real bridge is allowed", (await anon("runner_local", { token: device, port: bridge.port, key: seat.local.key })).body === true);
   const page = owner.page;
+  // His screen: wide enough that the site scales itself to 125%, where windows used to run off the edge.
+  await page.setViewportSize({ width: 1920, height: 1000 });
   const general = sql(`select id from public.chats where table_id = '${T}' and name = 'General'`);
   await page.goto(`${APP}/t/${T}?c=${general}`);
   await page.waitForSelector("[data-testid=open-terminal]");
+  check("the page is scaled, as on his screen", (await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--zoom").trim())) === "1.25");
   await page.click("[data-testid=mode-pick]");
   check("the mode menu offers Bypass", (await page.locator("[role=option]", { hasText: "Bypass" }).count()) === 1);
   await page.keyboard.press("Escape");
 
-  // The terminal: a real one, in a window of its own, opened from its icon under the box.
+  // The terminal: a real one, opened from its icon under the box.
   check("the terminal and browser are icons under the box", (await page.locator("[data-testid=open-terminal] svg").count()) === 1 && (await page.locator("[data-testid=open-browser] svg").count()) === 1
     && ((await page.locator("[data-testid=open-terminal]").textContent()) || "").trim() === "");
   const screen = () => page.locator("[data-testid=term-out] .xterm-rows").innerText().catch(() => "");
   const shows = (word) => until(async () => (await screen()).split("\n").some((l) => l.trim() === word), 20000);
+  const wins = () => page.locator("[data-testid=computer-window]:not([data-hidden])");
+  const winOf = (pane) => page.locator(`[data-testid=computer-window][data-panes~=${pane}]`);
   await page.click("[data-testid=open-terminal]");
   await page.waitForSelector("[data-testid=term-out] .xterm-rows");
   await sleep(2500);
@@ -100,50 +129,163 @@ try {
   await page.keyboard.press("ArrowUp");
   await page.keyboard.press("Enter");
   check("arrow keys reach the shell (Up brings the last command back)", await until(async () => (await screen()).split("\n").filter((l) => l.trim() === "typed-in-longtable").length >= 2, 15000));
+  check("a window has no name in it", !((await winOf("terminal").locator("[data-head]").innerText()) || "").match(/terminal|browser/i));
 
-  // A window of its own, moved by its top bar.
-  const box = async (sel) => page.locator(sel).boundingBox();
-  const termWin = "[data-testid=window-terminal]";
-  const was = await box(termWin);
-  await page.mouse.move(was.x + 120, was.y + 18);
+  // Moved by its top bar, it stays under the cursor exactly, and never leaves the screen.
+  const vw = 1920, vh = 1000;
+  const rect = () => winOf("terminal").boundingBox();
+  let r = await rect();
+  const grab = { x: r.x + 200, y: r.y + 16 };
+  await page.mouse.move(grab.x, grab.y);
   await page.mouse.down();
-  await page.mouse.move(was.x - 80, was.y + 120, { steps: 6 });
+  await page.mouse.move(grab.x - 300, grab.y + 150, { steps: 12 });
+  let r2 = await rect();
+  check("dragged, the window keeps pace with the cursor", Math.abs(r2.x - (r.x - 300)) < 3 && Math.abs(r2.y - (r.y + 150)) < 3, { r, r2 });
+  await page.mouse.move(vw + 400, vh + 400, { steps: 12 });
+  r2 = await rect();
+  check("dragged past the corner, it stays wholly on the screen", r2.x + r2.width <= vw - 5 && r2.y + r2.height <= vh - 5 && r2.x >= 5, r2);
+  await page.mouse.move(-400, -400, { steps: 12 });
+  r2 = await rect();
+  check("and past the other corner too", r2.x >= 5 && r2.y >= 60, r2);
   await page.mouse.up();
-  const now = await box(termWin);
-  check("the window moves where it is dragged", Math.abs(now.x - (was.x - 200)) < 4 && Math.abs(now.y - (was.y + 102)) < 4, { was, now });
 
-  // The browser in a window of its own; the two put together as tabs of one window, and taken apart again.
+  // Snapped to a side, to the top; dragged off a side it goes back to its own size.
+  const drag = async (from, to) => { await page.mouse.move(from.x, from.y); await page.mouse.down(); await page.mouse.move(to.x, to.y, { steps: 14 }); await page.mouse.up(); await sleep(350); };
+  r = await rect();
+  await page.mouse.move(r.x + 150, r.y + 16); await page.mouse.down(); await page.mouse.move(1, 500, { steps: 14 });
+  await sleep(300); // its fade-in done
+  const pv = await page.locator("[data-testid=snap-preview]").boundingBox().catch(() => null);
+  check("held at the left edge, where it would go shows first", !!pv && pv.x < 20 && Math.abs(pv.width - (vw - 30) / 2) < 20, pv);
+  await page.mouse.up(); await sleep(350);
+  r2 = await rect();
+  check("dragged to the left edge, it fills the left half", (await winOf("terminal").getAttribute("data-snap")) === "left" && r2.x < 20 && Math.abs(r2.width - (vw - 30) / 2) < 20 && r2.height > vh - 120, r2);
+  check("with a window over them, the icons under the box can still be pressed", await page.click("[data-testid=open-browser]", { trial: true, timeout: 2000 }).then(() => true, () => false));
+  await drag({ x: r2.x + 150, y: r2.y + 16 }, { x: vw - 1, y: 500 });
+  check("to the right edge, the right half", (await winOf("terminal").getAttribute("data-snap")) === "right" && (await rect()).x > vw / 2 - 20);
+  r = await rect();
+  await drag({ x: r.x + 150, y: r.y + 16 }, { x: 900, y: 74 });
+  check("to the top, the whole screen", (await winOf("terminal").getAttribute("data-snap")) === "max" && (await rect()).width > vw - 40);
+  r = await rect();
+  await drag({ x: r.x + 400, y: r.y + 16 }, { x: 800, y: 400 });
+  r2 = await rect();
+  check("dragged away, it goes back to its own size", !(await winOf("terminal").getAttribute("data-snap")) && r2.width < vw / 2, r2);
+  await page.locator("[data-testid=computer-window][data-panes~=terminal] [data-head]").dblclick({ position: { x: 300, y: 12 } });
+  await sleep(350);
+  check("a double-click on its top bar fills the screen", (await winOf("terminal").getAttribute("data-snap")) === "max");
+  await page.locator("[data-testid=computer-window][data-panes~=terminal] [data-head]").dblclick({ position: { x: 300, y: 12 } });
+  await sleep(350);
+
+  // Sized from its edges.
+  r = await rect();
+  await drag({ x: r.x + r.width - 2, y: r.y + r.height / 2 }, { x: r.x + r.width + 118, y: r.y + r.height / 2 });
+  r2 = await rect();
+  check("its right edge sizes it", Math.abs(r2.width - (r.width + 120)) < 4 && Math.abs(r2.x - r.x) < 3, { r, r2 });
+  await drag({ x: r2.x + 2, y: r2.y + r2.height / 2 }, { x: r2.x - 98, y: r2.y + r2.height / 2 });
+  const r3 = await rect();
+  check("its left edge too, keeping its right side where it was", Math.abs(r3.x - (r2.x - 100)) < 4 && Math.abs((r3.x + r3.width) - (r2.x + r2.width)) < 3, { r2, r3 });
+
+  // The minus sends it into its icon; the icon brings it back as it was, the shell still there.
+  await page.click("[data-testid=computer-window][data-panes~=terminal] [data-testid=minimize]");
+  check("minimized, it goes into its icon", await until(async () => (await wins().count()) === 0 && (await page.locator("[data-testid=computer-window][data-hidden]").count()) === 1, 3000));
+  await page.click("[data-testid=open-terminal]");
+  check("its icon brings it back, as it was", await until(async () => (await wins().count()) === 1, 3000) && await shows("typed-in-longtable"));
+  await page.click("[data-testid=open-terminal]");
+  check("pressed again while in front, it goes back into the icon", await until(async () => (await wins().count()) === 0, 3000));
+  await page.click("[data-testid=open-terminal]");
+  await until(async () => (await wins().count()) === 1, 3000);
+  // The cross closes the window; the shell lives on, so opening it again shows it as it was.
+  await page.click("[data-testid=computer-window][data-panes~=terminal] [data-testid=close-window]");
+  check("the cross closes the window", await until(async () => (await page.locator("[data-testid=computer-window]").count()) === 0, 3000));
+  await page.click("[data-testid=open-terminal]");
+  check("and the terminal is not lost: opened again, it is as it was", await shows("typed-in-longtable"));
+
+  // The browser in its own window; dropped onto the terminal's top bar it joins it as a tab.
   await page.click("[data-testid=open-browser]");
-  await page.waitForSelector("[data-testid=window-browser]");
-  check("the browser opens in its own window, beside the terminal", (await page.locator("[data-testid^=window-]").count()) === 2);
-  await page.click("[data-testid=window-browser] [data-testid=combine]");
-  check("put together, they are tabs of one window", await until(async () => (await page.locator("[data-testid^=window-]").count()) === 1 && (await page.locator("[data-testid=tab-browser]").count()) === 1 && (await page.locator("[data-testid=tab-terminal]").count()) === 1));
+  await until(async () => (await wins().count()) === 2, 5000);
+  check("the browser opens in a window of its own", (await winOf("browser").getAttribute("data-panes")) === "browser");
+  await sleep(700); // out of its icon first
+  const tb = await winOf("terminal").locator("[data-head]").boundingBox();
+  const bb = await winOf("browser").locator("[data-head]").boundingBox();
+  await page.mouse.move(bb.x + 60, bb.y + bb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(tb.x + tb.width / 2, tb.y + tb.height / 2, { steps: 16 });
+  check("over the other window's top bar, that bar lights up", await until(async () => (await page.locator("[class*=headDrop]").count()) === 1, 2000));
+  await page.mouse.up();
+  check("dropped there, the two are tabs of one window", await until(async () => (await wins().count()) === 1 && (await page.locator("[data-testid=tab-browser]").count()) === 1 && (await page.locator("[data-testid=tab-terminal]").count()) === 1, 3000));
+  check("its tabs are icons with no names", ((await page.locator("[data-testid=tab-browser]").innerText()) || "").trim() === "");
   await page.click("[data-testid=tab-terminal]");
   check("the terminal keeps its screen as a tab", await shows("typed-in-longtable"));
-  await page.click("[data-testid=separate-browser]");
-  check("taken apart, each has its own window again", await until(async () => (await page.locator("[data-testid=window-terminal]").count()) === 1 && (await page.locator("[data-testid=window-browser]").count()) === 1));
+
+  // Minimizing a window of both goes into the icon of the tab in front; either icon brings the same window back.
+  await page.click("[data-testid=tab-browser]");
+  await page.click("[data-testid=computer-window] [data-testid=minimize]");
+  await until(async () => (await wins().count()) === 0, 3000);
+  await page.click("[data-testid=open-terminal]");
+  check("the terminal's icon brings back the window of both, on the terminal", await until(async () => (await wins().count()) === 1, 3000)
+    && (await wins().getAttribute("data-panes")) === "terminal browser" && (await page.locator("[data-testid=tab-terminal]").getAttribute("aria-selected")) === "true");
+  await sleep(700); // out of its icon first
+  await page.click("[data-testid=open-browser]");
+  check("the browser's icon moves it onto the browser", await until(async () => (await page.locator("[data-testid=tab-browser]").getAttribute("aria-selected")) === "true", 2000));
+
+  // A tab pulled out of the top bar becomes a window of its own, under the pointer.
+  const tab = await page.locator("[data-testid=tab-browser]").boundingBox();
+  await page.mouse.move(tab.x + tab.width / 2, tab.y + tab.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(tab.x - 200, tab.y + 260, { steps: 16 });
+  await page.mouse.up();
+  check("a tab pulled out is a window of its own", await until(async () => (await wins().count()) === 2 && (await winOf("browser").getAttribute("data-panes")) === "browser" && (await winOf("terminal").getAttribute("data-panes")) === "terminal", 3000));
+  const torn = await winOf("browser").boundingBox();
+  check("and it came out under the pointer, wholly on the screen", torn.x <= tab.x - 200 && torn.x + torn.width >= tab.x - 200 && torn.y + torn.height <= vh - 5, torn);
 
   // Tabs in the browser, with no limit: past ten it says so, and still opens more.
   await until(async () => (await page.locator("[data-testid=browser-tab]").count()) >= 1, 20000);
   for (let i = 0; i < 11; i++) { await page.click("[data-testid=browser-newtab]"); await sleep(150); }
   check("past ten tabs it warns, and opens them all the same", await until(async () => (await page.locator("[data-testid=browser-tab]").count()) === 12 && (await page.locator("[data-testid=many-tabs]").count()) === 1, 20000),
     await page.locator("[data-testid=browser-tab]").count());
-  await page.click("[data-testid=window-browser] [data-testid=close-window]");
+  for (let i = 0; i < 11; i++) { await page.locator("[data-testid=browser-tab] button").last().click(); await sleep(250); }
+  check("closing tabs takes them away", await until(async () => (await page.locator("[data-testid=browser-tab]").count()) === 1, 15000), await page.locator("[data-testid=browser-tab]").count());
+  await page.click("[data-testid=computer-window][data-panes~=browser] [data-testid=close-window]");
 
-  // Closing the terminal ends its shell; the next one starts clean. "!" in the box runs there and never reaches the chat.
-  await page.click("[data-testid=window-terminal] [data-testid=close-window]");
-  check("the window closes", (await page.locator("[data-testid^=window-]").count()) === 0);
+  // "!" in the box runs in the terminal and never reaches the chat.
   const before = sql(`select count(*) from public.messages where table_id = '${T}'`);
   await page.fill("textarea[aria-label='Message the table']", win ? "!echo ('from'+'-the-box')" : "!echo 'from''-the-box'");
   await page.press("textarea[aria-label='Message the table']", "Enter");
-  check("\"!\" in the box opens the terminal and runs it there", await shows("from-the-box"), (await screen()).slice(-300));
-  check("the shell was new: what was typed before is gone", !(await screen()).includes("typed-in-longtable"));
+  check("\"!\" in the box runs it in their terminal", await shows("from-the-box"), (await screen()).slice(-300));
   check("and nothing reaches the chat", sql(`select count(*) from public.messages where table_id = '${T}'`) === before && (await page.inputValue("textarea[aria-label='Message the table']")) === "");
+
+  // The sidebar put away: its room goes to the chat, it slides back while the pointer is at the left edge, and the
+  // choice is kept for this device.
+  const aside = () => page.locator("aside[aria-label=Menu]").boundingBox();
+  const shown = async () => { const b = await aside(); return !!b && b.x + b.width > 50; };
+  await page.click("[data-testid=side-toggle]");
+  check("the button by its edge puts the sidebar away", await until(async () => !(await shown()), 3000));
+  await page.mouse.move(400, 500);
+  await page.mouse.move(2, 500, { steps: 4 });
+  check("the pointer at the left edge brings it over the room", await until(shown, 3000));
+  await page.mouse.move(1000, 500, { steps: 4 });
+  check("and it goes again when the pointer leaves it", await until(async () => !(await shown()), 3000));
+  await page.reload();
+  await page.waitForSelector("[data-testid=side-toggle]");
+  await sleep(800);
+  check("put away, it stays away after a reload", !(await shown()));
+  await page.click("[data-testid=side-toggle]");
+  check("and the button brings it back", await until(shown, 3000));
+
+  // A smaller screen keeps every window on it.
+  await page.click("[data-testid=open-terminal]");
+  await until(async () => (await wins().count()) === 1, 5000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await sleep(600);
+  const small = await winOf("terminal").boundingBox();
+  check("on a phone the window is wholly on the screen", small.x >= 0 && small.x + small.width <= 390 && small.y + small.height <= 844, small);
+  await page.setViewportSize({ width: 1920, height: 1000 });
 
   // A teammate has no way to it.
   await sam.page.goto(`${APP}/t/${T}?c=${general}`);
   await sam.page.waitForSelector("[data-testid=messages]");
   check("a teammate sees no Terminal of theirs", (await sam.page.locator("[data-testid=open-terminal]").count()) === 0);
+} catch (e) {
+  check("the run finished", false, e.message.split(String.fromCharCode(10))[0]);
 } finally {
   bridge?.close();
   await browser.close();

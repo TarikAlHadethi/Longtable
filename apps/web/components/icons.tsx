@@ -53,3 +53,5 @@ export const Bug = (p: Props) => (
 // A terminal: a window with a prompt and a cursor line. A browser: a globe.
 export const TerminalIcon = (p: Props) => <Svg {...p}><rect x="3" y="4.5" width="18" height="15" rx="2.5" /><path d="M7.5 9.5l3 2.5-3 2.5M12.5 15h4" /></Svg>;
 export const Globe = (p: Props) => <Svg {...p}><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5s-1.2 6.1-3.6 8.5c-2.4-2.4-3.6-5.2-3.6-8.5S9.6 5.9 12 3.5z" /></Svg>;
+// The sidebar: a panel with its left part set off.
+export const SidebarIcon = (p: Props) => <Svg {...p}><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" /><path d="M9.5 4.5v15" /></Svg>;

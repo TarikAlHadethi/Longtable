@@ -36,8 +36,9 @@ import {
 import { ApprovalCards } from "./approvals";
 import { isQuiet, ReconnectWindow } from "./reconnect-window";
 import { ModePick } from "./mode-pick";
-import { ComputerWindows, bridge, openPane, togglePane, useLocal, type Win } from "./computer";
-import { Globe, TerminalIcon } from "@/components/icons";
+import { bridge, useLocal } from "./computer";
+import { ComputerWindows, type ComputerApi, type Pane } from "./computer-windows";
+import { Globe, SidebarIcon, TerminalIcon } from "@/components/icons";
 import styles from "./room.module.css";
 import { firstName } from "@/lib/names";
 import { namesMe, pingsMe, useNeeds, type Need } from "@/lib/chime";
@@ -268,6 +269,15 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   }, [supabase]);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // The sidebar put away on a wide screen (kept per device), and whether it is showing over the room for the moment.
+  const [sideAway, setSideAway] = useState(false);
+  const [sidePeek, setSidePeek] = useState(false);
+  useEffect(() => { try { setSideAway(localStorage.getItem("lt-sidebar") === "away"); } catch {} }, []);
+  const putSideAway = (away: boolean) => {
+    setSideAway(away);
+    setSidePeek(false);
+    try { localStorage.setItem("lt-sidebar", away ? "away" : "shown"); } catch {}
+  };
   // The window that sets a chat up: a new one from "+", or an existing one.
   const [setupFor, setSetupFor] = useState<Chat | "new" | null>(null);
   const [newName, setNewName] = useState("");
@@ -399,7 +409,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   // can already run commands there with their approval.
   const canComputer = self.role !== "client" && myConnection?.kind === "claude" && !!myConnection.full_claude;
   const { local, refresh: refreshLocal } = useLocal(supabase, table.id, canComputer);
-  const [wins, setWins] = useState<Win[]>([]);
+  const computer = useRef<ComputerApi>(null);
+  const [shownPanes, setShownPanes] = useState<Pane[]>([]);
   // "!" and a command runs it in their terminal, as in Claude Code; nothing goes to the chat. ("!!!" is just words.)
   async function bang(body: string) {
     const line = canComputer ? body.match(/^!\s*([^!\s][\s\S]*)$/)?.[1] : null;
@@ -407,7 +418,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (!local) { setNotice("Your terminal opens once your computer's connection is on and up to date."); return true; }
     setDraft("");
     requestAnimationFrame(grow);
-    setWins((all) => openPane(all, "terminal"));
+    computer.current?.show("terminal");
     try {
       await bridge(local, table.id, "/term", { line });
       setNotice("");
@@ -1301,7 +1312,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   }
 
   return (
-    <div className={`${styles.shell} ${noSide ? styles.shellWide : ""}`} data-live={live || undefined}>
+    <div className={`${styles.shell} ${noSide ? styles.shellWide : ""} ${sideAway ? styles.shellNoSide : ""}`} data-live={live || undefined}>
       <header className={styles.header}>
         <button className={styles.menuToggle} aria-label="Menu" aria-expanded={drawerOpen} data-note={wrote.length > 0 || undefined} onClick={() => { setDrawerOpen(!drawerOpen); setInboxOpen(false); }}>
           <span /><span /><span />
@@ -1326,9 +1337,13 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           tableWord={maySettings ? "Table settings" : "Logs"} onTable={() => { setDrawerOpen(false); if (maySettings) openSettings(); else go("logs", `${base}/activity`); }} />
       </header>
 
-      <div className={`${styles.grid} ${noSide ? styles.gridWide : ""}`}>
+      <div className={`${styles.grid} ${noSide ? styles.gridWide : ""} ${sideAway ? styles.gridNoSide : ""}`}>
         {drawerOpen && <button className={styles.drawerBack} aria-label="Close the menu" onClick={() => setDrawerOpen(false)} />}
-        <aside className={`${styles.aside} ${drawerOpen ? styles.asideOpen : ""}`} aria-label="Menu">
+        <button type="button" className={styles.sideToggle} onClick={() => putSideAway(!sideAway)} aria-label={sideAway ? "Show the sidebar" : "Hide the sidebar"}
+          title={sideAway ? "Show the sidebar" : "Hide the sidebar"} data-testid="side-toggle"><SidebarIcon size={18} /></button>
+        {sideAway && <div className={styles.sideEdge} onMouseEnter={() => setSidePeek(true)} data-testid="side-edge" aria-hidden="true" />}
+        <aside className={`${styles.aside} ${drawerOpen ? styles.asideOpen : ""} ${sideAway && sidePeek ? styles.asidePeek : ""}`} aria-label="Menu"
+          onMouseLeave={() => { if (sideAway) setSidePeek(false); }} data-away={sideAway || undefined}>
           <div className={styles.drawerProject}>{tableName}</div>
           <ChatList chats={chats} activeId={view === "chat" ? chat?.id ?? null : null}
             waiting={new Set(decisions.filter((d) => d.status === "open").map((d) => d.chat_id))}
@@ -1623,8 +1638,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 const Icon = p === "terminal" ? TerminalIcon : Globe;
                 const name = p === "terminal" ? "Terminal" : "Browser";
                 return (
-                  <button key={p} type="button" className={`${styles.toolIcon} ${wins.some((w) => w.panes.includes(p)) ? styles.toolIconOn : ""}`} onClick={() => setWins((all) => togglePane(all, p))}
-                    aria-label={name} title={name} data-testid={`open-${p}`}><Icon size={18} /></button>
+                  <button key={p} type="button" className={`${styles.toolIcon} ${shownPanes.includes(p) ? styles.toolIconOn : ""}`} onClick={() => computer.current?.press(p)}
+                    aria-label={name} title={name} data-testid={`open-${p}`} data-computer-icon={p}><Icon size={18} /></button>
                 );
               })}
               {notice && <span className={styles.notice} role="status">{notice}</span>}
@@ -1640,7 +1655,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         </main>
 
         {canComputer && (
-          <ComputerWindows wins={wins} setWins={setWins} local={local} table={table.id} onLost={refreshLocal} setNotice={setNotice} />
+          <ComputerWindows api={computer} local={local} table={table.id} onLost={refreshLocal} setNotice={setNotice} onPanes={setShownPanes} />
         )}
         {view === "settings" || view === "logs" || view === "sandbox" ? null : view === "table" ? (
           <aside className={`${styles.inbox} ${inboxOpen ? styles.inboxOpen : ""}`} aria-label="Usage">
