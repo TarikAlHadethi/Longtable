@@ -22,8 +22,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      # The version the real-model suites are run against, so a new release never changes the evals unseen.
       - name: Install Claude Code
-        run: npm install -g @anthropic-ai/claude-code
+        run: npm install -g @anthropic-ai/claude-code@2.1.310
       - name: Install pytest
         run: pip install pytest==8.3.5
       - name: Run the evals
