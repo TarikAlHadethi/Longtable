@@ -183,7 +183,9 @@ prop("X2", "a failure reason is one line with no sign-in", 300, (r) => r.list(6,
 prop("P10", "every chat name makes a branch the connection writes to", 300, (r) => text(r, 10), (parts) => { safeBranch(workBranch(parts.join(""))); return ""; });
 
 // P15: whatever the parent has, the AI's own process gets only the names it needs.
-const KEEP = new Set(["PATH", "Path", "PATHEXT", "SYSTEMROOT", "SystemRoot", "WINDIR", "COMSPEC", "TEMP", "TMP", "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "APPDATA", "LOCALAPPDATA", "PROGRAMDATA", "HOME", "USER", "LANG", "SHELL", "CLAUDE_CODE_OAUTH_TOKEN"]);
+const KEEP = new Set(["PATH", "Path", "PATHEXT", "SYSTEMROOT", "SystemRoot", "WINDIR", "COMSPEC", "TEMP", "TMP", "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "APPDATA", "LOCALAPPDATA", "PROGRAMDATA", "HOME", "USER", "LANG", "SHELL", "CLAUDE_CODE_OAUTH_TOKEN",
+  // Set by the connection itself, never taken from the parent: it only turns Claude Code's update checks and reports off.
+  "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"]);
 prop("P15", "the AI's process gets only the names it needs", 100, (r) => r.list(6, () => r.pick(["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "CLAUDE_CONFIG_DIR", "NODE_OPTIONS", "GIT_DIR", "HTTPS_PROXY", "SUPABASE_KEY"])), (names) => {
   const before = { ...process.env };
   for (const n of names) process.env[n] = "x";

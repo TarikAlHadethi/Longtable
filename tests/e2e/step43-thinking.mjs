@@ -31,6 +31,10 @@ await sleep(5000);
 const t2 = await o.page.locator("[data-testid=thinking]").count();
 await o.page.locator("textarea").first().fill("ok cool"); await o.page.keyboard.press("Enter"); await sleep(600);
 const t3 = await o.page.locator("[data-testid=thinking]").count();
+// A word to a teammate: the table still decides in the background, but nothing shows unless it chooses to answer.
+await sleep(3000); sql(`update public.jobs set status='done' where table_id='${o.tableId}' and (kind='listen' or early) and status <> 'done'`);
+await o.page.locator("textarea").first().fill("@Faisal yo check this out"); await o.page.keyboard.press("Enter");
+let t4 = 0; for (let i = 0; i < 12; i++) { await sleep(500); t4 = Math.max(t4, await o.page.locator("[data-testid=thinking]").count()); }
 // A room where the AIs only listen never answers, so it never shows the table thinking; one where they answer only
 // when named shows it only when they are named.
 const general = sql(`select id from public.chats where table_id='${o.tableId}' and is_general`);
@@ -54,6 +58,7 @@ check("the table shows it is thinking the moment a question is sent", t0 === 1, 
 check("and keeps showing it while the listener has it", t1 === 1 && listen === "queued", { t1, listen });
 check("it goes when the table has heard and chosen to say nothing", t2 === 0, t2);
 check("small talk between people afterwards shows no thinking", t3 === 0, t3);
+check("a word to a teammate shows no thinking while the table decides", t4 === 0, t4);
 } catch (e) { check("the run did not crash", false, e.stack || e.message); }
 await browser.close();
 console.log(JSON.stringify({ checks: results }, null, 2));

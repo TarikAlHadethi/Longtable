@@ -71,6 +71,9 @@ export function childEnv(token, apiKey) {
   for (const k of keep) if (process.env[k] !== undefined) env[k] = process.env[k];
   if (token) env.CLAUDE_CODE_OAUTH_TOKEN = token;
   if (apiKey) env.ANTHROPIC_API_KEY = apiKey;
+  // Claude Code's own update checks and reports held every start back about three seconds (measured: 5.2 s to 2.0 s for
+  // the same one-line answer). The table's own runs need none of it; a person's full Claude Code keeps theirs, as at home.
+  env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1";
   return env;
 }
 

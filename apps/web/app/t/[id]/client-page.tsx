@@ -16,6 +16,7 @@ import {
   type ClientLine, type ClientUpdate, type Connection, type Job, type Request, type RequestEvent,
 } from "./types";
 import { Face } from "@/components/face";
+import { useLastSeen } from "@/components/last-seen";
 import { ProfileMenu } from "./profile-menu";
 import { AttachButtons, AttachTray, Files, dropHandlers, useAttach } from "./attach";
 import room from "./room.module.css";
@@ -80,6 +81,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   useEffect(() => { try { if (draft) sessionStorage.setItem(`lt-draft:${table.id}:client`, draft); else sessionStorage.removeItem(`lt-draft:${table.id}:client`); } catch {} }, [draft]); // eslint-disable-line react-hooks/exhaustive-deps
   // What they attach goes into the folder of whoever is really signed in: themselves, or the owner trying their side.
   const attach = useAttach(supabase, table.id, viewer?.uploader ?? me.id);
+  useLastSeen(supabase, table.id, false, !viewer);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState<{ body: string; at: string } | null>(null);
   // The owner trying the test client's side can answer that client as themselves too, as they would a real client.

@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import { AI_NAME, AiLogo } from "@/components/ai-logo";
 import { Face } from "@/components/face";
 import { Check, Crown, Pencil } from "@/components/icons";
-import { Time } from "@/components/time";
+import { Ago, Time } from "@/components/time";
 import { downloadExport } from "@/lib/download";
 import { browserClient } from "@/lib/supabase/browser";
 import { prettyModel } from "./model-pick";
@@ -44,12 +44,13 @@ function shrink(file: File): Promise<string> {
 
 // A person, in a window in the middle of the screen. Your own is where you change how you look at this table;
 // anyone else's shows who they are, and gives the owner the two things an owner can do.
-export function PersonWindow({ table, me, person, connections, here, edit = false, members, onClose, onSaved, onGone, onSandbox, onSettings, mainOwner = false, waiting = 0 }: {
+export function PersonWindow({ table, me, person, connections, here, seen, edit = false, members, onClose, onSaved, onGone, onSandbox, onSettings, mainOwner = false, waiting = 0 }: {
   table: { id: string; name: string };
   me: Member;
   person: Member;
   connections: Connection[];
   here: boolean;
+  seen?: string;
   // Changing how you look is opened from your own picture menu; from the list of people, you see yourself as others do.
   edit?: boolean;
   members: Member[];
@@ -137,6 +138,7 @@ export function PersonWindow({ table, me, person, connections, here, edit = fals
           </span>
           <div className={s.name} style={{ color: (mine ? nameColor : person.name_color) || undefined }}>{mine ? name || person.display_name : person.display_name}</div>
           <div className={s.sub}>{ROLE[person.role]}{(mine ? status : person.status) ? ` · ${mine ? status : person.status}` : ""}</div>
+          {!mine && !person.test && <div className={s.sub} data-testid="last-seen">{here ? "Here now" : seen ? <>Last seen <Ago iso={seen} /></> : "Not seen yet"}</div>}
         </div>
 
         {mine && (

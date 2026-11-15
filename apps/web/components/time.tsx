@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { formatStamp, formatTime, formatWhen } from "@/lib/time";
+import { formatAgo, formatStamp, formatTime, formatWhen } from "@/lib/time";
 
 const never = () => () => {};
 
@@ -16,4 +16,11 @@ export function Time({ iso, style = "time" }: { iso: string; style?: "time" | "w
   const here = useInBrowser();
   if (!here) return null;
   return <>{style === "when" ? formatWhen(iso) : style === "stamp" ? formatStamp(iso) : formatTime(iso)}</>;
+}
+
+// How long ago, drawn in the browser like every other time.
+export function Ago({ iso }: { iso: string }) {
+  const here = useInBrowser();
+  if (!here) return null;
+  return <>{formatAgo(iso)}</>;
 }

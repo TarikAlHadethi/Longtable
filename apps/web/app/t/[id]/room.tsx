@@ -41,6 +41,8 @@ import { ComputerWindows, type ComputerApi, type Pane } from "./computer-windows
 import { SidebarIcon, TerminalIcon } from "@/components/icons";
 import styles from "./room.module.css";
 import { firstName } from "@/lib/names";
+import { formatAgo } from "@/lib/time";
+import { useLastSeen } from "@/components/last-seen";
 import { namesMe, pingsMe, useNeeds, type Need } from "@/lib/chime";
 import { CODEX_NAMES, EFFORT_LEVELS, SLASH, slashEntry } from "@/lib/slash.mjs";
 // Windows and views opened now and then are fetched when first opened, so a room's first load carries none of them.
@@ -119,6 +121,17 @@ const MessageRow = memo(function MessageRow({ m, who, mine, follows, held, supab
     </div>
   );
 });
+
+// A message of one's own often arrives live before its send has finished: it takes the place of the stand-in shown while
+// sending, never sits beside it, so nothing is ever shown twice.
+function arrived(prev: Message[], fresh: Message[]): Message[] {
+  let out = prev;
+  for (const m of fresh) {
+    const stand = out.findIndex((x) => x.state === "sending" && x.chat_id === m.chat_id && x.member_id === m.member_id && x.body === m.body);
+    out = stand >= 0 ? [...out.slice(0, stand), ...out.slice(stand + 1), m] : [...out, m];
+  }
+  return out;
+}
 
 export function Room({ table, me, initialMembers, initialChats, initialMessages, initialDecisions, initialJobs, initialConnections, initialNotes, initialRequests, initialChatId, initialView, initialTableModel, initialTasks, initialChanges, initialSandboxes, initialSandboxSettings, initialSandbox }: {
   table: { id: string; name: string; main_owner?: string | null };
@@ -297,6 +310,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   // This person as the table has them now: their role can change while the page is open (the table handed over).
   const self = byId.get(me.id) ?? me;
+  const seen = useLastSeen(supabase, table.id, self.role !== "client");
   // What this person may change: owners everything, a developer what an owner turned on for them.
   const mayTable = self.role === "owner" || !!self.can_settings;
   const mayInvite = self.role === "owner" || !!self.can_invite;
@@ -478,7 +492,14 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   if (listening && said) heardFor.current = { id: said.id, at: said.created_at };
   const aisOn = connections.some((c) => !c.revoked_at && byId.get(c.member_id)?.role !== "client" && !!c.last_seen && Date.now() - new Date(c.last_seen).getTime() < 90000);
   const saidFresh = !!said && heardFor.current?.id !== said.id && Date.now() - Date.parse(said.created_at) < 15000;
-  const thinking = aisOn && !working.some((j) => j.kind !== "listen" && j.status !== "failed") && (listening || saidFresh);
+  // Shown at once only for a message plainly for the AIs (the server's early-answer rule: a "/" command, an AI named, or
+  // a question that names nobody else here). Anything else, a word to a teammate say, shows nothing while the table
+  // decides: if it answers, its reply or its work shows the moment it does.
+  const words = (s: string) => s.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const forAi = !!said && (/^\s*\/[A-Za-z]/.test(said.body) || /\b(ai|ais|claude|chatgpt|gpt|codex|table|longtable)\b/i.test(said.body)
+    || (said.body.includes("?") && !members.some((o) => o.id !== said.member_id && firstName(o.display_name).length >= 2
+      && words(said.body).includes(firstName(o.display_name).toLowerCase()))));
+  const thinking = aisOn && forAi && !working.some((j) => j.kind !== "listen" && j.status !== "failed") && (listening || saidFresh);
   useEffect(() => {
     if (!saidFresh || !said) return;
     const t = setTimeout(() => setBeat((b) => b + 1), Math.max(0, Date.parse(said.created_at) + 15000 - Date.now()) + 50);
@@ -558,7 +579,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (recent) setMessages((prev) => {
       const have = new Set(prev.map((m) => m.id));
       const fresh = (recent as Message[]).filter((m) => !have.has(m.id));
-      return fresh.length ? [...prev, ...fresh] : prev;
+      return fresh.length ? arrived(prev, fresh) : prev;
     });
     if (inFlight) setJobs(inFlight as Job[]);
     if (ds) setDecisions(ds as unknown as Decision[]);
@@ -592,7 +613,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       if (name === "client_wrote") { readWroteRef.current(); return; }
       if (name === "messages") {
         const m = record as unknown as Message;
-        setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev.map((x) => (x.id === m.id ? { ...x, ...m } : x)) : [...prev, m]));
+        setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev.map((x) => (x.id === m.id ? { ...x, ...m } : x)) : arrived(prev, [m])));
         if (kind === "INSERT") mentionRef.current(m);
         if (!known.current.has(m.member_id)) refreshMembers();
       } else if (name === "members") {
@@ -980,9 +1001,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       setNotice("That message was not sent. It is back in the box.");
     } else { setNotice(""); markPasted((data as Message).id, pasted); }
     setMessages((prev) => {
-      const rest = prev.filter((m) => m.id !== tempId);
-      if (error || !data) return rest;
-      return rest.some((m) => m.id === (data as Message).id) ? rest : [...rest, data as Message];
+      if (error || !data) return prev.filter((m) => m.id !== tempId);
+      return prev.some((m) => m.id === (data as Message).id) ? prev.filter((m) => m.id !== tempId) : arrived(prev, [data as Message]);
     });
   }
 
@@ -1390,7 +1410,8 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                   <div className={styles.personName} style={{ color: m.name_color || undefined }}>{m.display_name}</div>
                   {(() => {
                     const ai = m.role === "client" ? null : aiState(m.id);
-                    const words = [ai ? `${ai.word} ${ai.on ? "connected" : "disconnected"}` : m.test ? "Not a real person" : m.role === "client" ? "Client" : "", m.status].filter(Boolean).join(" · ");
+                    const away = !online.has(m.id) && !m.test && seen.get(m.id);
+                    const words = [ai ? `${ai.word} ${ai.on ? "connected" : "disconnected"}` : m.test ? "Not a real person" : m.role === "client" ? "Client" : "", m.status, away ? `Seen ${formatAgo(away)}` : ""].filter(Boolean).join(" · ");
                     return words ? <div className={styles.personMeta} data-ai={ai ? (ai.on ? "on" : "off") : undefined}>{ai && <i className={`${styles.aiDot} ${ai.on ? styles.aiDotOn : ""}`} />}{words}</div> : null;
                   })()}
                 </div>
@@ -1661,7 +1682,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       </div>
 
       {personId && byId.get(personId) && (
-        <PersonWindow table={{ id: table.id, name: tableName }} me={self} person={byId.get(personId)!} connections={connections} here={online.has(personId)} edit={editingMe && personId === me.id} members={members}
+        <PersonWindow table={{ id: table.id, name: tableName }} me={self} person={byId.get(personId)!} connections={connections} here={online.has(personId)} seen={seen.get(personId)} edit={editingMe && personId === me.id} members={members}
           onClose={() => setPersonId(null)}
           onSaved={(m) => setMembers((prev) => prev.map((x) => (x.id === m.id ? { ...x, ...m } : x)))}
           onGone={(id) => setMembers((prev) => prev.filter((x) => x.id !== id))} onSandbox={openSandbox} mainOwner={me.id === table.main_owner}

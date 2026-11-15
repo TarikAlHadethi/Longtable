@@ -23,3 +23,13 @@ export function formatWhen(iso: string, now = new Date()) {
 export function formatStamp(iso: string) {
   return `${new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}, ${formatTime(iso)}`;
 }
+
+// How long ago someone was last here, short enough for a line under a name: "5 min ago", "3 hours ago", "Yesterday",
+// "Wednesday", "14 September".
+export function formatAgo(iso: string, now = new Date()) {
+  const mins = Math.floor((now.getTime() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  if (mins < 24 * 60 && new Date(iso).getDate() === now.getDate()) return `${Math.floor(mins / 60)} hour${mins < 120 ? "" : "s"} ago`;
+  return formatWhen(iso, now);
+}
