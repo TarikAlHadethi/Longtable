@@ -148,7 +148,12 @@ Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2500); // held up, 
 await askerDone;
 const [code, took] = answer.trim().split(" ").map(Number);
 check("the terminal answers while the connection's own process is held up", code === 200 && took < 1000, answer);
+const ended = new Promise((r) => forked.child.once("exit", () => r(true)));
 forked.close();
+check("letting go of the bridge ends its process", await Promise.race([ended, sleep(5000).then(() => false)]));
+const again = await forkBridge({ app: APP, seats: [{ ...mine, local: { key: mine.local.key } }], home: scratch, port: forked.port });
+check("a bridge started again listens where it did, so a page already open still reaches it", again.port === forked.port, { was: forked.port, now: again.port });
+again.close();
 await sleep(500);
 try { rmSync(scratch, { recursive: true, force: true }); } catch {}
 

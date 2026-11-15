@@ -166,8 +166,8 @@ const changingLink = layPointed(work, pointedPaths(`"${linked}"`), { reading: fa
 check("changing files: a copied folder leaves a link inside it behind", linkMade && changingLink.copied.length === 1 && !existsSync(join(changingLink.copied[0].at, "elsewhere")) && existsSync(join(changingLink.copied[0].at, "a.md")), changingLink);
 
 // One list of secret file names, used for opening, sharing and the type check's working folder alike.
-const secret = [".env", ".env.local", "app.env", ".envrc", ".npmrc", ".pypirc", ".pgpass", ".git-credentials", "id_rsa", "id_ed25519.pub", "credentials", "credentials.json", "credential-prod.yaml", "server.pem", "a.key", "prod.tfvars"];
-const plainNames = [".env.example", ".env.sample", ".env.template", "CredentialsForm.tsx", "use-credentials.ts", "keys.md", "id-card.tsx", "README.md"];
+const secret = [".env", ".env.local", "app.env", ".envrc", ".npmrc", ".pypirc", ".pgpass", ".git-credentials", "id_rsa", "id_ed25519.pub", "id_ecdsa_sk", "credentials", "credentials.json", "credential-prod.yaml", "credentials.csv", "server.pem", "a.key", "prod.tfvars"];
+const plainNames = [".env.example", ".env.sample", ".env.template", "CredentialsForm.tsx", "use-credentials.ts", "credentials.ts", "credential-store.ts", "credentials.md", "keys.md", "id-card.tsx", "id_map", "README.md"];
 check("every secret file name is one", secret.every(isSecretName), secret.filter((n) => !isSecretName(n)));
 check("ordinary names that only look close are not", !plainNames.some(isSecretName), plainNames.filter(isSecretName));
 check("a secret name is refused at the end of any path, either slash", refused(String.raw`C:\work\.pypirc`) && refused("/home/a/proj/credentials.json") && !refused("/home/a/proj/src/CredentialsForm.tsx"));

@@ -5,7 +5,7 @@
 //
 //   node --experimental-websocket tests/db/no-ai.mjs
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { accessToken, API, inviteLink, join as joinTable, KEY, launch, rest, rpc, sleep, startTable } from "../lib.mjs";
 
 const run = Date.now().toString(36);
@@ -93,9 +93,9 @@ try {
   check("turning it off stops the task under way in it", sql(`select count(*) from public.tasks where chat_id = '${priv}' and status = 'working'`) === "0");
   const general2 = (await rpc(tok.maya, "ask_table", { c: general, body: "Rename the settings page please" })).body;
   sql(`update public.jobs set created_at = now() - interval '2 minutes' where round = '${general2?.round}' and status = 'waiting'`);
-  let warned = "";
-  try { execFileSync("docker", ["exec", "-i", process.env.DB_CONTAINER || "supabase_db_longtable", "psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-c", "select public.advance_rounds()"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }); }
-  catch (e) { warned = String(e.stderr || e.message); }
+  // Neither an error nor a round written down as unable to move on.
+  const ran = spawnSync("docker", ["exec", "-i", process.env.DB_CONTAINER || "supabase_db_longtable", "psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-c", "select public.advance_rounds()"], { encoding: "utf8" });
+  const warned = ran.status !== 0 || /ERROR|could not move on/.test(ran.stderr || "") ? String(ran.stderr || ran.error) : "";
   check("rounds elsewhere still move on, with a room turned off in the middle of its work", !warned
     && (!general2?.round || sql(`select count(*) from public.jobs where round = '${general2.round}' and status = 'waiting'`) === "0"), { warned, round: general2?.round });
   const routed = sqlFails(`update public.tables set client_chat = '${priv}' where id = '${T}'`);

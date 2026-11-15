@@ -11,7 +11,8 @@ import { basename, isAbsolute, join, parse, resolve, sep } from "node:path";
 // table here, never shared with another AI (extras.mjs), never linked into a working folder (typecheck.mjs). A .env and
 // every kind of it (.env.local, .env.production), but not the example a project keeps to show which settings it wants:
 // .env.example, .env.sample and .env.template hold names, not values, and nearly every project has one.
-const SECRET_NAME = /^(\.env(\.(?!(example|sample|template)$)[\w.-]+)?|.+\.env|\.envrc|\.(npmrc|netrc|pypirc|pgpass|git-credentials)|id_[a-z0-9]+(\.pub)?|credentials?([._-][\w.-]*)?|.*\.(pem|key|pfx|p12|kdbx|keystore|jks|ovpn|tfvars|tfstate))$/i;
+// A "credentials" file counts unless it is code (a credentials.ts that handles sign-in is the project's own source).
+const SECRET_NAME = /^(\.env(\.(?!(example|sample|template)$)[\w.-]+)?|.+\.env|\.envrc|\.(npmrc|netrc|pypirc|pgpass|git-credentials)|id_(rsa|dsa|ecdsa|ed25519)(_sk)?(\.pub)?|(?!.*\.([cm]?[jt]sx?|py|rb|go|rs|java|kt|swift|php|cs|vue|svelte|s?css|html|md)$)credentials?([._-][\w.-]*)?|.*\.(pem|key|pfx|p12|kdbx|keystore|jks|ovpn|tfvars|tfstate))$/i;
 export const isSecretName = (name) => SECRET_NAME.test(String(name));
 const lastPart = (p) => String(p).split(/[\\/]/).filter(Boolean).pop() || "";
 

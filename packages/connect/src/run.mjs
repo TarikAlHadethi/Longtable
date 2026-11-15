@@ -904,6 +904,7 @@ async function openBridge(rpc, config, seats) {
   let bridge = null;
   let stopping = false;
   let restarts = 0;
+  let lastPort = 0;
   const tell = async () => {
     const b = bridge;
     if (!b) return;
@@ -915,7 +916,7 @@ async function openBridge(rpc, config, seats) {
   };
   // A bridge that stops is started again, a few times (its terminals are gone with it; the page opens new ones).
   const open = async () => {
-    try { bridge = await forkBridge({ app: config.app, seats: mine, home: homedir() }); }
+    try { bridge = await forkBridge({ app: config.app, seats: mine, home: homedir(), port: lastPort }); lastPort = bridge.port; }
     catch (e) { bridge = null; return log(`the terminal bridge did not open: ${e.message}`); }
     bridge.child.on("exit", (code) => {
       bridge = null;

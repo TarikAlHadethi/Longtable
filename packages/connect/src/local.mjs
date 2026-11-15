@@ -29,8 +29,9 @@ export const keyOk = (auth, key) => !!key && same(String(auth || "").replace(/^B
 
 // The bridge in a process of its own (bridge.mjs), so nothing the connection does in its own process (a git fetch,
 // listing processes) ever holds up what the person types. It is told each table's key at start and whether this
-// computer may serve that table after; it ends with the connection. Resolves to { port, allow(table, on), close }.
-export function forkBridge({ app, seats, home }) {
+// computer may serve that table after; it ends with the connection. A bridge started again asks for the port it had, so
+// a page already open keeps reaching it. Resolves to { port, child, allow(table, on), close }.
+export function forkBridge({ app, seats, home, port = 0 }) {
   return new Promise((ok, fail) => {
     const child = fork(fileURLToPath(new URL("./bridge.mjs", import.meta.url)), [], { stdio: ["ignore", "ignore", "ignore", "ipc"], windowsHide: true });
     child.once("error", fail);
@@ -41,14 +42,15 @@ export function forkBridge({ app, seats, home }) {
         port: m.port,
         child,
         allow: (table, on) => { if (child.connected) child.send({ allow: { table, on } }); },
-        close: () => { try { child.kill(); } catch { /* gone already */ } },
+        // Letting go is enough: the bridge closes its terminals and ends when the connection lets go of it.
+        close: () => { try { child.disconnect(); } catch { /* gone already */ } },
       });
     });
-    child.send({ start: { app, home, seats: seats.map((s) => ({ table_id: s.table_id, terminalFolder: s.terminalFolder, local: { key: s.local.key, allowed: false } })) } });
+    child.send({ start: { app, home, port, seats: seats.map((s) => ({ table_id: s.table_id, terminalFolder: s.terminalFolder, local: { key: s.local.key, allowed: false } })) } });
   });
 }
 
-export function startBridge({ app, seats, home, log }) {
+export function startBridge({ app, seats, home, log, port = 0 }) {
   const origin = new URL(app).origin;
   // Each table's terminals, as many as the person opens (tabs on their page), by a name the page gives each.
   const terms = new Map(); // "<table>:<terminal>" -> { term, listeners, id }
@@ -120,8 +122,10 @@ export function startBridge({ app, seats, home, log }) {
       else res.end();
     }
   });
-  return new Promise((ok, fail) => {
+  const listen = (at) => new Promise((ok, fail) => {
     server.once("error", fail);
-    server.listen(0, "127.0.0.1", () => ok({ port: server.address().port, close: () => { for (const t of terms.values()) t.term.stop(); server.close(); } }));
+    server.listen(at, "127.0.0.1", () => { server.off("error", fail); ok({ port: server.address().port, close: () => { for (const t of terms.values()) t.term.stop(); server.close(); } }); });
   });
+  // The port asked for when it is free; any free one when it is not.
+  return port ? listen(port).catch(() => listen(0)) : listen(0);
 }

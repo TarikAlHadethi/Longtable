@@ -3,6 +3,8 @@
   position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; padding: 20px;
   background: oklch(0.2 0.01 70 / 0.38); backdrop-filter: blur(3px); animation: cn-fade 0.2s ease both;
 }
+.claude { background: light-dark(oklch(0.955 0.03 45), oklch(0.29 0.035 45)); --tone: OKLCH(0.68 0.13 45); }
+.codex { background: light-dark(oklch(0.955 0.03 168), oklch(0.28 0.035 168)); --tone: OKLCH(0.62 0.12 168); }
 .modal {
   width: 100%; max-width: 500px; max-height: calc(100vh - 40px); overflow-y: auto; background: var(--card); border: 1px solid var(--line-strong);
   border-radius: 22px; padding: 26px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 30px 80px oklch(0.2 0.01 70 / 0.3);
