@@ -69,10 +69,13 @@ try {
   sql(`insert into public.sandboxes (member_id, table_id, mode, branch, url) values ('${client}', '${t}', 'sandbox', '${branch}', 'https://copy.example.test')`);
   for (let i = 0; i < 30 && sql(`select count(*) from public.connections where table_id = '${t}' and last_seen > now() - interval '20 seconds'`) !== "1"; i++) await sleep(1000);
   const say = async (words) => {
+    const since = sql("select now()");
     await rpc(tok, "client_say", { t, body: words });
     for (let i = 0; i < 240; i++) {
       await sleep(2000);
-      const s = sql(`select status from public.sandbox_changes where member_id = '${client}' and words = '${words.replace(/'/g, "''")}'`);
+      // The client's assistant writes the change out in its own words before the copy builds it, so the change is the
+      // newest one made since they spoke, not one with their exact words.
+      const s = sql(`select status from public.sandbox_changes where member_id = '${client}' and created_at >= '${since}' order by created_at desc limit 1`);
       if (s && s !== "working") return s;
     }
     return "timed out";
