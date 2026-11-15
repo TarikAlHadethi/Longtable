@@ -1,7 +1,3 @@
-/* What opens in the middle of the room besides a chat and the table: a person, the logs, settings. */
-.page { flex: 1; min-height: 0; overflow-y: auto; width: 100%; padding: 40px 24px 56px; display: flex; flex-direction: column; align-items: center; gap: 22px; animation: pn-in 0.22s var(--ease-out) both; }
-.page > * { width: 100%; max-width: 620px; flex-shrink: 0; }
-.title { margin: 0; font-size: 27px; letter-spacing: -0.02em; font-weight: 560; }
 
 .hero { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; isolation: isolate; }
 .face { position: relative; width: 84px; height: 84px; border-radius: 50%; color: white; font-size: 34px; font-weight: 560; display: grid; place-items: center; margin-bottom: 8px; box-shadow: 0 8px 24px oklch(0.2 0.01 70 / 0.14); }
@@ -50,7 +46,7 @@
 @keyframes pn-up { from { opacity: 0; transform: translateY(6px) scale(0.97); } to { opacity: 1; transform: none; } }
 @keyframes pn-shimmer { to { background-position: -200% 0; } }
 
-@media (max-width: 600px) { .page { padding: 24px 16px 40px; } .fact { flex-direction: column; align-items: flex-start; gap: 2px; } .fact b { text-align: left; } }
+@media (max-width: 600px) { .fact { flex-direction: column; align-items: flex-start; gap: 2px; } .fact b { text-align: left; } }
 
 /* A person's window. */
 .window { max-width: 480px; gap: 18px; }

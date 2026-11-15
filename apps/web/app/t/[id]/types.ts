@@ -162,3 +162,7 @@ export const PAGE_COMMENT_COLUMNS = "id, page_id, member_id, parent_id, version,
 // A request from a person's own full Claude Code, waiting for them to allow or deny it. Only they can read it.
 export type Approval = { id: string; job_id: string | null; tool: string; summary: string; why?: string | null; kind?: "approve" | "question"; options?: { label: string; about: string | null }[] | null; status: "waiting" | "allowed" | "denied" | "expired"; created_at: string };
 export const APPROVAL_COLUMNS = "id, job_id, tool, summary, why, kind, options, status, created_at";
+
+// A person's AI is on while its connection keeps reporting: it does so every minute, so one late report is not "off".
+export const isOnline = (c: Pick<Connection, "last_seen" | "revoked_at">, now = Date.now()) =>
+  !c.revoked_at && !!c.last_seen && now - new Date(c.last_seen).getTime() < 90000;

@@ -17,8 +17,6 @@ const BACK_MS = 45000;
 const WAIT_MS = 60000;
 type Stage = "off" | "waking" | "back" | "slow";
 
-export const isQuiet = (c: Pick<Connection, "last_seen">) => !c.last_seen || Date.now() - new Date(c.last_seen).getTime() > 90000;
-
 export function ReconnectWindow({ conn, onConnectAgain, onClose }: { conn: Connection; onConnectAgain: () => void; onClose: () => void }) {
   const [shut, close] = useClosing(onClose);
   useEscape(close);

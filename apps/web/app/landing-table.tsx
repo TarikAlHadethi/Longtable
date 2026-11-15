@@ -32,7 +32,7 @@ export function LandingTable() {
   // Drawn when it scrolls into view, so it sets itself out in front of the reader, the way the real one does.
   const [shown, setShown] = useState(false);
   const [now, setNow] = useState(0);
-  const [models, setModels] = useState<Record<string, string>>(() => Object.fromEntries(AIS.map(([m, , model], i) => [`a${i}`, model])));
+  const [models, setModels] = useState<Record<string, string>>(() => Object.fromEntries(AIS.map(([, , model], i) => [`a${i}`, model])));
   const [tableModel, setTableModel] = useState("claude-sonnet-5-5");
 
   useEffect(() => {

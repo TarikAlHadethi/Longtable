@@ -251,6 +251,8 @@ try {
   await page.mouse.move(400, 500);
   await page.mouse.move(2, 500, { steps: 4 });
   check("the pointer at the left edge brings it over the room", await until(asideShown, 3000));
+  // Into it, as someone peeking at it does, then away: leaving the sidebar puts it away again.
+  await page.mouse.move(120, 500, { steps: 4 });
   await page.mouse.move(1000, 500, { steps: 4 });
   check("and it goes again when the pointer leaves it", await until(async () => !(await asideShown()), 3000));
   await page.reload();

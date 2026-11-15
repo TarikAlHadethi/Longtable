@@ -9,10 +9,9 @@ import styles from "./room.module.css";
 // or from the menu behind the dots that show when the pointer is over it; the same menu deletes it.
 // The "+" opens the window that sets a new chat up (who is in it, notes, how the AIs answer); the same window changes
 // a chat later, from its menu, for whoever made it or an owner. A private chat carries a lock.
-export function ChatList({ chats, activeId, waiting, canDelete, canSetUp, onOpen, onNew, onSetUp, onRename, onDelete }: {
+export function ChatList({ chats, activeId, canDelete, canSetUp, onOpen, onNew, onSetUp, onRename, onDelete }: {
   chats: Chat[];
   activeId: string | null;
-  waiting: Set<string>;
   canDelete: (c: Chat) => boolean;
   canSetUp: (c: Chat) => boolean;
   onOpen: (id: string) => void;

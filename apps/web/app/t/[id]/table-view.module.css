@@ -36,7 +36,6 @@
 .here { background: var(--online); }
 .away { background: var(--faint); }
 .name { font-size: 16px; font-weight: 560; }
-.role { font-size: 13px; color: var(--muted); }
 
 /* The seat for the next person: a place in the row like anyone else's. */
 .inviteSeat { display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: 0; padding: 0; font: inherit; color: var(--muted); cursor: pointer; transition: transform 0.2s var(--ease-out), color 0.2s ease; }
@@ -55,9 +54,6 @@
 .ai, .plus, .none { width: 100%; max-width: 214px; min-height: 112px; border-radius: 18px; padding: 14px 16px; display: flex; flex-direction: column; text-align: left; }
 .ai { border: 1px solid; box-shadow: 0 8px 24px oklch(0.2 0.01 70 / 0.07); transition: box-shadow 0.3s ease, transform 0.2s var(--ease-out); color: var(--ink); }
 .ai:hover { transform: translateY(-3px); }
-/* Each box wears a much lighter wash of its maker's colour. */
-.claude { background: light-dark(oklch(0.955 0.03 45), oklch(0.29 0.035 45)); border-color: light-dark(oklch(0.87 0.06 45), oklch(0.42 0.06 45)); --glow: oklch(0.68 0.13 45); }
-.codex { background: light-dark(oklch(0.955 0.03 168), oklch(0.28 0.035 168)); border-color: light-dark(oklch(0.86 0.06 168), oklch(0.42 0.06 168)); --glow: oklch(0.62 0.12 168); }
 .aiBusy { box-shadow: 0 0 0 4px color-mix(in oklch, var(--glow) 22%, transparent), 0 8px 24px oklch(0.2 0.01 70 / 0.07); }
 .aiHead { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
 .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--online); animation: tv-ping 2.4s ease-out infinite; }
@@ -130,9 +126,6 @@
 .client b { display: block; font-size: 14.5px; font-weight: 560; }
 .client span { font-size: 13px; color: var(--muted); }
 
-.actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; padding: 0 20px; animation: tv-rise 0.5s var(--ease-out) 1.2s both; }
-.actions span { display: inline-block; transition: transform 0.2s var(--ease-out); }
-.actions :global(.btn):hover span { transform: translateX(4px); }
 
 @keyframes tv-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 @keyframes tv-fade { from { opacity: 0; } to { opacity: 1; } }

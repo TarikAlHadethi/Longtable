@@ -35,7 +35,6 @@
 .sideTitle { font-size: 11px; font-weight: 560; letter-spacing: 0.09em; text-transform: uppercase; color: var(--faint); padding: 12px 6px 6px; }
 .chat { display: flex; align-items: center; justify-content: space-between; font-size: 14px; color: var(--ink-2); padding: 6px 8px; border-radius: 7px; }
 .chatOn { background: var(--chip); color: var(--ink); font-weight: 560; }
-.unread { width: 7px; height: 7px; border-radius: 50%; background: var(--sage); animation: st-pop 0.35s var(--ease-spring) both; }
 .person { display: flex; align-items: center; gap: 9px; padding: 5px 6px; }
 .personName { font-size: 14px; font-weight: 500; }
 .personMeta { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; }
@@ -68,12 +67,6 @@
 .mine { justify-content: flex-end; }
 .mineBubble { max-width: 78%; font-size: 15px; line-height: 1.5; background: light-dark(oklch(0.94 0.03 30), oklch(0.3 0.03 30)); padding: 8px 13px; border-radius: 14px 14px 4px 14px; }
 .clientBubble { background: light-dark(oklch(0.955 0.015 120), oklch(0.254 0.015 120)); padding: 8px 12px; border-radius: 4px 12px 12px 12px; display: inline-block; }
-.pill, .status {
-  display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 560; padding: 2px 9px; border-radius: 999px;
-  background: light-dark(oklch(0.95 0.05 80), oklch(0.305 0.06 80)); color: light-dark(oklch(0.45 0.09 60), oklch(0.77 0.09 60)); animation: st-pop 0.35s var(--ease-spring) both;
-}
-.pill { margin-left: 8px; }
-.pillDone, .statusDone { background: light-dark(oklch(0.93 0.04 150), oklch(0.315 0.048 150)); color: light-dark(oklch(0.38 0.07 150), oklch(0.84 0.07 150)); }
 .line { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); padding-left: 40px; }
 .line code, .viewReading code { font-family: var(--font-ui); font-size: 12px; background: var(--chip); padding: 1px 5px; border-radius: 4px; }
 .lineDot { width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid var(--faint); }
@@ -124,9 +117,6 @@
 .optionOff { opacity: 0.4; }
 .words { font-size: 13.5px; line-height: 1.45; color: var(--ink-2); background: light-dark(oklch(0.965 0.012 120), oklch(0.194 0.012 120)); border-radius: 8px; padding: 7px 10px; }
 .words b { display: block; font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
-.undo { position: relative; overflow: hidden; display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--ink-2); padding: 6px 0 8px; animation: st-rise 0.3s var(--ease-out) both; }
-.undo em { font-style: normal; font-weight: 560; text-decoration: underline; }
-.undoBar { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; border-radius: 2px; background: var(--sage); transform-origin: left; animation: st-drain 3.2s linear both; }
 
 .composer {
   flex-shrink: 0; margin: 0 14px 14px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--card); padding: 8px 8px 8px 13px;

@@ -13,8 +13,8 @@ import type { Member, Page, PageComment, PageValue, PageVersion } from "./types"
 import room from "./room.module.css";
 import s from "./pages.module.css";
 
-// One small picture per kind of page, drawn the same way as the rest of the app's icons.
-export function PageIcon({ size = 18 }: { icon?: string; size?: number }) {
+// The handout mark, drawn the same way as the rest of the app's icons.
+export function PageIcon({ size = 18 }: { size?: number }) {
   // One mark for every handout, whatever it holds: two sheets, the top one with a folded corner.
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -27,7 +27,7 @@ export function PageIcon({ size = 18 }: { icon?: string; size?: number }) {
 export function PageCard({ page, onOpen }: { page: Page; onOpen: () => void }) {
   return (
     <button className={s.card} onClick={onOpen} data-testid="page-card">
-      <span className={s.cardIcon}><PageIcon icon={page.icon} /></span>
+      <span className={s.cardIcon}><PageIcon /></span>
       <span className={s.cardText}><b>{page.title}</b></span>
       <span className={s.cardOpen}>Open</span>
     </button>
@@ -296,7 +296,7 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
     if (typeof data === "number") setN(data);
   }
   saveRef.current = saveEdit;
-  useEffect(() => { toFrame({ op: "mode", m: mode }); }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { toFrame({ op: "mode", m: mode }); }, [mode]);
 
   const live = comments.filter((c) => !c.deleted_at || comments.some((r) => r.parent_id === c.id && !r.deleted_at));
   const tops = live.filter((c) => !c.parent_id);
@@ -306,7 +306,7 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
   // Comments on a thing in the page are numbered pins on it; comments on words light the words.
   const pinned2 = open.filter((c) => c.anchor?.startsWith("el:"));
   const pinList = useMemo(() => pinned2.map((c, i) => ({ id: c.id, n: i + 1, path: c.anchor.slice(3).split("|")[0].split(".").filter(Boolean).map(Number) })), [pinned2]);
-  useEffect(() => { toFrame({ op: "pins", list: pinList }); }, [pinList, html]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { toFrame({ op: "pins", list: pinList }); }, [pinList, html]);
   const anchorText = (a: string) => (a.startsWith("el:") ? a.slice(a.indexOf("|") + 1) : a);
 
   // Drawn by a plain function, never a component made inside this one (that would remount it on every change).
@@ -365,7 +365,7 @@ export function PageWindow({ supabase, page, me, owner, members, versions, comme
     <div className={`${s.back} ${shut ? s.closing : ""}`} onClick={close}>
       <div className={s.window} onClick={(e) => { e.stopPropagation(); setMenu(null); }} role="dialog" aria-label={page.title} data-testid="page-window">
         <div className={s.top}>
-          <span className={s.topIcon}><PageIcon icon={page.icon} /></span>
+          <span className={s.topIcon}><PageIcon /></span>
           {naming === null ? (
             <button className={s.title} title="Rename" onClick={() => setNaming(page.title)}>{page.title}</button>
           ) : (
@@ -509,7 +509,7 @@ export function PagesList({ pages, pins, members, onOpen, onClose }: { pages: Pa
         {sorted.length === 0 && <div className="note">No handouts yet. Ask an AI at the table for one: a chart, a mockup, a report, a small tool.</div>}
         {sorted.map((p) => (
           <button key={p.id} className={s.row} onClick={() => onOpen(p.id)}>
-            <span className={s.cardIcon}><PageIcon icon={p.icon} /></span>
+            <span className={s.cardIcon}><PageIcon /></span>
             <span className={s.cardText}><b>{pins.has(p.id) ? "Pinned: " : ""}{p.title}</b><span>{p.about || `By ${firstName(members.get(p.made_by ?? "")?.display_name ?? "someone")}'s AI`}</span></span>
             <span className={s.rowWhen}>v{p.version}, <Time iso={p.touched_at} style="when" /></span>
           </button>

@@ -107,7 +107,6 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
       onData(d);
     }).catch((e: Error) => { if (!cancelled) setError(`${e.message} Open Settings again in a moment.`); });
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [table.id]);
 
   async function download() {
@@ -246,7 +245,7 @@ export function SettingsForm({ table, me, people, chats, data, onData, onRenamed
         {part === "clients" && <ClientSettings tableId={table.id} me={me} people={people} answerers={answerers} setAnswerer={setAnswerer} savedFor={saved} focus={focus} onRemoved={onRemoved}
           copies={data ? data.copies ?? null : undefined} onCopies={(c) => data && onData({ ...data, copies: c })} />}
         {part === "people" && <AskingToJoin joins={joins} onAnswered={(id) => onJoinAnswered?.(id)} />}
-        {part === "people" && <PeopleSettings tableId={table.id} me={me} mainOwner={mainOwner} myRole={myRole} people={people} focus={focus}
+        {part === "people" && <PeopleSettings me={me} mainOwner={mainOwner} myRole={myRole} people={people} focus={focus}
           onChanged={(id, patch) => onChanged?.(id, patch)} onRemoved={onRemoved} />}
         {part === "people" && <Joining tableId={table.id} />}
         </div>

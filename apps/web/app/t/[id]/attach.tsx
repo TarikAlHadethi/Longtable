@@ -226,7 +226,6 @@ function useShown(supabase: SupabaseClient, files: FileRef[]) {
       bump((n) => n + 1);
     });
     return () => { off = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, supabase, tick]);
   return (path: string) => shown.get(path)?.url ?? null;
 }

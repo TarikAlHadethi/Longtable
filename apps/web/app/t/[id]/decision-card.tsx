@@ -2,19 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 import { browserClient } from "@/lib/supabase/browser";
+import { fitHeight } from "@/components/text-box";
 import type { Decision, Member } from "./types";
 import styles from "./room.module.css";
 
 // A decision card: the question and its options. Picking one shows what the client would be told (or the question they
 // would be asked, with the answers they can tap), in words the team can change, and Send sends it at once. Nothing is
 // decided until Send. A decision that tells nobody has Decide in place of Send.
-export function DecisionCard({ decision, chatName, members, clientName, now, onOpenChat, onChange }: {
+export function DecisionCard({ decision, members, clientName, onChange }: {
   decision: Decision;
-  chatName: string;
   members: Map<string, Member>;
   clientName: string;
-  now: number;
-  onOpenChat?: () => void;
   onChange: (patch: Partial<Decision>) => void;
 }) {
   const [picked, setPicked] = useState<number | null>(null);
@@ -26,20 +24,11 @@ export function DecisionCard({ decision, chatName, members, clientName, now, onO
   const open = d.status === "open";
   const options = [...d.options].sort((a, b) => a.position - b.position);
   const chosen = options.find((o) => o.position === (open ? picked : d.chosen));
-  const left = d.deliver_after ? Math.ceil((new Date(d.deliver_after).getTime() - now) / 1000) : 0;
-  // Only a decision made the old way, still inside its window, can be taken back.
-  const oldWay = !!d.deliver_after && !!d.decided_at && new Date(d.deliver_after).getTime() - new Date(d.decided_at).getTime() > 1000;
-  const canUndo = oldWay && d.status === "decided" && !d.delivered_at && left > 0;
   const decider = d.decided_by ? members.get(d.decided_by)?.display_name ?? "Someone" : "";
   const asks = !!chosen?.asks_client;
 
   // The words box fits what is in it.
-  useEffect(() => {
-    const el = box.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
-  }, [draft, picked]);
+  useEffect(() => fitHeight(box.current), [draft, picked]);
 
   function choose(position: number) {
     if (!open || busy) return;
@@ -65,32 +54,17 @@ export function DecisionCard({ decision, chatName, members, clientName, now, onO
     });
   }
 
-  async function undo() {
-    setBusy(true);
-    setError("");
-    const { error } = await browserClient().rpc("undo_decision", { d: d.id });
-    setBusy(false);
-    if (error) return setError(error.message === "too late to undo" ? "Too late to undo: it has gone out." : error.message);
-    onChange({ status: "open", chosen: null, decided_by: null, decided_at: null, deliver_after: null });
-  }
-
   let after = "";
   if (d.status === "decided") {
     after = `Decided by ${decider || "you"}`;
     const verb = asks ? { done: "has been asked", doing: "asking" } : { done: "has been told", doing: "telling" };
     // Once it has gone out, the words above already say who was told; only a delivery still on its way is worth a word.
-    if (d.affects_client && !d.delivered_at) after += canUndo ? ` · ${clientName} hears in ${left} s` : ` · ${verb.doing} ${clientName}…`;
+    if (d.affects_client && !d.delivered_at) after += ` · ${verb.doing} ${clientName}…`;
   }
 
   return (
     <div className={`${styles.card} ${open ? "" : styles.cardDecided}`} data-did={d.id}>
-      {/* Inside its own chat the chat's name only repeats where you are; it shows where the card is seen elsewhere. */}
-      {(onOpenChat || d.origin) && (
-        <button className={styles.cardOrigin} onClick={onOpenChat} disabled={!onOpenChat}>
-          {onOpenChat && <span className={styles.cardChat}># {chatName}</span>}
-          {d.origin && <span>{onOpenChat ? "· " : ""}{d.origin}</span>}
-        </button>
-      )}
+      {d.origin && <div className={styles.cardOrigin}>{d.origin}</div>}
       <div className={styles.cardTitle}>{d.title}</div>
       {open && d.context && <div className={styles.cardContext}>{d.context}</div>}
       <div className={styles.options}>
@@ -142,7 +116,6 @@ export function DecisionCard({ decision, chatName, members, clientName, now, onO
       {d.status === "decided" && (
         <div className={styles.after}>
           <div className={styles.afterText}>{after}</div>
-          {canUndo && <button className={styles.undo} onClick={undo} disabled={busy}>Undo</button>}
         </div>
       )}
       {error && <div className="error">{error}</div>}

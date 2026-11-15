@@ -60,12 +60,6 @@
   display: flex; align-items: center; justify-content: center; margin-bottom: 6px;
 }
 .mini { margin-top: auto; padding-top: 16px; display: flex; flex-direction: column; gap: 7px; }
-.miniRow, .connect, .decide {
-  display: flex; align-items: center; gap: 9px; font-size: 14.5px; font-weight: 500; background: var(--paper); border: 1px solid var(--line);
-  border-radius: 10px; padding: 8px 10px;
-}
-.miniRow em, .connect em { margin-left: auto; font-style: normal; font-size: 13px; font-weight: 400; color: var(--muted); }
-.miniFace { width: 22px; height: 22px; border-radius: 50%; color: white; font-size: 12px; font-weight: 560; display: inline-flex; align-items: center; justify-content: center; }
 /* How it works: one simple picture each. */
 .inviteMini { display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); font-size: 14px; }
 .inviteMini span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
@@ -75,18 +69,9 @@
 .logosMini svg:nth-child(2) { animation-delay: -1.6s; }
 .toldMini { align-self: flex-start; max-width: 92%; font-family: var(--font-voice); font-size: 15.5px; line-height: 1.45; color: var(--ink); background: light-dark(oklch(0.955 0.02 150), oklch(0.254 0.02 150)); border-radius: 14px 14px 14px 4px; padding: 10px 13px; }
 .toldNote { font-size: 13px; color: var(--muted); padding-left: 2px; }
-.connectDot { width: 9px; height: 9px; border-radius: 50%; background: var(--online); box-shadow: 0 0 0 0 oklch(0.6 0.12 150 / 0.5); animation: ld-ping 2.2s ease-out infinite; }
-.connect:nth-child(2) .connectDot { animation-delay: 1.1s; }
 @keyframes ld-ping { 0% { box-shadow: 0 0 0 0 oklch(0.6 0.12 150 / 0.5); } 70%, 100% { box-shadow: 0 0 0 9px oklch(0.6 0.12 150 / 0); } }
-.decide { background: var(--table); color: var(--on-table); border-color: var(--table); justify-content: space-between; }
-.bar, .undo i { height: 4px; border-radius: 2px; background: var(--chip); overflow: hidden; position: relative; }
-.bar i, .undo i::after { content: ""; position: absolute; inset: 0; background: var(--sage); transform-origin: left; animation: ld-drain 4s linear infinite; }
-.bar i { display: block; }
 @keyframes ld-drain { from { transform: none; } to { transform: scaleX(0); } }
 
-.sendMini { margin-top: auto; display: flex; flex-direction: column; gap: 8px; font-size: 14px; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
-.sendMini span { font-family: var(--font-voice); font-size: 15px; color: var(--ink-2); }
-.sendMini b { align-self: flex-end; font-size: 13px; font-weight: 560; padding: 4px 12px; border-radius: 8px; background: var(--table); color: var(--on-table); }
 .tableShow { width: 100%; max-width: 1120px; display: flex; border: 1px solid var(--line); border-radius: 22px; overflow: hidden; background: var(--paper); box-shadow: 0 24px 60px oklch(0.2 0.01 70 / 0.08); }
 .handout { margin-top: auto; position: relative; display: flex; flex-direction: column; gap: 2px; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
 .handout b { font-size: 15px; font-weight: 560; }
@@ -118,19 +103,8 @@
 .files span { font-family: var(--font-ui); font-size: 13px; padding: 4px 9px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--paper); }
 .files em { font-family: var(--font-ui); font-style: normal; font-size: 12.5px; color: var(--muted); width: 100%; margin-top: 2px; }
 
-.undo { margin-top: auto; position: relative; display: flex; justify-content: space-between; align-items: center; font-size: 14.5px; font-weight: 560; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px 14px; }
-.undo u { color: var(--link); }
-.undo i { position: absolute; left: 12px; right: 12px; bottom: 6px; }
 
-.two { margin-top: auto; padding-top: 16px; display: flex; flex-direction: column; gap: 7px; }
-.two span { font-size: 13.5px; color: var(--faint); text-decoration: line-through; text-decoration-color: var(--line-dashed); font-family: var(--font-ui); }
-.two b { font-family: var(--font-voice); font-weight: 500; font-size: 17px; background: light-dark(oklch(0.955 0.02 150), oklch(0.254 0.02 150)); border-radius: 10px; padding: 9px 12px; }
 
-.meters { margin-top: auto; padding-top: 16px; display: flex; flex-direction: column; gap: 10px; }
-.meters div { display: grid; grid-template-columns: 92px 1fr 36px; align-items: center; gap: 10px; font-size: 13.5px; color: var(--ink-2); }
-.meters i { height: 7px; border-radius: 4px; background: var(--chip); overflow: hidden; }
-.meters b { display: block; height: 100%; border-radius: 4px; background: oklch(0.55 0.08 150); transform-origin: left; animation: ld-grow 1.2s var(--ease-out) both; }
-.meters em { font-style: normal; font-weight: 560; text-align: right; }
 @keyframes ld-grow { from { transform: scaleX(0); } to { transform: none; } }
 
 .cta {

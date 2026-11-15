@@ -4,17 +4,15 @@ import { Face } from "@/components/face";
 import { Crown } from "@/components/icons";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import { AI_NAME, AiLogo } from "@/components/ai-logo";
+import { AI_NAME } from "@/components/ai-logo";
 import { Mark, WorkingMark } from "@/components/mark";
 import { browserClient } from "@/lib/supabase/browser";
-import { Inline } from "@/lib/inline";
-import { AttachButtons, AttachTray, Files, dropHandlers, useAttach } from "./attach";
+import { AttachTray, dropHandlers, useAttach } from "./attach";
 import { AiWindow, TableWindow } from "./seat-windows";
 import { PageIcon, PagesList, PageWindow } from "./page-window";
-import { Time } from "@/components/time";
-import { Answer } from "./answer";
+import { arrived, MessageRow, NONE } from "./message-row";
 import { ChatList } from "./chat-list";
 import { DecisionCard } from "./decision-card";
 import { Invite } from "./invite";
@@ -25,17 +23,19 @@ import type { Join } from "./settings/joining-settings";
 import { ProfileMenu } from "./profile-menu";
 import { TableView } from "./table-view";
 import { UsagePanel } from "./usage-panel";
-import { elapsed, WorkPanel } from "./work-panel";
+import { WorkPanel } from "./work-panel";
 import {
-  CONNECTION_COLUMNS, DECISION_COLUMNS, JOB_COLUMNS, MEMBER_COLUMNS, MESSAGE_COLUMNS, NOTE_COLUMNS, REQUEST_COLUMNS,
-  type Chat, type Command, type Connection, type Decision, type Job, type Member, type Message, type Note, type Request,
+  CONNECTION_COLUMNS, DECISION_COLUMNS, JOB_COLUMNS, MEMBER_COLUMNS, MESSAGE_COLUMNS, REQUEST_COLUMNS,
+  type Chat, type Command, type Connection, type Decision, type Job, type Member, type Message, type Request,
   CHANGE_COLUMNS, type SandboxChange, SANDBOX_COLUMNS, type SandboxRow, TASK_COLUMNS, type Task,
-  PAGE_COLUMNS, PAGE_COMMENT_COLUMNS, PAGE_VERSION_COLUMNS, type Page, type PageComment, type PageValue, type PageVersion,
-  APPROVAL_COLUMNS, type Approval, CHAT_COLUMNS,
+  APPROVAL_COLUMNS, type Approval, CHAT_COLUMNS, isOnline,
 } from "./types";
 import { ApprovalCards } from "./approvals";
-import { isQuiet, ReconnectWindow } from "./reconnect-window";
+import { ReconnectWindow } from "./reconnect-window";
 import { ModePick } from "./mode-pick";
+import { usePages } from "./use-pages";
+import { Composer, runsHere } from "./composer";
+import { BackRoom, useBackRoom, useThinking } from "./back-room";
 import { useLocal } from "./computer";
 import { ComputerWindows, type ComputerApi, type Pane } from "./computer-windows";
 import { SidebarIcon, TerminalIcon } from "@/components/icons";
@@ -43,8 +43,9 @@ import styles from "./room.module.css";
 import { firstName } from "@/lib/names";
 import { formatAgo } from "@/lib/time";
 import { useLastSeen } from "@/components/last-seen";
+import { fitHeight, useDraft } from "@/components/text-box";
 import { namesMe, pingsMe, useNeeds, type Need } from "@/lib/chime";
-import { CODEX_NAMES, EFFORT_LEVELS, SLASH, slashEntry } from "@/lib/slash.mjs";
+import { EFFORT_LEVELS, slashEntry } from "@/lib/slash.mjs";
 // Windows and views opened now and then are fetched when first opened, so a room's first load carries none of them.
 const ConnectModal = dynamic(() => import("./connect-modal").then((m) => m.ConnectModal), { ssr: false });
 const NewDecision = dynamic(() => import("./new-decision").then((m) => m.NewDecision), { ssr: false });
@@ -52,8 +53,6 @@ const ClientPage = dynamic(() => import("./client-page").then((m) => m.ClientPag
 const SettingsForm = dynamic(() => import("./settings/settings-form").then((m) => m.SettingsForm), { ssr: false });
 const SandboxReview = dynamic(() => import("./sandbox-review").then((m) => m.SandboxReview), { ssr: false });
 const ChatSetup = dynamic(() => import("./chat-setup").then((m) => m.ChatSetup), { ssr: false });
-// Names both Claude Code and Codex have: shown for a Claude too.
-const CLAUDE_ALSO: Record<string, true> = { model: true, status: true, effort: true, usage: true, rename: true, color: true, compact: true, mcp: true };
 
 const byTime = <T extends { created_at: string }>(a: T, b: T) => a.created_at.localeCompare(b.created_at);
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -64,76 +63,7 @@ type View = "table" | "chat" | "client" | "logs" | "settings" | "sandbox";
 // Times from the server and from this computer are written differently; they are compared as moments, not as text.
 const after = (a: string, b: string) => new Date(a).getTime() > new Date(b).getTime();
 
-// One message in the chat. Kept apart and memoised so typing in the box, which redraws the room, does not redraw
-// every message: in a long chat that cost tens of milliseconds a key.
-const NONE: never[] = [];
-// The first names a message can ping with @: the team's people, never a client.
-const pingNames = (members: Map<string, Member>) => [...members.values()].filter((p) => p.role !== "client" && !p.test).map((p) => firstName(p.display_name));
-
-const MessageRow = memo(function MessageRow({ m, who, mine, follows, held, supabase, members, views, pages, onOpenPage, repo, again }: {
-  m: Message; who: Member | undefined; mine: boolean; follows: boolean; held: boolean; supabase: ReturnType<typeof browserClient>;
-  members: Map<string, Member>; views: Message[]; pages: Page[]; onOpenPage: (id: string) => void; repo: string | null; again: boolean;
-}) {
-  const name = who?.display_name ?? "Someone";
-  if (m.kind === "github") {
-    return (
-      <div className={styles.githubLine} data-mid={m.id} data-github="true">
-        <span className={styles.githubTag}>GitHub</span>
-        <span className={styles.githubText}>{m.body}</span>
-        <span className={styles.githubWhen}><Time iso={m.created_at} /></span>
-      </div>
-    );
-  }
-  if (m.kind === "client") {
-    return (
-      <div className={`${styles.clientSay} ${follows ? styles.follow : ""} ${held ? styles.held : ""}`} data-mid={m.id} data-request={m.meta?.request ?? ""} data-follows={follows || undefined}>
-        {!follows && <div className={styles.sayName} style={{ color: who?.name_color || undefined }}>{name} <span className={styles.clientTag}>client</span></div>}
-        {m.meta?.answers && m.meta.question && <div className={styles.questionQuote}>Answering: {m.meta.question}</div>}
-        <div className={styles.clientRow}>
-          <div className={`${styles.messageAvatar} ${follows ? styles.unseen : ""}`} style={{ background: who?.color ?? "var(--faint)" }} aria-hidden={follows || undefined}><Face who={who} name={name} /></div>
-          <div className={styles.bubble} data-bubble={who?.bubble ?? "stone"}>{m.body}</div>
-        </div>
-        {m.meta?.files?.length ? <div className={styles.clientFiles}><Files supabase={supabase} files={m.meta.files} /></div> : null}
-        <div className={styles.clientTools}>
-          <span className={styles.sayWhen}><Time iso={m.created_at} /></span>
-        </div>
-      </div>
-    );
-  }
-  if (m.by_ai) {
-    return <Answer m={m} members={members} views={views} follows={follows} pages={pages} onOpenPage={onOpenPage}
-      files={m.meta?.files?.length ? <div className={styles.sayFiles}><Files supabase={supabase} files={m.meta.files} /></div> : null}
-      repo={repo} again={again} />;
-  }
-  return (
-    <div className={`${styles.say} ${mine ? styles.sayMine : ""} ${m.state === "sending" ? styles.pending : ""} ${follows ? styles.follow : ""} ${held ? styles.held : ""}`} data-mid={m.id} data-follows={follows || undefined}>
-      {!mine && (
-        <div className={`${styles.messageAvatar} ${follows ? styles.unseen : ""}`} style={{ background: who?.color ?? "var(--faint)" }} aria-hidden={follows || undefined}><Face who={who} name={name} /></div>
-      )}
-      <div className={styles.sayCol}>
-        {!mine && !follows && <div className={styles.sayName} style={{ color: who?.name_color || undefined }}>{name}</div>}
-        <div className={styles.bubble} data-bubble={who?.bubble ?? "stone"}><Inline text={m.body} pings={pingNames(members)} /></div>
-        {m.meta?.files?.length ? <div className={styles.sayFiles}><Files supabase={supabase} files={m.meta.files} /></div> : null}
-        <div className={styles.sayWhen}>
-          {m.state === "failed" ? <span className={styles.failed}>Not sent</span> : <Time iso={m.created_at} />}
-        </div>
-      </div>
-    </div>
-  );
-});
-
-// A message of one's own often arrives live before its send has finished: it takes the place of the stand-in shown while
-// sending, never sits beside it, so nothing is ever shown twice.
-function arrived(prev: Message[], fresh: Message[]): Message[] {
-  let out = prev;
-  for (const m of fresh) {
-    const stand = out.findIndex((x) => x.state === "sending" && x.chat_id === m.chat_id && x.member_id === m.member_id && x.body === m.body);
-    out = stand >= 0 ? [...out.slice(0, stand), ...out.slice(stand + 1), m] : [...out, m];
-  }
-  return out;
-}
-
-export function Room({ table, me, initialMembers, initialChats, initialMessages, initialDecisions, initialJobs, initialConnections, initialNotes, initialRequests, initialChatId, initialView, initialTableModel, initialTasks, initialChanges, initialSandboxes, initialSandboxSettings, initialSandbox }: {
+export function Room({ table, me, initialMembers, initialChats, initialMessages, initialDecisions, initialJobs, initialConnections, initialRequests, initialChatId, initialView, initialTableModel, initialTasks, initialChanges, initialSandboxes, initialSandboxSettings, initialSandbox }: {
   table: { id: string; name: string; main_owner?: string | null };
   me: Member;
   initialMembers: Member[];
@@ -142,7 +72,6 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   initialDecisions: Decision[];
   initialJobs: Job[];
   initialConnections: Connection[];
-  initialNotes: Note[];
   initialRequests: Request[];
   initialChatId: string;
   initialView: View;
@@ -176,7 +105,6 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const [clearedAt, setClearedAt] = useState<string | null>(initialMembers.find((m) => m.id === me.id)?.tasks_cleared_at ?? null);
   const [connections, setConnections] = useState(initialConnections);
   const [connectOpen, setConnectOpen] = useState(false);
-  const [notes, setNotes] = useState(initialNotes);
   const [requests, setRequests] = useState(initialRequests);
   const [askingFor, setAskingFor] = useState<Request | null>(null);
   const [notice, setNotice] = useState("");
@@ -197,7 +125,6 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const [editingMe, setEditingMe] = useState(false);
   // Whose side is being looked at, when there is more than one client.
   const [clientId, setClientId] = useState<string | null>(null);
-  // Leaning toward the client's side: the pointer is on the glass in the corner.
   const [tableName, setTableName] = useState(table.name);
   const [inviting, setInviting] = useState(false);
   // The model the table's own answer is written on; null leaves it to the AI that writes it.
@@ -233,54 +160,13 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     const t = setInterval(readApprovals, 5000);
     return () => clearInterval(t);
   }, [approvals.length, myWorkGoing, readApprovals]);
-  // The pages the table's AIs made, what each version was, what people said on them, what tools on them keep, and
-  // which ones this person pinned. The team's alone: a client never reads any of it.
-  const [pages, setPages] = useState<Page[]>([]);
-  const [pageVersions, setPageVersions] = useState<PageVersion[]>([]);
-  const [pageComments, setPageComments] = useState<PageComment[]>([]);
-  const [pageValues, setPageValues] = useState<PageValue[]>([]);
-  const [pins, setPins] = useState<Set<string>>(new Set());
-  const [openPage, setOpenPage] = useState<string | null>(null);
-  const [pagesOpen, setPagesOpen] = useState(false);
-  const [viewing, setViewing] = useState<Map<string, string[]>>(new Map());
-  const readPages = useCallback(async () => {
-    const [pg, vs, cm, st, pn] = await Promise.all([
-      supabase.from("pages").select(PAGE_COLUMNS).eq("table_id", table.id).order("touched_at", { ascending: false }).limit(200),
-      supabase.from("page_versions").select(PAGE_VERSION_COLUMNS).eq("table_id", table.id).order("n").limit(2000),
-      supabase.from("page_comments").select(PAGE_COMMENT_COLUMNS).eq("table_id", table.id).order("created_at").limit(2000),
-      supabase.from("page_state").select("page_id, key, value, updated_by, updated_at").eq("table_id", table.id).limit(5000),
-      supabase.from("page_pins").select("page_id").eq("member_id", me.id),
-    ]);
-    const bad = [pg, vs, cm, st, pn].find((r) => r.error);
-    if (bad) { console.warn("[pages] could not be read:", bad.error?.code); return; }
-    setPages(pg.data as Page[]);
-    setPageVersions(vs.data as PageVersion[]);
-    setPageComments(cm.data as PageComment[]);
-    setPageValues(st.data as PageValue[]);
-    setPins(new Set((pn.data as { page_id: string }[]).map((x) => x.page_id)));
-  }, [supabase, table.id, me.id]);
-  useEffect(() => { readPages(); }, [readPages]);
+  const { pages, pageVersions, pageComments, pageValues, pins, setPins, openPage, setOpenPage, pagesOpen, setPagesOpen, viewing, setViewing, readPages, applyPage, pagesByJob } = usePages(supabase, table.id, me.id);
   const channelRef = useRef<RealtimeChannel | null>(null);
   // Who else has a page open: told through the team's own presence, never stored.
   useEffect(() => { channelRef.current?.track({ at: Date.now(), page: openPage }).catch(() => {}); }, [openPage]);
   const [tableOpen, setTableOpen] = useState(false);
-  const [slashAt, setSlashAt] = useState(0);
-  const [draft, setDraft] = useState("");
-  // What is typed in the box survives a refresh (after an update, or any other), kept only in this tab.
-  useEffect(() => { try { const kept = sessionStorage.getItem(`lt-draft:${table.id}`); if (kept) setDraft((d) => d || kept); } catch {} }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { try { if (draft) sessionStorage.setItem(`lt-draft:${table.id}`, draft); else sessionStorage.removeItem(`lt-draft:${table.id}`); } catch {} }, [draft]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [now, setNow] = useState(() => Date.now());
-  // How far this computer's clock is from the server's, measured once: deadlines the server set are counted with it.
-  const skew = useRef(0);
-  useEffect(() => {
-    const sent = Date.now();
-    supabase.rpc("server_now").then(({ data, error }: { data: unknown; error: unknown }) => {
-      if (error || typeof data !== "string") return;
-      const back = Date.now();
-      skew.current = new Date(data).getTime() - (sent + back) / 2;
-    });
-  }, [supabase]);
-  const [inboxOpen, setInboxOpen] = useState(false);
+  const [draft, setDraft] = useDraft(`lt-draft:${table.id}`);
+  const [rightOpen, setRightOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   // The sidebar put away on a wide screen (kept per device), and whether it is showing over the room for the moment.
   const [sideAway, setSideAway] = useState(false);
@@ -417,7 +303,6 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const clientName = clients.length > 1 ? "every client" : client?.display_name ?? "the client";
   const chat = chatById.get(chatId) ?? chats[0];
   const unset = chat?.set_up === false;
-  const liveAI = new Set(connections.filter((c) => !c.revoked_at).map((c) => c.member_id));
   const myConnection = connections.find((c) => !c.revoked_at && c.member_id === me.id);
   // Their own computer's terminal (computer.tsx): only while their AI runs as their full Claude Code, which
   // can already run commands there with their approval.
@@ -444,16 +329,15 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     const mine = initialConnections.find((c) => !c.revoked_at && c.member_id === me.id);
     let shut = false;
     try { shut = sessionStorage.getItem(shutKey) === "1"; } catch {}
-    if (mine && isQuiet(mine) && !shut) setReconnecting(mine);
+    if (mine && !isOnline(mine) && !shut) setReconnecting(mine);
     // Only as the page opens.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // What to call a person's AI: Claude or ChatGPT once it is connected, their AI before that.
   // Under each person in the sidebar: their AI, connected (a green dot) or not (a grey one). Nothing for someone who
   // never connected one.
   const aiState = (id: string) => {
     const mine = connections.filter((x) => !x.revoked_at && x.member_id === id).sort((a, b) => Number(b.kind === "claude") - Number(a.kind === "claude"));
-    const on = mine.find((x) => !!x.last_seen && Date.now() - new Date(x.last_seen).getTime() < 90000);
+    const on = mine.find((x) => isOnline(x));
     const c = on ?? mine[0];
     return c ? { word: c.kind === "codex" ? "Codex" : "Claude", on: !!on } : null;
   };
@@ -464,47 +348,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const working = jobs.filter((j) => j.chat_id === chat?.id && j.kind !== "notes" && !(j.early && deciding) && ["queued", "running", "waiting", "failed"].includes(j.status))
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
-  // The table thinking, from the moment someone says something it will hear until its reply or an AI's own work
-  // line takes over, so a reply on its way is never a blank. "Will hear" is the server's own free check
-  // (listen_now), mirrored: anything said straight after an AI spoke, or a message shaped like a question or a request.
-  // Like the server, only what was said since the table last listened counts.
-  const heardFor = useRef<{ id: string; at: string } | null>(null);
-  const [, setBeat] = useState(0);
-  const said = useMemo(() => {
-    const ms = messages.filter((m) => m.chat_id === chat?.id && (m.kind === "chat" || m.kind === "answer" || !m.kind) && m.state !== "failed").sort(byTime);
-    let i = ms.length;
-    while (i > 0 && !ms[i - 1].by_ai) i--;
-    const heard = heardFor.current?.at;
-    const run = ms.slice(i).filter((m) => !heard || m.created_at > heard);
-    if (!run.length) return null;
-    // As the chat is set up: never answered, nothing is "thinking"; answered only when an AI is named, only then.
-    if (chat?.set_up === false || chat?.answers === "silent" || chat?.answers === "off") return null;
-    // Only what was just said counts: something from before (said while the room only listened) was never heard.
-    const lastAt = Date.parse(run[run.length - 1].created_at);
-    if (chat?.answers === "named") return run.filter((m) => lastAt - Date.parse(m.created_at) < 15000).some((m) => /^\s*\/[A-Za-z]/.test(m.body) || /@|\b(ai|ais|claude|chatgpt|gpt|codex|table|longtable)\b/i.test(m.body)) ? run[run.length - 1] : null;
-    const prev = ms[i - 1];
-    const afterAi = !!prev && Date.parse(run[0].created_at) - Date.parse(prev.created_at) < 15 * 60 * 1000;
-    const strong = run.some((m) => m.body.length >= 40 || /\?|@|\b(ai|ais|claude|chatgpt|gpt|codex|table|longtable)\b/i.test(m.body)
-      || /^\s*(can|could|would|will|please|pls|make|add|fix|change|update|remove|delete|build|write|check|look|why|how|what|where|when|which|who|should|is|are|does|do|did|implement|create|refactor|rename|move|review|explain|tell|show|find|lets|let's|try|use|set|put|run|test|ship|revert|undo)\b/i.test(m.body));
-    return afterAi || strong ? run[run.length - 1] : null;
-  }, [messages, chat?.id, chat?.answers, chat?.set_up]);
-  const listening = working.some((j) => j.kind === "listen" && (j.status === "queued" || j.status === "running"));
-  if (listening && said) heardFor.current = { id: said.id, at: said.created_at };
-  const aisOn = connections.some((c) => !c.revoked_at && byId.get(c.member_id)?.role !== "client" && !!c.last_seen && Date.now() - new Date(c.last_seen).getTime() < 90000);
-  const saidFresh = !!said && heardFor.current?.id !== said.id && Date.now() - Date.parse(said.created_at) < 15000;
-  // Shown at once only for a message plainly for the AIs (the server's early-answer rule: a "/" command, an AI named, or
-  // a question that names nobody else here). Anything else, a word to a teammate say, shows nothing while the table
-  // decides: if it answers, its reply or its work shows the moment it does.
-  const words = (s: string) => s.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-  const forAi = !!said && (/^\s*\/[A-Za-z]/.test(said.body) || /\b(ai|ais|claude|chatgpt|gpt|codex|table|longtable)\b/i.test(said.body)
-    || (said.body.includes("?") && !members.some((o) => o.id !== said.member_id && firstName(o.display_name).length >= 2
-      && words(said.body).includes(firstName(o.display_name).toLowerCase()))));
-  const thinking = aisOn && forAi && !working.some((j) => j.kind !== "listen" && j.status !== "failed") && (listening || saidFresh);
-  useEffect(() => {
-    if (!saidFresh || !said) return;
-    const t = setTimeout(() => setBeat((b) => b + 1), Math.max(0, Date.parse(said.created_at) + 15000 - Date.now()) + 50);
-    return () => clearTimeout(t);
-  }, [saidFresh, said]);
+  const thinking = useThinking({ messages, chat, working, connections, members, byId });
 
   const refreshMembers = useCallback(async () => {
     const { data } = await supabase.from("members").select(MEMBER_COLUMNS).eq("table_id", table.id).is("removed_at", null).order("created_at");
@@ -545,12 +389,11 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     const none = Promise.resolve({ data: null });
     const ask = (go: boolean, read: () => PromiseLike<{ data: unknown }>) => (go ? read() : none);
     if (!light) { readApprovals(); readJoinsRef.current(); readWroteRef.current(); }
-    const [{ data: recent }, { data: inFlight }, { data: ds }, { data: rq }, { data: ns }, { data: cs }, { data: tk }, { data: sc }, { data: bx }, { data: ch }] = await Promise.all([
+    const [{ data: recent }, { data: inFlight }, { data: ds }, { data: rq }, { data: cs }, { data: tk }, { data: sc }, { data: bx }, { data: ch }] = await Promise.all([
       supabase.from("messages").select(MESSAGE_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(light ? 40 : 100),
       supabase.from("jobs").select(JOB_COLUMNS).eq("table_id", table.id).in("status", ["queued", "running", "waiting", "failed"]).order("created_at", { ascending: false }).limit(50),
       ask(!light || delivering.current, () => supabase.from("decisions").select(DECISION_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(100)),
       ask(!light, () => supabase.from("requests").select(REQUEST_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(200)),
-      ask(!light, () => supabase.from("notes").select(NOTE_COLUMNS).eq("table_id", table.id)),
       ask(!light, () => supabase.from("connections").select(CONNECTION_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(60)),
       supabase.from("tasks").select(TASK_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(40),
       ask(!light, () => supabase.from("sandbox_changes").select(CHANGE_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(120)),
@@ -584,7 +427,6 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (inFlight) setJobs(inFlight as Job[]);
     if (ds) setDecisions(ds as unknown as Decision[]);
     if (rq) setRequests(rq as Request[]);
-    if (ns) setNotes(ns as Note[]);
     if (cs) setConnections(cs as Connection[]);
     if (!light && Date.now() - lastRare.current >= 60000) {
       lastRare.current = Date.now();
@@ -609,6 +451,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       pushedAt.current = performance.now();
       const { table: name, record } = (payload ?? {}) as Change;
       if (!record) return;
+      if (applyPage(name, record)) return;
       if (name === "join_requests") { readJoinsRef.current(); return; }
       if (name === "client_wrote") { readWroteRef.current(); return; }
       if (name === "messages") {
@@ -648,10 +491,6 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       } else if (name === "tasks") {
         const t = record as unknown as Task;
         setTasks((prev) => [t, ...prev.filter((x) => x.id !== t.id)]);
-      } else if (name === "notes") {
-        const n = record as unknown as Note;
-        if ((record as { deleted?: boolean }).deleted) return setNotes((prev) => prev.filter((x) => x.id !== n.id));
-        setNotes((prev) => [...prev.filter((x) => x.id !== n.id), n]);
       } else if (name === "connections") {
         const c = record as unknown as Connection;
         setConnections((prev) => [...prev.filter((x) => x.id !== c.id), { ...prev.find((x) => x.id === c.id), ...c }]);
@@ -678,19 +517,6 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           // Still "being made" until this person's own call opens it, so the highlight never jumps back meanwhile.
           return [...rest, { ...c, local_key: kept?.local_key, pending: kept?.pending ?? false }].sort(byTime);
         });
-      } else if (name === "pages") {
-        const p = record as unknown as Page & { deleted?: boolean };
-        if (p.deleted) { setPages((prev) => prev.filter((x) => x.id !== p.id)); setOpenPage((cur) => (cur === p.id ? null : cur)); return; }
-        setPages((prev) => [p, ...prev.filter((x) => x.id !== p.id)]);
-      } else if (name === "page_versions") {
-        const v = record as unknown as PageVersion;
-        setPageVersions((prev) => [...prev.filter((x) => x.id !== v.id), v]);
-      } else if (name === "page_comments") {
-        const c = record as unknown as PageComment;
-        setPageComments((prev) => [...prev.filter((x) => x.id !== c.id), c]);
-      } else if (name === "page_state") {
-        const v = record as unknown as PageValue;
-        setPageValues((prev) => [...prev.filter((x) => !(x.page_id === v.page_id && x.key === v.key)), v]);
       } else if (name === "decisions") {
         const d = record as unknown as Omit<Decision, "options">;
         if (kind === "INSERT") loadDecision(d.id);
@@ -746,7 +572,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       cancelled = true;
       if (channel) supabase.removeChannel(channel);
     };
-  }, [supabase, table.id, me.id, refreshMembers, loadDecision, catchUp]);
+  }, [supabase, table.id, me.id, refreshMembers, loadDecision, catchUp, applyPage]);
 
   // Each private room this person is in has its own live channel: what is said there never goes over the team's.
   const roomIds = chats.filter((c) => c.private && !c.pending).map((c) => c.id).sort().join(",");
@@ -788,14 +614,6 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     return () => clearInterval(t);
   }, [waitingOnSomething, catchUp]);
 
-  // A clock for the undo countdown, running only while a window is open.
-  const counting = decisions.some((d) => d.status === "decided" && !d.delivered_at && d.deliver_after && new Date(d.deliver_after).getTime() > now - 3000);
-  useEffect(() => {
-    if (!counting) return;
-    const t = setInterval(() => setNow(Date.now() + skew.current), 500);
-    return () => clearInterval(t);
-  }, [counting]);
-
   const items = useMemo(() => {
     const ms = messages.filter((m) => m.chat_id === chat?.id && m.kind !== "view").map((m) => ({ kind: "message" as const, created_at: m.created_at, m }));
     const ds = decisions.filter((d) => d.chat_id === chat?.id).map((d) => ({ kind: "decision" as const, created_at: d.created_at, d }));
@@ -816,14 +634,6 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     });
   }, [items]);
 
-  const pagesByJob = useMemo(() => {
-    const map = new Map<string, Page[]>();
-    for (const p of pages) {
-      const jobs = new Set([p.job_id, ...pageVersions.filter((v) => v.page_id === p.id).map((v) => v.job_id)].filter(Boolean) as string[]);
-      for (const j of jobs) map.set(j, [...(map.get(j) ?? []), p]);
-    }
-    return map;
-  }, [pages, pageVersions]);
   const viewsByRound = useMemo(() => {
     const map = new Map<string, Message[]>();
     for (const m of messages) {
@@ -833,18 +643,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     return map;
   }, [messages]);
 
-  // The back room: the AIs on this chat's request, working or waiting, and those whose part is already in (with the
-  // first words of what they said) while the rest of their round goes on. A recent failure stays a while to be read.
-  const seenJobs = useRef(new Map<string, Job>());
-  const onRequest = working.filter((j) => j.kind !== "listen" && (j.status !== "failed" || Date.now() - new Date(j.created_at).getTime() < 15 * 60 * 1000));
-  for (const j of onRequest) seenJobs.current.set(j.id, j);
-  const liveRounds = new Set(onRequest.filter((j) => j.status !== "failed").map((j) => j.round).filter(Boolean));
-  const backRoom: { j: Job; done: Message | true | null }[] = [
-    ...[...seenJobs.current.values()]
-      .filter((j) => j.chat_id === chat?.id && j.round && liveRounds.has(j.round) && !onRequest.some((l) => l.id === j.id) && j.kind !== "combine" && j.kind !== "plan")
-      .map((j) => ({ j, done: (viewsByRound.get(j.round as string) ?? []).find((v) => v.member_id === j.member_id && (v.meta?.part ?? "view") === (j.kind === "view" ? "view" : j.kind)) ?? (true as const) })),
-    ...onRequest.map((j) => ({ j, done: null })),
-  ].sort((a, b) => a.j.created_at.localeCompare(b.j.created_at));
+  const backRoom = useBackRoom(working, chat?.id, viewsByRound);
 
   // Stay at the bottom while new things arrive, unless someone scrolled up to read. And when the chat comes into
   // view: while another page of the room is showing, the chat is not laid out, so there was no bottom to go to.
@@ -869,7 +668,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   function go(next: View, path: string) {
     setView(next);
     window.history.pushState(null, "", path);
-    setInboxOpen(false);
+    setRightOpen(false);
     setDrawerOpen(false);
   }
   function openPerson(id: string, edit = false) { setEditingMe(edit); setPersonId(id); setDrawerOpen(false); }
@@ -877,7 +676,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   function goHome() {
     setView("table");
     window.history.pushState(null, "", base);
-    setInboxOpen(false);
+    setRightOpen(false);
     setDrawerOpen(false);
   }
 
@@ -886,7 +685,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     setChatId(id);
     atBottom.current = true;
     window.history.pushState(null, "", `${base}?c=${id}`);
-    setInboxOpen(false);
+    setRightOpen(false);
     setDrawerOpen(false);
   }
 
@@ -911,12 +710,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (el) atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   }
 
-  function grow() {
-    const el = inputRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
-  }
+  const grow = () => fitHeight(inputRef.current, 200);
 
   // A message with things attached: they are uploaded first, then the message carries them. One at a time: a second
   // Enter while the first was still on its way sent it all twice. The box is emptied at once, as for any message, so
@@ -1033,48 +827,6 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     else catchUp(true);
   }
 
-  // Their own AI's commands and skills, offered while the box holds only "/" and the start of a name.
-  const slashWord = draft.match(/^\/([A-Za-z0-9:_-]*)$/)?.[1];
-  const slashAll = useMemo(() => {
-    if (!myConnection) return [] as Command[];
-    const own = myCommands.filter((c) => c.kind !== "builtin" || c.about);
-    const have = new Set(own.map((c) => c.name.toLowerCase()));
-    const told = myCommands.filter((c) => c.kind === "builtin" && !c.about).map((c) => c.name);
-    // Claude Code's own names, from this person's connection, and the ones the table knows even before it says.
-    const rest = [...new Set([...(myConnection.kind === "claude" ? Object.keys(SLASH).filter((n) => !CODEX_NAMES.includes(n) || n in CLAUDE_ALSO) : CODEX_NAMES), ...told])].filter((n) => !have.has(n.toLowerCase()))
-      .map((name) => ({ name, about: slashEntry(name, false).about, kind: "builtin" as const }));
-    return [...own, ...rest];
-  }, [myConnection, myCommands]);
-  const runnable = (name: string) => myCommands.some((c) => c.name.toLowerCase() === name.toLowerCase() && (c.kind !== "builtin" || !!c.about));
-  const slash = slashWord === undefined ? [] : slashAll.filter((c) => c.name.toLowerCase().includes(slashWord.toLowerCase()))
-    .sort((x, y) => slashRank(x) - slashRank(y)
-      || Number(y.name.toLowerCase().startsWith(slashWord.toLowerCase())) - Number(x.name.toLowerCase().startsWith(slashWord.toLowerCase())) || x.name.localeCompare(y.name));
-  // Their own first; then the ones their Claude runs here in the table's own words; then the rest of Claude Code's,
-  // which Longtable's screens carry out or explain. Each group under a line saying so.
-  function slashRank(c: Command) { return c.kind !== "builtin" ? 0 : c.about && runnable(c.name) ? 1 : 2; }
-  const slashBuiltAt = slash.findIndex((c) => slashRank(c) === 1);
-  const slashOwnAt = slash.findIndex((c) => slashRank(c) === 2);
-  const slashIndex = Math.min(slashAt, Math.max(0, slash.length - 1));
-  // "@" and the start of a name offers the team's people to ping; picking one sounds a chime for them when it is sent.
-  const atWord = slash.length ? undefined : draft.match(/(?:^|\s)@([\p{L}\p{N}]*)$/u)?.[1];
-  const pingable = members.filter((p) => p.role !== "client" && !p.test && p.id !== me.id);
-  const atList = atWord === undefined ? [] : pingable.filter((p) => firstName(p.display_name).toLowerCase().startsWith(atWord.toLowerCase())
-    || p.display_name.toLowerCase().includes(atWord.toLowerCase())).slice(0, 8);
-  const atIndex = Math.min(slashAt, Math.max(0, atList.length - 1));
-  function pickAt(p: Member) {
-    setSlashAt(0);
-    setDraft((d) => d.replace(/@[\p{L}\p{N}]*$/u, `@${firstName(p.display_name)} `));
-    requestAnimationFrame(() => { grow(); inputRef.current?.focus(); });
-  }
-  function pickSlash(name: string) {
-    setSlashAt(0);
-    const e = slashEntry(name, runnable(name));
-    // Ones that need nothing more are done at once; the rest wait for what comes after the name.
-    if (e.act === "say" || (e.act === "open" && ["ai", "usage", "profile"].includes(e.where))) { setDraft(""); doSlash(`/${name}`); return; }
-    setDraft(`/${name} `);
-    requestAnimationFrame(() => { grow(); inputRef.current?.focus(); });
-  }
-
   // A "/" command that steers this person's own AI or the table's screens is done here and never sent to the chat.
   // True when it was one; a command that runs (theirs, or one the table does in its own words) goes on as a message.
   function doSlash(body: string): boolean {
@@ -1082,7 +834,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (!m || !myConnection) return false;
     const [, name, rest] = m;
     const args = rest.trim();
-    const e = slashEntry(name, runnable(name));
+    const e = slashEntry(name, runsHere(myCommands, name));
     if (e.act === "run") return false;
     if (e.act === "say") { setNotice(e.words); return true; }
     if (e.act === "open") {
@@ -1150,7 +902,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     if (view !== "chat" || !chat || chat.set_up !== false || !canSetUp(chat) || offered.current === chat.id) return;
     offered.current = chat.id;
     setSetupFor(chat);
-  }, [view, chat?.id, chat?.set_up]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [view, chat?.id, chat?.set_up]);
 
   async function renameChat(id: string, name: string) {
     const old = chats.find((c) => c.id === id)?.name;
@@ -1198,7 +950,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const toReview = members.filter((m) => m.role === "client" && m.client_mode === "sandbox")
     .map((m) => ({ m, n: changes.filter((c) => c.member_id === m.id && c.status === "ready" && !c.verdict && !c.test).length })).filter((x) => x.n > 0);
   function openSandbox(id: string) {
-    setSandboxOf(id); setPersonId(null); setDrawerOpen(false); setInboxOpen(false); setView("sandbox");
+    setSandboxOf(id); setPersonId(null); setDrawerOpen(false); setRightOpen(false); setView("sandbox");
     window.history.pushState(null, "", `/t/${table.id}?sandbox=${id}`);
   }
   // The panel on the right is always there beside a chat: work when there is some, and a quiet
@@ -1209,32 +961,17 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     const before = clearedAt;
     const newest = tasks.reduce((m, t) => { const x = t.finished_at ?? t.created_at; return !m || after(x, m) ? x : m; }, clearedAt ?? "");
     if (newest) setClearedAt(newest);
-    setInboxOpen(false);
+    setRightOpen(false);
     const { data, error } = await supabase.rpc("clear_tasks", { t: table.id });
     if (error) { setClearedAt(before); return didNotTake("The finished work was not cleared. Try again."); }
     if (data) setClearedAt(data as string);
   }
   const here = members.filter((m) => online.has(m.id));
-  const open = decisions.filter((d) => d.status === "open").sort(byTime);
-  const decided = decisions
-    .filter((d) => d.status === "decided")
-    .sort((a, b) => (b.decided_at ?? "").localeCompare(a.decided_at ?? ""))
-    .slice(0, 8);
-  const waiting = open.length === 0 ? "Nothing waiting" : `${open.length} waiting for a yes`;
 
   // A decision about a request is told to the person who asked; any other, to every client at the table.
   const toldFor = (d: Decision) => (d.request_id && byId.get(requestById.get(d.request_id)?.member_id ?? "")?.display_name) || clientName;
-  const card = (d: Decision, inInbox: boolean) => (
-    <DecisionCard
-      key={`${inInbox ? "i" : "c"}-${d.id}`}
-      decision={d}
-      chatName={chatById.get(d.chat_id)?.name ?? "Chat"}
-      members={byId}
-      clientName={capital(toldFor(d))}
-      now={now}
-      onOpenChat={inInbox ? () => openChat(d.chat_id) : undefined}
-      onChange={(patch) => patchDecision(d.id, patch)}
-    />
+  const card = (d: Decision) => (
+    <DecisionCard key={`c-${d.id}`} decision={d} members={byId} clientName={capital(toldFor(d))} onChange={(patch) => patchDecision(d.id, patch)} />
   );
 
   // Model choices show at once, and go back if the table did not keep them.
@@ -1327,7 +1064,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   return (
     <div className={`${styles.shell} ${noSide ? styles.shellWide : ""} ${sideAway ? styles.shellNoSide : ""}`} data-live={live || undefined}>
       <header className={styles.header}>
-        <button className={styles.menuToggle} aria-label="Menu" aria-expanded={drawerOpen} data-note={wrote.length > 0 || undefined} onClick={() => { setDrawerOpen(!drawerOpen); setInboxOpen(false); }}>
+        <button className={styles.menuToggle} aria-label="Menu" aria-expanded={drawerOpen} data-note={wrote.length > 0 || undefined} onClick={() => { setDrawerOpen(!drawerOpen); setRightOpen(false); }}>
           <span /><span /><span />
         </button>
         <button className={`${styles.brand} ${view === "table" ? styles.brandOn : ""}`} onClick={goHome} aria-current={view === "table" ? "page" : undefined} data-testid="home"><Mark size={26} /> Longtable</button>
@@ -1341,10 +1078,10 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         </div>
         {/* One plain way to the client's side, there whenever a client is at the table. */}
         {(clients.length > 0 || self.role === "owner") && <button className={`btn btn-quiet ${styles.clientSide}`} onClick={() => go("client", `${base}?side=client`)} data-testid="client-portal">Client side</button>}
-        {!noSide && <button className={`btn btn-quiet ${styles.inboxToggle}`} onClick={() => { setInboxOpen(!inboxOpen); setDrawerOpen(false); }}>
+        {!noSide && <button className={`btn btn-quiet ${styles.rightToggle}`} onClick={() => { setRightOpen(!rightOpen); setDrawerOpen(false); }}>
           {view === "table" ? "Usage" : "Work"}
         </button>}
-        <ProfileMenu me={self} tableId={table.id} onInvite={mayInvite ? () => setInviting(true) : undefined}
+        <ProfileMenu me={self} onInvite={mayInvite ? () => setInviting(true) : undefined}
           onMe={() => openPerson(me.id, true)} onSettings={() => (myConnection ? setAiOf(me.id) : openPerson(me.id, true))}
           ai={myConnection?.kind ?? null} onConnect={() => setConnectOpen(true)} onDisconnect={() => myConnection && disconnect(myConnection.id)}
           tableWord={maySettings ? "Table settings" : "Logs"} onTable={() => { setDrawerOpen(false); if (maySettings) openSettings(); else go("logs", `${base}/activity`); }} />
@@ -1359,7 +1096,6 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           onMouseLeave={() => { if (sideAway) setSidePeek(false); }} data-away={sideAway || undefined}>
           <div className={styles.drawerProject}>{tableName}</div>
           <ChatList chats={chats} activeId={view === "chat" ? chat?.id ?? null : null}
-            waiting={new Set(decisions.filter((d) => d.status === "open").map((d) => d.chat_id))}
             canDelete={(c) => !c.is_general && (self.role === "owner" || c.created_by === me.id)}
             canSetUp={canSetUp} onNew={() => { setNewName(""); setSetupFor("new"); }} onSetUp={(c) => setSetupFor(c)}
             onOpen={openChat} onRename={renameChat} onDelete={deleteChat} />
@@ -1373,7 +1109,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               {[...pages].sort((a, b) => Number(pins.has(b.id)) - Number(pins.has(a.id)) || b.touched_at.localeCompare(a.touched_at)).slice(0, 4).map((p, i) => (
                 <button key={p.id} className={`${styles.chat} ${styles.handout} ${openPage === p.id ? styles.chatActive : ""}`} style={{ "--i": i } as React.CSSProperties}
                   onClick={() => { setOpenPage(p.id); setDrawerOpen(false); }} title={p.about || p.title}>
-                  <span className={styles.handoutIcon}><PageIcon icon={p.icon} size={15} /></span>
+                  <span className={styles.handoutIcon}><PageIcon size={15} /></span>
                   <span className={styles.handoutName}>{p.title}</span>
                 </button>
               ))}
@@ -1451,7 +1187,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         {view === "sandbox" && sandboxOf && byId.get(sandboxOf) && (
           <main className={styles.main}>
             <SandboxReview table={{ id: table.id, name: tableName }} me={self} client={byId.get(sandboxOf)!} box={boxes.current.get(sandboxOf) ?? null}
-              aiOn={connections.some((c) => !c.revoked_at && c.kind === "claude" && byId.get(c.member_id)?.role !== "client" && !!c.last_seen && Date.now() - new Date(c.last_seen).getTime() < 90000)}
+              aiOn={connections.some((c) => isOnline(c) && c.kind === "claude" && byId.get(c.member_id)?.role !== "client")}
               changes={changes} jobs={jobs} onStop={stopJob} links={links} onLinks={setLinks}
               onBox={(b) => { boxes.current.set(b.member_id, { ...(boxes.current.get(b.member_id) ?? { member_id: b.member_id, mode: "chat", branch: "", url: null }), ...b }); setMembers((prev) => [...prev]); }}
               onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) openChat(t.chat_id); else goHome(); }} />
@@ -1516,7 +1252,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               )}
               {items.map((it, at) => {
                 const { follows, held } = runs[at] ?? { follows: false, held: false };
-                if (it.kind === "decision") return card(it.d, false);
+                if (it.kind === "decision") return card(it.d);
                 const m = it.m;
                 return <MessageRow key={m.id} m={m} who={byId.get(m.member_id)} mine={m.member_id === me.id} follows={follows} held={held} supabase={supabase} members={byId}
                   views={m.meta?.round ? viewsByRound.get(m.meta.round) ?? NONE : NONE} pages={m.meta?.job ? pagesByJob.get(m.meta.job) ?? NONE : NONE}
@@ -1532,118 +1268,14 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                   </div>
                 </div>
               )}
-              {backRoom.length > 0 && (
-                // The back room: each AI on this request, what it is on right now, and a tick when its part is in.
-                <div className={styles.backRoom} data-testid="back-room">
-                  <div className={styles.backTitle}>The back room</div>
-                  {backRoom.map(({ j, done }, i) => {
-                    const ai = aiWord(j.member_id);
-                    const name = `${byId.get(j.member_id)?.display_name ?? "Someone"}'s ${ai}`;
-                    const kind = connections.find((c) => !c.revoked_at && c.member_id === j.member_id)?.kind ?? "claude";
-                    const mins = !done && j.status === "running" && j.started_at ? Math.floor((Date.now() - new Date(j.started_at).getTime()) / 60000) : 0;
-                    const stoppable = !done && j.status !== "failed" && (j.kind === "work" || j.kind === "answer" || j.kind === "look");
-                    // What it is on: the verb, then the file or search in a chip ("reading" src/booking/StaffPicker.tsx).
-                    const [verb, ...rest] = (j.progress ?? "").split(" ");
-                    const on = rest.join(" ");
-                    const said = done && done !== true ? (done.body.split(/(?<=[.!?])\s/)[0] ?? "").slice(0, 160) : "";
-                    const waiting = j.kind === "combine" ? (j.status === "waiting" ? "writes the answer once the others are in" : "writing the answer")
-                      : j.kind === "work" ? (j.status === "waiting" ? "starts once the others have had their say" : j.status === "queued" ? "has this next" : (j.stage ?? 0) > 0 ? "fixing what the others found" : "doing the work")
-                      : j.kind === "review" ? (j.status === "running" ? "looking it over" : "will look it over")
-                      : j.kind === "view" ? (j.status === "running" ? "giving its view" : "will give its view")
-                      : j.kind === "intro" ? "reading the project"
-                      : j.status === "running" ? "reading the code"
-                      // Queued behind its other work while its computer is on is "next", not "waiting for its computer".
-                      : connections.some((c) => !c.revoked_at && c.member_id === j.member_id && !!c.last_seen && Date.now() - new Date(c.last_seen).getTime() < 90000) ? "has this next"
-                      : "waiting for its computer";
-                    return (
-                      <div key={j.id} className={styles.brRow} style={{ "--i": i } as React.CSSProperties} data-testid="working" data-done={done ? true : undefined}>
-                        <span className={styles.brAi}><AiLogo kind={kind} size={16} /></span>
-                        <div className={styles.brBody}>
-                          <div className={styles.brWho}><b>{name}</b>{mins >= 1 && <span>{elapsed(mins)}</span>}
-                            {stoppable && <button type="button" className={styles.toolLink} data-testid="stop-job" onClick={() => stopJob(j.id)}>Stop</button>}
-                          </div>
-                          {done ? (said && <div className={styles.brText}>{said}</div>)
-                            : j.status === "failed" ? <div className={`${styles.brText} ${styles.workingFailed}`}>Couldn&apos;t finish: {j.error ?? "it gave up"}</div>
-                            : j.status === "running" ? (
-                              <div className={styles.brReading} key={j.progress ?? ""}><span className={styles.brSpin} />
-                                {/* What it said between steps, in its own words; otherwise what it is doing, with the file in a chip. */}
-                                {j.progress?.startsWith("\"") ? <span className={styles.brSaid} data-testid="said-between">{j.progress.slice(1)}</span>
-                                  : j.progress && on ? <>{verb} <code>{on}</code></> : (j.progress || waiting)}
-                              </div>
-                            )
-                            : <div className={styles.brWaiting}>{waiting}</div>}
-                        </div>
-                        {done && <span className={styles.brTick} aria-label="done">✓</span>}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              {backRoom.length > 0 && <BackRoom entries={backRoom} byId={byId} connections={connections} aiWord={aiWord} onStop={stopJob} />}
             </div>
           </div>
 
           <div className={styles.composerWrap} {...dropHandlers(attach)} hidden={unset}>
             <AttachTray a={attach} />
-            {slash.length > 0 && (
-              <div className={styles.slash} role="listbox" aria-label={`Your ${aiWord(me.id)}'s own commands`} data-testid="slash-menu">
-                {slash.map((c, i) => (
-                  <Fragment key={c.name}>
-                    {i === slashBuiltAt && i > 0 && <div className={styles.slashHead} role="presentation">Built in</div>}
-                    {i === slashOwnAt && i > 0 && <div className={styles.slashHead} role="presentation">Claude Code&apos;s own</div>}
-                    <button type="button" role="option" aria-selected={i === slashIndex} className={`${styles.slashItem} ${i === slashIndex ? styles.slashOn : ""}`} style={{ "--i": i } as React.CSSProperties}
-                      ref={i === slashIndex ? (el) => { el?.scrollIntoView({ block: "nearest" }); } : undefined}
-                      onMouseMove={() => { if (i !== slashIndex) setSlashAt(i); }} onMouseDown={(e) => { e.preventDefault(); pickSlash(c.name); }}>
-                      <b>/{c.name}</b><span>{c.about || (c.kind === "builtin" ? "Built in" : c.kind === "skill" ? "A skill of yours" : "A command of yours")}</span>
-                    </button>
-                  </Fragment>
-                ))}
-              </div>
-            )}
-            {atList.length > 0 && (
-              <div className={styles.slash} role="listbox" aria-label="Ping someone" data-testid="at-menu">
-                {atList.map((p, i) => (
-                  <button key={p.id} type="button" role="option" aria-selected={i === atIndex} className={`${styles.slashItem} ${i === atIndex ? styles.slashOn : ""}`} style={{ "--i": i } as React.CSSProperties}
-                    onMouseMove={() => { if (i !== atIndex) setSlashAt(i); }} onMouseDown={(e) => { e.preventDefault(); pickAt(p); }}>
-                    <b>@{firstName(p.display_name)}</b><span>{p.display_name}{p.role === "owner" ? ", owner" : ""}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            <form className={styles.composer} onSubmit={(e) => { e.preventDefault(); send(); }}>
-              <textarea
-                ref={inputRef}
-                className={styles.input}
-                rows={1}
-                maxLength={8000}
-                value={draft}
-                placeholder={`Message ${chat?.name ?? "the table"}`}
-                aria-label="Message the table"
-                onPaste={(e) => {
-                  const t = e.clipboardData.getData("text/plain");
-                  if (t && (t.length >= 150 || (t.match(/\n/g) || []).length >= 2)) pastedRef.current.push(t);
-                }}
-                onChange={(e) => { setDraft(e.target.value); setSlashAt(0); grow(); }}
-                onKeyDown={(e) => {
-                  // With the list of their own commands open, the arrows move through it and Enter or Tab takes one.
-                  if (slash.length > 0) {
-                    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); return setSlashAt((slashIndex + (e.key === "ArrowDown" ? 1 : slash.length - 1)) % slash.length); }
-                    if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") { e.preventDefault(); return pickSlash(slash[slashIndex].name); }
-                    if (e.key === "Escape") { e.preventDefault(); return setDraft(""); }
-                  }
-                  if (atList.length > 0) {
-                    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); return setSlashAt((atIndex + (e.key === "ArrowDown" ? 1 : atList.length - 1)) % atList.length); }
-                    if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") { e.preventDefault(); return pickAt(atList[atIndex]); }
-                  }
-                  if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                    e.preventDefault();
-                    if (e.ctrlKey || e.metaKey) askTable();
-                    else send();
-                  }
-                }}
-              />
-              <AttachButtons a={attach} />
-              <button className="btn" disabled={(!draft.trim() && attach.pending.length === 0) || attach.busy || attach.recording}>Send</button>
-            </form>
+            <Composer draft={draft} setDraft={setDraft} inputRef={inputRef} grow={grow} attach={attach} myConnection={myConnection} myCommands={myCommands}
+              members={members} me={me} chat={chat} aiWord={aiWord} send={send} askTable={askTable} doSlash={doSlash} pastedRef={pastedRef} />
             <div className={styles.composerTools}>
               {chat?.answers !== "off" && myConnection?.kind === "claude" && myConnection.full_claude && (
                 <ModePick value={myConnection.mode ?? "auto"} onPick={(m) => setMode(myConnection.id, m)} />
@@ -1657,7 +1289,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
               {!notice && chat?.answers === "off" && <span className={styles.notice} data-testid="no-ai">No AI hears this chat.</span>}
               {!notice && chat?.answers !== "off" && self.role !== "client" && (() => {
                 if (!myConnection) return <span className={styles.notice} data-testid="ai-status">Your AI is not connected. <button className={styles.toolLink} onClick={() => setConnectOpen(true)}>Connect your AI</button></span>;
-                const quiet = !myConnection.last_seen || Date.now() - new Date(myConnection.last_seen).getTime() > 90000;
+                const quiet = !isOnline(myConnection);
                 return quiet ? <span className={styles.notice} data-testid="ai-status">Your computer&apos;s connection is off. It rejoins by itself once your computer is awake.</span> : null;
               })()}
             </div>
@@ -1668,14 +1300,14 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
           <ComputerWindows api={computer} local={local} table={table.id} onLost={refreshLocal} onPanes={setShownPanes} />
         )}
         {view === "settings" || view === "logs" || view === "sandbox" ? null : view === "table" ? (
-          <aside className={`${styles.inbox} ${inboxOpen ? styles.inboxOpen : ""}`} aria-label="Usage">
-            <div className={styles.inboxHead}><div className={styles.inboxTitle}>Usage</div></div>
-            <div className={styles.inboxList}>
+          <aside className={`${styles.right} ${rightOpen ? styles.rightOpen : ""}`} aria-label="Usage">
+            <div className={styles.rightHead}><div className={styles.rightTitle}>Usage</div></div>
+            <div className={styles.rightList}>
               <UsagePanel members={members} connections={connections} />
             </div>
           </aside>
         ) : (
-          <WorkPanel review={toReview.map((x) => ({ id: x.m.id, name: firstName(x.m.display_name), n: x.n }))} onReview={openSandbox} tasks={shownTasks} jobs={jobs} members={byId} aiWord={aiWord} open={inboxOpen}
+          <WorkPanel review={toReview.map((x) => ({ id: x.m.id, name: firstName(x.m.display_name), n: x.n }))} onReview={openSandbox} tasks={shownTasks} jobs={jobs} members={byId} aiWord={aiWord} open={rightOpen}
             onOpenChat={(id) => openChat(id)} onClear={clearTasks}
             onStop={stopJob} repo={tableRepo ?? null} />
         )}
@@ -1704,7 +1336,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       {aiOf && byId.get(aiOf) && (() => {
         const all = connections.filter((c) => c.member_id === aiOf);
         const conn = all.find((c) => !c.revoked_at) ?? [...all].sort((a, b) => (b.revoked_at ?? "").localeCompare(a.revoked_at ?? ""))[0] ?? null;
-        const on = !!conn && !conn.revoked_at && !!conn.last_seen && Date.now() - new Date(conn.last_seen).getTime() < 75000;
+        const on = !!conn && isOnline(conn);
         return (
           <AiWindow tableId={table.id} me={self} person={byId.get(aiOf)!} conn={conn} commands={aiOf === me.id ? myCommands : []} on={on} busy={on && jobs.some((j) => j.member_id === aiOf && (j.status === "running" || j.status === "queued"))}
             onClose={() => setAiOf(null)} onConnect={() => setConnectOpen(true)} onDisconnect={disconnect}
@@ -1732,7 +1364,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
         );
       })()}
       {tableOpen && (() => {
-        const onNow = connections.filter((c) => !c.revoked_at && !!c.last_seen && Date.now() - new Date(c.last_seen).getTime() < 75000 && byId.get(c.member_id)?.role !== "client");
+        const onNow = connections.filter((c) => isOnline(c) && byId.get(c.member_id)?.role !== "client");
         const w = onNow.find((c) => c.member_id === table.main_owner) ?? onNow.find((c) => byId.get(c.member_id)?.role === "owner") ?? onNow[0];
         return (
           <TableWindow me={self} tableName={tableName} writer={w && byId.get(w.member_id) ? { person: byId.get(w.member_id)!, conn: w } : null}

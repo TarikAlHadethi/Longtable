@@ -110,7 +110,6 @@ export function SandboxSetup({ table, client, box, aiOn, jobs, changes, ours, on
     const firstSeen = checked.current === null;
     checked.current = box.url;
     if (!firstSeen || !box.checked_at) { setCheck(null); look(); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [box?.url]);
 
   async function tryIt(e: React.FormEvent) {

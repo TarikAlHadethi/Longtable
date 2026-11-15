@@ -6,7 +6,6 @@ export const initialOf = (name: string) => name.trim().charAt(0).toUpperCase() |
 
 export function Face({ who, name }: { who?: Faced | null; name?: string }) {
   if (who?.avatar) {
-    // eslint-disable-next-line @next/next/no-img-element
     return <img className="face-img" src={who.avatar} alt="" draggable={false} />;
   }
   return <>{initialOf(who?.display_name ?? name ?? "")}</>;

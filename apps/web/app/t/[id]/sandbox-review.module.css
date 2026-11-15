@@ -15,7 +15,6 @@
 .hint { font-size: 13.5px; color: var(--muted); line-height: 1.4; margin-top: 5px; overflow-wrap: anywhere; }
 .hint code { font-size: 13px; }
 .termsTitle { font-size: 16px; font-weight: 560; }
-.terms { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 15px; line-height: 1.5; color: var(--ink-2, var(--ink)); }
 .agree { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 560; cursor: pointer; }
 .step { display: flex; gap: 12px; align-items: flex-start; }
 .stepMark { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 560; background: var(--chip); color: var(--muted); margin-top: 1px; }

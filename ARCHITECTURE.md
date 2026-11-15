@@ -40,14 +40,21 @@ The web app is a view over that; a modified page gains nothing.
 `autostart.mjs`).
 
 - `run.mjs`: the main loop. Two lanes claim jobs (`runner_claim(token, lane)`): heavy for work, light for everything
-  else, so long work never blocks listening. Each job kind has its own `work*` function and prompt.
+  else, so long work never blocks listening. Each job kind has its own `work*` function.
+- `prompts.mjs`: every word a model is handed: each kind of job, its system text, its prompt and its schema.
+- `context.mjs`: what a person's own Claude knows on their computer (instructions, memory, recent conversation), laid
+  beside a job for it, and its own notes from earlier work at a table.
+- `copy-guard.mjs`: what a change in a client's copy may never touch, checked on the change itself.
+- `local.mjs`, `bridge.mjs`, `terminal.mjs`: the person's own terminal, served to their page from a process of its
+  own, so nothing the connection does ever holds up what they type.
 - `api.mjs`: every call to the database, all `runner_*` functions, proven with the device token (only its SHA-256 is
   stored).
 - `claude.mjs`, `codex.mjs`: start the person's own Claude Code or Codex headless and read its output.
 - `repo.mjs`: clean copies, worktrees and landing work as one commit on a `longtable/...` branch (`safeBranch` refuses
   any other name, whatever the server says).
 - `fence.mjs`: everything from the table, a file or another AI goes inside a fence it cannot close (`inert`).
-- `pointed.mjs`: opening a path a person pastes, and the never-open list (keys, `.env`, browser profiles, whole drives).
+- `pointed.mjs`: opening a path a person pastes, the never-open list (browser profiles, whole drives) and `isSecretName`,
+  the one list of key and sign-in file names used everywhere.
 - `client-rules.mjs`: every word that decides a client's message. `unit-client-rules` fails if routing words appear
   anywhere else.
 - `approve-server.mjs`: an MCP server that brings Claude Code's permission prompts to the person in Longtable.
@@ -102,11 +109,11 @@ settings do not already allow asked of them first. Teammates' and clients' reque
 
 | You want to change | Start in |
 | --- | --- |
-| The team's room | `apps/web/app/t/[id]/room.tsx`, `room.module.css` |
+| The team's room | `apps/web/app/t/[id]/room.tsx` (state, live updates, views), `composer.tsx`, `message-row.tsx`, `back-room.tsx`, `use-pages.ts`, `room.module.css` |
 | The client's page | `apps/web/app/t/[id]/client-page.tsx` |
 | Settings | `apps/web/app/t/[id]/settings` |
-| What an AI is told | `packages/connect/src/run.mjs` (team), `client-rules.mjs` (client) |
-| Who may see or do something | the newest migration that defines that function or policy (`grep -l "function name" supabase/migrations`, take the last) |
+| What an AI is told | `packages/connect/src/prompts.mjs` (team), `client-rules.mjs` (client) |
+| Who may see or do something | `supabase/schema.sql`, the whole database as the migrations leave it; change it with a new migration |
 | The opening page and demo | `apps/web/app/page.tsx`, `stage.tsx`, `landing-table.tsx` |
 
 [THREAT-MODEL.md](THREAT-MODEL.md) lists every threat, its control and the test that proves it.

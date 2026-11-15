@@ -13,7 +13,7 @@ export type Person = { id: string; display_name: string; role: "owner" | "develo
 
 // One person, a row that opens to what can be done about them: their access, making them a co-owner, taking them
 // off. Nothing is a big button until it is wanted.
-function Row({ p, me, mainOwner, open, label, children }: { p: Person; me: string; mainOwner: string | null; open: boolean; label: string; children?: React.ReactNode }) {
+function Row({ p, me, open, label, children }: { p: Person; me: string; open: boolean; label: string; children?: React.ReactNode }) {
   return (
     <details className={styles.row} open={open || undefined} data-person={p.display_name}>
       <summary className={styles.rowHead}>
@@ -28,8 +28,8 @@ function Row({ p, me, mainOwner, open, label, children }: { p: Person; me: strin
 }
 
 // The team: who owns the table, who may change what, and taking someone off.
-export function PeopleSettings({ tableId, me, mainOwner, myRole, people, focus, onChanged, onRemoved }: {
-  tableId: string; me: string; mainOwner: string | null; myRole: Person["role"]; people: Person[]; focus?: string | null;
+export function PeopleSettings({ me, mainOwner, myRole, people, focus, onChanged, onRemoved }: {
+  me: string; mainOwner: string | null; myRole: Person["role"]; people: Person[]; focus?: string | null;
   onChanged: (id: string, patch: Partial<Person>) => void; onRemoved: (id: string) => void;
 }) {
   const supabase = browserClient();
@@ -99,7 +99,7 @@ export function PeopleSettings({ tableId, me, mainOwner, myRole, people, focus, 
             </>
           );
         }
-        return <Row key={p.id} p={p} me={me} mainOwner={mainOwner} open={focus === p.id} label={label}>{body}</Row>;
+        return <Row key={p.id} p={p} me={me} open={focus === p.id} label={label}>{body}</Row>;
       })}
       <div className="note">Owners can change everything. A developer changes only what you turn on here.</div>
     </section>
@@ -167,7 +167,7 @@ export function ClientSettings({ tableId, me, people, answerers, setAnswerer, sa
       {error && <div className="error" role="alert">{error}</div>}
       {clients.length === 0 && <div className="note">No clients at this table yet. Invite one from your picture&apos;s menu.</div>}
       {clients.map((c) => (
-        <Row key={c.id} p={c} me={me} mainOwner={null} open={focus === c.id} label={c.test ? "Test client" : "Client"}>
+        <Row key={c.id} p={c} me={me} open={focus === c.id} label={c.test ? "Test client" : "Client"}>
           <label className="label" htmlFor={`who-${c.id}`}>Who answers {firstName(c.display_name)}</label>
           <Select id={`who-${c.id}`} value={answerers[c.id] ?? "own"} onChange={(v) => setAnswerer(c.id, v as "own" | "table")}
             options={[{ value: "own", label: "Their own AI when it is on, else the table" }, { value: "table", label: "Always the table" }]} />

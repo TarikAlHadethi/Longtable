@@ -22,7 +22,7 @@
   width: 26px; height: 26px; border-radius: 50%; color: white; font-size: 12px; font-weight: 560;
   display: flex; align-items: center; justify-content: center; border: 2px solid var(--raised); margin-left: -6px;
 }
-.inboxToggle { display: none; padding: 8px 14px; }
+.rightToggle { display: none; padding: 8px 14px; }
 .clientSide { padding: 8px 14px; }
 .clientSideMenu { display: none; align-self: flex-start; margin: 4px 8px; }
 
@@ -53,9 +53,6 @@
 .chat:hover { background: var(--hover); color: var(--ink); }
 .chatActive { background: var(--chip); color: var(--ink); font-weight: 560; }
 .chatName { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.chatDot { width: 7px; height: 7px; border-radius: 50%; background: var(--sage); flex-shrink: 0; }
-.newChat { padding: 4px 0 0; }
-.newChat :global(.field) { padding: 7px 8px; font-size: 15px; }
 .person { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px; }
 /* Between the people working and the clients: a short line that touches neither edge. */
 .peopleRule { height: 1px; background: var(--line-strong); margin: 10px 28px; border-radius: 1px; }
@@ -66,20 +63,14 @@
 .personText { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
 .personName { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .personMeta { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
-.dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .personMeta[data-ai] { gap: 5px; }
 .aiDot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: var(--faint); opacity: 0.7; transition: background-color 0.3s ease; }
 .aiDotOn { background: var(--online); opacity: 1; }
 /* The "#" is part of the name, in its colour and weight, as in the opening page's picture. */
 .chatHash { margin-right: 0.3em; }
-.dotOn { background: var(--online); }
-.dotOff { background: transparent; border: 1.5px solid var(--line-dashed); }
 
 /* Middle: the chat */
 .main { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
-.threadHead { padding: 16px 32px; border-bottom: 1px solid light-dark(oklch(0.92 0.006 80), oklch(0.282 0.006 80)); display: flex; align-items: baseline; gap: 12px; }
-.threadTitle { font-size: 19px; font-weight: 560; letter-spacing: -0.01em; }
-.threadSub { font-size: 14px; color: var(--muted); }
 .scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 20px 32px 24px; scrollbar-width: none; }
 .scroll::-webkit-scrollbar { display: none; }
 .list { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
@@ -146,7 +137,6 @@
 .askWhy { font-size: 14px; line-height: 1.4; color: var(--muted); margin: 0 0 6px; }
 .askWhat { font-size: 14.5px; line-height: 1.45; color: var(--ink-2); background: var(--paper); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; overflow-wrap: anywhere; white-space: pre-wrap; max-height: 220px; overflow-y: auto; }
 .askRow { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
-.askRow .field { flex: 1 1 160px; min-width: 0; }
 .askQuestion { font-size: 15.5px; line-height: 1.45; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
 .askChoices { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 .askChoice { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; white-space: normal; height: auto; padding: 8px 12px; }
@@ -159,7 +149,6 @@
 }
 .cardOrigin:disabled { cursor: default; }
 .cardOrigin:not(:disabled):hover { color: light-dark(oklch(0.35 0.06 170), oklch(0.87 0.06 170)); }
-.cardChat { font-weight: 560; }
 .cardTitle { font-size: 16px; font-weight: 560; line-height: 1.35; margin-bottom: 6px; }
 .cardContext { font-size: 14px; line-height: 1.5; color: light-dark(oklch(0.42 0.01 70), oklch(0.78 0.01 70)); margin-bottom: 14px; }
 .options { display: flex; flex-direction: column; gap: 6px; }
@@ -186,31 +175,13 @@
 .sendRow { display: flex; justify-content: flex-end; margin-top: 10px; animation: lt-rise 0.3s var(--ease-out) both; }
 .after { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
 .afterText { flex: 1; font-size: 13px; line-height: 1.5; color: light-dark(oklch(0.42 0.07 170), oklch(0.8 0.07 170)); }
-.undo {
-  border: 1px solid var(--line-dashed); background: var(--card); border-radius: 7px; padding: 4px 10px;
-  font-size: 13px; font-weight: 560; color: light-dark(oklch(0.3 0.01 70), oklch(0.9 0.01 70)); cursor: pointer;
-}
-.undo:hover { background: light-dark(oklch(0.95 0.006 80), oklch(0.258 0.006 80)); }
 
-/* Right: the inbox */
-.inbox { border-left: 1px solid var(--line); background: light-dark(oklch(0.965 0.006 80), oklch(0.194 0.006 80)); display: flex; flex-direction: column; min-height: 0; }
-.inboxHead { padding: 20px 20px 14px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
-.inboxTitle { font-size: 17px; font-weight: 560; }
-.inboxCount { font-size: 14px; color: light-dark(oklch(0.5 0.01 70), oklch(0.7 0.01 70)); }
-.inboxList { flex: 1; overflow: auto; padding: 0 16px 20px; display: flex; flex-direction: column; gap: 12px; }
-.inboxEmpty { padding: 18px; border-radius: 12px; border: 1px dashed light-dark(oklch(0.84 0.01 80), oklch(0.346 0.01 80)); font-size: 15px; font-weight: 560; }
-.inboxDivider { display: flex; align-items: center; gap: 10px; margin-top: 6px; font-size: 12px; font-weight: 560; letter-spacing: 0.08em; text-transform: uppercase; color: light-dark(oklch(0.48 0.01 70), oklch(0.72 0.01 70)); }
-.rule { flex: 1; height: 1px; background: var(--line-strong); }
+/* Right: work beside a chat, usage beside the table */
+.right { border-left: 1px solid var(--line); background: light-dark(oklch(0.965 0.006 80), oklch(0.194 0.006 80)); display: flex; flex-direction: column; min-height: 0; }
+.rightHead { padding: 20px 20px 14px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.rightTitle { font-size: 17px; font-weight: 560; }
+.rightList { flex: 1; overflow: auto; padding: 0 16px 20px; display: flex; flex-direction: column; gap: 12px; }
 
-/* Invite */
-.invite { position: relative; }
-.popover {
-  position: absolute; right: 0; top: 44px; width: 340px; background: var(--card); border: 1px solid var(--line);
-  border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px;
-  box-shadow: 0 12px 32px oklch(0.2 0.01 70 / 0.12); z-index: 40;
-}
-.popoverTitle { font-size: 15px; font-weight: 560; }
-.roles { display: flex; gap: 8px; }
 .linkBox {
   font-family: var(--font-ui); font-size: 13px; padding: 10px; border-radius: 8px; background: var(--paper);
   border: 1px solid var(--line); overflow-wrap: anywhere;
@@ -235,14 +206,14 @@
 
 @media (max-width: 1180px) {
   .grid { grid-template-columns: var(--side) 1fr; }
-  .inboxToggle { display: inline-flex; }
+  .rightToggle { display: inline-flex; }
   .clientSide { display: none; }
   .clientSideMenu { display: inline-flex; }
-  .inbox {
+  .right {
     display: none; position: fixed; top: 56px; right: 0; bottom: 0; width: min(380px, calc(100vw / var(--zoom))); z-index: 25;
     box-shadow: -12px 0 32px oklch(0.2 0.01 70 / 0.12);
   }
-  .inboxOpen { display: flex; }
+  .rightOpen { display: flex; }
 }
 
 /* On a phone the sidebar is a drawer, opened from the menu button. */
@@ -263,24 +234,11 @@
   }
   .drawerBack { display: block; position: fixed; inset: 56px 0 0 0; background: oklch(0.2 0.01 70 / 0.25); z-index: 29; border: 0; }
   .drawerProject { display: block; font-size: 16px; font-weight: 560; padding: 4px 8px 8px; }
-  .headerSettings { display: none; }
   .project, .divider { display: none; }
   .scroll, .composerWrap, .threadHead { padding-left: 16px; padding-right: 16px; }
-  .popover { width: min(340px, calc(100vw / var(--zoom) - 32px)); }
   .faces { display: none; }
 }
 
-/* Your Claude */
-.claudeStatus { display: flex; align-items: center; gap: 8px; padding: 6px 8px; font-size: 15px; }
-.claudeText { flex: 1; color: var(--ink); font-weight: 500; }
-.connectButton { width: 100%; justify-content: center; padding: 9px 12px; }
-.connectButtons { display: flex; flex-wrap: wrap; gap: 8px; }
-.connectDetails { font-size: 15px; color: var(--muted); }
-.connectDetails summary { cursor: pointer; }
-.connectMessage {
-  white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-ui); font-size: 13px; line-height: 1.5;
-  background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin: 8px 0;
-}
 
 /* Answers from a person's Claude speak in the table's voice */
 /* An AI's words have no box: only people's messages sit in a bubble. */
@@ -294,11 +252,7 @@
 .aiText li::marker { color: var(--muted); }
 .aiText > :last-child { margin-bottom: 0; }
 .aiText strong { font-weight: 600; }
-.readTag { font-family: var(--font-ui); font-size: 12px; color: var(--faint); }
-.working { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); padding-left: 40px; }
 .workingFailed { color: var(--danger); }
-.workingDot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--sage); animation: pulse 1.2s ease-in-out infinite; }
-.workingMark { flex: none; display: inline-grid; place-items: center; }
 /* A reply forming: the word shines across while the table's mark goes round, as a reply forms in Claude. */
 .formingLine { font-size: 15.5px; display: inline-flex; align-items: baseline; gap: 2px; padding-top: 2px;
   background: linear-gradient(90deg, var(--muted) 0%, var(--ink) 50%, var(--muted) 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
@@ -333,8 +287,6 @@
 .viewConfidence { font-weight: 500; color: var(--muted); font-size: 13px; }
 .viewText { font-size: 15px; line-height: 1.5; color: var(--ink-2); }
 
-/* A client's request in the team chat: the design's tinted bubble, its status, and the way to decide it. */
-.clientBubble { background: light-dark(oklch(0.955 0.015 120), oklch(0.254 0.015 120)); padding: 12px 14px; border-radius: 12px; }
 .clientTools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 4px; padding-left: 38px; min-height: 18px; }
 /* A client's words in the team's chat: set like anyone's message, the picture beside the bubble, with what the
    team can do about it underneath. */
@@ -364,18 +316,16 @@
 .modalBack { animation: lt-fade 0.18s ease both; }
 .modal { animation: lt-modal 0.24s var(--ease-out) both; }
 @keyframes lt-modal { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
-.popover { animation: lt-modal 0.18s var(--ease-out) both; transform-origin: top right; }
 .option { transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.12s var(--ease-out), opacity 0.25s ease; }
 .option:not(:disabled):active { transform: scale(0.985); }
 .chat { transition: background-color 0.12s ease, color 0.12s ease; }
 /* Not the sidebar's pictures: an animation would lift each onto its own layer, and the owner's crown has to sit
    behind its picture. */
 .face { animation: lt-pop 0.35s var(--ease-spring) both; }
-.dot { transition: background-color 0.3s ease, border-color 0.3s ease; }
 .source { animation: lt-rise 0.3s var(--ease-out) both; }
 .clientWords { transition: background-color 0.3s ease; }
 .after { animation: lt-rise 0.3s var(--ease-out) both; }
-.inboxOpen { animation: lt-from-right 0.26s var(--ease-out) both; }
+.rightOpen { animation: lt-from-right 0.26s var(--ease-out) both; }
 .asideOpen { animation: lt-from-left 0.26s var(--ease-out) both; }
 .drawerBack { animation: lt-fade 0.2s ease both; }
 @keyframes lt-from-right { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
@@ -426,8 +376,6 @@
 .avatar { position: relative; }
 /* The crown goes behind the picture, and stays above the sidebar's own background. */
 .person { isolation: isolate; }
-.presence { position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--paper); background: var(--faint); }
-.presenceOn { background: var(--online); }
 /* The owner's crown, fitted by hand: its centre 0.453 of a radius left of the picture's centre and 1.005 above,
    0.54 of the picture wide, tilted 24 degrees, behind the picture. All in units of the picture, so it holds at any size. */
 .crown {
@@ -464,7 +412,6 @@
 }
 .chatRow:hover .chatMore, .chatMore:focus-visible, .chatRowMenu .chatMore { opacity: 1; }
 .chatMore:hover, .chatRowMenu .chatMore { background: light-dark(oklch(0.88 0.008 80), oklch(0.34 0.008 80)); color: var(--ink); }
-.chatRow:has(.chatDot) .chatMore { background: var(--paper); }
 /* A chat being deleted folds away; a chat being made shows at once, a touch quieter until it is real. */
 .chatRowOut { animation: chat-out 0.26s var(--ease-out) forwards; overflow: hidden; pointer-events: none; }
 @keyframes chat-out { from { opacity: 1; max-height: 44px; } to { opacity: 0; max-height: 0; transform: translateX(-8px); } }
@@ -500,7 +447,6 @@
 .chatMore { transform: scale(0.85); transition: opacity 0.15s ease, transform 0.15s var(--ease-out), background-color 0.12s ease, color 0.12s ease; }
 .chatRow:hover .chatMore, .chatMore:focus-visible, .chatRowMenu .chatMore { transform: none; }
 .chatMore:active { transform: scale(0.9); }
-.newChat { animation: lt-unfold 0.22s var(--ease-out) both; transform-origin: top; }
 .chatEdit { animation: lt-fade 0.15s ease both; }
 .chatMenu .meItem { transition: background-color 0.12s ease, color 0.12s ease, transform 0.1s var(--ease-out); }
 .chatMenu .meItem:active { transform: scale(0.98); }
@@ -514,7 +460,6 @@
 .personButton:hover { background: var(--hover); }
 .personButton:active { transform: scale(0.985); }
 .personOn { background: var(--chip); }
-.personOn .presence, .personButton:hover .presence { border-color: var(--chip); }
 
 /* Pictures can hold a photo. */
 .face, .messageAvatar, .useFace, .meFace, .meButton { position: relative; }
@@ -565,7 +510,6 @@
 @media (hover: none) { .aiFoot { opacity: 1; transform: none; } }
 .footSources { overflow-wrap: anywhere; }
 .footSources span + span::before { content: ", "; }
-.joinedBody { max-width: 620px; font-size: 16px; color: var(--ink-2); animation: lt-rise 0.2s var(--ease-out) both; }
 
 /* The glass sits above everything while the whole window leans in. */
 .noClient { background: light-dark(#bec9bd, oklch(0.27 0.02 150)); min-height: calc(100vh / var(--zoom)); min-height: calc(100dvh / var(--zoom)); }
@@ -701,7 +645,6 @@
 @container (min-width: 740px) {
   .list > .message, .list > .say:not(.sayMine), .list > .clientSay { margin-left: -40px; }
   .list > .backRoom { margin-left: 0; }
-  .list > .working { padding-left: 0; }
 }
 .inviteForm { display: flex; flex-direction: column; gap: 12px; }
 

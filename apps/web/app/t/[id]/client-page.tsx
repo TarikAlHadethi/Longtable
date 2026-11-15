@@ -17,6 +17,7 @@ import {
 } from "./types";
 import { Face } from "@/components/face";
 import { useLastSeen } from "@/components/last-seen";
+import { fitHeight, useDraft } from "@/components/text-box";
 import { ProfileMenu } from "./profile-menu";
 import { AttachButtons, AttachTray, Files, dropHandlers, useAttach } from "./attach";
 import room from "./room.module.css";
@@ -75,10 +76,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
   const [sandbox, setSandbox] = useState<Sandbox | null>(null);
   const [connectOpen, setConnectOpen] = useState(false);
   const [notice, setNotice] = useState("");
-  const [draft, setDraft] = useState("");
-  // What is typed in the box survives a refresh (after an update, or any other), kept only in this tab.
-  useEffect(() => { try { const kept = sessionStorage.getItem(`lt-draft:${table.id}:client`); if (kept) setDraft((d) => d || kept); } catch {} }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { try { if (draft) sessionStorage.setItem(`lt-draft:${table.id}:client`, draft); else sessionStorage.removeItem(`lt-draft:${table.id}:client`); } catch {} }, [draft]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [draft, setDraft] = useDraft(`lt-draft:${table.id}:client`);
   // What they attach goes into the folder of whoever is really signed in: themselves, or the owner trying their side.
   const attach = useAttach(supabase, table.id, viewer?.uploader ?? me.id);
   useLastSeen(supabase, table.id, false, !viewer);
@@ -144,7 +142,6 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
     }
     await overviewRead;
     setReady(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, table.id, me.id, putUpdates, putLines, !!viewer, !!viewer?.acting, readOverview]);
 
   // Read the database as soon as the page opens. It used to wait for its live channel to say it was ready, so with
@@ -153,7 +150,6 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
     if (!viewer) reload();
     // Opening the page brings their copy up to what the team has shipped (at most hourly, and only with a copy).
     if (!viewer || viewer.acting) supabase.rpc("client_refresh_copy", { t: table.id }).then(({ error }: { error: { message: string } | null }) => { if (error) console.warn(`Their copy was not brought up to date: ${error.message}`); });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Someone on the team reading this chat: what is on a screen in sight counts as read, not what a hidden tab holds.
@@ -174,7 +170,6 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
     reload();
     const t = setInterval(() => { if (document.visibilityState === "visible") reload(); }, viewer.preview ? 30000 : 3000);
     return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!viewer, me.id]);
 
   useEffect(() => {
@@ -216,7 +211,6 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
       cancelled = true;
       for (const ch of channels) supabase.removeChannel(ch);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, table.id, me.id, reload, putRequest, putUpdates, putLines, !!viewer]);
 
   const mine = connections.find((c) => !c.revoked_at);
@@ -264,7 +258,6 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
       document.removeEventListener("visibilitychange", onShow);
       clearInterval(t);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending, thinking, building, reload, !!viewer]);
 
   // One conversation, in the order things happened.
@@ -337,12 +330,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
     reload();
   }
 
-  function grow() {
-    const el = inputRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-  }
+  const grow = () => fitHeight(inputRef.current, 160);
 
   // What they type goes to their copy when they have one, to their own assistant when it is on, and otherwise
   // straight to the team.
@@ -462,7 +450,7 @@ export function ClientPage({ table, me, initialRequests, initialUpdates, initial
         {viewer ? (
           <button className="btn" onClick={viewer.onBack} data-testid={viewer.preview ? undefined : "table-portal"}>Back to the table</button>
         ) : (
-          <ProfileMenu me={{ id: me.id, display_name: me.display_name, role: "client", color: me.color ?? "var(--sage)" }} tableId={table.id}
+          <ProfileMenu me={{ id: me.id, display_name: me.display_name, role: "client", color: me.color ?? "var(--sage)" }}
             ai={mine?.kind ?? null} aiWord="assistant"
             onConnect={sandbox?.on ? undefined : () => setConnectOpen(true)} onDisconnect={sandbox?.on ? undefined : disconnect}
             onDownload={downloadMine} privacy />

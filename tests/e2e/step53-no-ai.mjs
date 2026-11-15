@@ -88,6 +88,16 @@ try {
   check("turning it off again works", ok(await setup(priv, "off")));
   check("turning it off ends the work open in it", openBefore > 0 && sql(`select count(*) from public.jobs where chat_id = '${priv}' and status in ('queued', 'running', 'waiting')`) === "0", { busy: busy.status, openBefore });
   check("turning it off marks everything said there for no AI, for good", sql(`select bool_and(no_ai)::text from public.messages where chat_id = '${priv}'`) === "true");
+  // A round left open there could only end with a job in it, which the room refuses: it must never stop the rounds of
+  // every other chat and table, and its task must not stay "working".
+  check("turning it off stops the task under way in it", sql(`select count(*) from public.tasks where chat_id = '${priv}' and status = 'working'`) === "0");
+  const general2 = (await rpc(tok.maya, "ask_table", { c: general, body: "Rename the settings page please" })).body;
+  sql(`update public.jobs set created_at = now() - interval '2 minutes' where round = '${general2?.round}' and status = 'waiting'`);
+  let warned = "";
+  try { execFileSync("docker", ["exec", "-i", process.env.DB_CONTAINER || "supabase_db_longtable", "psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-c", "select public.advance_rounds()"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }); }
+  catch (e) { warned = String(e.stderr || e.message); }
+  check("rounds elsewhere still move on, with a room turned off in the middle of its work", !warned
+    && (!general2?.round || sql(`select count(*) from public.jobs where round = '${general2.round}' and status = 'waiting'`) === "0"), { warned, round: general2?.round });
   const routed = sqlFails(`update public.tables set client_chat = '${priv}' where id = '${T}'`);
   check("clients' requests can never go to it", /cannot go to a chat no AI hears/.test(routed), routed);
 

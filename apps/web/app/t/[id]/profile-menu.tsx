@@ -12,16 +12,14 @@ import styles from "./room.module.css";
 const ROLE_WORD = { owner: "Owner", developer: "Developer", client: "Client" } as const;
 
 // The person's own menu, behind their picture: invite, settings, the light or dark look, and signing out.
-export function ProfileMenu({ me, tableId, onInvite, ai, aiWord, onConnect, onDisconnect, onMe, onSettings, onLogs, onDownload, privacy, onTable, tableWord }: {
+export function ProfileMenu({ me, onInvite, ai, aiWord, onConnect, onDisconnect, onMe, onSettings, onDownload, privacy, onTable, tableWord }: {
   me: Member;
-  tableId: string;
   onInvite?: () => void;
   ai?: AiKind | null;
   onConnect?: () => void;
   onDisconnect?: () => void;
   onMe?: () => void;
   onSettings?: () => void;
-  onLogs?: () => void;
   // What a client calls theirs: an assistant, not an AI.
   aiWord?: string;
   // For a client: a copy of what is theirs, and the privacy page.

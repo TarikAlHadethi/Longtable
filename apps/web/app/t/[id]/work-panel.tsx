@@ -44,12 +44,12 @@ export function WorkPanel({ review = [], onReview, tasks, jobs, members, aiWord,
     return `${what}${mins >= 1 ? ` · ${elapsed(mins)}` : ""}`;
   };
   return (
-    <aside className={`${styles.inbox} ${open ? styles.inboxOpen : ""}`} aria-label="Work" data-testid="work-panel">
-      <div className={styles.inboxHead}>
-        <div className={styles.inboxTitle}>Work</div>
+    <aside className={`${styles.right} ${open ? styles.rightOpen : ""}`} aria-label="Work" data-testid="work-panel">
+      <div className={styles.rightHead}>
+        <div className={styles.rightTitle}>Work</div>
         {past.length > 0 && <button type="button" className={s.clear} onClick={onClear} data-testid="work-clear">Clear</button>}
       </div>
-      <div className={styles.inboxList}>
+      <div className={styles.rightList}>
         {review.length === 0 && tasks.length === 0 && <div className={s.quiet} data-testid="work-quiet">Nothing is being worked on. Ask for something in the chat and it shows here.</div>}
         {review.map((r) => (
           <button key={r.id} type="button" className={`${s.task} ${s.review}`} onClick={() => onReview?.(r.id)} data-testid="work-review">

@@ -6,7 +6,7 @@ import { Face } from "@/components/face";
 import { Check, Crown, Plus } from "@/components/icons";
 import { Mark } from "@/components/mark";
 import { ModelPick, prettyModel } from "./model-pick";
-import type { Chat, Connection, Job, Member, Message } from "./types";
+import { isOnline, type Chat, type Connection, type Job, type Member, type Message } from "./types";
 import s from "./table-view.module.css";
 
 const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
@@ -14,9 +14,6 @@ export { prettyModel };
 const prettyPlan = (plan?: string | null) => (plan ? `${cap(plan).replace(/_/g, " ")}` : null);
 // Which maker a model name belongs to, for answers written before the table knew.
 export const kindOfModel = (model?: string | null): AiKind => (/gpt|codex|^o\d/i.test(model ?? "") ? "codex" : "claude");
-
-// A connection counts as on while it keeps checking in. After this long without a word, its seat goes quiet.
-const QUIET_MS = 75 * 1000;
 
 // The table's home: who is at the table, the AI each person brought and the model it is running, and how they all
 // meet at the table. Everything hangs from one centred column, so the people always sit squarely over the table.
@@ -58,7 +55,7 @@ export function TableView({ table, me, members, connections, jobs, online, messa
     const all = connections.filter((c) => c.member_id === id);
     const conn = all.find((c) => !c.revoked_at) ?? [...all].sort((a, b) => (b.revoked_at ?? "").localeCompare(a.revoked_at ?? ""))[0];
     if (!conn) return null;
-    const on = !conn.revoked_at && !!conn.last_seen && now - new Date(conn.last_seen).getTime() < QUIET_MS;
+    const on = isOnline(conn, now);
     return { conn, on, removed: !!conn.revoked_at };
   };
   const working = new Set(jobs.filter((j) => j.kind !== "notes" && (j.status === "running" || j.status === "queued" || j.status === "waiting")).map((j) => j.member_id));
