@@ -25,15 +25,16 @@ import { TableView } from "./table-view";
 import { UsagePanel } from "./usage-panel";
 import { WorkPanel } from "./work-panel";
 import {
-  CONNECTION_COLUMNS, DECISION_COLUMNS, JOB_COLUMNS, MEMBER_COLUMNS, MESSAGE_COLUMNS, REQUEST_COLUMNS,
+  DECISION_COLUMNS, MEMBER_COLUMNS, MESSAGE_COLUMNS,
   type Chat, type Command, type Connection, type Decision, type Job, type Member, type Message, type Request,
-  CHANGE_COLUMNS, type SandboxChange, SANDBOX_COLUMNS, type SandboxRow, TASK_COLUMNS, type Task,
+  type SandboxChange, type SandboxRow, type Task,
   APPROVAL_COLUMNS, type Approval, CHAT_COLUMNS, isOnline,
 } from "./types";
 import { ApprovalCards } from "./approvals";
 import { ReconnectWindow } from "./reconnect-window";
 import { ModePick } from "./mode-pick";
 import { usePages } from "./use-pages";
+import { tableReads } from "./reads";
 import { Composer, runsHere } from "./composer";
 import { BackRoom, useBackRoom, useThinking } from "./back-room";
 import { useLocal } from "./computer";
@@ -382,6 +383,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
   const lastFull = useRef(Date.now());
   const lastRare = useRef(Date.now());
   const delivering = useRef(false);
+  const read = useMemo(() => tableReads(supabase, table.id), [supabase, table.id]);
   const catchUp = useCallback(async (light = false) => {
     const mine = ++reads.current;
     const began = performance.now();
@@ -390,15 +392,15 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
     const ask = (go: boolean, read: () => PromiseLike<{ data: unknown }>) => (go ? read() : none);
     if (!light) { readApprovals(); readJoinsRef.current(); readWroteRef.current(); }
     const [{ data: recent }, { data: inFlight }, { data: ds }, { data: rq }, { data: cs }, { data: tk }, { data: sc }, { data: bx }, { data: ch }] = await Promise.all([
-      supabase.from("messages").select(MESSAGE_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(light ? 40 : 100),
-      supabase.from("jobs").select(JOB_COLUMNS).eq("table_id", table.id).in("status", ["queued", "running", "waiting", "failed"]).order("created_at", { ascending: false }).limit(50),
-      ask(!light || delivering.current, () => supabase.from("decisions").select(DECISION_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(100)),
-      ask(!light, () => supabase.from("requests").select(REQUEST_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(200)),
-      ask(!light, () => supabase.from("connections").select(CONNECTION_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(60)),
-      supabase.from("tasks").select(TASK_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(40),
-      ask(!light, () => supabase.from("sandbox_changes").select(CHANGE_COLUMNS).eq("table_id", table.id).order("created_at", { ascending: false }).limit(120)),
-      ask(!light, () => supabase.from("sandboxes").select(SANDBOX_COLUMNS).eq("table_id", table.id)),
-      ask(!light, () => supabase.from("chats").select(CHAT_COLUMNS).eq("table_id", table.id)),
+      read.messages(light ? 40 : 100),
+      read.jobs(),
+      ask(!light || delivering.current, read.decisions),
+      ask(!light, read.requests),
+      ask(!light, read.connections),
+      read.tasks(),
+      ask(!light, read.changes),
+      ask(!light, read.sandboxes),
+      ask(!light, read.chats),
     ]);
     if (mine < shown.current) return;
     if (pushedAt.current > began && retries.current < 3) {
@@ -433,7 +435,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
       readCommands();
       readPages();
     }
-  }, [supabase, table.id, me.id, readCommands, readPages, readApprovals]);
+  }, [supabase, read, me.id, readCommands, readPages, readApprovals]);
 
   const catchUpRef = useRef<((light?: boolean) => void) | null>(null);
   catchUpRef.current = catchUp;
