@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ask, findClaude } from "../../packages/connect/src/claude.mjs";
-import { KINDS, buildPrompt, systemFor } from "../../packages/connect/src/run.mjs";
+import { KINDS, buildPrompt, systemFor } from "../../packages/connect/src/prompts.mjs";
 
 const repo = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const job = JSON.parse(process.argv[2]);

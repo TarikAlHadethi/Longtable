@@ -17,7 +17,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { ask, findClaude } from "../../packages/connect/src/claude.mjs";
-import { CLIENT_LOOK_SYSTEM, clientLookPrompt, clientPrompt, clientSchema, systemFor } from "../../packages/connect/src/run.mjs";
+import { CLIENT_LOOK_SYSTEM, clientLookPrompt, clientPrompt, clientSchema, systemFor } from "../../packages/connect/src/prompts.mjs";
 import { checkClientReply, clientFields, tryAgain } from "../../packages/connect/src/client-rules.mjs";
 import { PASS_FILE, clientFingerprint } from "../../tools/client-gate.mjs";
 

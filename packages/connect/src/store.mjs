@@ -127,3 +127,8 @@ if (existsSync(oldClaudeToken) && !existsSync(defaultClaudeToken)) {
   mkdirSync(join(defaultHome, "secrets"), { recursive: true });
   renameSync(oldClaudeToken, defaultClaudeToken);
 }
+
+// A tripwire: something that should never happen, written to this computer's log in one fixed sentence (never a
+// path, a name or anything from a file) and nothing more. It never stops or changes the job. sweep-notes/rules.md
+// lists each one.
+export function trip(what) { try { log(`tripwire: ${what}`); } catch {} }

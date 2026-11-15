@@ -7,7 +7,8 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir, userInfo } from "node:os";
 import { join, sep } from "node:path";
-import { layPointed, pointedPaths, pointedSystem } from "../../packages/connect/src/pointed.mjs";
+import { isSecretName, layPointed, pointedPaths, pointedSystem, refused } from "../../packages/connect/src/pointed.mjs";
+import { shareable } from "../../packages/connect/src/extras.mjs";
 
 let pass = 0, fail = 0;
 const check = (name, ok, detail) => { if (ok) pass++; else { fail++; console.log(`FAIL ${name} ${JSON.stringify(detail ?? "")}`.slice(0, 500)); } };
@@ -163,6 +164,18 @@ const linkCopied = throughLink.copied.some((c) => existsSync(join(c.at, "elsewhe
 check("reading: a folder with a link inside it is never read where it is, and a copy leaves the link behind", linkMade && throughLink.dirs.length === 0 && !linkCopied, linkMade ? throughLink : "NOT RUN: no link could be made here");
 const changingLink = layPointed(work, pointedPaths(`"${linked}"`), { reading: false });
 check("changing files: a copied folder leaves a link inside it behind", linkMade && changingLink.copied.length === 1 && !existsSync(join(changingLink.copied[0].at, "elsewhere")) && existsSync(join(changingLink.copied[0].at, "a.md")), changingLink);
+
+// One list of secret file names, used for opening, sharing and the type check's working folder alike.
+const secret = [".env", ".env.local", "app.env", ".envrc", ".npmrc", ".pypirc", ".pgpass", ".git-credentials", "id_rsa", "id_ed25519.pub", "credentials", "credentials.json", "credential-prod.yaml", "server.pem", "a.key", "prod.tfvars"];
+const plainNames = [".env.example", ".env.sample", ".env.template", "CredentialsForm.tsx", "use-credentials.ts", "keys.md", "id-card.tsx", "README.md"];
+check("every secret file name is one", secret.every(isSecretName), secret.filter((n) => !isSecretName(n)));
+check("ordinary names that only look close are not", !plainNames.some(isSecretName), plainNames.filter(isSecretName));
+check("a secret name is refused at the end of any path, either slash", refused(String.raw`C:\work\.pypirc`) && refused("/home/a/proj/credentials.json") && !refused("/home/a/proj/src/CredentialsForm.tsx"));
+const sharedDir = join(root, "shared");
+mkdirSync(sharedDir);
+for (const n of ["notes.md", ".npmrc", "credentials.json", "CLAUDE.md", "secret-plan.md"]) writeFileSync(join(sharedDir, n), "some words");
+const sharedNames = shareable({ copied: [{ path: "shared", at: sharedDir }] }).map((f) => f.name);
+check("sharing leaves out secrets and a person's own AI files", sharedNames.some((n) => n.endsWith("notes.md")) && !sharedNames.some((n) => /npmrc|credentials|CLAUDE|secret/.test(n)), sharedNames);
 
 for (const d of [root, work]) rmSync(d, { recursive: true, force: true });
 console.log(`${pass} passed, ${fail} failed`);

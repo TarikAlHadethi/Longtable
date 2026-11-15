@@ -13,7 +13,7 @@ process.env.LONGTABLE_HOME = join(scratch, "home");
 process.env.LONGTABLE_CLAUDE_HOME = join(scratch, "claude");
 mkdirSync(process.env.LONGTABLE_HOME, { recursive: true });
 const S = await import("../../packages/connect/src/sessions.mjs");
-const { recentSession, sessionOnDisk } = await import("../../packages/connect/src/run.mjs");
+const { recentSession, sessionOnDisk } = await import("../../packages/connect/src/context.mjs");
 
 const results = {};
 const check = (name, ok, detail) => { results[name] = ok ? "pass" : `FAIL ${JSON.stringify(detail ?? "").slice(0, 400)}`; };
@@ -74,7 +74,7 @@ try {
 
   // Their own Claude Code at work in the same folder right now (a session written to in the last two minutes, not a
   // table's): said, never stopped.
-  const { folderBusy } = await import("../../packages/connect/src/run.mjs");
+  const { folderBusy } = await import("../../packages/connect/src/context.mjs");
   const { utimesSync } = await import("node:fs");
   const old = new Date(Date.now() - 10 * 60 * 1000);
   utimesSync(join(projectDir, "mine.jsonl"), old, old);
@@ -83,7 +83,7 @@ try {
   check("a folder their own Claude Code is at work in is busy", folderBusy(folder) === true);
   check("a folder Claude Code never ran in is not busy", folderBusy(join(scratch, "nowhere")) === false);
   // Afterwards, the note that both changed files is said only if one of their own sessions was written to meanwhile.
-  const { folderSessions, sessionsGrew } = await import("../../packages/connect/src/run.mjs");
+  const { folderSessions, sessionsGrew } = await import("../../packages/connect/src/context.mjs");
   const { appendFileSync } = await import("node:fs");
   const before = folderSessions(folder);
   check("their sessions are known, never the table's", before.has("mine.jsonl") && !before.has(`${id}.jsonl`));

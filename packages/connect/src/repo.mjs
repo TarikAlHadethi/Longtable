@@ -447,7 +447,7 @@ export function landWork(tableId, work, branch, message, who) {
   try { safeBranch(side); } catch { try { log("tripwire: a side branch came out longer than the connection's own branch rule"); } catch {} }
   if (push(commit, side)) return { files, commit: commit.slice(0, 7), sha: commit, pushed: true, branch: side, apart: true };
   // Nothing could be pushed. Keep the commit findable on this computer, so the work is not lost with the folder.
-  try { git(["--git-dir", p.G, "update-ref", `refs/longtable/${branch.slice(10)}`, commit]); } catch {}
+  try { git(["--git-dir", p.G, "update-ref", `refs/longtable/${branch.slice(10)}`, commit]); } catch (e) { log(`work that could not be pushed could not be kept either: ${e.message}`); }
   return { files, commit: commit.slice(0, 7), pushed: false, branch };
 }
 

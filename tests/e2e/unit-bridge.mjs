@@ -9,7 +9,8 @@ import { request } from "node:http";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { startBridge, fromPage, keyOk, bridgeKey } from "../../packages/connect/src/local.mjs";
+import { spawn } from "node:child_process";
+import { forkBridge, startBridge, fromPage, keyOk, bridgeKey } from "../../packages/connect/src/local.mjs";
 import { shellFor, termEnv } from "../../packages/connect/src/terminal.mjs";
 
 const results = {};
@@ -125,6 +126,29 @@ check("closing a terminal's tab ends that shell only", after.map((x) => x.id).jo
 check("a terminal name that is not one is refused", (await raw(`/term${t(mine)}&id=..%2Fx`, { method: "POST", key: mine.local.key, body: { data: "x" } })).status === 500);
 
 bridge.close();
+await sleep(500);
+
+// The bridge in a process of its own, as the connection runs it: closed until the connection says a table is allowed,
+// and still answering while the connection itself is busy (a git fetch blocks the connection's own process).
+const forked = await forkBridge({ app: APP, seats: [{ ...mine, local: { key: mine.local.key } }], home: scratch });
+const fraw = (key) => new Promise((done) => {
+  const req = request({ host: "127.0.0.1", port: forked.port, path: `/terms${t(mine)}`, headers: { Host: `127.0.0.1:${forked.port}`, Origin: APP, Authorization: `Bearer ${key}` } }, (res) => { res.resume(); res.on("end", () => done(res.statusCode)); });
+  req.on("error", () => done(0));
+  req.end();
+});
+check("the bridge's own process serves nothing before the connection allows it", (await fraw(mine.local.key)) === 401);
+forked.allow(mine.table_id, true);
+check("and serves the table once allowed", await until(async () => (await fraw(mine.local.key)) === 200, 5000));
+// Another program asks half a second in, while this process is held up for two and a half seconds.
+const asker = spawn(process.execPath, ["-e", `setTimeout(()=>{const s=Date.now();require("http").get({host:"127.0.0.1",port:${forked.port},path:"/terms${t(mine)}",headers:{Host:"127.0.0.1:${forked.port}",Origin:"${APP}",Authorization:"Bearer ${mine.local.key}"}},(r)=>{r.resume();r.on("end",()=>console.log(r.statusCode,Date.now()-s))})},500)`], { stdio: ["ignore", "pipe", "ignore"] });
+let answer = "";
+asker.stdout.on("data", (d) => { answer += d; });
+const askerDone = new Promise((r) => asker.on("exit", r));
+Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2500); // held up, as the connection is by a slow git fetch
+await askerDone;
+const [code, took] = answer.trim().split(" ").map(Number);
+check("the terminal answers while the connection's own process is held up", code === 200 && took < 1000, answer);
+forked.close();
 await sleep(500);
 try { rmSync(scratch, { recursive: true, force: true }); } catch {}
 

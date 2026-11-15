@@ -1,6 +1,8 @@
+import { fork } from "node:child_process";
 import { createServer } from "node:http";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { release } from "node:os";
+import { fileURLToPath } from "node:url";
 import { Terminal } from "./terminal.mjs";
 
 // The bridge: a small server on this computer only (127.0.0.1), which the person's own Longtable page reaches
@@ -24,6 +26,27 @@ export function fromPage({ host, origin }, { port, app }) {
 }
 // And carrying the table's key.
 export const keyOk = (auth, key) => !!key && same(String(auth || "").replace(/^Bearer /, ""), key);
+
+// The bridge in a process of its own (bridge.mjs), so nothing the connection does in its own process (a git fetch,
+// listing processes) ever holds up what the person types. It is told each table's key at start and whether this
+// computer may serve that table after; it ends with the connection. Resolves to { port, allow(table, on), close }.
+export function forkBridge({ app, seats, home }) {
+  return new Promise((ok, fail) => {
+    const child = fork(fileURLToPath(new URL("./bridge.mjs", import.meta.url)), [], { stdio: ["ignore", "ignore", "ignore", "ipc"], windowsHide: true });
+    child.once("error", fail);
+    child.once("exit", (code) => fail(new Error(`the bridge stopped as it started (${code})`)));
+    child.once("message", (m) => {
+      if (!m?.port) return fail(new Error(m?.error || "the bridge did not say where it listens"));
+      ok({
+        port: m.port,
+        child,
+        allow: (table, on) => { if (child.connected) child.send({ allow: { table, on } }); },
+        close: () => { try { child.kill(); } catch { /* gone already */ } },
+      });
+    });
+    child.send({ start: { app, home, seats: seats.map((s) => ({ table_id: s.table_id, terminalFolder: s.terminalFolder, local: { key: s.local.key, allowed: false } })) } });
+  });
+}
 
 export function startBridge({ app, seats, home, log }) {
   const origin = new URL(app).origin;

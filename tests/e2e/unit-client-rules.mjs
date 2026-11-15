@@ -2,7 +2,7 @@
 // keeps every client rule in that one file. No model, no database.
 import { readFileSync } from "node:fs";
 import { PASS_REASONS, checkClientReply, clientFields, passReasons } from "../../packages/connect/src/client-rules.mjs";
-import { clientLookPrompt, clientPrompt, sandboxSystem, systemFor } from "../../packages/connect/src/run.mjs";
+import { clientLookPrompt, clientPrompt, sandboxSystem, systemFor } from "../../packages/connect/src/prompts.mjs";
 
 let failed = 0;
 const check = (name, ok, got) => { console.log(`${ok ? "pass" : "FAIL"}  ${name}`); if (!ok) { failed++; if (got !== undefined) console.log("      got:", JSON.stringify(got).slice(0, 400)); } };
@@ -78,10 +78,10 @@ check("asked whether it is ready, every prompt says the go-ahead is the team's",
 check("a copy passing something on never says it will be built", ((p) => !/will see it here when it is done/.test(p) && /never say it will be built/.test(p))(sandboxSystem({ client: "Elena", table_name: "Kit Room" })));
 
 // One rulebook: no other source file words a client's routing
-const run = readFileSync(new URL("../../packages/connect/src/run.mjs", import.meta.url), "utf8");
+const run = readFileSync(new URL("../../packages/connect/src/prompts.mjs", import.meta.url), "utf8");
 const clientPart = run.slice(run.indexOf("export function systemFor"), run.indexOf("if (job.packed)", run.indexOf("export function systemFor")))
   + run.slice(run.indexOf("export function clientLookPrompt"), run.indexOf("export const CLIENT_LOOK_SYSTEM"));
-check("run.mjs words no client routing of its own", !/pass_on|pass it on|passed it on|team has/i.test(clientPart), clientPart.match(/.{40}(pass_on|pass it on|team has).{40}/i)?.[0]);
+check("prompts.mjs words no client routing of its own", !/pass_on|pass it on|passed it on|team has/i.test(clientPart), clientPart.match(/.{40}(pass_on|pass it on|team has).{40}/i)?.[0]);
 
 console.log(`\n${failed ? `${failed} failed` : "all passed"}`);
 process.exit(failed ? 1 : 0);

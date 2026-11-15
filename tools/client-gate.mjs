@@ -11,7 +11,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const PASS_FILE = join(root, "tmp", "probe-client-pass.json");
 
 export async function clientFingerprint() {
-  const { clientLookPrompt, clientPrompt, clientSchema, sandboxSystem, systemFor } = await import("../packages/connect/src/run.mjs");
+  const { clientLookPrompt, clientPrompt, clientSchema, sandboxSystem, systemFor } = await import("../packages/connect/src/prompts.mjs");
   const { clientFields } = await import("../packages/connect/src/client-rules.mjs");
   const base = { kind: "client", table_name: "T", me: "C", question: "Q", requests: [{ title: "R", status: "asked", timeline: ["You asked"] }],
     told: [{ words: "W" }], work: [{ title: "K", status: "done" }], history: [{ who: "client", body: "H" }] };

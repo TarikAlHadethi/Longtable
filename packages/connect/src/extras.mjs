@@ -1,15 +1,16 @@
 // Three things a job can carry besides the conversation: the person's own commands and skills ("/" at the table),
 // what was attached to the messages, and what another person's AI shared from their own computer.
 
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { cut, hideSecrets } from "./store.mjs";
 import { inert } from "./fence.mjs";
+import { isSecretName } from "./pointed.mjs";
 
 const NL = String.fromCharCode(10);
-const claudeHome = () => process.env.LONGTABLE_CLAUDE_HOME || join(homedir(), ".claude");
+export const claudeHome = () => process.env.LONGTABLE_CLAUDE_HOME || join(homedir(), ".claude");
 const codexHome = () => process.env.LONGTABLE_CODEX_HOME || process.env.CODEX_HOME || join(homedir(), ".codex");
 const folderOf = (seat) => {
   if (seat.folder) return seat.folder;
@@ -239,7 +240,7 @@ function textFiles(dir, depth) {
   for (const e of list) {
     if (e.name === "node_modules" || e.name === ".git" || PRIVATE_DIR.test(e.name)) continue;
     const p = join(dir, e.name);
-    if (e.isFile() && TEXTISH.test(e.name) && !PRIVATE_FILE.test(e.name)) here.push(p);
+    if (e.isFile() && TEXTISH.test(e.name) && !isPrivate(e.name)) here.push(p);
     else if (e.isDirectory() && depth > 0) below.push(...textFiles(p, depth - 1));
   }
   return [...here.sort(), ...below];
@@ -248,7 +249,8 @@ function textFiles(dir, depth) {
 // What is never handed to another person's AI from a folder someone pointed at, even with sharing on: their own
 // Claude's instructions and settings, AI tool settings that carry keys, and anything shaped like a secrets file.
 const PRIVATE_DIR = /^\.(claude|codex|cursor|vscode|idea|aws|ssh|gnupg|docker|kube|config)$/i;
-const PRIVATE_FILE = /^(claude(\.local)?\.md|agents\.md|\.mcp\.json|mcp\.json|.*settings.*\.json|\.env.*|.*secret.*|.*credential.*|.*\.pem|.*\.key|\.npmrc|\.netrc|\.pypirc|id_[a-z0-9]+)$/i;
+const PRIVATE_FILE = /^(claude(\.local)?\.md|agents\.md|\.mcp\.json|mcp\.json|.*settings.*\.json|\.env.*|.*secret.*|.*credential.*)$/i;
+const isPrivate = (name) => PRIVATE_FILE.test(name) || isSecretName(name);
 
 // The text of what was pointed at, for the other AIs: text files only, small, a few, keys hidden.
 export function shareable(laid) {
@@ -257,7 +259,7 @@ export function shareable(laid) {
   const take = (name, file) => {
     if (out.length >= 8) return;
     try {
-      if (PRIVATE_FILE.test(basename(file))) return;
+      if (isPrivate(basename(file))) return;
       const st = statSync(file);
       if (!st.isFile() || st.size > 110000) return;
       const text = readFileSync(file, "utf8");

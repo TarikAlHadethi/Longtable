@@ -9,10 +9,9 @@
 import { execFile, execFileSync } from "node:child_process";
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, rmdirSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { isSecretName } from "./pointed.mjs";
 
 const win = process.platform === "win32";
-// Never linked or copied into a working folder, whatever git ignores.
-const SECRET = /(^|\/)(\.env[^/]*|.*\.(pem|key|p12|pfx)|id_[a-z0-9]+|\.npmrc|\.netrc|credentials[^/]*)(\/|$)/i;
 
 export function tscOf(folder) {
   const tsc = folder ? join(folder, "node_modules", "typescript", "bin", "tsc") : null;
@@ -34,7 +33,8 @@ export function mirrorIgnored(dir, folder) {
   for (const raw of list) {
     const isDir = raw.endsWith("/");
     const p = raw.replace(/\/$/, "");
-    if (!p || p.startsWith("..") || SECRET.test(p) || p.split("/").includes(".git")) continue;
+    // Never a key or sign-in file, whatever git ignores.
+    if (!p || p.startsWith("..") || p.split("/").some(isSecretName) || p.split("/").includes(".git")) continue;
     const at = join(dir, ...p.split("/"));
     if (existsSync(at) || !existsSync(dirname(at))) continue;
     try {

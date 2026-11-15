@@ -8,6 +8,9 @@
 import http from "node:http";
 import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
+// The package's only two dependencies, used only here, at connect (bin/longtable.mjs loads this file then): they come
+// with the npx run that connects. The copy that keeps itself up to date (update.mjs) carries no node_modules, so
+// nothing that runs after connecting may import a package; the terminal fetches its own (pty.mjs).
 import pty from "@lydell/node-pty";
 import headless from "@xterm/headless";
 import { childEnv, tokenWorks } from "./claude.mjs";

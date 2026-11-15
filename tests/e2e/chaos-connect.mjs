@@ -23,7 +23,8 @@ process.env.LONGTABLE_HOME = join(scratch, "deep", "a", "b", "c", "d", "e", "hom
 process.env.LONGTABLE_CLAUDE_HOME = join(scratch, "claude");
 mkdirSync(process.env.LONGTABLE_HOME, { recursive: true });
 mkdirSync(join(scratch, "user"), { recursive: true });
-const run = await import("../../packages/connect/src/run.mjs");
+const run = { ...(await import("../../packages/connect/src/run.mjs")), ...(await import("../../packages/connect/src/prompts.mjs")),
+  ...(await import("../../packages/connect/src/context.mjs")), ...(await import("../../packages/connect/src/fence.mjs")), ...(await import("../../packages/connect/src/store.mjs")) };
 const { hideSecrets } = await import("../../packages/connect/src/store.mjs");
 const { childEnv, lineReader } = await import("../../packages/connect/src/claude.mjs");
 const { safeBranch, workBranch } = await import("../../packages/connect/src/repo.mjs");

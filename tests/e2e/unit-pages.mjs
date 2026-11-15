@@ -4,7 +4,7 @@
 
 import { FRAME_POLICY, FRAME_SANDBOX, frameDoc } from "../../apps/web/lib/page-frame.mjs";
 import { PAGE, PAGE_KINDS, pageOut, pagesPrompt } from "../../packages/connect/src/pages.mjs";
-import { KINDS } from "../../packages/connect/src/run.mjs";
+import { KINDS } from "../../packages/connect/src/prompts.mjs";
 
 const results = {};
 const check = (name, ok, detail) => { results[name] = ok ? "pass" : `FAIL ${JSON.stringify(detail ?? "").slice(0, 300)}`; };

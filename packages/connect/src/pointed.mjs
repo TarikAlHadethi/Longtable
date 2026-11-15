@@ -7,24 +7,22 @@ import { copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, re
 import { homedir } from "node:os";
 import { basename, isAbsolute, join, parse, resolve, sep } from "node:path";
 
-// Keys, passwords, sign-ins and browser profiles. A path is checked as written and as it really is on disk.
+// A file whose name says it holds keys, passwords or sign-ins, wherever it sits. The one list: never opened from the
+// table here, never shared with another AI (extras.mjs), never linked into a working folder (typecheck.mjs). A .env and
+// every kind of it (.env.local, .env.production), but not the example a project keeps to show which settings it wants:
+// .env.example, .env.sample and .env.template hold names, not values, and nearly every project has one.
+const SECRET_NAME = /^(\.env(\.(?!(example|sample|template)$)[\w.-]+)?|.+\.env|\.envrc|\.(npmrc|netrc|pypirc|pgpass|git-credentials)|id_[a-z0-9]+(\.pub)?|credentials?([._-][\w.-]*)?|.*\.(pem|key|pfx|p12|kdbx|keystore|jks|ovpn|tfvars|tfstate))$/i;
+export const isSecretName = (name) => SECRET_NAME.test(String(name));
+const lastPart = (p) => String(p).split(/[\\/]/).filter(Boolean).pop() || "";
+
+// Folders of keys, passwords, sign-ins and browser profiles. A path is checked as written and as it really is on disk.
 const NEVER = [
   /(^|[\\/])\.(ssh|gnupg|aws|azure|kube|docker|password-store)([\\/]|$)/i,
   /(^|[\\/])\.longtable([\\/]|$)/i,
   /(^|[\\/])\.claude[\\/]\.credentials/i,
   /(^|[\\/])\.codex[\\/]auth/i,
-  // A .env and every kind of it (.env.local, .env.production), but not the example a project keeps to show which
-  // settings it wants: .env.example, .env.sample and .env.template hold names, not values, and nearly every project
-  // has one.
-  /(^|[\\/])\.env(\.(?!(example|sample|template)$)[\w.-]+)?$/i,
-  /\.env$/i,
-  /(^|[\\/])\.envrc$/i,
-  /\.(tfvars|tfstate)$/i,
   /[\\/]\.config[\\/](gcloud|gh|google-chrome|chromium|BraveSoftware)([\\/]|$)/i,
   /(^|[\\/])\.mozilla([\\/]|$)/i,
-  /(^|[\\/])\.(npmrc|netrc|pgpass|git-credentials)$/i,
-  /\.(pem|key|pfx|p12|kdbx|keystore|jks|ovpn)$/i,
-  /(^|[\\/])id_(rsa|dsa|ed25519|ecdsa)(\.pub)?$/i,
   /[\\/](Login Data|Cookies|Web Data|Local State|key[34]\.db|logins\.json)$/i,
   /[\\/]AppData[\\/](Local|Roaming)[\\/](Google|BraveSoftware|Mozilla|Opera Software|Microsoft[\\/]Edge|Microsoft[\\/]Credentials|Microsoft[\\/]Protect)([\\/]|$)/i,
   /[\\/]Library[\\/](Keychains|Application Support[\\/](Google|BraveSoftware|Firefox))([\\/]|$)/i,
@@ -32,7 +30,7 @@ const NEVER = [
 ];
 // On Windows a colon after the drive names one of a file's streams (".env::$DATA" reads the .env itself), and no
 // ordinary file name holds one there, so a path with one is never opened.
-export const refused = (p) => NEVER.some((r) => r.test(p)) || (process.platform === "win32" && String(p).replace(/^(\\\\[?.]\\)?[A-Za-z]:/, "").includes(":"));
+export const refused = (p) => NEVER.some((r) => r.test(p)) || isSecretName(lastPart(p)) || (process.platform === "win32" && String(p).replace(/^(\\\\[?.]\\)?[A-Za-z]:/, "").includes(":"));
 const isLink = (p) => { try { return lstatSync(p).isSymbolicLink(); } catch { return true; } };
 // A whole drive, a whole home folder or the system's own folders are not "a place someone pointed at".
 function tooWide(p) {

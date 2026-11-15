@@ -7,7 +7,7 @@ import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { ask, findClaude } from "../../packages/connect/src/claude.mjs";
-import { KINDS, listenPrompt, listenSystem } from "../../packages/connect/src/run.mjs";
+import { KINDS, listenPrompt, listenSystem } from "../../packages/connect/src/prompts.mjs";
 
 const empty = join(homedir(), ".longtable", "empty");
 mkdirSync(empty, { recursive: true });
