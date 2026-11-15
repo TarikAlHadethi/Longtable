@@ -70,8 +70,8 @@ Testing is the part of this project with the most care in it.
 - **CI on every push** (`.github/workflows/checks.yml`): type checks, the house rules, and the unit suites on Ubuntu
   (Node 20 and 22), macOS and Windows. A separate job proves the connection starts with the computer on a real Mac
   (launchd) and real Linux (systemd), restarts after an update, and is removed cleanly.
-- **Chaos tests**: `chaos-connect` throws hundreds of thousands of random inputs at the connection on every push and
-  checks around sixty "always true" rules after each step; `chaos-db` plays random sequences against the database with
+- **Chaos tests**: `chaos/connect` throws hundreds of thousands of random inputs at the connection on every push and
+  checks around sixty "always true" rules after each step; `chaos/db` plays random sequences against the database with
   two people acting at once and time jumping ahead.
 - **A weekly database suite** (`database.yml`) starts a fresh Supabase inside the job and runs every browser and
   database suite: the client wall, one table never reading another, invites, decisions, handouts, the access sweep.
@@ -94,7 +94,7 @@ The app is at http://localhost:3000, and sign-in codes arrive in the local mail 
 Copy `apps/web/.env.example` to `apps/web/.env.local` and fill it from `npx supabase status`.
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) is the map of the code; [CONTRIBUTING.md](CONTRIBUTING.md) lists the tests.
-- `node tests/e2e/<suite>.mjs` runs one suite; the unit suites need no database and no AI.
+- `node tests/<folder>/<suite>.mjs` runs one suite; the unit suites need no database and no AI.
 - The real-model suites need Claude Code (or Codex) signed in on the computer.
 - To be the operator of your own Longtable, add your email in SQL:
   `insert into public.operators (email) values ('you@example.com');`
@@ -105,8 +105,9 @@ Copy `apps/web/.env.example` to `apps/web/.env.local` and fill it from `npx supa
 | --- | --- |
 | `apps/web` | The Next.js app: the room, the client page, settings, the opening page and demo |
 | `packages/connect` | The background connection, published to npm as `longtable` |
-| `supabase/migrations` | The schema, row level security and every server function |
-| `tests/e2e` | Browser, database, chaos and real-model suites |
+| `supabase/migrations` | Every change to the database, in order: the only thing ever applied |
+| `supabase/schema.sql` | The whole database as the migrations leave it: tables, row level security, every function |
+| `tests` | Suites by what they need: `unit`, `db` (browser and database), `ai` (a real model), `look`, `local`, `chaos` |
 | `tests/evals` | Behaviour checks on the AIs themselves (pytest) |
 
 ## License

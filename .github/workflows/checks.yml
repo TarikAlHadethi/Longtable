@@ -1,6 +1,6 @@
 # On every push: the web app's types, the checks that need no database and no AI, the repo's standing rules, and
-# a build. The end-to-end tests need a local Supabase and Chrome: the free ones run weekly in database.yml, the
-# rest on a developer's computer (npm run test:e2e). No secrets are used here and nothing is deployed.
+# a build. The suites in tests/db need a local Supabase and Chrome and run weekly in database.yml; those in tests/ai
+# need a real model and run on a developer's computer. No secrets are used here and nothing is deployed.
 name: checks
 
 on:
@@ -41,26 +41,8 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: npm ci
       - run: node tools/house-rules.mjs
-      - run: node tests/e2e/unit-scan.mjs
-      - run: node tests/e2e/unit-prompts.mjs
-      - run: node tests/e2e/unit-client-rules.mjs
-      - run: node tests/e2e/unit-pointed.mjs
-      - run: node tests/e2e/unit-land.mjs
-      - run: node tests/e2e/unit-report.mjs
-      - run: node tests/e2e/unit-pages.mjs
-      - run: node tests/e2e/unit-slash.mjs
-      - run: node tests/e2e/unit-update.mjs
-      - run: node tests/e2e/unit-connection.mjs
-      - run: node tests/e2e/unit-approve.mjs
-      - run: node tests/e2e/unit-sessions.mjs
-      - run: node tests/e2e/unit-procs.mjs
-      - run: node tests/e2e/unit-inbox.mjs
-      - run: node tests/e2e/unit-links.mjs
-      - run: node tests/e2e/unit-copy-words.mjs
-      - run: node tests/e2e/unit-signed-in.mjs
-      - run: node tests/e2e/unit-typecheck.mjs
-      - run: node tests/e2e/unit-bridge.mjs
-      - run: node tests/e2e/chaos-connect.mjs
+      - run: node tools/suites.mjs unit
+      - run: node tests/chaos/connect.mjs
 
   # The connection starting at login and starting again after an update, for real, on a Mac (launchd) and on Linux
   # (systemd). These machines are thrown away afterwards; the test refuses to run anywhere else.
@@ -84,7 +66,7 @@ jobs:
           for i in $(seq 1 20); do [ -S "/run/user/$(id -u)/bus" ] && break; sleep 1; done
           echo "XDG_RUNTIME_DIR=/run/user/$(id -u)" >> "$GITHUB_ENV"
           echo "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus" >> "$GITHUB_ENV"
-      - run: node tests/e2e/os-autostart.mjs
+      - run: node tests/local/os-autostart.mjs
 
   # The connection's chaos checks over many more seeded random inputs (a few minutes). No AI, no network.
   chaos:
@@ -96,7 +78,7 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      - run: node tests/e2e/chaos-connect.mjs
+      - run: node tests/chaos/connect.mjs
         env:
           CHAOS_FULL: "1"
 

@@ -31,15 +31,21 @@ on npm.
 
 ## Tests
 
-| Kind | Files | Needs | Cost |
-| --- | --- | --- | --- |
-| Unit | `tests/e2e/unit-*.mjs`, `chaos-connect.mjs` | nothing | free, seconds |
-| Database and browser | most `step*.mjs`, `sim-rounds.mjs`, `look-*.mjs` | the local stack, `npm run dev`, Chrome | free |
-| Real model | `step3`, `step4`, `step12` to `step18`, `step21`, `step36`, `step42`, `probe-*.mjs` and others that connect an AI | Claude Code or Codex signed in | a little of your own plan |
+A suite's folder says what it needs, and the folder is the list: put a new suite in the right one and it runs.
 
-- Run one with `node --experimental-websocket tests/e2e/<suite>.mjs` (the flag is needed on Node 20).
-- The list CI runs against a database is in `.github/workflows/database.yml`; the unit list is in `checks.yml`.
+| Folder | Needs | Runs | Cost |
+| --- | --- | --- | --- |
+| `tests/unit` | nothing | before every push and in CI (`npm run test:unit`) | free, seconds |
+| `tests/db` | the local stack, `npm run dev`, Chrome | weekly in CI (`npm run test:db`) | free, about forty minutes |
+| `tests/ai` | Claude Code or Codex signed in | by hand, one at a time | a little of your own plan |
+| `tests/look` | as `tests/db`, and `SCREENSHOTS=<folder>` | by hand | free, pictures to look at |
+| `tests/local` | this computer's own saved sign-in, or a throwaway machine (`os-autostart`) | by hand, or in CI | free |
+| `tests/chaos` | `connect`: nothing; `db`: a throwaway stack named for it (it wipes the database) | every push, and weekly | free |
+
+- Run one with `node --experimental-websocket tests/<folder>/<suite>.mjs` (the flag is needed on Node 20).
 - `node tools/house-rules.mjs` checks the repository's own rules.
+- After adding a migration, apply it locally and run `node tools/schema.mjs`: `supabase/schema.sql` is the whole
+  database as the migrations leave it, and CI fails when it is out of date.
 - A real-model suite can miss now and then on the model's judgement or a slow reply: run it again before believing a
   failure.
 - Two real-model suites at once can trip the local sign-in mail limit: run them one at a time.

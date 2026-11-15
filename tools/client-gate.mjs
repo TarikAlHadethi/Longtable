@@ -1,6 +1,6 @@
 // No connection is published with client-facing words the hard probe has not passed. The fingerprint is of what the
 // models are actually handed (every client prompt, system and schema for each kind of job) plus the rulebook's own
-// checks, so a change anywhere that reaches a client's answer needs `node tests/e2e/probe-client.mjs` to pass again.
+// checks, so a change anywhere that reaches a client's answer needs `node tests/ai/probe-client.mjs` to pass again.
 // Run by `npm publish` in packages/connect (prepublishOnly), and by the probe itself to record a pass.
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
@@ -34,7 +34,7 @@ if (process.argv[1] && resolve(fileURLToPath(import.meta.url)).toLowerCase() ===
     console.error(last
       ? "Stopped: what a client's assistant is told changed since the hard probe last passed."
       : "Stopped: the hard probe of the client's assistant has not passed on this computer yet.");
-    console.error("Run it first (a few minutes, real model):  node tests/e2e/probe-client.mjs");
+    console.error("Run it first (a few minutes, real model):  node tests/ai/probe-client.mjs");
     process.exit(1);
   }
 }

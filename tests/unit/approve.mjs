@@ -1,0 +1,140 @@
+// The approval server of a full Claude Code run, with no AI and no database: what a person is shown, which answers
+// can become an "always allow", that rules written into its file by anyone else are dropped, and the whole exchange
+// (Claude Code asks, Longtable asks the person, the answer comes back) against a stand-in Longtable.
+//
+//   node tests/unit/approve.mjs
+
+import { spawn } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { alwaysRules, describe, ruleFor, SHOW_MAX, whyOf } from "../../packages/connect/src/approve-server.mjs";
+
+const results = {};
+const check = (name, ok, detail) => { results[name] = ok ? "pass" : `FAIL ${JSON.stringify(detail ?? "").slice(0, 300)}`; };
+const NL = String.fromCharCode(10);
+
+// What the person is shown.
+check("a command is shown whole", describe("Bash", { command: "npm test -- --watch=false" }) === "npm test -- --watch=false");
+// Claude Code's PowerShell tool runs commands too: shown, explained and remembered the same way, as its own rule.
+check("a PowerShell command is shown whole, with Claude's reason, and remembered as exactly that command",
+  describe("PowerShell", { command: "npm test", description: "Run the tests" }) === "npm test" && whyOf("PowerShell", { command: "npm test", description: "Run the tests" }) === "Run the tests"
+  && ruleFor("PowerShell", { command: "npm test" }) === "PowerShell(npm test)" && ruleFor("PowerShell", { command: "npm test; rm -r x" }) === null);
+check("any other tool shows its whole input, not just a path", /force/.test(describe("mcp__gh__push", { path: "README", branch: "main", force: true }) || ""));
+check("leaving the sandbox or running on in the background is shown, never hidden behind the command", /outside the sandbox/.test(describe("Bash", { command: "npm test", dangerouslyDisableSandbox: true }) || "") && /background/.test(describe("Bash", { command: "npm run dev", run_in_background: true }) || ""));
+check("and is never offered as always allow", ruleFor("Bash", { command: "npm test", dangerouslyDisableSandbox: true }) === null && ruleFor("Bash", { command: "npm run dev", run_in_background: true }) === null);
+check("a request too long to show in full is refused, never cut", describe("Bash", { command: "x".repeat(SHOW_MAX + 1) }) === null);
+
+// What "always allow" may add.
+check("always allow is one plain command, exactly as asked", ruleFor("Bash", { command: "npm test" }) === "Bash(npm test)");
+check("never a whole tool", ruleFor("Write", { file_path: "/etc/hosts" }) === null && ruleFor("WebFetch", { url: "https://x" }) === null);
+check("never a command Claude Code could read as a pattern", ruleFor("Bash", { command: "git log *" }) === null && ruleFor("Bash", { command: "npm run:*" }) === null);
+check("never commands chained together", ["npm test && rm -rf ~", "npm test; curl x", "npm test | sh", "echo $(id)", "a `b`", `npm test${NL}rm -rf ~`, "cat > ~/.bashrc"]
+  .every((command) => ruleFor("Bash", { command }) === null));
+
+// What is read back from the file on this computer.
+const dir = mkdtempSync(join(tmpdir(), "lt-approve-"));
+const file = join(dir, "allow.json");
+writeFileSync(file, JSON.stringify(["Bash(npm test)", "Bash", "Write", "Bash(git log *)", "Bash(npm test && curl evil)", "WebFetch(domain:evil.test)", 42]));
+check("rules written into the file by anyone else are dropped", JSON.stringify(alwaysRules(file)) === JSON.stringify(["Bash(npm test)"]), alwaysRules(file));
+check("a missing or broken file is no rules", alwaysRules(join(dir, "none.json")).length === 0);
+
+// The whole exchange, against a stand-in Longtable that answers the person's way.
+let asked = null;
+let uploaded = null;
+let attached = null;
+let answer = "allowed";
+let replyWords = "Blue, the darker one";
+const longtable = createServer((req, res) => {
+  let body = "";
+  req.on("data", (d) => (body += d));
+  req.on("end", () => {
+    // A file put into its job's place in storage.
+    if (req.url.includes("/storage/v1/object/attachments/")) { uploaded = decodeURIComponent(req.url); res.setHeader("Content-Type", "application/json"); return res.end("{}"); }
+    const args = JSON.parse(body || "{}");
+    res.setHeader("Content-Type", "application/json");
+    if (req.url.endsWith("/runner_ask_approval")) { asked = args; return res.end(JSON.stringify("a-1")); }
+    if (req.url.endsWith("/runner_ask_question")) { asked = args; return res.end(JSON.stringify("q-1")); }
+    if (req.url.endsWith("/runner_upload_slot")) return res.end(JSON.stringify("t1/ai-" + "a".repeat(32) + "/"));
+    if (req.url.endsWith("/runner_attach")) { attached = args; return res.end(JSON.stringify("f-1")); }
+    if (req.url.endsWith("/runner_approval")) {
+      // The job ended: its key is dead, and the server says so.
+      if (answer === "gone") { res.statusCode = 400; return res.end(JSON.stringify({ message: "that key is not for a running job" })); }
+      return res.end(JSON.stringify({ status: answer, always: answer === "allowed", answer: answer === "allowed" ? replyWords : null }));
+    }
+    res.statusCode = 404; res.end("{}");
+  });
+});
+await new Promise((r) => longtable.listen(0, r));
+const url = `http://127.0.0.1:${longtable.address().port}`;
+const server = resolve(fileURLToPath(new URL("../../packages/connect/src/approve-server.mjs", import.meta.url)));
+
+async function exchange(tool, input, extra = {}, name = "approve") {
+  const child = spawn(process.execPath, [server], { env: { ...process.env, LT_SUPABASE_URL: url, LT_KEY: "k", LT_JOB_KEY: "job-key", LT_ALWAYS: file, LT_POLL_MS: "50", LT_WAIT_MS: "3000", ...extra } });
+  let out = "";
+  child.stdout.on("data", (d) => (out += d));
+  const send = (m) => child.stdin.write(JSON.stringify(m) + NL);
+  send({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } });
+  send({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name, arguments: name === "approve" ? { tool_name: tool, input } : input } });
+  for (let i = 0; i < 100 && !out.includes('"id":2'); i++) await new Promise((r) => setTimeout(r, 50));
+  child.kill();
+  const line = out.split(NL).find((l) => l.includes('"id":2'));
+  const text = JSON.parse(line).result.content[0].text;
+  return name === "approve" ? JSON.parse(text) : text;
+}
+
+writeFileSync(file, "[]");
+const yes = await exchange("Bash", { command: "npm test", description: "Run the unit tests" });
+check("the person is asked with the job's own key, never the device token", asked?.key === "job-key" && asked?.summary === "npm test" && !("token" in asked), asked);
+check("and told in one plain line why, in the words Claude wrote for it", asked?.why === "Run the unit tests", asked);
+check("an allow lets it run, as asked", yes.behavior === "allow" && yes.updatedInput?.command === "npm test", yes);
+check("an always allow is kept on this computer as that one command", JSON.stringify(JSON.parse(readFileSync(file, "utf8"))) === JSON.stringify(["Bash(npm test)"]));
+answer = "denied";
+const no = await exchange("Bash", { command: "rm -rf build" });
+check("a no stops it, and says not to try another way", no.behavior === "deny" && /another way/.test(no.message), no);
+answer = "expired";
+const late = await exchange("Bash", { command: "npm run build" });
+check("a request whose job ended is a no", late.behavior === "deny", late);
+answer = "gone";
+// With no limit at all (as it runs for real), it still stops at once when the job is gone.
+const goneAt = Date.now();
+const gone = await exchange("Bash", { command: "npm run lint" }, { LT_WAIT_MS: "" });
+check("when the job has ended and its key with it, it stops waiting at once and says no", gone.behavior === "deny" && /ended before/.test(gone.message) && Date.now() - goneAt < 2500, { gone, ms: Date.now() - goneAt });
+answer = "allowed";
+await exchange("Write", { file_path: "C:\\x\\src\\booking.tsx", content: "x" });
+check("a file it would change is named as the reason", asked?.why === "Change booking.tsx", asked);
+await exchange("mcp__tracker__create_issue", { title: "x", description: "Run the tests" });
+check("another tool's description field is never shown as the reason", asked?.why === null, asked);
+const long = await exchange("Bash", { command: "y".repeat(SHOW_MAX + 50) });
+check("a request too long to show is refused without asking", long.behavior === "deny" && /too long/.test(long.message), long);
+// A question with choices: asked with the job's own key, and the answer comes back as their words.
+answer = "allowed";
+const q = await exchange("ask", { question: "Which colour?", options: [{ label: "Red" }, { label: "Blue", description: "the darker one" }] }, {}, "ask");
+check("a question goes to the person with its choices", asked?.key === "job-key" && asked?.question === "Which colour?" && asked?.options?.length === 2 && asked.options[1].about === "the darker one", asked);
+check("and their answer comes back to Claude in their words", typeof q === "string" && /They answered: Blue, the darker one/.test(q), q);
+// Putting a file on its answer: only from the folder it works in or its screenshots, never secrets, notes, folders or huge files.
+const work = join(dir, "work");
+mkdirSync(join(work, ".longtable-yours"), { recursive: true });
+writeFileSync(join(work, "report.csv"), "a,b\n1,2\n");
+writeFileSync(join(work, ".env"), "KEY=1\n");
+writeFileSync(join(work, ".longtable-yours", "recent-conversation.md"), "private");
+writeFileSync(join(dir, "elsewhere.txt"), "not in the work folder");
+const roots = { LT_SHARE_ROOTS: work };
+const ok = await exchange("share_file", { path: join(work, "report.csv") }, roots, "share_file");
+check("a file from the folder it works in goes on its answer, into its own job's place", /report\.csv is on your answer/.test(ok) && /\/storage\/v1\/object\/attachments\/t1\/ai-a{32}\/.+-report\.csv$/.test(uploaded || "") && attached?.name === "report.csv", { ok, uploaded, attached });
+uploaded = null;
+const outside = await exchange("share_file", { path: join(dir, "elsewhere.txt") }, roots, "share_file");
+const notes = await exchange("share_file", { path: join(work, ".longtable-yours", "recent-conversation.md") }, roots, "share_file");
+const secret = await exchange("share_file", { path: join(work, ".env") }, roots, "share_file");
+const folder = await exchange("share_file", { path: work }, roots, "share_file");
+check("never a file from elsewhere, the person's own notes, a secret file or a folder", /Only a file from the folder/.test(outside) && /Only a file from the folder/.test(notes) && /never shares/.test(secret) && /not a file/.test(folder) && uploaded === null, { outside, notes, secret, folder });
+writeFileSync(join(work, "big.bin"), Buffer.alloc(16 * 1024 * 1024));
+check("never a file over 15 MB", /over 15 MB/.test(await exchange("share_file", { path: join(work, "big.bin") }, roots, "share_file")));
+longtable.close();
+
+console.log(JSON.stringify({ checks: results }, null, 2));
+const failed = Object.values(results).filter((v) => v !== "pass").length;
+console.log(`${Object.keys(results).length - failed} passed, ${failed} failed`);
+process.exit(failed ? 1 : 0);

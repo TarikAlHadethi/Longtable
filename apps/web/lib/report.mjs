@@ -3,7 +3,7 @@
 // send nothing. What is sent is built up from a short list of things known to be safe, never cut down from the whole:
 // the kind of error, where in the code, the browser and the page's route shape. Messages, client chats, prompts,
 // file names, emails, names, addresses, tokens, cookies and request bodies never leave. Anything unsure is dropped.
-// Plain JavaScript, so tests/e2e/unit-report.mjs can run it through the real Sentry client with no build.
+// Plain JavaScript, so tests/unit/report.mjs can run it through the real Sentry client with no build.
 
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 // The key shapes tools/scan-staged.mjs knows, then anything long and random (table ids and invite tokens too).

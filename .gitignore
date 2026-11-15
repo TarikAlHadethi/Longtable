@@ -33,4 +33,4 @@ Thumbs.db
 
 # drafts that never leave this machine
 private/
-tests/e2e/bench-ai.json
+tests/ai/bench.json

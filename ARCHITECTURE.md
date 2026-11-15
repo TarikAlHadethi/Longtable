@@ -55,7 +55,7 @@ The web app is a view over that; a modified page gains nothing.
 - `fence.mjs`: everything from the table, a file or another AI goes inside a fence it cannot close (`inert`).
 - `pointed.mjs`: opening a path a person pastes, the never-open list (browser profiles, whole drives) and `isSecretName`,
   the one list of key and sign-in file names used everywhere.
-- `client-rules.mjs`: every word that decides a client's message. `unit-client-rules` fails if routing words appear
+- `client-rules.mjs`: every word that decides a client's message. `unit/client-rules` fails if routing words appear
   anywhere else.
 - `approve-server.mjs`: an MCP server that brings Claude Code's permission prompts to the person in Longtable.
 - `update.mjs`: the connection updates itself to the version the database names (`connect_release`), checked against
@@ -84,7 +84,7 @@ settings do not already allow asked of them first. Teammates' and clients' reque
 ## The client's side
 
 - A client sees only `client-page.tsx`, never the room. They read their own requests, lines and updates; the policies
-  return nothing else (tested as every person after every random step in `chaos-db`).
+  return nothing else (tested as every person after every random step in `chaos/db`).
 - Their message goes to an assistant (`client` job): their own AI if they connected one, else the team's. It answers,
   looks at the code through a team AI with only its own question (never the client's raw words), builds a change in
   the client's own copy, or passes it to the team as a request. The client's assistant has no tools, ever.

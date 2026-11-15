@@ -1,6 +1,6 @@
 // The one rulebook for everything that answers a client: the team's assistant (the desk), a client's own assistant,
 // and the deeper look that reads the code. Every client-facing prompt is built from here, the connection checks each
-// answer against it before the client sees it (checkClientReply), and tests/e2e/probe-client.mjs runs every case.
+// answer against it before the client sees it (checkClientReply), and tests/ai/probe-client.mjs runs every case.
 // The gaps found so far all came from two places saying different things ("pass on any change" beside "try changes in
 // their copy", "say the team has new features" beside "build it"), so a rule lives here and nowhere else.
 import { inert } from "./fence.mjs";
