@@ -84,7 +84,8 @@ const listen = (cols = 100, rows = 30, id = "1") => {
   return got;
 };
 // What a command printed, told apart from the command as typed: its words are joined only when it runs.
-const plain = (s) => s.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "").replace(/\x1b\][^\x07]*\x07/g, "");
+// A cursor moved to the start of a row is a new line: Windows' console draws one that way instead of a newline.
+const plain = (s) => s.replace(/\x1b\[\d+;1H/g, "\n").replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "").replace(/\x1b\][^\x07]*\x07/g, "");
 const shows = (got, word) => until(() => plain(got.text).split(/\r?\n/).some((l) => l.trim().endsWith(word) && !l.includes("+") && !l.includes("'")), 15000);
 const typeIn = (data) => post("/term", mine, { data });
 const term = listen();
