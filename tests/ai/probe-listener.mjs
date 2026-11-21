@@ -30,6 +30,9 @@ const cases = [
   ["silent", { ...base, asker: "Sam", people: duo, question: "Maya can you send me the figma link later? I need it for the meeting tomorrow" }],
   ["silent", { ...base, people: duo, question: "sam can you review my PR when you get a sec" }],
   ["look", { ...base, people: duo, question: "what did sam change in the booking flow last week" }],
+  ["look", { ...base, asker: "Sam", people: duo, history: [{ name: "Sam", body: "can i not turn enable data api off, just incase" }, { name: "Maya", by_ai: true, body: "Yes, leave it on. Nothing breaks either way. The errors are noise in the log, not a fault." }], question: "because when we handover the system later to the department they might need that on for some reason" }],
+  ["look", { ...base, people: solo, history: [{ name: "Maya", by_ai: true, body: "Use Postgres's own full-text search for this; no extra service needed." }], question: "but we might move off postgres next year" }],
+  ["silent", { ...base, people: duo, history: [{ name: "Maya", by_ai: true, body: "The reminder text goes out at 6 pm the day before." }], question: "lol nice" }],
   ["work", { ...base, people: solo, question: "make the book button green on the booking page" }],
   ["work", { ...base, people: solo, history: [{ name: "Maya", by_ai: true, body: "I can move the search box above the list if you want." }], question: "yes do it" }],
 ];
