@@ -33,6 +33,11 @@ const cases = [
   ["look", { ...base, asker: "Sam", people: duo, history: [{ name: "Sam", body: "can i not turn enable data api off, just incase" }, { name: "Maya", by_ai: true, body: "Yes, leave it on. Nothing breaks either way. The errors are noise in the log, not a fault." }], question: "because when we handover the system later to the department they might need that on for some reason" }],
   ["look", { ...base, people: solo, history: [{ name: "Maya", by_ai: true, body: "Use Postgres's own full-text search for this; no extra service needed." }], question: "but we might move off postgres next year" }],
   ["silent", { ...base, people: duo, history: [{ name: "Maya", by_ai: true, body: "The reminder text goes out at 6 pm the day before." }], question: "lol nice" }],
+  ["look", { ...base, people: duo, question: "the vercel build keeps failing since this morning" }],
+  ["look", { ...base, people: duo, question: "not sure how we should handle the handover to the department" }],
+  ["look", { ...base, people: solo, question: "booking page feels really slow on my phone" }],
+  ["silent", { ...base, people: duo, question: "ok im heading out, talk tomorrow" }],
+  ["silent", { ...base, people: duo, history: [{ name: "Sam", body: "i'll take the login page this week" }], question: "cool, i'll do the reminder emails then" }],
   ["work", { ...base, people: solo, question: "make the book button green on the booking page" }],
   ["work", { ...base, people: solo, history: [{ name: "Maya", by_ai: true, body: "I can move the search box above the list if you want." }], question: "yes do it" }],
 ];
