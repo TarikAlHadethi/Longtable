@@ -2962,7 +2962,7 @@ begin
          and exists (select 1 from public.connections cn
                       where cn.member_id = who and cn.revoked_at is null and cn.kind = 'claude' and cn.last_seen > now() - interval '60 seconds')
          and public.member_sees_chat(l.chat_id, who) then
-        insert into public.jobs (table_id, chat_id, member_id, question_id, kind, early) values (l.table_id, l.chat_id, who, latest, 'look', true);
+        perform public.start_look(l.table_id, l.chat_id, latest, who, true);
       end if;
     end loop;
     if skipped is not null then
@@ -3613,12 +3613,13 @@ declare
   w public.jobs;
   n integer := 0;
 begin
-  for w in select * from public.jobs where kind = 'combine' and status = 'waiting' for update skip locked loop
+  for w in select * from public.jobs where kind in ('combine', 'look') and status = 'waiting' for update skip locked loop
     if not exists (select 1 from public.jobs v where v.round = w.round and v.kind = 'view' and v.status in ('queued', 'running'))
        or w.created_at < now() - interval '90 seconds' then
       update public.jobs set status = 'skipped', error = 'did not answer in time'
         where round = w.round and kind = 'view' and status = 'queued';
-      update public.jobs set status = 'queued' where id = w.id;
+      -- A look is timed from when it can start, or the listener's 45 seconds would drop it at once.
+      update public.jobs set status = 'queued', created_at = case when w.kind = 'look' then now() else created_at end where id = w.id;
       n := n + 1;
     end if;
   end loop;
@@ -4084,7 +4085,7 @@ begin
      limit case when j.kind = 'listen' then 150 else 400 end
   ) x;
 
-  if j.kind in ('combine', 'work', 'review', 'plan') then
+  if j.kind in ('combine', 'work', 'review', 'plan') or (j.kind = 'look' and j.round is not null) then
     select coalesce(jsonb_agg(jsonb_build_object('name', mem.display_name, 'view', m.body, 'meta', m.meta) order by m.created_at), '[]'::jsonb)
       into views
       from public.messages m join public.members mem on mem.id = m.member_id
@@ -4461,18 +4462,17 @@ begin
     -- An early run that is not needed after all is stopped; one already under way as the look is kept.
     if act <> 'look' then
       update public.jobs set status = 'skipped', lease_until = null, error = 'not needed'
-       where question_id = j.question_id and kind = 'look' and early and status in ('queued', 'running');
+       where question_id = j.question_id and kind in ('look', 'view') and early and status in ('queued', 'running', 'waiting');
     end if;
-    if act = 'look' and exists (select 1 from public.jobs e where e.question_id = j.question_id and e.kind = 'look' and e.early and e.status in ('queued', 'running', 'done')) then
+    if act = 'look' and exists (select 1 from public.jobs e where e.question_id = j.question_id and e.kind = 'look' and e.early and e.status in ('queued', 'running', 'waiting', 'done')) then
       null;
     elsif act = 'look' then
       -- A look is done by the Claude of whoever asked, when it is on: it is the one that knows what they know. Else by
-      -- the table's seat.
-      insert into public.jobs (table_id, chat_id, member_id, question_id, kind)
-        values (j.table_id, j.chat_id,
-                coalesce((select cn.member_id from public.connections cn
-                           where cn.member_id = q.member_id and cn.revoked_at is null and cn.last_seen > now() - interval '60 seconds' limit 1), j.member_id),
-                j.question_id, 'look');
+      -- the table's seat. The other AIs that are on give their views first.
+      perform public.start_look(j.table_id, j.chat_id, j.question_id,
+        coalesce((select cn.member_id from public.connections cn
+                   where cn.member_id = q.member_id and cn.revoked_at is null and cn.last_seen > now() - interval '60 seconds' limit 1), j.member_id),
+        false);
     elsif act = 'work' and q.id is not null then
       -- A follow-up goes on with the task it belongs to; anything else is a new task with its own branch.
       select t2.id into tk from public.tasks t2 where t2.table_id = j.table_id and t2.id::text = coalesce(info ->> 'task', '');
@@ -4493,7 +4493,7 @@ begin
     'confidence', public.kept_line(info ->> 'confidence', 40),
     'part', j.kind, 'stage', j.stage, 'task', j.task_id, 'ok', info -> 'ok', 'changed', info -> 'changed',
     'hidden', clean <> left(coalesce(answer, ''), 8000));
-  if j.kind = 'combine' then
+  if j.kind = 'combine' or (j.kind = 'look' and j.round is not null) then
     meta := meta || jsonb_build_object('parts', (
       select coalesce(jsonb_agg(distinct v.member_id), '[]'::jsonb) from public.jobs v
        where v.round = j.round and v.kind in ('view', 'work', 'review') and v.status = 'done' and v.member_id <> j.member_id));
@@ -5713,6 +5713,34 @@ begin
   if coalesce(current_setting('longtable.making_chat', true), '') <> '1' then
     perform public.log_activity(ch.table_id, me, 'chat.set_up', c, jsonb_build_object('name', clean));
   end if;
+end;
+$$;
+
+--
+-- Name: start_look(uuid, uuid, uuid, uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.start_look(t uuid, c uuid, q uuid, writer uuid, early_ boolean) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare
+  r uuid := gen_random_uuid();
+  s uuid;
+  others integer := 0;
+begin
+  for s in select distinct cn.member_id
+             from public.connections cn join public.members m on m.id = cn.member_id
+            where cn.table_id = t and cn.revoked_at is null and cn.last_seen > now() - interval '60 seconds'
+              and m.role in ('owner', 'developer') and m.removed_at is null and public.member_sees_chat(c, m.id)
+              and cn.member_id <> writer loop
+    insert into public.jobs (table_id, chat_id, member_id, question_id, kind, round, early) values (t, c, s, q, 'view', r, early_);
+    others := others + 1;
+  end loop;
+  -- With nobody else on, the look starts now; else it waits for the views (release_rounds, at most 90 seconds).
+  insert into public.jobs (table_id, chat_id, member_id, question_id, kind, early, round, status)
+    values (t, c, writer, q, 'look', early_, case when others > 0 then r end,
+            case when others > 0 then 'waiting'::public.job_status else 'queued'::public.job_status end);
 end;
 $$;
 
@@ -10928,6 +10956,13 @@ GRANT ALL ON FUNCTION public.set_work_in_folder(conn uuid, on_ boolean) TO servi
 REVOKE ALL ON FUNCTION public.setup_chat(c uuid, chat_name text, chat_about text, who text, people uuid[], take_notes boolean, ai_answers text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.setup_chat(c uuid, chat_name text, chat_about text, who text, people uuid[], take_notes boolean, ai_answers text) TO authenticated;
 GRANT ALL ON FUNCTION public.setup_chat(c uuid, chat_name text, chat_about text, who text, people uuid[], take_notes boolean, ai_answers text) TO service_role;
+
+--
+-- Name: FUNCTION start_look(t uuid, c uuid, q uuid, writer uuid, early_ boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.start_look(t uuid, c uuid, q uuid, writer uuid, early_ boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.start_look(t uuid, c uuid, q uuid, writer uuid, early_ boolean) TO service_role;
 
 --
 -- Name: FUNCTION start_pairing(t uuid, ai_kind text); Type: ACL; Schema: public; Owner: -

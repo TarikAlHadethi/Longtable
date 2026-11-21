@@ -39,18 +39,19 @@ try {
 
   // Sam closes his tab; he was last here two hours ago.
   await sam.page.close();
+  // Two hours ago is "Yesterday" when run just after midnight.
   sql(`update public.member_seen set at = now() - interval '2 hours 5 minutes' where member_id = '${samId}'`);
   sql(`update public.member_seen set at = now() - interval '7 minutes' where member_id = '${elenaId}'`);
   await elena.page.close();
   await owner.page.reload();
   await owner.page.waitForSelector("[data-testid=messages]");
   const line = (name) => owner.page.locator(`[data-member="${name}"]`).innerText().catch(() => "");
-  check("the sidebar says when someone away was last seen", await until(async () => /Seen 2 hours ago/.test(await line("Sam Ali"))), await line("Sam Ali"));
+  check("the sidebar says when someone away was last seen", await until(async () => /Seen (2 hours ago|Yesterday)/.test(await line("Sam Ali"))), await line("Sam Ali"));
   check("a client's too, for the team", await until(async () => /Seen 7 min ago/.test(await line("Elena Ruiz"))), await line("Elena Ruiz"));
   check("someone here now shows no last seen", !/Seen/.test(await line("Maya Stone")), await line("Maya Stone"));
   await owner.page.click(`[data-member="Sam Ali"]`);
   const win = owner.page.locator("[data-testid=last-seen]");
-  check("their window says when they were last seen", await until(async () => /Last seen 2 hours ago/.test(await win.innerText().catch(() => ""))), await win.innerText().catch(() => ""));
+  check("their window says when they were last seen", await until(async () => /Last seen (2 hours ago|Yesterday)/.test(await win.innerText().catch(() => ""))), await win.innerText().catch(() => ""));
   await owner.page.keyboard.press("Escape");
   await sleep(500);
 

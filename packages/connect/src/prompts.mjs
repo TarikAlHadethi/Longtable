@@ -47,7 +47,7 @@ export const KINDS = {
     schema: { type: "object", properties: { title: { type: "string" }, html: { type: "string" } }, required: ["title", "html"], additionalProperties: false },
   },
   look: {
-    task: "Answer what the team is asking: a question, or the opinion or input they want. Use everything you know: the code in this folder (the project as it is here, which in your person's own folder includes their work in progress), what you know from working with your person, and the table's own facts. Change nothing. If you cannot tell, say what you checked. Sources are only files of the project itself.",
+    task: "Answer what the team is asking: a question, or the opinion or input they want. Use everything you know: the code in this folder (the project as it is here, which in your person's own folder includes their work in progress), what you know from working with your person, and the table's own facts. Change nothing. If you cannot tell, say what you checked. When the other AIs at the table gave their views below, weigh them, open what a view cites before you disagree with it, and say briefly where they differed. They never read the chat, so never put questions to them there. Sources are only files of the project itself.",
     schema: { type: "object", properties: { answer: { type: "string" }, sources: SOURCES }, required: ["answer", "sources"] },
   },
   work: {
@@ -63,7 +63,7 @@ export const KINDS = {
     schema: { type: "object", properties: { answer: { type: "string" }, sources: SOURCES }, required: ["answer", "sources"] },
   },
   view: {
-    task: "Give your view on the question for the team's back room: what the code says, what you are unsure of, and anything risky. Two to five sentences. If the team is asking for a change, another AI at this table makes it right after hearing you: say what it should watch for, and do not say that someone needs to make the change by hand. Another AI will combine everyone's views into one answer.",
+    task: "Give your view on the question for the team's back room: what the code says, what you are unsure of, and anything risky. Two to five sentences, unless you are asked questions yourself: then answer each one. If the team is asking for a change, another AI at this table makes it right after hearing you: say what it should watch for, and do not say that someone needs to make the change by hand. Another AI will combine everyone's views into one answer.",
     schema: {
       type: "object",
       properties: { view: { type: "string" }, confidence: { type: "string", enum: ["high", "medium", "low"] }, sources: SOURCES, learned: LEARNED },
@@ -162,7 +162,8 @@ const fence = (job) => {
   if (job.kind === "work" || job.kind === "review" || (job.kind === "combine" && job.worker)) {
     const label = (v) => (v.meta?.part === "plan" ? "the plan" : v.meta?.part === "work" ? "did its part of the work" : v.meta?.part === "review" ? (v.meta?.ok === false ? "looked it over, found a problem" : "looked it over, fine") : "view before the work");
     parts.push("The back room so far, oldest first:" + NL + (job.views?.length ? job.views.map((v) => `${v.name}'s AI (${label(v)}): ${v.view}`).join(NL) : "Nothing yet."));
-  } else if (job.kind === "combine") parts.push("Back-room views:\n" + (job.views?.length ? job.views.map((v) => `${v.name}'s AI (${v.meta?.confidence ?? "unsure"}): ${v.view}`).join("\n") : "None came in."));
+  } else if (job.kind === "look" && job.views?.length) parts.push("What the other AIs at the table said about it:\n" + job.views.map((v) => `${v.name}'s AI: ${v.view}`).join("\n"));
+  else if (job.kind === "combine") parts.push("Back-room views:\n" + (job.views?.length ? job.views.map((v) => `${v.name}'s AI (${v.meta?.confidence ?? "unsure"}): ${v.view}`).join("\n") : "None came in."));
   if (job.question) parts.push(`Question from ${job.asker}:\n${withPasted(job.question, job.question_pasted)}`);
   return ["<<<TABLE", fenced(inert(parts.join("\n\n"))), "TABLE>>>"].join("\n");
 };

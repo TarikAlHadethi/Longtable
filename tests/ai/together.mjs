@@ -1,5 +1,6 @@
 // Two people ask for different things at the same moment: two tasks, two branches, both AIs busy at once, the
-// room showing what each is on. Then a follow-up that goes back to its own task. (Setup as in step 12.)
+// room showing what each is on. Then a follow-up that goes back to its own task, and a question both AIs talk over.
+// (Setup as in step 12.)
 // Work at a table with two Claudes: the asker's Claude does the work, the other one says what it thinks before and
 // looks it over after, and the table answers once. The change lands on the chat's branch, never the default one.
 // Done when a request for a change puts a commit on the task's own branch in the project's repository, a review job ran,
@@ -133,6 +134,27 @@ try {
     const text = has(colors.branch, "docs/colors.md") ?? "";
     check("a follow-up goes on with its own task: no third task, and the change is on that branch", ts.length === 2 && /teal/i.test(text), { count: ts.length, tail: text.slice(-200) });
   }
+
+  // A question is talked over too: Sam's AI gives its view, then Maya's own Claude answers with it.
+  const before = (await rest(token, `jobs?select=id&table_id=eq.${owner.tableId}`)).body.length;
+  await owner.page.fill("textarea", "Claude, what does greet.js export, and is that a good name for it?");
+  await owner.page.click("button:has-text('Send')");
+  const askedAt = Date.now();
+  let qs = [];
+  for (;;) {
+    qs = (await rest(token, `jobs?select=kind,status,member_id,round,result_message_id&table_id=eq.${owner.tableId}&order=created_at`)).body.slice(before);
+    const look = qs.find((j) => j.kind === "look");
+    if (look && ["done", "failed", "skipped"].includes(look.status)) break;
+    if (Date.now() - askedAt > 5 * 60 * 1000) break;
+    await wait(1500);
+  }
+  results.questionJobs = qs.map((j) => `${j.kind}:${j.status}`);
+  const look = qs.find((j) => j.kind === "look");
+  const view = qs.find((j) => j.kind === "view");
+  check("a question to the table asks the other AI for its view", view?.status === "done" && look?.round && view?.round === look.round, results.questionJobs);
+  const said = look?.result_message_id && (await rest(token, `messages?select=body,meta&id=eq.${look.result_message_id}`)).body[0];
+  results.questionAnswer = said?.body?.slice(0, 400);
+  check("and the asker's own Claude answers with it", look?.status === "done" && (said?.meta?.parts ?? []).includes(view?.member_id), { jobs: results.questionJobs, meta: said?.meta });
 } finally {
   for (const r of runners) r.kill();
   await browser.close();

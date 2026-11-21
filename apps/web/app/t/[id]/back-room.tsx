@@ -101,6 +101,7 @@ export function BackRoom({ entries: backRoom, byId, connections, aiWord, onStop:
           : j.kind === "work" ? (j.status === "waiting" ? "starts once the others have had their say" : j.status === "queued" ? "has this next" : (j.stage ?? 0) > 0 ? "fixing what the others found" : "doing the work")
           : j.kind === "review" ? (j.status === "running" ? "looking it over" : "will look it over")
           : j.kind === "view" ? (j.status === "running" ? "giving its view" : "will give its view")
+          : j.kind === "look" && j.status === "waiting" ? "answers once the others have had their say"
           : j.kind === "intro" ? "reading the project"
           : j.status === "running" ? "reading the code"
           // Queued behind its other work while its computer is on is "next", not "waiting for its computer".

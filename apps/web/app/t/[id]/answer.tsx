@@ -18,7 +18,8 @@ export function Answer({ m, members, views, again, follows = false, pages = [], 
   const who = members.get(m.member_id);
   const name = who?.display_name ?? "Someone";
   const parts = m.meta?.parts ?? [];
-  const combined = !!m.meta?.round;
+  // An answer whose round heard nobody else (every view timed out) is still one AI's own.
+  const combined = !!m.meta?.round && (parts.length > 0 || views.length > 0);
   // The table speaking for itself: its quick word, with no code read and nobody's own AI behind it.
   const quick = m.meta?.part === "reply";
   const byOne = !combined && !quick;

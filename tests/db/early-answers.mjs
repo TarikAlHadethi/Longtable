@@ -1,5 +1,6 @@
 // The answer starts with the listener: a message plainly for the AI gets its asker's own Claude started beside the
-// listener; when the listener says look, that run is the look (no second one); when it says anything else, the early
+// listener, and the other AIs that are on start their views at once, which that Claude reads before it answers;
+// when the listener says look, that run is the look (no second one); when it says anything else, the early
 // run is stopped and its connection is told within a beat. Fake connections, no AI.
 //
 //   node --experimental-websocket tests/db/early-answers.mjs
@@ -41,10 +42,22 @@ try {
   on();
   const q1 = say(maya, "claude, what does the booking page do?");
   await settle(q1);
-  check("a message for the AI starts the asker's own Claude beside the listener", jobsOn(q1) === "listen:queued:false,look:queued:true", jobsOn(q1));
+  check("a message for the AI starts the asker's own Claude beside the listener, waiting for the other AI's view", jobsOn(q1) === "listen:queued:false,look:waiting:true,view:queued:true", jobsOn(q1));
+  check("the view is the other person's AI", sql(`select member_id from public.jobs where question_id = '${q1}' and kind = 'view'`) === samId);
   check("the early look is the asker's own", sql(`select member_id from public.jobs where question_id = '${q1}' and kind = 'look'`) === maya);
   await finishListen(q1, "look");
   check("when the listener says look, that early run is the look: no second one", sql(`select count(*) from public.jobs where question_id = '${q1}' and kind = 'look'`) === "1", jobsOn(q1));
+  check("and it waits while the other AI is still giving its view", sql(`select status from public.jobs where question_id = '${q1}' and kind = 'look'`) === "waiting", jobsOn(q1));
+  const view1 = sql(`select id from public.jobs where question_id = '${q1}' and kind = 'view'`);
+  sql(`update public.jobs set status = 'running', started_at = now(), lease_until = now() + interval '1 minute', connection_id = (select id from public.connections where member_id = '${samId}' and revoked_at is null limit 1) where id = '${view1}'`);
+  await anon("runner_finish", { token: device.sam, job: view1, answer: "The booking page lists open slots from slots.ts; the cancel path is untested.", info: { sources: [] } });
+  check("once the view is in, the asker's Claude starts", sql(`select status from public.jobs where question_id = '${q1}' and kind = 'look'`) === "queued", jobsOn(q1));
+  sql(`update public.jobs set status = 'done' where question_id = '${q1}' and kind = 'listen'`);
+  const claimed = (await anon("runner_claim", { token: device.maya, lane: "light" })).body;
+  check("and it is handed what the other AI said", claimed?.kind === "look" && (claimed.views || []).some((v) => v.name === "Sam Lee" && /slots\.ts/.test(v.view)), claimed && { kind: claimed.kind, views: claimed.views });
+  await anon("runner_finish", { token: device.maya, job: claimed?.job_id, answer: "It lists open slots; Sam's AI notes the cancel path is untested.", info: { sources: [] } });
+  const said1 = `(select result_message_id from public.jobs where question_id = '${q1}' and kind = 'look')`;
+  check("its answer names who took part", sql(`select meta -> 'parts' from public.messages where id = ${said1}`).includes(samId), sql(`select meta from public.messages where id = ${said1}`));
 
   // 2. A question the listener decides is not for the AI: the early run is stopped, and its heartbeat hears so.
   await sleep(1500); on();
@@ -56,6 +69,7 @@ try {
   sql(`update public.jobs set status = 'running', started_at = now(), lease_until = now() + interval '1 minute' where id = '${early2}'`);
   await finishListen(q2, "silent");
   check("when the listener says silent, the early run is stopped", sql(`select status || ':' || coalesce(error, '') from public.jobs where id = '${early2}'`) === "skipped:not needed", jobsOn(q2));
+  check("and so is the other AI's view", sql(`select status from public.jobs where question_id = '${q2}' and kind = 'view'`) === "skipped", jobsOn(q2));
   check("and its connection's next beat says stop", (await anon("runner_beat", { token: device.maya, job: early2, note: "reading" })).body === false);
 
   // 3. A question to someone else at the table is theirs: no early run.
@@ -73,6 +87,18 @@ try {
   await finishListen(q4, "work");
   check("when the listener says work, the early run is stopped and the work starts", sql(`select status from public.jobs where question_id = '${q4}' and kind = 'look'`) === "skipped"
     && sql(`select count(*) from public.jobs where question_id = '${q4}' and kind not in ('listen', 'look')`) !== "0", jobsOn(q4));
+
+  // 4b. A view that never comes holds the answer back at most 90 seconds.
+  await sleep(1500);
+  sql(`update public.jobs set status = 'skipped' where table_id = '${t}' and status in ('queued', 'running', 'waiting')`);
+  on();
+  const q6 = say(maya, "claude, where are the reminder texts sent from?");
+  await settle(q6);
+  sql(`update public.jobs set created_at = now() - interval '2 minutes' where question_id = '${q6}' and kind = 'look'`);
+  sql(`select public.release_rounds()`);
+  check("a view that never comes is let go after 90 seconds and the answer starts", sql(`select status from public.jobs where question_id = '${q6}' and kind = 'look'`) === "queued"
+    && sql(`select status from public.jobs where question_id = '${q6}' and kind = 'view'`) === "skipped", jobsOn(q6));
+  check("and it is timed from then, so the listener's clean-up does not drop it", sql(`select created_at > now() - interval '10 seconds' from public.jobs where question_id = '${q6}' and kind = 'look'`) === "t");
 
   // 5. With the asker's Claude off, nothing starts early.
   await sleep(1500);
