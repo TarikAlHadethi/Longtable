@@ -64,6 +64,13 @@ type View = "table" | "chat" | "client" | "logs" | "settings" | "sandbox";
 // Times from the server and from this computer are written differently; they are compared as moments, not as text.
 const after = (a: string, b: string) => new Date(a).getTime() > new Date(b).getTime();
 
+
+// "5m", "3h", "2d": how long ago, in as few letters as fit beside a name.
+function shortAgo(iso: string) {
+  const mins = Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 60000));
+  return mins < 1 ? "now" : mins < 60 ? `${mins}m` : mins < 24 * 60 ? `${Math.floor(mins / 60)}h` : `${Math.floor(mins / 1440)}d`;
+}
+
 export function Room({ table, me, initialMembers, initialChats, initialMessages, initialDecisions, initialJobs, initialConnections, initialRequests, initialChatId, initialView, initialTableModel, initialTasks, initialChanges, initialSandboxes, initialSandboxSettings, initialSandbox }: {
   table: { id: string; name: string; main_owner?: string | null };
   me: Member;
@@ -1145,12 +1152,18 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                   {m.role === "owner" && <span className={styles.crown}><Crown size={16} /></span>}
                 </div>
                 <div className={styles.personText}>
-                  <div className={styles.personName} style={{ color: m.name_color || undefined }}>{m.display_name}</div>
                   {(() => {
                     const ai = m.role === "client" ? null : aiState(m.id);
                     const away = !online.has(m.id) && !m.test && seen.get(m.id);
-                    const words = [ai ? `${ai.word} ${ai.on ? "connected" : "disconnected"}` : m.test ? "Not a real person" : m.role === "client" ? "Client" : "", m.status, away ? `Seen ${formatAgo(away)}` : ""].filter(Boolean).join(" · ");
-                    return words ? <div className={styles.personMeta} data-ai={ai ? (ai.on ? "on" : "off") : undefined}>{ai && <i className={`${styles.aiDot} ${ai.on ? styles.aiDotOn : ""}`} />}{words}</div> : null;
+                    const words = [ai ? `${ai.word} ${ai.on ? "connected" : "disconnected"}` : m.test ? "Not a real person" : m.role === "client" ? "Client" : "", m.status].filter(Boolean).join(" · ");
+                    return <>
+                      {/* When someone away was last here: short and quiet beside the name, so every line stays one line. */}
+                      <div className={styles.personTop}>
+                        <div className={styles.personName} style={{ color: m.name_color || undefined }}>{m.display_name}</div>
+                        {away && <span className={styles.personSeen} title={`Seen ${formatAgo(away)}`} data-testid="seen-short">{shortAgo(away)}</span>}
+                      </div>
+                      {words && <div className={styles.personMeta} data-ai={ai ? (ai.on ? "on" : "off") : undefined}>{ai && <i className={`${styles.aiDot} ${ai.on ? styles.aiDotOn : ""}`} />}<span className={styles.personMetaWords}>{words}</span></div>}
+                    </>;
                   })()}
                 </div>
               </button>
@@ -1256,7 +1269,7 @@ export function Room({ table, me, initialMembers, initialChats, initialMessages,
                 const { follows, held } = runs[at] ?? { follows: false, held: false };
                 if (it.kind === "decision") return card(it.d);
                 const m = it.m;
-                return <MessageRow key={m.id} m={m} who={byId.get(m.member_id)} mine={m.member_id === me.id} follows={follows} held={held} supabase={supabase} members={byId}
+                return <MessageRow key={m.local_key ?? m.id} m={m} who={byId.get(m.member_id)} mine={m.member_id === me.id} follows={follows} held={held} supabase={supabase} members={byId}
                   views={m.meta?.round ? viewsByRound.get(m.meta.round) ?? NONE : NONE} pages={m.meta?.job ? pagesByJob.get(m.meta.job) ?? NONE : NONE}
                   onOpenPage={setOpenPage} repo={tableRepo ?? null}
                   again={m.kind === "intro" && items.some((o) => o.kind !== "decision" && o.m.kind === "intro" && o.m.member_id === m.member_id && o.m.created_at < m.created_at)} />;

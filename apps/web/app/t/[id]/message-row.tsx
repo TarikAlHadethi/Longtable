@@ -75,7 +75,7 @@ export function arrived(prev: Message[], fresh: Message[]): Message[] {
   let out = prev;
   for (const m of fresh) {
     const stand = out.findIndex((x) => x.state === "sending" && x.chat_id === m.chat_id && x.member_id === m.member_id && x.body === m.body);
-    out = stand >= 0 ? [...out.slice(0, stand), ...out.slice(stand + 1), m] : [...out, m];
+    out = stand >= 0 ? [...out.slice(0, stand), { ...m, local_key: out[stand].local_key ?? out[stand].id }, ...out.slice(stand + 1)] : [...out, m];
   }
   return out;
 }

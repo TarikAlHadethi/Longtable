@@ -45,9 +45,10 @@ try {
   await elena.page.close();
   await owner.page.reload();
   await owner.page.waitForSelector("[data-testid=messages]");
-  const line = (name) => owner.page.locator(`[data-member="${name}"]`).innerText().catch(() => "");
-  check("the sidebar says when someone away was last seen", await until(async () => /Seen (2 hours ago|Yesterday)/.test(await line("Sam Ali"))), await line("Sam Ali"));
-  check("a client's too, for the team", await until(async () => /Seen 7 min ago/.test(await line("Elena Ruiz"))), await line("Elena Ruiz"));
+  // The short time beside the name ("2h"), with the whole of it ("Seen 2 hours ago") on pointing.
+  const line = async (name) => { const at = owner.page.locator(`[data-member="${name}"] [data-testid=seen-short]`); return (await at.count()) ? `${await at.innerText()} ${await at.getAttribute("title")}` : ""; };
+  check("the sidebar says when someone away was last seen", await until(async () => /^(2h|1d) Seen (2 hours ago|Yesterday)/.test(await line("Sam Ali"))), await line("Sam Ali"));
+  check("a client's too, for the team", await until(async () => /^7m Seen 7 min ago/.test(await line("Elena Ruiz"))), await line("Elena Ruiz"));
   check("someone here now shows no last seen", !/Seen/.test(await line("Maya Stone")), await line("Maya Stone"));
   await owner.page.click(`[data-member="Sam Ali"]`);
   const win = owner.page.locator("[data-testid=last-seen]");

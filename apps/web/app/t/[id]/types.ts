@@ -40,6 +40,8 @@ export type Message = {
     job?: string | null;
   };
   state?: "sending" | "failed";
+  // The stand-in's id, kept on the real message that replaces it, so the row is the same one on screen.
+  local_key?: string;
 };
 
 export type Job = {
